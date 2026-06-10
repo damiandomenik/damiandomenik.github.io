@@ -1,1 +1,307 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projekt 2 — Damiano Domenik</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:      #0e0e0e;
+      --surface: #161616;
+      --border:  #2a2a2a;
+      --text:    #e8e8e8;
+      --muted:   #888;
+      --accent:  #c8f55a;
+      --accent2: #3dffc0;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.2rem 2.5rem;
+      background: rgba(14,14,14,0.85);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* BACK LINK */
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 7rem;
+      margin-left: 2.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .back:hover { color: var(--accent); }
+
+    /* HERO */
+    .hero {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 2.5rem 5rem;
+    }
+    .hero-tag {
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      margin-bottom: 1.5rem;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+      padding: 1.5rem 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 3rem;
+    }
+    .meta-item {}
+    .meta-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+    .meta-value {
+      font-size: 0.92rem;
+      color: var(--text);
+    }
+
+    /* PREVIEW BOX */
+    .preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4rem;
+      overflow: hidden;
+    }
+    .preview-placeholder {
+      text-align: center;
+      color: var(--muted);
+    }
+    .preview-placeholder p {
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 0.5rem;
+    }
+    .preview-icon { font-size: 2.5rem; opacity: 0.3; }
+
+    /* CONTENT */
+    .content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 2.5rem;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 4rem;
+      align-items: start;
+    }
+    .content-main h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      letter-spacing: -0.01em;
+    }
+    .content-main p {
+      color: var(--muted);
+      line-height: 1.8;
+      margin-bottom: 1rem;
+      font-size: 0.95rem;
+    }
+
+    .content-side {}
+    .side-block {
+      margin-bottom: 2rem;
+    }
+    .side-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.8rem;
+    }
+    .tech-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .tech-tag {
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .side-link {
+      display: inline-block;
+      margin-top: 0.3rem;
+      font-size: 0.88rem;
+      color: var(--accent);
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .side-link:hover { opacity: 0.7; }
+
+    /* FOOTER */
+    footer {
+      max-width: 900px;
+      margin: 5rem auto 0;
+      padding: 2rem 2.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .footer-nav { display: flex; gap: 1.5rem; }
+    .footer-nav a {
+      color: var(--muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-nav a:hover { color: var(--accent); }
+
+    /* RESPONSIVE */
+    @media (max-width: 640px) {
+      nav { padding: 1rem 1.2rem; }
+      .nav-links { gap: 1rem; }
+      .back { margin-left: 1.2rem; }
+      .hero { padding: 2rem 1.2rem 3rem; }
+      .content { grid-template-columns: 1fr; padding: 0 1.2rem; gap: 2rem; }
+      footer { padding: 2rem 1.2rem; flex-direction: column; gap: 1rem; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-logo" href="../../index.html">DD</a>
+    <ul class="nav-links">
+      <li><a href="../../index.html#about">Über mich</a></li>
+      <li><a href="../../index.html#projects">Projekte</a></li>
+      <li><a href="../../index.html#cv">CV</a></li>
+      <li><a href="../../index.html#contact">Kontakt</a></li>
+    </ul>
+  </nav>
+
+  <a href="../../index.html#projects" class="back">← Zurück zu Projekten</a>
+
+  <div class="hero">
+    <p class="hero-tag">Projekt — 2024</p>
+    <h1>Dein Projekt<br>Name hier.</h1>
+
+    <div class="hero-meta">
+      <div class="meta-item">
+        <div class="meta-label">Kategorie</div>
+        <div class="meta-value">Web / App / Design</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Jahr</div>
+        <div class="meta-value">2024</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Status</div>
+        <div class="meta-value">Abgeschlossen</div>
+      </div>
+    </div>
+
+    <!-- Ersetze das durch einen Screenshot deines Projekts -->
+    <div class="preview">
+      <div class="preview-placeholder">
+        <div class="preview-icon">⬜</div>
+        <p>Screenshot / Preview hier einfügen</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="content-main">
+      <h2>Was ist das Projekt?</h2>
+      <p>Beschreibe hier was du gebaut hast. Was ist die Idee dahinter? Was macht es besonders? Schreib 2–3 kurze Absätze.</p>
+      <p>Erkläre das Problem das du gelöst hast, oder warum du dieses Projekt gestartet hast. Was hast du dabei gelernt?</p>
+      <p>Welche Herausforderungen gab es? Wie hast du sie gelöst? Das zeigt wie du denkst.</p>
+    </div>
+
+    <div class="content-side">
+      <div class="side-block">
+        <p class="side-label">Technologien</p>
+        <div class="tech-list">
+          <span class="tech-tag">HTML</span>
+          <span class="tech-tag">CSS</span>
+          <span class="tech-tag">JavaScript</span>
+        </div>
+      </div>
+
+      <div class="side-block">
+        <p class="side-label">Links</p>
+        <a href="#" class="side-link">→ Live ansehen</a><br>
+        <a href="https://github.com/nihaomies" class="side-link" target="_blank">→ GitHub</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>© 2026 Damiano Domenik</span>
+    <nav class="footer-nav">
+      <a href="../../index.html">Home</a>
+      <a href="../../index.html#contact">Kontakt</a>
+    </nav>
+  </footer>
+
+</body>
+</html>
