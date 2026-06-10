@@ -1,1 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Damian Frick</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:       #0e0e0e;
+      --surface:  #161616;
+      --border:   #2a2a2a;
+      --text:     #e8e8e8;
+      --muted:    #888;
+      --accent:   #c8f55a;
+      --accent2:  #3dffc0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.2rem 2.5rem;
+      background: rgba(14,14,14,0.85);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── HERO ── */
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 8rem 2.5rem 4rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero-eyebrow {
+      font-size: 0.8rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(3rem, 8vw, 6.5rem);
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+    }
+    h1 span { color: var(--accent); }
+    .hero-sub {
+      margin-top: 1.8rem;
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+    .hero-cta {
+      margin-top: 2.5rem;
+      display: flex; gap: 1rem; flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.8rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      letter-spacing: 0.03em;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0e0e0e;
+    }
+    .btn-primary:hover { background: #d8ff70; }
+    .btn-outline {
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── SECTIONS ── */
+    section {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 6rem 2.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .section-label {
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.6rem;
+    }
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      margin-bottom: 2.5rem;
+      letter-spacing: -0.01em;
+    }
+
+    /* ── ÜBER MICH ── */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+    .about-text p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; }
+    .skills-list {
+      display: flex; flex-wrap: wrap; gap: 0.6rem;
+      margin-top: 1.5rem;
+    }
+    .skill-tag {
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .about-stats { display: flex; flex-direction: column; gap: 1.5rem; }
+    .stat-item { border-left: 2px solid var(--accent); padding-left: 1.2rem; }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* ── PROJEKTE ── */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+    .project-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2rem;
+      transition: border-color 0.2s, transform 0.2s;
+      cursor: default;
+    }
+    .project-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+    }
+    .project-tag {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 0.8rem;
+    }
+    .project-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 0.7rem;
+    }
+    .project-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+    .project-link {
+      display: inline-block;
+      margin-top: 1.2rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+    .project-link:hover { text-decoration: underline; }
+
+    /* ── CV ── */
+    .cv-timeline { display: flex; flex-direction: column; gap: 0; }
+    .cv-item {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 1.5rem;
+      padding: 1.8rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cv-item:last-child { border-bottom: none; }
+    .cv-year { font-size: 0.82rem; color: var(--muted); padding-top: 0.2rem; }
+    .cv-role {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+    .cv-place { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.5rem; }
+    .cv-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.7; }
+
+    /* ── KONTAKT ── */
+    .contact-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3rem;
+    }
+    .contact-inner p { color: var(--muted); margin-bottom: 2rem; max-width: 480px; line-height: 1.7; }
+    .contact-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .contact-link {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.4rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: all 0.2s;
+    }
+    .contact-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      nav { padding: 1rem 1.2rem; }
+      .nav-links { gap: 1rem; }
+      section { padding: 4rem 1.2rem; }
+      .about-grid { grid-template-columns: 1fr; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .cv-item { grid-template-columns: 1fr; gap: 0.3rem; }
+      .contact-inner { padding: 1.8rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-logo" href="#hero">DF</a>
+    <ul class="nav-links">
+      <li><a href="#about">Über mich</a></li>
+      <li><a href="#projects">Projekte</a></li>
+      <li><a href="#cv">CV</a></li>
+      <li><a href="#contact">Kontakt</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <div id="hero">
+    <p class="hero-eyebrow">Portfolio</p>
+    <h1>Damian<br><span>Frick.</span></h1>
+    <p class="hero-sub">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+    <div class="hero-cta">
+      <a href="#projects" class="btn btn-primary">Projekte ansehen</a>
+      <a href="#contact" class="btn btn-outline">Kontakt aufnehmen</a>
+    </div>
+  </div>
+
+  <!-- ÜBER MICH -->
+  <section id="about">
+    <p class="section-label">01 — Über mich</p>
+    <h2>Wer bin ich?</h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>Hallo! Ich bin Damian Frick,Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p>Meine Stärken liegen Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <div class="skills-list">
+          <span class="skill-tag">HTML / CSS</span>
+          <span class="skill-tag">JavaScript</span>
+          <span class="skill-tag">GitHub</span>
+          <span class="skill-tag">Web Design</span>
+          <span class="skill-tag">Problemlösung</span>
+        </div>
+      </div>
+      <div class="about-stats">
+        <div class="stat-item">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">Einsatzbereitschaft</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">∞</div>
+          <div class="stat-label">Lernbereitschaft</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">LI</div>
+          <div class="stat-label">Standort: Liechtenstein</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROJEKTE -->
+  <section id="projects">
+    <p class="section-label">02 — Projekte</p>
+    <h2>Meine Arbeiten</h2>
+    <div class="projects-grid">
+      <div class="project-card">
+        <p class="project-tag">Web</p>
+        <h3>Portfolio Website</h3>
+        <p>Diese Portfolio-Seite — selbst entwickelt mit HTML, CSS und einem klaren Design. Gehostet auf GitHub Pages.</p>
+        <a href="#" class="project-link">→ Zum Projekt</a>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">Projekt</p>
+        <h3>Dein nächstes Projekt</h3>
+        <p>Hier kommt dein nächstes Projekt rein. Beschreibe kurz was du gebaut hast und verlinke es.</p>
+        <a href="projekt-2/" class="project-link">→ Zum Projekt</a>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">Idee</p>
+        <h3>Projekt 3</h3>
+        <p>Platzhalter für ein weiteres Projekt. Füge hier deine eigenen Arbeiten ein.</p>
+        <a href="#" class="project-link">→ Zum Projekt</a>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">Mehr</p>
+        <h3>Projekt 4</h3>
+        <p>Noch mehr tolle Sachen, an denen du gearbeitet hast. Kein Limit!</p>
+        <a href="#" class="project-link">→ Zum Projekt</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CV -->
+  <section id="cv">
+    <p class="section-label">03 — Lebenslauf</p>
+    <h2>Mein Werdegang</h2>
+    <div class="cv-timeline">
+      <div class="cv-item">
+        <div class="cv-year">2024 – heute</div>
+        <div>
+          <div class="cv-role">Webentwicklung & Portfolio</div>
+          <div class="cv-place">Selbststudium / GitHub</div>
+          <div class="cv-desc">Eigenständiges Erlernen von Webentwicklung. Aufbau von Projekten und eigenem Portfolio auf GitHub.</div>
+        </div>
+      </div>
+      <div class="cv-item">
+        <div class="cv-year">Dein Jahr</div>
+        <div>
+          <div class="cv-role">Deine Ausbildung / Schule</div>
+          <div class="cv-place">Deine Institution</div>
+          <div class="cv-desc">Beschreibe hier deine Ausbildung, Schule oder Berufserfahrung. Passe diesen Abschnitt an dich an.</div>
+        </div>
+      </div>
+      <div class="cv-item">
+        <div class="cv-year">Früher</div>
+        <div>
+          <div class="cv-role">Weitere Erfahrung</div>
+          <div class="cv-place">Ort / Firma</div>
+          <div class="cv-desc">Weitere Stationen deines Werdegangs kannst du hier hinzufügen.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KONTAKT -->
+  <section id="contact">
+    <p class="section-label">04 — Kontakt</p>
+    <h2>Lass uns reden.</h2>
+    <div class="contact-inner">
+      <p>Du hast ein Projekt, eine Idee oder willst einfach Hallo sagen? Ich freue mich über jede Nachricht.</p>
+      <div class="contact-links">
+        <a href="frick.damian92@gmail.com" class="contact-link">✉ E-Mail schreiben</a>
+        <a href="https://github.com/nihaomies" class="contact-link" target="_blank">⌥ GitHub</a>
+        <a href="www.linkedin.com/in/damian-frick-a39150241" class="contact-link">in LinkedIn</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    © 2026 Damian Frick — Gebaut mit HTML & CSS, gehostet auf GitHub Pages.
+  </footer>
+
+</body>
+</html>
