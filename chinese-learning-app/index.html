@@ -213,6 +213,24 @@
       margin-bottom: 1rem;
       font-size: 0.95rem;
     }
+    .feature-list {
+      list-style: none;
+      margin-bottom: 1rem;
+    }
+    .feature-list li {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.8;
+      padding-left: 1.2rem;
+      position: relative;
+    }
+    .feature-list li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-size: 0.8rem;
+    }
     .side-block { margin-bottom: 2rem; }
     .side-label {
       font-size: 0.72rem;
@@ -320,20 +338,48 @@
 
   <div class="content">
     <div class="content-main">
-      <h2>About the Project</h2>
-      <p>A personal Android app to learn Chinese vocabulary and characters. Built to make studying HSK vocabulary more engaging through flashcards, quizzes, and daily practice sessions.</p>
-      <p>The app includes multiple learning modes — flashcards for memorization, quizzes to test your knowledge, and a daily challenge to keep up a study streak.</p>
-      <p>Built entirely as a self-taught project to improve both my Chinese and my Android development skills.</p>
+
+      <h2>Overview</h2>
+      <p>This project is a Chinese language learning application designed to help beginners build vocabulary and prepare for HSK exams. The app combines interactive flashcards with quizzes to create an engaging and effective learning experience.</p>
+
+      <h2>Problem</h2>
+      <p>Learning Chinese vocabulary can be challenging, especially for beginners who need consistent practice and repetition. Many learners struggle to find a simple and focused tool that helps them build a strong foundation.</p>
+
+      <h2>Solution</h2>
+      <p>I developed a mobile application that enables users to learn Chinese vocabulary through flashcards and test their knowledge with interactive quizzes. The current focus is on HSK 1 and HSK 2 vocabulary, providing learners with a structured introduction to the Chinese language.</p>
+
+      <h2>Key Features</h2>
+      <ul class="feature-list">
+        <li>Chinese–English flashcards</li>
+        <li>HSK 1 and HSK 2 vocabulary sets</li>
+        <li>Interactive quizzes for knowledge assessment</li>
+        <li>Simple and intuitive user interface</li>
+        <li>Beginner-friendly learning experience</li>
+      </ul>
+
+      <h2>My Role</h2>
+      <p>I designed and developed the entire application independently. This included creating the user interface, implementing the flashcard system, and developing the quiz functionality for HSK 1 and HSK 2 vocabulary.</p>
+
+      <h2>Challenges</h2>
+      <p>One of the main challenges was creating an application that balances simplicity with effective learning. The goal was to provide users with an easy-to-use experience while encouraging vocabulary retention through repetition and testing.</p>
+
+      <h2>Results</h2>
+      <p>The application offers a practical way for beginners to learn Chinese vocabulary and reinforce their knowledge through flashcards and quizzes. By focusing on HSK 1 and HSK 2, the app provides a clear learning path for new learners.</p>
+
+      <h2>Future Improvements</h2>
+      <p>The project is actively being expanded. Future updates will include additional HSK levels, more advanced learning content, and new features designed to improve the overall learning experience and support users throughout their language-learning journey.</p>
+
     </div>
 
     <div class="content-side">
       <div class="side-block">
         <p class="side-label">Technologies</p>
-<div class="tech-list">
-  <span class="tech-tag">Flutter</span>
-  <span class="tech-tag">Dart</span>
-  <span class="tech-tag">Android Studio</span>
-</div>
+        <div class="tech-list">
+          <span class="tech-tag">Flutter</span>
+          <span class="tech-tag">Dart</span>
+          <span class="tech-tag">Material Design</span>
+          <span class="tech-tag">Android Studio</span>
+        </div>
       </div>
       <div class="side-block">
         <p class="side-label">Links</p>
