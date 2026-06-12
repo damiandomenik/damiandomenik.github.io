@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -28,7 +28,6 @@
       line-height: 1.6;
     }
 
-    /* ── NAV ── */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; justify-content: space-between; align-items: center;
@@ -56,7 +55,6 @@
     }
     .nav-links a:hover { color: var(--text); }
 
-    /* ── HERO ── */
     #hero {
       min-height: 100vh;
       display: flex; flex-direction: column; justify-content: center;
@@ -100,18 +98,11 @@
       letter-spacing: 0.03em;
       transition: all 0.2s;
     }
-    .btn-primary {
-      background: var(--accent);
-      color: #0e0e0e;
-    }
+    .btn-primary { background: var(--accent); color: #0e0e0e; }
     .btn-primary:hover { background: #d8ff70; }
-    .btn-outline {
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
+    .btn-outline { border: 1px solid var(--border); color: var(--text); }
     .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* ── SECTIONS ── */
     section {
       max-width: 900px;
       margin: 0 auto;
@@ -133,7 +124,6 @@
       letter-spacing: -0.01em;
     }
 
-    /* ── ÜBER MICH ── */
     .about-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -141,10 +131,7 @@
       align-items: start;
     }
     .about-text p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; }
-    .skills-list {
-      display: flex; flex-wrap: wrap; gap: 0.6rem;
-      margin-top: 1.5rem;
-    }
+    .skills-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
     .skill-tag {
       padding: 0.3rem 0.85rem;
       border: 1px solid var(--border);
@@ -164,7 +151,6 @@
     }
     .stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
 
-    /* ── PROJEKTE ── */
     .projects-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -178,10 +164,7 @@
       transition: border-color 0.2s, transform 0.2s;
       cursor: default;
     }
-    .project-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-3px);
-    }
+    .project-card:hover { border-color: var(--accent); transform: translateY(-3px); }
     .project-tag {
       font-size: 0.72rem;
       letter-spacing: 0.15em;
@@ -206,7 +189,6 @@
     }
     .project-link:hover { text-decoration: underline; }
 
-    /* ── CV ── */
     .cv-timeline { display: flex; flex-direction: column; gap: 0; }
     .cv-item {
       display: grid;
@@ -224,9 +206,7 @@
       margin-bottom: 0.3rem;
     }
     .cv-place { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.5rem; }
-    .cv-desc { font-size: 0.88rem; color: var(--muted); line-height: 1.7; }
 
-    /* ── KONTAKT ── */
     .contact-inner {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -247,7 +227,6 @@
     }
     .contact-link:hover { border-color: var(--accent); color: var(--accent); }
 
-    /* ── FOOTER ── */
     footer {
       text-align: center;
       padding: 2rem;
@@ -256,7 +235,6 @@
       color: var(--muted);
     }
 
-    /* ── RESPONSIVE ── */
     @media (max-width: 640px) {
       nav { padding: 1rem 1.2rem; }
       .nav-links { gap: 1rem; }
@@ -277,61 +255,58 @@
   <nav>
     <a class="nav-logo" href="#hero">DF</a>
     <ul class="nav-links">
-      <li><a href="#about">Über mich</a></li>
-      <li><a href="#projects">Projekte</a></li>
-      <li><a href="#cv">CV</a></li>
-      <li><a href="#contact">Kontakt</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="CV/index.html">CV</a></li>
+      <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>
 
-  <!-- HERO -->
   <div id="hero">
     <p class="hero-eyebrow">Portfolio</p>
     <h1>Damian<br><span>Frick.</span></h1>
     <p class="hero-sub">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
     <div class="hero-cta">
-      <a href="#projects" class="btn btn-primary">Projekte ansehen</a>
-      <a href="#contact" class="btn btn-outline">Kontakt aufnehmen</a>
+      <a href="#projects" class="btn btn-primary">View Projects</a>
+      <a href="#contact" class="btn btn-outline">Get in Touch</a>
     </div>
   </div>
 
-  <!-- ÜBER MICH -->
   <section id="about">
-    <p class="section-label">01 — Über mich</p>
-    <h2>Wer bin ich?</h2>
+    <p class="section-label">01 — About</p>
+    <h2>Who am I?</h2>
     <div class="about-grid">
       <div class="about-text">
-        <p>Hallo! Ich bin Damian Frick,Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-        <p>Meine Stärken liegen Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p>Hi, I'm Damian Frick. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+        <p>My strengths lie in Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
         <div class="skills-list">
           <span class="skill-tag">HTML / CSS</span>
           <span class="skill-tag">JavaScript</span>
           <span class="skill-tag">GitHub</span>
           <span class="skill-tag">Web Design</span>
-          <span class="skill-tag">Problemlösung</span>
+          <span class="skill-tag">Problem Solving</span>
         </div>
       </div>
       <div class="about-stats">
         <div class="stat-item">
           <div class="stat-num">100%</div>
-          <div class="stat-label">Einsatzbereitschaft</div>
+          <div class="stat-label">Commitment</div>
         </div>
         <div class="stat-item">
           <div class="stat-num">∞</div>
-          <div class="stat-label">Lernbereitschaft</div>
+          <div class="stat-label">Willingness to Learn</div>
         </div>
         <div class="stat-item">
           <div class="stat-num">LI</div>
-          <div class="stat-label">Standort: Liechtenstein</div>
+          <div class="stat-label">Based in Liechtenstein</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- PROJEKTE -->
   <section id="projects">
-    <p class="section-label">02 — Projekte</p>
-    <h2>Meine Arbeiten</h2>
+    <p class="section-label">02 — Projects</p>
+    <h2>My Work</h2>
     <div class="projects-grid">
       <div class="project-card">
         <p class="project-tag">Web</p>
@@ -340,74 +315,70 @@
         <a href="#" class="project-link">→ View Project</a>
       </div>
       <div class="project-card">
-        <p class="project-tag">Project</p>
+        <p class="project-tag">App</p>
         <h3>Chinese Learning App</h3>
         <p>An Android app to learn Chinese vocabulary and characters — built as a personal project.</p>
         <a href="/chinese-learning-app/" class="project-link">→ View Project</a>
       </div>
       <div class="project-card">
-        <p class="project-tag">Idee</p>
-        <h3>Projekt 3</h3>
-        <p>Platzhalter für ein weiteres Projekt. Füge hier deine eigenen Arbeiten ein.</p>
+        <p class="project-tag">Idea</p>
+        <h3>Project 3</h3>
+        <p>Placeholder for another project. Add your own work here.</p>
         <a href="#" class="project-link">→ View Project</a>
       </div>
       <div class="project-card">
-        <p class="project-tag">Mehr</p>
-        <h3>Projekt 4</h3>
-        <p>Noch mehr tolle Sachen, an denen du gearbeitet hast. Kein Limit!</p>
+        <p class="project-tag">More</p>
+        <h3>Project 4</h3>
+        <p>More great things you've worked on. No limit!</p>
         <a href="#" class="project-link">→ View Project</a>
       </div>
     </div>
   </section>
 
-  <!-- CV -->
   <section id="cv">
-    <p class="section-label">03 — Lebenslauf</p>
-    <h2>Mein Werdegang</h2>
+    <p class="section-label">03 — CV</p>
+    <h2>My Background</h2>
     <div class="cv-timeline">
       <div class="cv-item">
-        <div class="cv-year">2024 – heute</div>
+        <div class="cv-year">2025 – Present</div>
         <div>
-          <div class="cv-role">Webentwicklung & Portfolio</div>
-          <div class="cv-place">Selbststudium / GitHub</div>
-          <div class="cv-desc">Eigenständiges Erlernen von Webentwicklung. Aufbau von Projekten und eigenem Portfolio auf GitHub.</div>
+          <div class="cv-role">Finance Core & Engineering — IT Business Specialist</div>
+          <div class="cv-place">CCL AG, Schaan, Liechtenstein</div>
         </div>
       </div>
       <div class="cv-item">
-        <div class="cv-year">Dein Jahr</div>
+        <div class="cv-year">2023 – 2024</div>
         <div>
-          <div class="cv-role">Deine Ausbildung / Schule</div>
-          <div class="cv-place">Deine Institution</div>
-          <div class="cv-desc">Beschreibe hier deine Ausbildung, Schule oder Berufserfahrung. Passe diesen Abschnitt an dich an.</div>
+          <div class="cv-role">Core Banking IT — Application Manager</div>
+          <div class="cv-place">CCL AG, Schaan, Liechtenstein</div>
         </div>
       </div>
       <div class="cv-item">
-        <div class="cv-year">Früher</div>
+        <div class="cv-year">2020 – 2022</div>
         <div>
-          <div class="cv-role">Weitere Erfahrung</div>
-          <div class="cv-place">Ort / Firma</div>
-          <div class="cv-desc">Weitere Stationen deines Werdegangs kannst du hier hinzufügen.</div>
+          <div class="cv-role">Master of Science in Information Systems</div>
+          <div class="cv-place">University of Liechtenstein</div>
         </div>
       </div>
     </div>
+    <a href="CV/index.html" class="btn btn-outline" style="margin-top:2rem; display:inline-block;">→ View Full CV</a>
   </section>
 
-  <!-- KONTAKT -->
   <section id="contact">
-    <p class="section-label">04 — Kontakt</p>
-    <h2>Lass uns reden.</h2>
+    <p class="section-label">04 — Contact</p>
+    <h2>Let's talk.</h2>
     <div class="contact-inner">
-      <p>Du hast ein Projekt, eine Idee oder willst einfach Hallo sagen? Ich freue mich über jede Nachricht.</p>
+      <p>Have a project, an idea, or just want to connect? Feel free to reach out.</p>
       <div class="contact-links">
-        <a href="frick.damian92@gmail.com" class="contact-link">✉ E-Mail schreiben</a>
+        <a href="mailto:frick_damian@live.de" class="contact-link">✉ Send Email</a>
         <a href="https://github.com/nihaomies" class="contact-link" target="_blank">⌥ GitHub</a>
-        <a href="https://www.linkedin.com/in/damian-frick-a39150241" class="contact-link">in LinkedIn</a>
+        <a href="https://www.linkedin.com/in/damian-frick-a39150241" class="contact-link" target="_blank">in LinkedIn</a>
       </div>
     </div>
   </section>
 
   <footer>
-    © 2026 Damian Frick — Gebaut mit HTML & CSS, gehostet auf GitHub Pages.
+    © 2026 Damian Frick — Built with HTML & CSS, hosted on GitHub Pages.
   </footer>
 
 </body>
