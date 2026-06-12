@@ -338,16 +338,18 @@
       const status = document.getElementById("fx-status");
       status.textContent = "CONNECTING TO FX MARKET...";
       try {
-        const res = await fetch("https://api.frankfurter.app/latest?from=CHF&to=EUR,USD,CNY");
+        const res = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/chf.json");
+        if (!res.ok) throw new Error("API error " + res.status);
         const data = await res.json();
         const amount = parseFloat(document.getElementById("amount").value) || 1;
-        document.getElementById("eur").textContent = (data.rates.EUR * amount).toFixed(2);
-        document.getElementById("usd").textContent = (data.rates.USD * amount).toFixed(2);
-        document.getElementById("rmb").textContent = (data.rates.CNY * amount).toFixed(2);
+        document.getElementById("eur").textContent = (data.chf.eur * amount).toFixed(2);
+        document.getElementById("usd").textContent = (data.chf.usd * amount).toFixed(2);
+        document.getElementById("rmb").textContent = (data.chf.cny * amount).toFixed(2);
         const now = new Date().toLocaleTimeString();
-        status.textContent = "LIVE DATA STREAM ACTIVE · Frankfurter API · " + now;
+        status.textContent = "LIVE DATA STREAM ACTIVE · Currency API · " + now;
       } catch (e) {
-        status.textContent = "CONNECTION ERROR — Please try again";
+        console.error(e);
+        status.textContent = "CONNECTION ERROR — " + e.message;
       }
     }
     document.addEventListener("DOMContentLoaded", loadRates);
