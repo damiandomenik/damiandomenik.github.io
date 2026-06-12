@@ -3,22 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CV — Damian Frick</title>
+  <title>Damian Frick</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:      #0e0e0e;
-      --surface: #161616;
-      --border:  #2a2a2a;
-      --text:    #e8e8e8;
-      --muted:   #888;
-      --accent:  #c8f55a;
-      --accent2: #3dffc0;
+      --bg:       #0e0e0e;
+      --surface:  #161616;
+      --border:   #2a2a2a;
+      --text:     #e8e8e8;
+      --muted:    #888;
+      --accent:   #c8f55a;
+      --accent2:  #3dffc0;
     }
 
     html { scroll-behavior: smooth; }
+
     body {
       background: var(--bg);
       color: var(--text);
@@ -27,7 +28,6 @@
       line-height: 1.6;
     }
 
-    /* NAV */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; justify-content: space-between; align-items: center;
@@ -55,260 +55,187 @@
     }
     .nav-links a:hover { color: var(--text); }
 
-    /* BACK */
-    .back {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 7rem;
-      margin-left: 2.5rem;
-      font-size: 0.82rem;
-      color: var(--muted);
-      text-decoration: none;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      transition: color 0.2s;
-    }
-    .back:hover { color: var(--accent); }
-
-    /* HERO */
-    .hero {
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 8rem 2.5rem 4rem;
       max-width: 900px;
       margin: 0 auto;
-      padding: 3rem 2.5rem 2rem;
     }
-    .hero-tag {
-      font-size: 0.78rem;
+    .hero-eyebrow {
+      font-size: 0.8rem;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-      color: var(--accent2);
-      margin-bottom: 1.2rem;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
     }
-    .hero h1 {
+    h1 {
       font-family: 'Syne', sans-serif;
       font-weight: 800;
-      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-size: clamp(3rem, 8vw, 6.5rem);
       line-height: 1.0;
       letter-spacing: -0.02em;
-      margin-bottom: 2rem;
     }
-
-    /* LANG SWITCHER */
-    .lang-bar {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 0 2.5rem 2rem;
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-    }
-    .lang-label {
-      font-size: 0.75rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
+    h1 span { color: var(--accent); }
+    .hero-sub {
+      margin-top: 1.8rem;
+      font-size: 1.15rem;
       color: var(--muted);
+      max-width: 520px;
+      line-height: 1.7;
     }
-    .lang-btn {
-      padding: 0.4rem 1.1rem;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      background: transparent;
-      color: var(--muted);
-      font-size: 0.82rem;
-      font-family: 'Inter', sans-serif;
-      letter-spacing: 0.05em;
-      cursor: pointer;
+    .hero-cta {
+      margin-top: 2.5rem;
+      display: flex; gap: 1rem; flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.8rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-decoration: none;
+      letter-spacing: 0.03em;
       transition: all 0.2s;
     }
-    .lang-btn:hover { border-color: var(--accent); color: var(--accent); }
-    .lang-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(200,245,90,0.08); }
+    .btn-primary { background: var(--accent); color: #0e0e0e; }
+    .btn-primary:hover { background: #d8ff70; }
+    .btn-outline { border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
-    .download-btn {
-      margin-left: auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1.3rem;
-      background: var(--accent);
-      color: #0e0e0e;
-      border: none;
-      border-radius: 3px;
-      font-size: 0.82rem;
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      transition: background 0.2s;
-      text-decoration: none;
-    }
-    .download-btn:hover { background: #d8ff70; }
-
-    /* CV CONTENT */
-    .cv-wrap {
+    section {
       max-width: 900px;
       margin: 0 auto;
-      padding: 0 2.5rem 6rem;
+      padding: 6rem 2.5rem;
+      border-top: 1px solid var(--border);
     }
-
-    /* TOP CARD */
-    .cv-header {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 2.5rem;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 2rem;
-      margin-bottom: 3rem;
-      align-items: start;
-    }
-    .cv-photo {
-      margin-top: 1.2rem;
-    }
-    .cv-photo img {
-      width: 100px;
-      height: 120px;
-      object-fit: cover;
-      object-position: top;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      display: block;
-    }
-    .cv-name {
-      font-family: 'Syne', sans-serif;
-      font-weight: 800;
-      font-size: 2rem;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.3rem;
-    }
-    .cv-title-role {
-      font-size: 1rem;
-      color: var(--accent);
-      margin-bottom: 1.2rem;
-    }
-    .cv-contact-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-    .cv-contact-list li {
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .cv-contact-list li span { color: var(--text); }
-    .cv-personal-info {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      text-align: right;
-    }
-    .cv-personal-info p { font-size: 0.82rem; color: var(--muted); }
-    .cv-personal-info p span { color: var(--text); }
-
-    /* SECTIONS */
-    .cv-section {
-      margin-bottom: 3rem;
-    }
-    .cv-section-title {
-      font-size: 0.72rem;
+    .section-label {
+      font-size: 0.75rem;
       letter-spacing: 0.2em;
       text-transform: uppercase;
       color: var(--accent);
-      margin-bottom: 1rem;
-      padding-bottom: 0.6rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    /* TIMELINE */
-    .timeline { display: flex; flex-direction: column; }
-    .tl-item {
-      display: grid;
-      grid-template-columns: 150px 1fr;
-      gap: 1.5rem;
-      padding: 1.5rem 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .tl-item:last-child { border-bottom: none; }
-    .tl-date {
-      font-size: 0.82rem;
-      color: var(--muted);
-      padding-top: 0.15rem;
-      line-height: 1.5;
-    }
-    .tl-duration {
-      display: block;
-      font-size: 0.75rem;
-      color: var(--accent2);
-      margin-top: 0.2rem;
-    }
-    .tl-role {
-      font-family: 'Syne', sans-serif;
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 0.2rem;
-    }
-    .tl-org {
-      font-size: 0.85rem;
-      color: var(--accent);
       margin-bottom: 0.6rem;
     }
-    .tl-desc {
-      font-size: 0.88rem;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-    .tl-bullets {
-      list-style: none;
-      margin-top: 0.5rem;
-    }
-    .tl-bullets li {
-      font-size: 0.88rem;
-      color: var(--muted);
-      line-height: 1.7;
-      padding-left: 1.2rem;
-      position: relative;
-    }
-    .tl-bullets li::before {
-      content: '→';
-      position: absolute;
-      left: 0;
-      color: var(--accent);
-      font-size: 0.78rem;
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      margin-bottom: 2.5rem;
+      letter-spacing: -0.01em;
     }
 
-    /* SKILLS GRID */
-    .skills-grid {
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 3rem;
+      align-items: start;
+    }
+    .about-photo img {
+      width: 220px;
+      height: 300px;
+      object-fit: cover;
+      object-position: top;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+    .about-text p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; }
+    .skills-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+    .skill-tag {
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+    }
+    .about-stats { display: flex; flex-direction: column; gap: 1.5rem; }
+    .stat-item { border-left: 2px solid var(--accent); padding-left: 1.2rem; }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1;
+    }
+    .stat-label { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+
+    .projects-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 1.5rem;
     }
-    .skill-group-label {
-      font-size: 0.75rem;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-    }
-    .skill-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .skill-tag {
-      padding: 0.3rem 0.8rem;
+    .project-card {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 2px;
-      font-size: 0.78rem;
-      color: var(--muted);
+      border-radius: 6px;
+      padding: 2rem;
+      transition: border-color 0.2s, transform 0.2s;
+      cursor: default;
     }
-    .skill-tag.advanced { border-color: var(--accent2); color: var(--accent2); }
-    .skill-tag.excellent { border-color: var(--accent); color: var(--accent); }
+    .project-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+    .project-tag {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 0.8rem;
+    }
+    .project-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 0.7rem;
+    }
+    .project-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+    .project-link {
+      display: inline-block;
+      margin-top: 1.2rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+    .project-link:hover { text-decoration: underline; }
 
-    /* LANGUAGES */
-    .lang-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; }
-    .lang-item { }
-    .lang-name { font-size: 0.92rem; color: var(--text); }
-    .lang-level { font-size: 0.8rem; color: var(--muted); }
+    .cv-timeline { display: flex; flex-direction: column; gap: 0; }
+    .cv-item {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 1.5rem;
+      padding: 1.8rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .cv-item:last-child { border-bottom: none; }
+    .cv-year { font-size: 0.82rem; color: var(--muted); padding-top: 0.2rem; }
+    .cv-role {
+      font-family: 'Syne', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.3rem;
+    }
+    .cv-place { font-size: 0.85rem; color: var(--accent); margin-bottom: 0.5rem; }
 
-    /* FOOTER */
+    .contact-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3rem;
+    }
+    .contact-inner p { color: var(--muted); margin-bottom: 2rem; max-width: 480px; line-height: 1.7; }
+    .contact-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .contact-link {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 1.4rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: all 0.2s;
+    }
+    .contact-link:hover { border-color: var(--accent); color: var(--accent); }
+
     footer {
       text-align: center;
       padding: 2rem;
@@ -320,508 +247,150 @@
     @media (max-width: 640px) {
       nav { padding: 1rem 1.2rem; }
       .nav-links { gap: 1rem; }
-      .back { margin-left: 1.2rem; }
-      .hero { padding: 2rem 1.2rem 1.5rem; }
-      .lang-bar { padding: 0 1.2rem 1.5rem; }
-      .cv-wrap { padding: 0 1.2rem 4rem; }
-      .cv-header { grid-template-columns: 1fr; }
-      .cv-photo { display: none; }
-      .cv-personal-info { text-align: left; }
-      .tl-item { grid-template-columns: 1fr; gap: 0.3rem; }
-      .skills-grid { grid-template-columns: 1fr; }
-      .download-btn { margin-left: 0; }
+      section { padding: 4rem 1.2rem; }
+      .about-grid { grid-template-columns: 1fr; }
+      .about-photo { display: none; }
+      .projects-grid { grid-template-columns: 1fr; }
+      .cv-item { grid-template-columns: 1fr; gap: 0.3rem; }
+      .contact-inner { padding: 1.8rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
     }
   </style>
 </head>
 <body>
 
   <nav>
-    <a class="nav-logo" href="../index.html">DF</a>
+    <a class="nav-logo" href="#hero">DF</a>
     <ul class="nav-links">
-      <li><a href="../index.html#about">About</a></li>
-      <li><a href="../index.html#projects">Projects</a></li>
-      <li><a href="../index.html#cv" style="color:var(--accent)">CV</a></li>
-      <li><a href="../index.html#contact">Contact</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="CV/index.html">CV</a></li>
+      <li><a href="#contact">Contact</a></li>
     </ul>
   </nav>
 
-  <a href="../index.html#cv" class="back">← Back</a>
-
-  <div class="hero">
-    <p class="hero-tag">Curriculum Vitae</p>
-    <h1 id="page-title">Curriculum Vitae.</h1>
+  <div id="hero">
+    <p class="hero-eyebrow">Portfolio</p>
+    <h1>Damian<br><span>Frick.</span></h1>
+    <p class="hero-sub">MSc Information Systems · Core Banking IT · Technology & Innovation Enthusiast</p>
+    <div class="hero-cta">
+      <a href="#projects" class="btn btn-primary">View Projects</a>
+      <a href="#contact" class="btn btn-outline">Get in Touch</a>
+    </div>
   </div>
 
-  <div class="lang-bar">
-    <span class="lang-label" id="lang-label">Language:</span>
-    <button class="lang-btn active" id="btn-en">English</button>
-    <button class="lang-btn" id="btn-de">Deutsch</button>
-    <button class="lang-btn" id="btn-zh">中文</button>
-    <button class="download-btn" id="dl-btn">↓ Download PDF</button>
-  </div>
-
-  <div class="cv-wrap" id="cv-content">
-
-    <!-- CV HEADER -->
-    <div class="cv-header">
-      <div>
-        <div class="cv-name">Damian Frick</div>
-        <div class="cv-title-role" id="cv-role">MSc Information Systems · IT Professional specializing in ERP systems, data analysis and core banking. Based in Liechtenstein.</div>
-        <ul class="cv-contact-list">
-          <li>Heraweg 33, FL-9496 Balzers, Liechtenstein</li>
-          <li>frick_damian@live.de &nbsp;·&nbsp; +41 76 786 10 91</li>
-          <li>LinkedIn: Damian Frick</li>
-        </ul>
-      </div>
-      <div class="cv-personal-info">
-        <p><span id="lbl-nationality">Nationality</span>: <span>Liechtenstein</span></p>
-        <p><span id="lbl-dob">Date of Birth</span>: <span>13.03.1992</span></p>
-        <p><span id="lbl-gender">Gender</span>: <span id="val-gender">Male</span></p>
-        <p><span id="lbl-license">Driver's License</span>: <span>Category B</span></p>
-        <div class="cv-photo">
-          <img src="Me.jpg" alt="Damian Frick" />
+  <section id="about">
+    <p class="section-label">01 — About</p>
+    <h2>Who am I?</h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>Hi, I'm Damian Frick — an IT professional based in Liechtenstein with a Master's in Information Systems. I specialise in ERP systems, core banking, and data analysis. Outside of work I enjoy building my own projects and exploring new technologies.</p>
+        <div class="skills-list">
+          <span class="skill-tag">ERP Systems</span>
+          <span class="skill-tag">Core Banking</span>
+          <span class="skill-tag">SQL</span>
+          <span class="skill-tag">Data Analysis</span>
+          <span class="skill-tag">Fast Learner</span>
+          <span class="skill-tag">Problem Solving</span>
         </div>
       </div>
-    </div>
-
-    <!-- PROFESSIONAL EXPERIENCE -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-exp">Professional Experience</div>
-      <div class="timeline">
-
-        <div class="tl-item">
-          <div class="tl-date">
-            <span id="exp1-date">Apr. 2025 – Present</span>
-            <span class="tl-duration" id="exp1-dur">Current</span>
-          </div>
-          <div>
-            <div class="tl-role" id="exp1-role">Finance Core & Engineering — IT Business Specialist</div>
-            <div class="tl-org">CCL AG · Finance Core &amp; Engineering, Schaan, Liechtenstein</div>
-          </div>
+      <div class="about-stats">
+        <div class="stat-item">
+          <div class="stat-num">100%</div>
+          <div class="stat-label">Commitment</div>
         </div>
-
-        <div class="tl-item">
-          <div class="tl-date">
-            <span id="exp2-date">Nov. 2024 – Feb. 2025</span>
-            <span class="tl-duration" id="exp2-dur">4 months</span>
-          </div>
-          <div>
-            <div class="tl-role" id="exp2-role">Career Break — Educational Trip</div>
-            <div class="tl-org" id="exp2-org">Self-Financed (China &amp; South Korea)</div>
-            <ul class="tl-bullets" id="exp2-bullets">
-              <li>Developed intercultural competencies through direct exchanges with locals and businesses</li>
-              <li>Gained insights into Asian economic and technological trends</li>
-              <li>Enhanced independence, adaptability, and global mindset</li>
-            </ul>
-          </div>
+        <div class="stat-item">
+          <div class="stat-num">∞</div>
+          <div class="stat-label">Willingness to Learn</div>
         </div>
-
-        <div class="tl-item">
-          <div class="tl-date">
-            <span id="exp3-date">Mar. 2023 – Oct. 2024</span>
-            <span class="tl-duration" id="exp3-dur">1 yr 8 mo</span>
-          </div>
-          <div>
-            <div class="tl-role" id="exp3-role">Core Banking IT — Application Manager</div>
-            <div class="tl-org">CCL AG, Schaan, Liechtenstein</div>
-          </div>
+        <div class="stat-item">
+          <div class="stat-num">LI</div>
+          <div class="stat-label">Based in Liechtenstein</div>
         </div>
-
-        <div class="tl-item">
-          <div class="tl-date">
-            <span id="exp4-date">2008 – 2009</span>
-            <span class="tl-duration" id="exp4-dur">12 months</span>
-          </div>
-          <div>
-            <div class="tl-role" id="exp4-role">Internship — Assistant to Hospital Management</div>
-            <div class="tl-org" id="exp4-org">Hospital Grabs, Switzerland</div>
-          </div>
-        </div>
-
+      </div>
+      <div class="about-photo">
+        <img src="pictures/meshanghai.jpeg" alt="Damian Frick in Shanghai" />
       </div>
     </div>
+  </section>
 
-    <!-- EDUCATION -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-edu">Academic Education</div>
-      <div class="timeline">
-
-        <div class="tl-item">
-          <div class="tl-date">2020 – 2022</div>
-          <div>
-            <div class="tl-role" id="edu1-role">Master of Science in Information Systems (MSc)</div>
-            <div class="tl-org" id="edu1-org">University of Liechtenstein</div>
-            <div class="tl-desc" id="edu1-desc">Thesis: "Differentiation of physical and virtual real estate in application of tokenization"</div>
-          </div>
-        </div>
-
-        <div class="tl-item">
-          <div class="tl-date">2016 – 2020</div>
-          <div>
-            <div class="tl-role" id="edu2-role">Bachelor of Science in Business Administration (BSc)</div>
-            <div class="tl-org" id="edu2-org">University of Liechtenstein</div>
-            <div class="tl-desc" id="edu2-desc">Specialization: Information Management &amp; IT · Thesis: "Digital Nudging in E-Commerce"</div>
-          </div>
-        </div>
-
-        <div class="tl-item">
-          <div class="tl-date">2019</div>
-          <div>
-            <div class="tl-role" id="edu3-role">Accenture Campus Innovation Challenge</div>
-            <div class="tl-org" id="edu3-org">University of Liechtenstein</div>
-          </div>
-        </div>
-
-        <div class="tl-item">
-          <div class="tl-date">2012 – 2016</div>
-          <div>
-            <div class="tl-role" id="edu4-role">Law Studies</div>
-            <div class="tl-org" id="edu4-org">University of Innsbruck, Austria</div>
-          </div>
-        </div>
-
+  <section id="projects">
+    <p class="section-label">02 — Projects</p>
+    <h2>My Work</h2>
+    <div class="projects-grid">
+      <div class="project-card">
+        <p class="project-tag">Web</p>
+        <h3>Portfolio Website</h3>
+        <p>This portfolio — built from scratch with HTML & CSS. Hosted on GitHub Pages.</p>
+        <a href="#" class="project-link">→ View Project</a>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">App</p>
+        <h3>Chinese Learning App</h3>
+        <p>An Android app to learn Chinese vocabulary and characters — built as a personal project.</p>
+        <a href="/chinese-learning-app/" class="project-link">→ View Project</a>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">Coming Soon</p>
+        <h3>Project 3</h3>
+        <p>Currently in development — stay tuned.</p>
+      </div>
+      <div class="project-card">
+        <p class="project-tag">Coming Soon</p>
+        <h3>Project 4</h3>
+        <p>Currently in development — stay tuned.</p>
       </div>
     </div>
+  </section>
 
-    <!-- VOCATIONAL -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-voc">School &amp; Vocational Education</div>
-      <div class="timeline">
-        <div class="tl-item">
-          <div class="tl-date">2010 – 2011</div>
-          <div>
-            <div class="tl-role" id="voc1-role">Vocational Maturity Diploma</div>
-            <div class="tl-org" id="voc1-org">Vocational School Vaduz, Liechtenstein</div>
-          </div>
-        </div>
-        <div class="tl-item">
-          <div class="tl-date">2007 – 2010</div>
-          <div>
-            <div class="tl-role" id="voc2-role">Commercial Apprenticeship (EFZ)</div>
-            <div class="tl-org" id="voc2-org">Vocational and Trade School MPA Buchs, Switzerland</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SKILLS -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-skills">Technical Skills</div>
-      <div class="skills-grid">
+  <section id="cv">
+    <p class="section-label">03 — CV</p>
+    <h2>My Background</h2>
+    <div class="cv-timeline">
+      <div class="cv-item">
+        <div class="cv-year">2025 – Present</div>
         <div>
-          <div class="skill-group-label" id="sk-exc">Excellent Proficiency</div>
-          <div class="skill-tags">
-            <span class="skill-tag excellent">MS Office</span>
-            <span class="skill-tag excellent">Subito</span>
-            <span class="skill-tag excellent">Mambu</span>
-            <span class="skill-tag excellent">SQL</span>
-            <span class="skill-tag excellent">MS SQL</span>
-          </div>
+          <div class="cv-role">Finance Core & Engineering — IT Business Specialist</div>
+          <div class="cv-place">CCL AG, Schaan, Liechtenstein</div>
         </div>
+      </div>
+      <div class="cv-item">
+        <div class="cv-year">2023 – 2024</div>
         <div>
-          <div class="skill-group-label" id="sk-adv">Advanced Knowledge</div>
-          <div class="skill-tags">
-            <span class="skill-tag advanced">SQL</span>
-            <span class="skill-tag advanced">Python</span>
-            <span class="skill-tag advanced">CSS</span>
-            <span class="skill-tag advanced">HTML</span>
-            <span class="skill-tag advanced">SAP</span>
-            <span class="skill-tag advanced">Apsys</span>
-          </div>
+          <div class="cv-role">Core Banking IT — Application Manager</div>
+          <div class="cv-place">CCL AG, Schaan, Liechtenstein</div>
         </div>
+      </div>
+      <div class="cv-item">
+        <div class="cv-year">2020 – 2022</div>
         <div>
-          <div class="skill-group-label" id="sk-bas">Basic Knowledge</div>
-          <div class="skill-tags">
-            <span class="skill-tag">Java</span>
-            <span class="skill-tag">R</span>
-            <span class="skill-tag">VBA</span>
-            <span class="skill-tag">CIM</span>
-            <span class="skill-tag">Flutter / Dart</span>
-          </div>
-        </div>
-        <div>
-          <div class="skill-group-label" id="sk-dom">Domain Skills</div>
-          <div class="skill-tags">
-            <span class="skill-tag advanced">ERP Systems</span>
-            <span class="skill-tag advanced">Database Management</span>
-            <span class="skill-tag advanced">Server Setup</span>
-            <span class="skill-tag">Project Management</span>
-            <span class="skill-tag">Web Design</span>
-          </div>
+          <div class="cv-role">Master of Science in Information Systems</div>
+          <div class="cv-place">University of Liechtenstein</div>
         </div>
       </div>
     </div>
+    <a href="CV/index.html" class="btn btn-outline" style="margin-top:2rem; display:inline-block;">→ View Full CV</a>
+  </section>
 
-    <!-- LANGUAGES -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-lang">Languages</div>
-      <div class="lang-grid">
-        <div class="lang-item">
-          <div class="lang-name" id="lang-de">German</div>
-          <div class="lang-level" id="lang-de-lv">Native</div>
-        </div>
-        <div class="lang-item">
-          <div class="lang-name" id="lang-en">English</div>
-          <div class="lang-level" id="lang-en-lv">Fluent — Business Proficiency</div>
-        </div>
-        <div class="lang-item">
-          <div class="lang-name" id="lang-zh">Chinese (Mandarin)</div>
-          <div class="lang-level" id="lang-zh-lv">Beginner — HSK 1/2</div>
-        </div>
+  <section id="contact">
+    <p class="section-label">04 — Contact</p>
+    <h2>Let's talk.</h2>
+    <div class="contact-inner">
+      <p>Have a project, an idea, or just want to connect? Feel free to reach out.</p>
+      <div class="contact-links">
+        <a href="mailto:frick_damian@live.de" class="contact-link">✉ Send Email</a>
+        <a href="https://github.com/nihaomies" class="contact-link" target="_blank">⌥ GitHub</a>
+        <a href="https://www.linkedin.com/in/damian-frick-a39150241" class="contact-link" target="_blank">in LinkedIn</a>
       </div>
     </div>
-
-    <!-- SOFT SKILLS -->
-    <div class="cv-section">
-      <div class="cv-section-title" id="sec-soft">Personal Competencies</div>
-      <div class="skill-tags" style="gap:0.5rem">
-        <span class="skill-tag advanced" id="soft1">Fast Learner & Quick Adaptability</span>
-        <span class="skill-tag advanced" id="soft2">Analytical Thinking</span>
-        <span class="skill-tag advanced" id="soft3">Creative &amp; Innovative</span>
-        <span class="skill-tag" id="soft4">Teamwork &amp; Loyalty</span>
-        <span class="skill-tag" id="soft5">Independence &amp; Organization</span>
-        <span class="skill-tag" id="soft6">Self-Driven & Result-Oriented</span>
-      </div>
-    </div>
-
-  </div><!-- /cv-wrap -->
+  </section>
 
   <footer>
-    © 2026 Damian Frick — CV
+    © 2026 Damian Frick — Built with HTML & CSS, hosted on GitHub Pages.
   </footer>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  document.getElementById('btn-en').addEventListener('click', function(){ setLang('en'); });
-  document.getElementById('btn-de').addEventListener('click', function(){ setLang('de'); });
-  document.getElementById('btn-zh').addEventListener('click', function(){ setLang('zh'); });
-  document.getElementById('dl-btn').addEventListener('click', downloadPDF);
-});
-
-// ─── TRANSLATIONS ──────────────────────────────────────────────────────────
-const T = {
-  en: {
-    "page-title": "Curriculum Vitae.",
-    "lang-label": "Language:",
-    "dl-btn": "↓ Download PDF",
-    "cv-role": "MSc Information Systems · IT Professional specializing in ERP systems, data analysis and core banking. Based in Liechtenstein.",
-    "lbl-nationality": "Nationality", "lbl-dob": "Date of Birth",
-    "lbl-gender": "Gender", "val-gender": "Male",
-    "lbl-license": "Driver's License",
-    "sec-exp": "Professional Experience",
-    "exp1-date": "Apr. 2025 – Present", "exp1-dur": "Current",
-    "exp1-role": "Finance Core & Engineering — IT Business Specialist",
-    "exp1-bullets": [],
-    "exp2-date": "Nov. 2024 – Feb. 2025", "exp2-dur": "4 months",
-    "exp2-role": "Career Break — Educational Trip",
-    "exp2-org": "Self-Financed (China & South Korea)",
-    "exp2-bullets": [
-      "Developed intercultural competencies through direct exchanges with locals and businesses",
-      "Gained insights into Asian economic and technological trends",
-      "Enhanced independence, adaptability, and global mindset"
-    ],
-    "exp3-date": "Mar. 2023 – Oct. 2024", "exp3-dur": "1 yr 8 mo",
-    "exp3-role": "Core Banking IT — Application Manager",
-    "exp3-bullets": [],
-    "exp4-date": "2008 – 2009", "exp4-dur": "12 months",
-    "exp4-role": "Internship — Assistant to Hospital Management",
-    "exp4-org": "Hospital Grabs, Switzerland",
-    "sec-edu": "Academic Education",
-    "edu1-role": "Master of Science in Information Systems (MSc)",
-    "edu1-org": "University of Liechtenstein",
-    "edu1-desc": "Thesis: \"Differentiation of physical and virtual real estate in application of tokenization\"",
-    "edu2-role": "Bachelor of Science in Business Administration (BSc)",
-    "edu2-org": "University of Liechtenstein",
-    "edu2-desc": "Specialization: Information Management & IT · Thesis: \"Digital Nudging in E-Commerce\"",
-    "edu3-role": "Accenture Campus Innovation Challenge",
-    "edu3-org": "University of Liechtenstein",
-    "edu4-role": "Law Studies",
-    "edu4-org": "University of Innsbruck, Austria",
-    "sec-voc": "School & Vocational Education",
-    "voc1-role": "Vocational Maturity Diploma",
-    "voc1-org": "Vocational School Vaduz, Liechtenstein",
-    "voc2-role": "Commercial Apprenticeship (EFZ)",
-    "voc2-org": "Vocational and Trade School MPA Buchs, Switzerland",
-    "sec-skills": "Technical Skills",
-    "sk-exc": "Excellent Proficiency", "sk-adv": "Advanced Knowledge",
-    "sk-bas": "Basic Knowledge", "sk-dom": "Domain Skills",
-    "sec-lang": "Languages",
-    "lang-de": "German", "lang-de-lv": "Native",
-    "lang-en": "English", "lang-en-lv": "Fluent — Business Proficiency",
-    "lang-zh": "Chinese (Mandarin)", "lang-zh-lv": "Beginner — HSK 1/2",
-    "sec-soft": "Personal Competencies",
-    "soft1": "Fast Learner & Quick Adaptability", "soft2": "Analytical Thinking",
-    "soft3": "Creative & Innovative", "soft4": "Teamwork & Loyalty",
-    "soft5": "Independence & Organization", "soft6": "Self-Driven & Result-Oriented"
-  },
-  de: {
-    "page-title": "Lebenslauf.",
-    "lang-label": "Sprache:",
-    "dl-btn": "↓ PDF herunterladen",
-    "cv-role": "MSc Wirtschaftsinformatik · IT-Fachmann mit Schwerpunkt ERP-Systeme, Datenanalyse und Core Banking. Standort Liechtenstein.",
-    "lbl-nationality": "Nationalität", "lbl-dob": "Geburtsdatum",
-    "lbl-gender": "Geschlecht", "val-gender": "Männlich",
-    "lbl-license": "Führerausweis",
-    "sec-exp": "Berufserfahrung",
-    "exp1-date": "Apr. 2025 – Heute", "exp1-dur": "Aktuell",
-    "exp1-role": "Finance Core & Engineering — IT Business Specialist",
-    "exp1-bullets": [],
-    "exp2-date": "Nov. 2024 – Feb. 2025", "exp2-dur": "4 Monate",
-    "exp2-role": "Berufliche Auszeit — Bildungsreise",
-    "exp2-org": "Eigenfinanziert (China & Südkorea)",
-    "exp2-bullets": [
-      "Interkulturelle Kompetenzen durch Austausch mit Einheimischen und Unternehmen entwickelt",
-      "Einblicke in asiatische Wirtschafts- und Technologietrends gewonnen",
-      "Selbstständigkeit, Anpassungsfähigkeit und globales Mindset gestärkt"
-    ],
-    "exp3-date": "März 2023 – Okt. 2024", "exp3-dur": "1 J. 8 Mo.",
-    "exp3-role": "Core Banking IT — Application Manager",
-    "exp3-bullets": [],
-    "exp4-date": "2008 – 2009", "exp4-dur": "12 Monate",
-    "exp4-role": "Praktikum — Assistent der Spitalleitung",
-    "exp4-org": "Spital Grabs, Schweiz",
-    "sec-edu": "Akademische Ausbildung",
-    "edu1-role": "Master of Science in Wirtschaftsinformatik (MSc)",
-    "edu1-org": "Universität Liechtenstein",
-    "edu1-desc": "Masterarbeit: \u201eDifferenzierung physischer und virtueller Immobilien bei der Anwendung von Tokenisierung\u201c",
-    "edu2-role": "Bachelor of Science in Betriebswirtschaft (BSc)",
-    "edu2-org": "Universität Liechtenstein",
-    "edu2-desc": "Schwerpunkt: Information Management & IT · Bachelorarbeit: \u201eDigital Nudging im E-Commerce\u201c",
-    "edu3-role": "Accenture Campus Innovation Challenge",
-    "edu3-org": "Universität Liechtenstein",
-    "edu4-role": "Rechtswissenschaften",
-    "edu4-org": "Universität Innsbruck, Österreich",
-    "sec-voc": "Schule & Berufsausbildung",
-    "voc1-role": "Berufsmaturität",
-    "voc1-org": "Berufsschule Vaduz, Liechtenstein",
-    "voc2-role": "Kaufmännische Lehre (EFZ)",
-    "voc2-org": "Berufs- und Gewerbeschule MPA Buchs, Schweiz",
-    "sec-skills": "Technische Kenntnisse",
-    "sk-exc": "Sehr gute Kenntnisse", "sk-adv": "Fortgeschrittene Kenntnisse",
-    "sk-bas": "Grundkenntnisse", "sk-dom": "Fachkompetenzen",
-    "sec-lang": "Sprachen",
-    "lang-de": "Deutsch", "lang-de-lv": "Muttersprache",
-    "lang-en": "Englisch", "lang-en-lv": "Fließend — Business-Niveau",
-    "lang-zh": "Chinesisch (Mandarin)", "lang-zh-lv": "Grundkenntnisse — HSK 1/2",
-    "sec-soft": "Persönliche Kompetenzen",
-    "soft1": "Schnelle Auffassungsgabe & Anpassungsfähigkeit", "soft2": "Analytisches Denken",
-    "soft3": "Kreativ & Innovativ", "soft4": "Teamfähigkeit & Loyalität",
-    "soft5": "Selbstständigkeit & Organisation", "soft6": "Eigeninitiative & Ergebnisorientierung"
-  },
-  zh: {
-    "page-title": "个人简历。",
-    "lang-label": "语言：",
-    "dl-btn": "↓ 下载 PDF",
-    "cv-role": "信息系统理学硕士 · IT专业人士，专注于ERP系统、数据分析与核心银行领域。现居列支敦士登。",
-    "lbl-nationality": "国籍", "lbl-dob": "出生日期",
-    "lbl-gender": "性别", "val-gender": "男",
-    "lbl-license": "驾照",
-    "sec-exp": "工作经历",
-    "exp1-date": "2025年4月 – 至今", "exp1-dur": "在职",
-    "exp1-role": "Finance Core & Engineering — IT业务专员",
-    "exp1-bullets": [],
-    "exp2-date": "2024年11月 – 2025年2月", "exp2-dur": "4个月",
-    "exp2-role": "职业间歇 — 自费教育旅行",
-    "exp2-org": "自费（中国 & 韩国）",
-    "exp2-bullets": [
-      "通过与当地居民及企业的交流，培养了跨文化能力",
-      "深入了解亚洲经济与科技趋势",
-      "提升了独立性、适应能力及国际视野"
-    ],
-    "exp3-date": "2023年3月 – 2024年10月", "exp3-dur": "1年8个月",
-    "exp3-role": "核心银行IT — 应用系统经理",
-    "exp3-bullets": [],
-    "exp4-date": "2008 – 2009", "exp4-dur": "12个月",
-    "exp4-role": "实习 — 医院管理助理",
-    "exp4-org": "Grabs医院，瑞士",
-    "sec-edu": "学历教育",
-    "edu1-role": "信息系统理学硕士（MSc）",
-    "edu1-org": "列支敦士登大学",
-    "edu1-desc": "论文：《代币化应用中实体与虚拟房地产的差异化研究》",
-    "edu2-role": "工商管理理学学士（BSc）",
-    "edu2-org": "列支敦士登大学",
-    "edu2-desc": "专业方向：信息管理与信息技术 · 论文：《电子商务中的数字助推》",
-    "edu3-role": "埃森哲校园创新挑战赛",
-    "edu3-org": "列支敦士登大学",
-    "edu4-role": "法学专业",
-    "edu4-org": "奥地利因斯布鲁克大学",
-    "sec-voc": "职业与技能教育",
-    "voc1-role": "职业高中毕业证书",
-    "voc1-org": "列支敦士登vaduz职业学校",
-    "voc2-role": "商业学徒（EFZ联邦职业资格证书）",
-    "voc2-org": "瑞士布赫斯MPA职业商贸学校",
-    "sec-skills": "技术技能",
-    "sk-exc": "精通", "sk-adv": "高级",
-    "sk-bas": "基础", "sk-dom": "专业领域",
-    "sec-lang": "语言能力",
-    "lang-de": "德语", "lang-de-lv": "母语",
-    "lang-en": "英语", "lang-en-lv": "流利 — 商务水平",
-    "lang-zh": "中文（普通话）", "lang-zh-lv": "初级 — HSK 1/2",
-    "sec-soft": "个人素质",
-    "soft1": "学习能力强 & 快速适应", "soft2": "分析思维",
-    "soft3": "创意与创新", "soft4": "团队合作与忠诚",
-    "soft5": "独立性与组织能力", "soft6": "自驱力与结果导向"
-  }
-};
-
-let currentLang = 'en';
-
-function setLang(lang) {
-  currentLang = lang;
-  const t = T[lang];
-
-  // Update all simple text elements
-  const simpleIds = [
-    "page-title","lang-label","dl-btn","cv-role",
-    "lbl-nationality","lbl-dob","lbl-gender","val-gender","lbl-license",
-    "sec-exp","exp1-date","exp1-dur","exp1-role",
-    "exp2-date","exp2-dur","exp2-role","exp2-org",
-    "exp3-date","exp3-dur","exp3-role",
-    "exp4-date","exp4-dur","exp4-role","exp4-org",
-    "sec-edu","edu1-role","edu1-org","edu1-desc",
-    "edu2-role","edu2-org","edu2-desc",
-    "edu3-role","edu3-org","edu4-role","edu4-org",
-    "sec-voc","voc1-role","voc1-org","voc2-role","voc2-org",
-    "sec-skills","sk-exc","sk-adv","sk-bas","sk-dom",
-    "sec-lang","lang-de","lang-de-lv","lang-en","lang-en-lv","lang-zh","lang-zh-lv",
-    "sec-soft","soft1","soft2","soft3","soft4","soft5","soft6"
-  ];
-
-  simpleIds.forEach(id => {
-    const el = document.getElementById(id);
-    if (el && t[id] !== undefined) el.textContent = t[id];
-  });
-
-  // Update bullet lists
-  ["exp1-bullets","exp2-bullets","exp3-bullets"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && t[id]) {
-      el.innerHTML = t[id].map(b => `<li>${b}</li>`).join('');
-    }
-  });
-
-  // Update lang buttons
-  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-  const idx = ['en','de','zh'].indexOf(lang);
-  document.querySelectorAll('.lang-btn')[idx].classList.add('active');
-
-  // Update html lang
-  document.documentElement.lang = lang === 'zh' ? 'zh' : lang;
-}
-
-// ─── PDF DOWNLOAD ───────────────────────────────────────────────────────────
-function downloadPDF() {
-  const urls = {
-    en: 'CV_en.pdf',
-    de: 'CV_de.pdf',
-    zh: 'CV_ch.pdf'
-  };
-  const a = document.createElement('a');
-  a.href = urls[currentLang];
-  a.download = `CV_Damian_Frick_${currentLang.toUpperCase()}.pdf`;
-  a.click();
-}
-</script>
 
 </body>
 </html>
