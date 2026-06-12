@@ -379,7 +379,7 @@
         <p><span id="lbl-gender">Gender</span>: <span id="val-gender">Male</span></p>
         <p><span id="lbl-license">Driver's License</span>: <span>Category B</span></p>
         <div class="cv-photo">
-          <img src="CV/Me.jpg" alt="Damian Frick" />
+          <img src="Me.jpg" alt="Damian Frick" />
         </div>
       </div>
     </div>
@@ -810,9 +810,9 @@ function setLang(lang) {
 // ─── PDF DOWNLOAD ───────────────────────────────────────────────────────────
 function downloadPDF() {
   const urls = {
-    en: 'CV/CV_en.pdf',
-    de: 'CV/CV_de.pdf',
-    zh: 'CV/CV_ch.pdf'
+    en: 'CV_en.pdf',
+    de: 'CV_de.pdf',
+    zh: 'CV_ch.pdf'
   };
   const a = document.createElement('a');
   a.href = urls[currentLang];
