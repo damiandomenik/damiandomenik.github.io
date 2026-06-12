@@ -1,1 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Demos — Damian Frick</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --bg:      #0e0e0e;
+      --surface: #161616;
+      --border:  #2a2a2a;
+      --text:    #e8e8e8;
+      --muted:   #888;
+      --accent:  #c8f55a;
+      --accent2: #3dffc0;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 1.2rem 2.5rem;
+      background: rgba(14,14,14,0.85);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .nav-links { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+
+    .back {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 7rem;
+      margin-left: 2.5rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-decoration: none;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+    .back:hover { color: var(--accent); }
+
+    .hero {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 2.5rem 2rem;
+    }
+    .hero-tag {
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 1.2rem;
+    }
+    .hero h1 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      line-height: 1.0;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+    .hero p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      max-width: 600px;
+      line-height: 1.7;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .demos-wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 3rem 2.5rem 6rem;
+    }
+
+    .demo-section {
+      margin-bottom: 4rem;
+    }
+    .demo-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .demo-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+    .demo-desc {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.7;
+      margin-bottom: 2rem;
+      max-width: 600px;
+    }
+
+    /* FX TERMINAL */
+    .fx-terminal {
+      background: #0b0f14;
+      border: 1px solid #1f2a36;
+      border-radius: 10px;
+      padding: 2rem;
+      color: #d7e1ea;
+      box-shadow: 0 0 40px rgba(0,0,0,0.6);
+    }
+    .fx-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1f2a36;
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .fx-title {
+      font-family: 'Syne', sans-serif;
+      letter-spacing: 0.15em;
+      font-size: 1.2rem;
+      color: var(--accent);
+      margin-bottom: 0.2rem;
+    }
+    .fx-sub { font-size: 0.75rem; color: #6c7a89; }
+    .fx-status-dot {
+      width: 10px; height: 10px;
+      background: var(--accent2);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent2);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%   { opacity: 0.3; transform: scale(1); }
+      50%  { opacity: 1;   transform: scale(1.3); }
+      100% { opacity: 0.3; transform: scale(1); }
+    }
+    .fx-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+    .fx-input label {
+      font-size: 0.75rem;
+      color: #6c7a89;
+      letter-spacing: 0.1em;
+    }
+    .fx-input input {
+      width: 100%;
+      padding: 0.8rem;
+      margin-top: 0.5rem;
+      background: #0f1620;
+      border: 1px solid #1f2a36;
+      color: #fff;
+      font-size: 1rem;
+      border-radius: 6px;
+      font-family: 'Inter', sans-serif;
+    }
+    .fx-panel {
+      background: #0f1620;
+      border: 1px solid #1f2a36;
+      padding: 1rem;
+      border-radius: 6px;
+    }
+    .fx-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.7rem 0;
+      border-bottom: 1px solid #1f2a36;
+    }
+    .fx-row:last-child { border-bottom: none; }
+    .fx-row span { color: #6c7a89; font-size: 0.8rem; }
+    .fx-row h3 { color: var(--accent); font-size: 1.1rem; font-family: 'Syne', sans-serif; }
+    .fx-actions {
+      margin-top: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .fx-actions button {
+      background: var(--accent);
+      color: #0b0f14;
+      border: none;
+      padding: 0.7rem 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.2s;
+    }
+    .fx-actions button:hover { background: #d8ff70; }
+    #fx-status { font-size: 0.75rem; color: #6c7a89; }
+
+    .demo-tag {
+      padding: 0.3rem 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+    }
+    .demo-inspired {
+      font-size: 0.85rem;
+      color: var(--accent2);
+      margin-bottom: 2rem;
+      font-style: italic;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    @media (max-width: 640px) {
+      nav { padding: 1rem 1.2rem; }
+      .nav-links { gap: 1rem; }
+      .back { margin-left: 1.2rem; }
+      .hero { padding: 2rem 1.2rem 1.5rem; }
+      .demos-wrap { padding: 2rem 1.2rem 4rem; }
+      .fx-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a class="nav-logo" href="../index.html">DF</a>
+    <ul class="nav-links">
+      <li><a href="../index.html#about">About</a></li>
+      <li><a href="../index.html#projects">Projects</a></li>
+      <li><a href="../CV/index.html">CV</a></li>
+      <li><a href="../index.html#demos" style="color:var(--accent)">Demos</a></li>
+      <li><a href="../index.html#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <a href="../index.html#demos" class="back">← Back</a>
+
+  <div class="hero">
+    <p class="hero-tag">Live & Interactive</p>
+    <h1>Live Demos.</h1>
+    <p>Interactive tools and live data integrations — built to demonstrate real-world API usage, financial data processing, and dynamic UI development.</p>
+  </div>
+
+  <div class="demos-wrap">
+
+    <div class="demo-section">
+      <p class="demo-label">Finance · API Integration</p>
+      <div class="demo-title">FX Terminal</div>
+      <p class="demo-desc">A lightweight financial data visualization tool that retrieves real-time currency exchange rates via external API integration. Enter an amount in CHF and instantly see the converted values in EUR, USD and RMB.</p>
+      <div class="demo-tags" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:2rem;">
+        <span class="demo-tag">API consumption using JavaScript</span>
+        <span class="demo-tag">Dynamic UI updates based on real-time data</span>
+        <span class="demo-tag">Financial data processing and conversion logic</span>
+      </div>
+      <p class="demo-inspired">Inspired by core banking FX systems used in financial institutions.</p>
+
+      <div class="fx-terminal">
+        <div class="fx-header">
+          <div>
+            <div class="fx-title">FX TERMINAL</div>
+            <p class="fx-sub">Real-time FX Simulation · CHF Base</p>
+          </div>
+          <div class="fx-status-dot"></div>
+        </div>
+        <div class="fx-grid">
+          <div class="fx-input">
+            <label>AMOUNT (CHF)</label>
+            <input id="amount" type="number" value="100" min="0" />
+          </div>
+          <div class="fx-panel">
+            <div class="fx-row">
+              <span>CHF → EUR</span>
+              <h3 id="eur">--</h3>
+            </div>
+            <div class="fx-row">
+              <span>CHF → USD</span>
+              <h3 id="usd">--</h3>
+            </div>
+            <div class="fx-row">
+              <span>CHF → RMB</span>
+              <h3 id="rmb">--</h3>
+            </div>
+          </div>
+        </div>
+        <div class="fx-actions">
+          <button onclick="loadRates()">REFRESH MARKET DATA</button>
+          <p id="fx-status"></p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    © 2026 Damian Frick
+  </footer>
+
+  <script>
+    async function loadRates() {
+      const status = document.getElementById("fx-status");
+      status.textContent = "CONNECTING TO FX MARKET...";
+      try {
+        const res = await fetch("https://api.frankfurter.app/latest?from=CHF&to=EUR,USD,CNY");
+        const data = await res.json();
+        const amount = parseFloat(document.getElementById("amount").value) || 1;
+        document.getElementById("eur").textContent = (data.rates.EUR * amount).toFixed(2);
+        document.getElementById("usd").textContent = (data.rates.USD * amount).toFixed(2);
+        document.getElementById("rmb").textContent = (data.rates.CNY * amount).toFixed(2);
+        const now = new Date().toLocaleTimeString();
+        status.textContent = "LIVE DATA STREAM ACTIVE · Frankfurter API · " + now;
+      } catch (e) {
+        status.textContent = "CONNECTION ERROR — Please try again";
+      }
+    }
+    document.addEventListener("DOMContentLoaded", loadRates);
+    document.getElementById("amount").addEventListener("input", loadRates);
+  </script>
+
+</body>
+</html>
