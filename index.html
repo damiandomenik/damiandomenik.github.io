@@ -126,9 +126,18 @@
 
     .about-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr auto auto;
       gap: 3rem;
       align-items: start;
+    }
+    .about-photo img {
+      width: 160px;
+      height: 210px;
+      object-fit: cover;
+      object-position: top;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: block;
     }
     .about-text p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; }
     .skills-list { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
@@ -240,6 +249,7 @@
       .nav-links { gap: 1rem; }
       section { padding: 4rem 1.2rem; }
       .about-grid { grid-template-columns: 1fr; }
+      .about-photo { display: none; }
       .projects-grid { grid-template-columns: 1fr; }
       .cv-item { grid-template-columns: 1fr; gap: 0.3rem; }
       .contact-inner { padding: 1.8rem; }
@@ -300,6 +310,9 @@
           <div class="stat-num">LI</div>
           <div class="stat-label">Based in Liechtenstein</div>
         </div>
+      </div>
+      <div class="about-photo">
+        <img src="pictures/meshanghai.jpeg" alt="Damian Frick in Shanghai" />
       </div>
     </div>
   </section>
