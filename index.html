@@ -173,6 +173,8 @@
       padding: 2rem;
       transition: border-color 0.2s, transform 0.2s;
       cursor: default;
+      display: flex;
+      flex-direction: column;
     }
     .project-card:hover { border-color: var(--accent); transform: translateY(-3px); }
     .project-tag {
@@ -191,7 +193,8 @@
     .project-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
     .project-link {
       display: inline-block;
-      margin-top: 1.2rem;
+      margin-top: auto;
+      padding-top: 1.2rem;
       font-size: 0.82rem;
       color: var(--accent);
       text-decoration: none;
