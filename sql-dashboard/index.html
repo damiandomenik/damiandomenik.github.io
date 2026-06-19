@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Debt Recovery Analytics — Damian Frick</title>
+  <title>Complex SQL Reporting & Incident Analysis — Damian Frick</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
@@ -11,7 +11,7 @@
     :root {
       --bg: #0e0e0e; --surface: #161616; --surface2: #1c1c1c; --border: #2a2a2a;
       --text: #e8e8e8; --muted: #888; --accent: #c8f55a; --accent2: #3dffc0;
-      --warn: #ffb84d; --red: #ff6b6b;
+      --warn: #ffb84d; --red: #ff6b6b; --blue: #7c8aff;
       --mono: 'JetBrains Mono', monospace;
     }
     html { scroll-behavior: smooth; }
@@ -37,79 +37,72 @@
     }
     .back:hover { color: var(--accent); }
 
-    .hero { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2.5rem 1.5rem; }
+    .hero { max-width: 1000px; margin: 0 auto; padding: 2.5rem 2.5rem 2rem; }
     .hero-tag { font-size: 0.78rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent2); margin-bottom: 1.2rem; }
-    .hero h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: clamp(2.2rem, 5vw, 3.6rem); line-height: 1.05; letter-spacing: -0.02em; margin-bottom: 1rem; }
-    .hero p { color: var(--muted); font-size: 0.95rem; max-width: 640px; line-height: 1.7; }
-    .hero .context { font-size: 0.85rem; color: var(--accent2); font-style: italic; margin-top: 1rem; }
-    .disclaimer { font-size: 0.78rem; color: var(--muted); margin-top: 1.2rem; padding: 0.7rem 1rem; border-left: 2px solid var(--border); background: var(--surface); border-radius: 0 4px 4px 0; max-width: 640px; }
+    .hero h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: clamp(2.2rem, 5.5vw, 4rem); line-height: 1.03; letter-spacing: -0.02em; margin-bottom: 1.2rem; }
+    .hero .lead { color: var(--muted); font-size: 1.02rem; max-width: 680px; line-height: 1.7; }
+    .hero-meta { display: flex; gap: 2.5rem; flex-wrap: wrap; padding: 1.5rem 0; margin-top: 2rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .meta-label { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+    .meta-value { font-size: 0.9rem; color: var(--text); }
+    .meta-value.accent { color: var(--accent); }
 
-    .dash { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2.5rem 5rem; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 0 2.5rem; }
 
-    /* CONNECTION BAR */
-    .conn-bar {
-      display: flex; align-items: center; gap: 0.8rem;
-      background: #0b0f14; border: 1px solid #1f2a36; border-radius: 8px;
-      padding: 0.8rem 1.2rem; margin-bottom: 2rem; font-family: var(--mono); font-size: 0.8rem;
-    }
+    .story { padding: 3rem 0 1rem; }
+    .story-grid { display: grid; grid-template-columns: 180px 1fr; gap: 2.5rem; align-items: start; }
+    .story-grid + .story-grid { margin-top: 2.8rem; }
+    .story-label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); padding-top: 0.3rem; }
+    .story-body h2 { font-family: 'Syne', sans-serif; font-size: 1.45rem; font-weight: 700; margin-bottom: 0.9rem; letter-spacing: -0.01em; }
+    .story-body p { color: var(--muted); line-height: 1.8; margin-bottom: 1rem; font-size: 0.96rem; }
+    .story-body strong { color: var(--text); font-weight: 600; }
+    .story-body code { font-family: var(--mono); font-size: 0.84em; color: var(--accent2); background: #11161d; padding: 0.1rem 0.4rem; border-radius: 3px; }
+    .story-body ul { list-style: none; margin: 0.5rem 0 1rem; }
+    .story-body li { color: var(--muted); font-size: 0.95rem; line-height: 1.8; padding-left: 1.3rem; position: relative; }
+    .story-body li::before { content: '→'; position: absolute; left: 0; color: var(--accent); font-size: 0.82rem; }
+
+    .disclaimer { font-size: 0.78rem; color: var(--muted); margin-top: 1.5rem; padding: 0.8rem 1rem; border-left: 2px solid var(--border); background: var(--surface); border-radius: 0 4px 4px 0; }
+    .disclaimer b { color: var(--accent2); }
+
+    .sec-head { display: flex; align-items: baseline; gap: 0.8rem; margin: 3rem 0 0.5rem; }
+    .sec-head .num { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); }
+    .sec-head h2 { font-family: 'Syne', sans-serif; font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; }
+    .sec-sub { color: var(--muted); font-size: 0.92rem; max-width: 680px; margin-bottom: 1.5rem; }
+
+    .conn-bar { display: flex; align-items: center; gap: 0.8rem; background: #0b0f14; border: 1px solid #1f2a36; border-radius: 8px; padding: 0.8rem 1.2rem; margin-bottom: 1.5rem; font-family: var(--mono); font-size: 0.8rem; }
     .conn-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); box-shadow: 0 0 10px var(--accent2); animation: pulse 1.6s infinite; flex-shrink: 0; }
     @keyframes pulse { 0%{opacity:.3;transform:scale(1)} 50%{opacity:1;transform:scale(1.25)} 100%{opacity:.3;transform:scale(1)} }
     .conn-text { color: #6c7a89; }
     .conn-text b { color: var(--accent2); font-weight: 500; }
 
-    /* SECTION HEADERS */
-    .sec-head { display: flex; align-items: baseline; gap: 0.8rem; margin: 2.5rem 0 1.2rem; }
-    .sec-head .num { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); }
-    .sec-head h2 { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 700; letter-spacing: -0.01em; }
-
-    /* FILTERS */
-    .filters { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-bottom: 1.5rem; }
-    .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
-    .filter-group label { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-    .filter-group select {
-      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
-      padding: 0.5rem 0.8rem; border-radius: 5px; font-family: 'Inter', sans-serif; font-size: 0.85rem; cursor: pointer; min-width: 150px;
-    }
-    .filter-group select:focus { outline: none; border-color: var(--accent); }
-
-    /* KPI CARDS */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-    .kpi {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.3rem;
-      position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s;
-    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; position: relative; overflow: hidden; transition: border-color 0.2s, transform 0.2s; }
     .kpi:hover { border-color: var(--accent); transform: translateY(-2px); }
     .kpi::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: var(--accent); opacity: 0.6; }
-    .kpi-label { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.6rem; }
-    .kpi-value { font-family: 'Syne', sans-serif; font-size: 1.9rem; font-weight: 800; line-height: 1; color: var(--text); }
-    .kpi-sub { font-size: 0.75rem; margin-top: 0.5rem; font-family: var(--mono); }
-    .kpi-sub.up { color: var(--accent2); }
-    .kpi-sub.down { color: var(--red); }
-    .kpi-sub.neutral { color: var(--muted); }
+    .kpi-label { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+    .kpi-value { font-family: 'Syne', sans-serif; font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--text); }
+    .kpi-sub { font-size: 0.72rem; margin-top: 0.45rem; font-family: var(--mono); }
+    .kpi-sub.up { color: var(--accent2); } .kpi-sub.down { color: var(--red); } .kpi-sub.neutral { color: var(--muted); }
 
-    /* CHART GRID */
     .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
     .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.3rem; }
     .chart-card.wide { grid-column: 1 / -1; }
     .chart-card h3 { font-size: 0.92rem; font-weight: 600; margin-bottom: 0.3rem; }
     .chart-card .chart-sub { font-size: 0.75rem; color: var(--muted); margin-bottom: 1rem; }
-    .chart-box { position: relative; height: 260px; }
-    .chart-box.tall { height: 300px; }
+    .chart-box { position: relative; height: 250px; }
 
-    /* QUERY VIEWER */
     .query-viewer { background: #0b0f14; border: 1px solid #1f2a36; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
-    .qv-head { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 1.2rem; border-bottom: 1px solid #1f2a36; background: #0f1620; }
+    .qv-head { display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 1.2rem; border-bottom: 1px solid #1f2a36; background: #0f1620; gap: 1rem; flex-wrap: wrap; }
     .qv-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-    .qv-tab {
-      font-family: var(--mono); font-size: 0.72rem; padding: 0.35rem 0.7rem; border-radius: 4px;
-      background: transparent; border: 1px solid #1f2a36; color: #6c7a89; cursor: pointer; transition: all 0.15s;
-    }
+    .qv-tab { font-family: var(--mono); font-size: 0.72rem; padding: 0.35rem 0.7rem; border-radius: 4px; background: transparent; border: 1px solid #1f2a36; color: #6c7a89; cursor: pointer; transition: all 0.15s; }
     .qv-tab:hover { color: var(--text); border-color: var(--accent); }
     .qv-tab.active { background: var(--accent); color: #0b0f14; border-color: var(--accent); font-weight: 500; }
-    .qv-run { font-family: var(--mono); font-size: 0.72rem; padding: 0.35rem 0.9rem; border-radius: 4px; background: var(--accent2); color: #0b0f14; border: none; cursor: pointer; font-weight: 600; }
+    .qv-run { font-family: var(--mono); font-size: 0.72rem; padding: 0.4rem 1rem; border-radius: 4px; background: var(--accent2); color: #0b0f14; border: none; cursor: pointer; font-weight: 600; white-space: nowrap; }
     .qv-run:hover { background: #2fe0a8; }
-    .qv-body { display: grid; grid-template-columns: 1fr; }
-    .qv-code { padding: 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; color: #d7e1ea; white-space: pre; }
+    .qv-meta { padding: 0.9rem 1.2rem; border-bottom: 1px solid #1f2a36; background: #0c1218; }
+    .qv-meta .qv-title { font-size: 0.92rem; font-weight: 600; color: var(--text); margin-bottom: 0.25rem; }
+    .qv-meta .qv-why { font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+    .qv-meta .qv-why b { color: var(--accent2); font-weight: 500; }
+    .qv-code { padding: 1.2rem; overflow-x: auto; font-family: var(--mono); font-size: 0.76rem; line-height: 1.6; color: #d7e1ea; white-space: pre; max-height: 420px; overflow-y: auto; }
     .qv-code .kw { color: #c8f55a; }
     .qv-code .fn { color: #3dffc0; }
     .qv-code .str { color: #ffb84d; }
@@ -118,24 +111,34 @@
     .qv-result { border-top: 1px solid #1f2a36; }
     .qv-status { font-family: var(--mono); font-size: 0.72rem; color: #6c7a89; padding: 0.7rem 1.2rem; border-bottom: 1px solid #1f2a36; min-height: 2.4rem; display: flex; align-items: center; gap: 0.5rem; }
     .qv-status .spin { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); animation: pulse 0.8s infinite; }
-    .qv-table-wrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
-    table.qv-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
-    table.qv-table th { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--accent); text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid #1f2a36; position: sticky; top: 0; background: #0f1620; white-space: nowrap; }
-    table.qv-table td { padding: 0.55rem 0.9rem; border-bottom: 1px solid #161d26; color: #c7d2dc; white-space: nowrap; }
+    .qv-table-wrap { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+    table.qv-table { width: 100%; border-collapse: collapse; font-size: 0.76rem; }
+    table.qv-table th { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--accent); text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid #1f2a36; position: sticky; top: 0; background: #0f1620; white-space: nowrap; }
+    table.qv-table td { padding: 0.5rem 0.9rem; border-bottom: 1px solid #161d26; color: #c7d2dc; white-space: nowrap; }
     table.qv-table tr:hover td { background: #0f1620; }
     .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 3px; font-size: 0.68rem; font-family: var(--mono); }
     .badge.green { background: rgba(61,255,192,0.12); color: var(--accent2); }
     .badge.amber { background: rgba(255,184,77,0.12); color: var(--warn); }
     .badge.red { background: rgba(255,107,107,0.12); color: var(--red); }
     .badge.grey { background: rgba(136,136,136,0.12); color: var(--muted); }
-    .qv-note { font-size: 0.75rem; color: var(--muted); padding: 0.7rem 1.2rem; border-top: 1px solid #1f2a36; font-family: var(--mono); }
-
-    /* PROGRESS BAR in table */
+    .badge.blue { background: rgba(124,138,255,0.14); color: var(--blue); }
     .pbar { display: inline-flex; align-items: center; gap: 0.5rem; }
-    .pbar-track { width: 60px; height: 6px; background: #1f2a36; border-radius: 3px; overflow: hidden; }
+    .pbar-track { width: 54px; height: 6px; background: #1f2a36; border-radius: 3px; overflow: hidden; }
     .pbar-fill { height: 100%; background: var(--accent); border-radius: 3px; }
 
-    footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); }
+    .incident { background: linear-gradient(135deg, rgba(255,107,107,0.06), rgba(255,184,77,0.04)); border: 1px solid rgba(255,107,107,0.25); border-radius: 10px; padding: 1.8rem; margin-top: 1rem; }
+    .incident-tag { display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--red); margin-bottom: 1rem; }
+    .incident-tag .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: pulse 1.2s infinite; }
+    .incident h3 { font-family: 'Syne', sans-serif; font-size: 1.2rem; margin-bottom: 0.8rem; }
+    .incident p { color: var(--muted); font-size: 0.92rem; line-height: 1.75; margin-bottom: 0.8rem; }
+    .incident .timeline { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem 1rem; margin-top: 1.2rem; }
+    .incident .t-time { font-family: var(--mono); font-size: 0.75rem; color: var(--warn); white-space: nowrap; }
+    .incident .t-event { font-size: 0.85rem; color: var(--text); }
+
+    .skill-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+    .skill-tag { padding: 0.3rem 0.85rem; border: 1px solid var(--border); border-radius: 2px; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.03em; font-family: var(--mono); }
+
+    footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); margin-top: 4rem; }
 
     @media (max-width: 760px) {
       nav { padding: 0.8rem 1rem; }
@@ -143,8 +146,10 @@
       .nav-links a { font-size: 0.72rem; letter-spacing: 0.02em; }
       .nav-logo { font-size: 0.9rem; }
       .back { margin-left: 1.2rem; }
-      .hero { padding: 2rem 1.2rem 1rem; }
-      .dash { padding: 1rem 1.2rem 4rem; }
+      .hero { padding: 2rem 1.2rem 1.5rem; }
+      .wrap { padding: 0 1.2rem; }
+      .story-grid { grid-template-columns: 1fr; gap: 0.6rem; }
+      .story-grid + .story-grid { margin-top: 2rem; }
       .chart-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -165,60 +170,107 @@
   <a href="../index.html#demos" class="back">← Back</a>
 
   <div class="hero">
-    <p class="hero-tag">Data Analytics · SQL Reporting</p>
-    <h1>Debt Recovery Analytics.</h1>
-    <p>An interactive reporting dashboard for a debt collection operation — tracking recovery performance across external law firms, surfacing recoverable closed cases, and running the kind of multi-table SQL reports used to support business decisions.</p>
-    <p class="context">Designed to replicate internal reporting systems used in retail banking and collections environments.</p>
-    <div class="disclaimer">
-      <b>Note:</b> All data shown is randomly generated mock data. Table names, schema and figures are fictional and do not represent any real institution, system, or person. Built to demonstrate SQL and analytics technique.
+    <p class="hero-tag">Case Study · SQL & Data Analysis</p>
+    <h1>Complex SQL Reporting<br>& Incident Analysis.</h1>
+    <p class="lead">In a core-banking debt-collection environment, the hard part of reporting isn't the chart — it's the query underneath it. This is a look at how I build deep, multi-layered SQL reports against a sprawling case-management schema, and how the same skills keep the operation running when something breaks.</p>
+    <div class="hero-meta">
+      <div><div class="meta-label">Domain</div><div class="meta-value">Core Banking · Collections</div></div>
+      <div><div class="meta-label">Focus</div><div class="meta-value accent">Complex SQL · Incident Analysis</div></div>
+      <div><div class="meta-label">Engine</div><div class="meta-value">MS SQL Server (T-SQL)</div></div>
+      <div><div class="meta-label">Role</div><div class="meta-value">Sole analyst / author</div></div>
     </div>
   </div>
 
-  <div class="dash">
+  <div class="wrap">
 
-    <!-- CONNECTION SIMULATION -->
+    <div class="story">
+      <div class="story-grid">
+        <div class="story-label">01 · Overview</div>
+        <div class="story-body">
+          <h2>What this is</h2>
+          <p>I work as an IT Business Specialist in a core-banking collections operation. When a loan defaults, the case moves through a long legal pipeline — pre-legal dunning, payment plans, garnishment, insolvency, litigation — handled together with external law firms.</p>
+          <p>Almost every business question lands on my desk as a <strong>SQL problem</strong>: which closed cases are worth reactivating, how a single case really looks across fifteen sub-systems, where the fees went, or — when a batch process breaks — which records are now in an inconsistent state. The reports feed business decisions directly; there's no BI tool doing the thinking, the thinking is in the query.</p>
+        </div>
+      </div>
+
+      <div class="story-grid">
+        <div class="story-label">02 · The challenge</div>
+        <div class="story-body">
+          <h2>Why one column is hard</h2>
+          <p>The data model is large and deeply normalised. A seemingly trivial value hides real complexity. Take <strong>"the debtor's last payment"</strong>: payments live in a bookings table, each tagged with a booking key, and only a specific set of keys count as an actual incoming payment — others are fees, reversals or internal postings. So "last payment" means: filter to the right booking keys, take the most recent by value date, per case.</p>
+          <p>Now multiply that by twenty columns — active workflow, current decision step, latest history entry, total claim, payment progress, enforcement title, insolvency status, last document — each with its own "latest record per case" logic. That's the real job.</p>
+          <ul>
+            <li>Dozens of tables, one row per case in the output</li>
+            <li>"Latest / most relevant record" needed per sub-entity</li>
+            <li>Domain rules baked into the SQL (which keys, which statuses count)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="story-grid">
+        <div class="story-label">03 · Approach</div>
+        <div class="story-body">
+          <h2>How I build it</h2>
+          <p>The backbone is <code>OUTER APPLY</code> with <code>SELECT TOP 1 … ORDER BY</code> — one isolated sub-query per fact, each pulling exactly the latest relevant record for that case without fanning out the result set. Where I need ranking across a whole set I switch to <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> inside a CTE and keep <code>rn = 1</code>.</p>
+          <p>Domain logic sits in <code>CASE WHEN</code> expressions and curated <code>IN (…)</code> lists of booking keys. Parameters go in a small <code>WITH parameters AS (…)</code> block and are <code>CROSS JOIN</code>ed in, so the same report can be re-run for different date ranges or owners without touching the body.</p>
+          <p>Run the reports below to see the patterns in action — each tab explains <em>why</em> it's non-trivial.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <b>Note:</b> All data, table names and figures on this page are fictional mock data generated for demonstration. They do not represent any real institution, system, client or person. The SQL reproduces analytical <em>patterns</em> from my work, rewritten against an invented schema.
+    </div>
+
+    <div class="sec-head"><span class="num">04</span><h2>Query Explorer</h2></div>
+    <p class="sec-sub">Reports in rising order of complexity. Pick one, read why it's hard, then run it to see simulated results.</p>
+
     <div class="conn-bar">
       <div class="conn-dot"></div>
-      <div class="conn-text" id="conn-text">Initializing connection to <b>recovery_dwh</b> …</div>
+      <div class="conn-text" id="conn-text">Initializing connection to <b>collections_dwh</b> …</div>
     </div>
 
-    <!-- FILTERS -->
-    <div class="sec-head"><span class="num">01</span><h2>Portfolio Overview</h2></div>
-    <div class="filters">
-      <div class="filter-group">
-        <label>Reporting Period</label>
-        <select id="f-period">
-          <option value="ytd">Year to date</option>
-          <option value="q">Last quarter</option>
-          <option value="12m" selected>Last 12 months</option>
-        </select>
+    <div class="query-viewer">
+      <div class="qv-head">
+        <div class="qv-tabs" id="qv-tabs"></div>
+        <button class="qv-run" id="qv-run" onclick="runQuery()">▶ RUN</button>
       </div>
-      <div class="filter-group">
-        <label>Portfolio</label>
-        <select id="f-portfolio">
-          <option value="all" selected>All portfolios</option>
-          <option value="north">North region</option>
-          <option value="south">South region</option>
-        </select>
+      <div class="qv-meta">
+        <div class="qv-title" id="qv-title"></div>
+        <div class="qv-why" id="qv-why"></div>
       </div>
-      <div class="filter-group">
-        <label>Currency</label>
-        <select id="f-currency">
-          <option value="eur" selected>EUR</option>
-          <option value="chf">CHF</option>
-        </select>
+      <div class="qv-code" id="qv-code"></div>
+      <div class="qv-result">
+        <div class="qv-status" id="qv-status">Ready.</div>
+        <div class="qv-table-wrap"><table class="qv-table" id="qv-table"></table></div>
       </div>
     </div>
 
-    <!-- KPI CARDS -->
+    <div class="sec-head"><span class="num">05</span><h2>When it breaks: incident analysis</h2></div>
+    <p class="sec-sub">Reporting and incident response are the same skill under pressure. A real pattern: a nightly batch leaves cases in a broken state, the team is blocked, and someone has to find exactly which records are affected — fast.</p>
+
+    <div class="incident">
+      <div class="incident-tag"><span class="dot"></span> Critical incident — operations blocked</div>
+      <h3>Orphaned cases after a failed batch run</h3>
+      <p>A batch job stopped halfway. The result: a set of cases left with <strong>no active workflow and no open task</strong> — invisible in the front-end work queues, so they'd silently stop being worked. No error, no alert; just cases quietly falling out of the process.</p>
+      <p>My job wasn't to fix the batch — it was to tell the team <strong>exactly which cases</strong> were affected, with their remaining claim and last known procedural state, so they could be re-queued and the damage quantified. The query uses <code>NOT EXISTS</code> on both workflows and tasks, plus <code>OUTER APPLY</code> for the latest claim and procedure status.</p>
+      <div class="timeline">
+        <div class="t-time">T+0 min</div><div class="t-event">Team reports cases missing from work queues</div>
+        <div class="t-time">T+15 min</div><div class="t-event">Reproduced: cases with no active workflow AND no open task</div>
+        <div class="t-time">T+40 min</div><div class="t-event">Query isolates the full affected set + remaining claim per case</div>
+        <div class="t-time">T+1 h</div><div class="t-event">List handed over; cases re-queued, financial exposure quantified</div>
+      </div>
+    </div>
+    <p class="sec-sub" style="margin-top:1.5rem;">The "orphaned cases" report is the last tab in the explorer above — switch to it and run it to see the result.</p>
+
+    <div class="sec-head"><span class="num">06</span><h2>From queries to a picture</h2></div>
+    <p class="sec-sub">The same data, rolled up. These are the kind of portfolio numbers the detailed reports ultimately feed — shown here as a compact overview rather than the main event.</p>
+
     <div class="kpi-grid" id="kpi-grid"></div>
-
-    <!-- CHARTS -->
-    <div class="sec-head"><span class="num">02</span><h2>Recovery Performance</h2></div>
     <div class="chart-grid">
       <div class="chart-card wide">
         <h3>Monthly Collections vs. Target</h3>
-        <p class="chart-sub">Amount recovered per month against the portfolio target (mock data)</p>
+        <p class="chart-sub">Recovered amount per month against portfolio target (mock data)</p>
         <div class="chart-box"><canvas id="chartCollections"></canvas></div>
       </div>
       <div class="chart-card">
@@ -227,29 +279,38 @@
         <div class="chart-box"><canvas id="chartStatus"></canvas></div>
       </div>
       <div class="chart-card">
-        <h3>Law Firm Performance</h3>
-        <p class="chart-sub">Recovery rate by external partner</p>
+        <h3>Law Firm Recovery Rate</h3>
+        <p class="chart-sub">Performance by external partner</p>
         <div class="chart-box"><canvas id="chartFirms"></canvas></div>
       </div>
     </div>
 
-    <!-- QUERY VIEWER -->
-    <div class="sec-head"><span class="num">03</span><h2>Query Console</h2></div>
-    <p style="color:var(--muted); font-size:0.88rem; margin-bottom:1.2rem; max-width:640px;">
-      The reports below mirror real analytical patterns — common table expressions, window functions and <span style="font-family:var(--mono);color:var(--accent2)">OUTER APPLY</span> lookups to pull the latest record per case. Pick a report and run it.
-    </p>
-
-    <div class="query-viewer">
-      <div class="qv-head">
-        <div class="qv-tabs" id="qv-tabs"></div>
-        <button class="qv-run" id="qv-run" onclick="runQuery()">▶ RUN</button>
+    <div class="story" style="padding-top:2rem;">
+      <div class="story-grid">
+        <div class="story-label">07 · Impact</div>
+        <div class="story-body">
+          <h2>What it delivered</h2>
+          <ul>
+            <li>Reports that let the business decide which closed cases to reactivate — turning dormant files back into recovered cash</li>
+            <li>360° case profiles that replaced hours of manual cross-referencing across sub-systems with a single query</li>
+            <li>Fee breakdowns precise enough to audit cost recovery per case</li>
+            <li>Fast, accurate incident analysis that let the team recover from batch failures with quantified exposure instead of guesswork</li>
+          </ul>
+        </div>
       </div>
-      <div class="qv-body">
-        <div class="qv-code" id="qv-code"></div>
-        <div class="qv-result">
-          <div class="qv-status" id="qv-status">Ready.</div>
-          <div class="qv-table-wrap"><table class="qv-table" id="qv-table"></table></div>
-          <div class="qv-note" id="qv-note"></div>
+      <div class="story-grid">
+        <div class="story-label">Tech</div>
+        <div class="story-body">
+          <div class="skill-tags">
+            <span class="skill-tag">MS SQL Server</span>
+            <span class="skill-tag">T-SQL</span>
+            <span class="skill-tag">CTEs</span>
+            <span class="skill-tag">Window Functions</span>
+            <span class="skill-tag">OUTER APPLY</span>
+            <span class="skill-tag">CASE logic</span>
+            <span class="skill-tag">Incident Analysis</span>
+            <span class="skill-tag">Data Cleansing</span>
+          </div>
         </div>
       </div>
     </div>
@@ -259,78 +320,60 @@
   <footer>© 2026 Damian Frick · Mock data for demonstration purposes only</footer>
 
   <script>
-    // ============ MOCK DATA GENERATION (deterministic-ish random) ============
     function rng(seed){ let s=seed; return ()=>{ s=(s*9301+49297)%233280; return s/233280; }; }
-    const rand = rng(42);
+    const rand = rng(73);
     const pick = arr => arr[Math.floor(rand()*arr.length)];
     const between = (a,b)=> a + rand()*(b-a);
     const intBetween = (a,b)=> Math.floor(between(a,b+1));
     const money = n => n.toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-    // ============ KPI DATA ============
-    const kpis = [
-      { label:'Open Receivables', value:'€ 4.82M', sub:'▲ 3.1% vs prev. period', cls:'up' },
-      { label:'Recovery Rate', value:'27.4%', sub:'▲ 1.8 pts', cls:'up' },
-      { label:'Active Cases', value:'8,341', sub:'▼ 2.0% vs prev. period', cls:'down' },
-      { label:'Avg. Days to First Payment', value:'63', sub:'— stable', cls:'neutral' },
-      { label:'Recoverable Closed Cases', value:'512', sub:'▲ flagged for review', cls:'up' },
-    ];
-    const kpiGrid = document.getElementById('kpi-grid');
-    kpis.forEach(k=>{
-      const d=document.createElement('div'); d.className='kpi';
-      d.innerHTML=`<div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub ${k.cls}">${k.sub}</div>`;
-      kpiGrid.appendChild(d);
-    });
-
-    // ============ CHART THEME ============
-    function buildCharts(){
-    if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
-    Chart.defaults.color = '#888';
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.font.size = 11;
-    const grid = '#222';
-    const ACCENT='#c8f55a', ACCENT2='#3dffc0', WARN='#ffb84d', RED='#ff6b6b';
-
-    const months = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
-    const collections = months.map(()=> Math.round(between(280000,520000)));
-    const target = months.map(()=> 420000);
-
-    new Chart(document.getElementById('chartCollections'), {
-      type:'bar',
-      data:{ labels:months, datasets:[
-        { label:'Collected (€)', data:collections, backgroundColor:ACCENT+'cc', borderRadius:4, order:2 },
-        { label:'Target (€)', data:target, type:'line', borderColor:ACCENT2, borderWidth:2, borderDash:[5,4], pointRadius:0, order:1 }
-      ]},
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ position:'top', labels:{ boxWidth:12, usePointStyle:true } } },
-        scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid }, ticks:{ callback:v=>'€'+(v/1000)+'k' } } } }
-    });
-
-    new Chart(document.getElementById('chartStatus'), {
-      type:'doughnut',
-      data:{ labels:['Pre-legal','Payment plan','Garnishment','Insolvency','Litigation'],
-        datasets:[{ data:[2840,1920,1460,1180,941], backgroundColor:[ACCENT,ACCENT2,WARN,RED,'#7c8aff'], borderColor:'#161616', borderWidth:2 }]},
-      options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
-        plugins:{ legend:{ position:'right', labels:{ boxWidth:10, usePointStyle:true, padding:12 } } } }
-    });
-
-    new Chart(document.getElementById('chartFirms'), {
-      type:'bar',
-      data:{ labels:firms, datasets:[{ label:'Recovery rate %', data:[34.2,29.8,26.1,22.5,19.7],
-        backgroundColor:[ACCENT,ACCENT,ACCENT2,WARN,RED], borderRadius:4 }]},
-      options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
-        scales:{ x:{ grid:{ color:grid }, ticks:{ callback:v=>v+'%' }, max:40 }, y:{ grid:{ display:false } } } }
-    });
-    }
+    const caseRef = ()=> intBetween(10000000,99999999)+'/'+intBetween(10,25)+'/0';
+    const dateStr = ()=>{ const d=new Date(intBetween(2024,2025), intBetween(0,11), intBetween(1,28)); return d.toLocaleDateString('de-CH'); };
     const firms = ['Adler & Co','Brandt Legal','Castell LLP','Donner Recht','Ebert Partners'];
 
-    // ============ QUERY VIEWER ============
+    const kpis = [
+      { label:'Open Receivables', value:'€ 4.82M', sub:'▲ 3.1% vs prev.', cls:'up' },
+      { label:'Recovery Rate', value:'27.4%', sub:'▲ 1.8 pts', cls:'up' },
+      { label:'Active Cases', value:'8,341', sub:'▼ 2.0%', cls:'down' },
+      { label:'Avg. Days to 1st Pay', value:'63', sub:'— stable', cls:'neutral' },
+      { label:'Reactivation Candidates', value:'512', sub:'▲ flagged', cls:'up' },
+    ];
+    const kg = document.getElementById('kpi-grid');
+    kpis.forEach(k=>{ const d=document.createElement('div'); d.className='kpi'; d.innerHTML=`<div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub ${k.cls}">${k.sub}</div>`; kg.appendChild(d); });
+
+    function buildCharts(){
+      if (typeof Chart === 'undefined') { console.warn('Chart.js not loaded'); return; }
+      Chart.defaults.color = '#888';
+      Chart.defaults.font.family = "'Inter', sans-serif";
+      Chart.defaults.font.size = 11;
+      const grid = '#222';
+      const A='#c8f55a', A2='#3dffc0', W='#ffb84d', R='#ff6b6b', B='#7c8aff';
+      const months = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+      new Chart(document.getElementById('chartCollections'), {
+        type:'bar',
+        data:{ labels:months, datasets:[
+          { label:'Collected (€)', data:months.map(()=>Math.round(between(280000,520000))), backgroundColor:A+'cc', borderRadius:4, order:2 },
+          { label:'Target (€)', data:months.map(()=>420000), type:'line', borderColor:A2, borderWidth:2, borderDash:[5,4], pointRadius:0, order:1 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top', labels:{ boxWidth:12, usePointStyle:true } } }, scales:{ x:{ grid:{ color:grid } }, y:{ grid:{ color:grid }, ticks:{ callback:v=>'€'+(v/1000)+'k' } } } }
+      });
+      new Chart(document.getElementById('chartStatus'), {
+        type:'doughnut',
+        data:{ labels:['Pre-legal','Payment plan','Garnishment','Insolvency','Litigation'], datasets:[{ data:[2840,1920,1460,1180,941], backgroundColor:[A,A2,W,R,B], borderColor:'#161616', borderWidth:2 }]},
+        options:{ responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{ position:'right', labels:{ boxWidth:10, usePointStyle:true, padding:12 } } } }
+      });
+      new Chart(document.getElementById('chartFirms'), {
+        type:'bar',
+        data:{ labels:firms, datasets:[{ label:'Recovery rate %', data:[34.2,29.8,26.1,22.5,19.7], backgroundColor:[A,A,A2,W,R], borderRadius:4 }]},
+        options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ grid:{ color:grid }, ticks:{ callback:v=>v+'%' }, max:40 }, y:{ grid:{ display:false } } } }
+      });
+    }
+
     const queries = [
       {
         id:'firm-perf',
         name:'Law firm performance',
-        note:'Aggregates recovered amounts per external law firm and ranks them by recovery rate.',
+        title:'Recovery performance per external law firm',
+        why:'A warm-up. A CTE aggregates recovered amounts per firm (filtered to real payment booking keys), then ranks them. <b>Why it matters:</b> only certain booking keys count as recovery — get that filter wrong and every number is wrong.',
         sql:
 `<span class="cmt">-- Recovery performance per external law firm</span>
 <span class="kw">WITH</span> recovered <span class="kw">AS</span> (
@@ -340,7 +383,7 @@
         <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> c.id) <span class="kw">AS</span> cases_handled
     <span class="kw">FROM</span> cases c
     <span class="kw">JOIN</span> payments p <span class="kw">ON</span> p.case_id = c.id
-    <span class="kw">WHERE</span> p.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>)
+    <span class="kw">WHERE</span> p.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>,<span class="num">5060</span>,<span class="num">5070</span>,<span class="num">5080</span>)
     <span class="kw">GROUP BY</span> c.law_firm_id
 )
 <span class="kw">SELECT</span>
@@ -353,54 +396,120 @@
 <span class="kw">JOIN</span> law_firms f <span class="kw">ON</span> f.id = r.law_firm_id
 <span class="kw">ORDER BY</span> recovery_rate <span class="kw">DESC</span>;`,
         columns:['law_firm','cases_handled','total_recovered','recovery_rate'],
-        rows: firms.map((f,i)=>({
-          law_firm:f,
-          cases_handled: intBetween(380,1450),
-          total_recovered: '€ '+money(between(900000,2400000)),
-          recovery_rate: { _pbar:[34.2,29.8,26.1,22.5,19.7][i] }
-        }))
+        rows: firms.map((f,i)=>({ law_firm:f, cases_handled:intBetween(380,1450), total_recovered:'€ '+money(between(900000,2400000)), recovery_rate:{_pbar:[34.2,29.8,26.1,22.5,19.7][i]} }))
       },
       {
-        id:'latest-wf',
-        name:'Latest workflow per case',
-        note:'Uses ROW_NUMBER() to keep only the most recent active workflow per case — a common dedup pattern.',
+        id:'fees',
+        name:'Fee breakdown',
+        title:'Cost & fee breakdown by booking-key group',
+        why:'Each fee type lives under its own set of booking keys (court fees, bailiff, lawyer, dunning). Parallel <b>OUTER APPLY + SUM</b> blocks total each group separately, alongside payments and a computed recovery progress %. <b>Why it matters:</b> the grouping is pure domain knowledge — the keys carry the meaning, not a column.',
         sql:
-`<span class="cmt">-- Most recent active workflow + current decision per case</span>
-<span class="kw">WITH</span> wf_latest <span class="kw">AS</span> (
-    <span class="kw">SELECT</span> w.*,
-        <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
-            <span class="kw">PARTITION BY</span> w.case_id
-            <span class="kw">ORDER BY</span> w.started_at <span class="kw">DESC</span>
-        ) <span class="kw">AS</span> rn
-    <span class="kw">FROM</span> workflows w
-    <span class="kw">WHERE</span> w.status = <span class="str">'ACTIVE'</span>
-)
+`<span class="cmt">-- Fee &amp; cost breakdown per case, by booking-key group</span>
 <span class="kw">SELECT</span>
     c.case_ref,
-    wf.workflow_name      <span class="kw">AS</span> active_workflow,
-    wf.current_step       <span class="kw">AS</span> decision,
-    a.total_claim
+    paid.total            <span class="kw">AS</span> payments,
+    court.total           <span class="kw">AS</span> court_bailiff_fees,
+    lawyer.total          <span class="kw">AS</span> lawyer_fees,
+    dunning.total         <span class="kw">AS</span> dunning_fees,
+    a.total_claim,
+    <span class="kw">CASE WHEN</span> paid.total <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> a.total_claim <span class="kw">IS NOT NULL</span>
+         <span class="kw">THEN</span> <span class="fn">ROUND</span>(paid.total
+              / (paid.total + <span class="fn">ABS</span>(a.total_claim)) * <span class="num">100</span>, <span class="num">0</span>)
+    <span class="kw">END</span>                   <span class="kw">AS</span> progress_pct
 <span class="kw">FROM</span> cases c
-<span class="kw">JOIN</span> wf_latest wf <span class="kw">ON</span> wf.case_id = c.id <span class="kw">AND</span> wf.rn = <span class="num">1</span>
-<span class="kw">OUTER APPLY</span> (
-    <span class="kw">SELECT TOP</span> <span class="num">1</span> claim.total_claim
-    <span class="kw">FROM</span> claim_snapshots claim
-    <span class="kw">WHERE</span> claim.case_ref = c.case_ref
-    <span class="kw">ORDER BY</span> claim.changed_at <span class="kw">DESC</span>
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- incoming payments</span>
+    <span class="kw">SELECT</span> <span class="fn">SUM</span>(b.amount) total <span class="kw">FROM</span> bookings b
+    <span class="kw">WHERE</span> b.case_id = c.id
+      <span class="kw">AND</span> b.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>,<span class="num">5060</span>,<span class="num">5070</span>,<span class="num">5080</span>,<span class="num">5180</span>)
+) paid
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- court + bailiff + service fees</span>
+    <span class="kw">SELECT</span> <span class="fn">SUM</span>(b.amount) total <span class="kw">FROM</span> bookings b
+    <span class="kw">WHERE</span> b.case_id = c.id
+      <span class="kw">AND</span> b.booking_key <span class="kw">IN</span> (<span class="num">4001</span>,<span class="num">4011</span>,<span class="num">4021</span>,<span class="num">4041</span>,<span class="num">4071</span>,<span class="num">4081</span>)
+) court
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- lawyer fees</span>
+    <span class="kw">SELECT</span> <span class="fn">SUM</span>(b.amount) total <span class="kw">FROM</span> bookings b
+    <span class="kw">WHERE</span> b.case_id = c.id
+      <span class="kw">AND</span> b.booking_key <span class="kw">IN</span> (<span class="num">3021</span>,<span class="num">3031</span>,<span class="num">3041</span>,<span class="num">3051</span>,<span class="num">3091</span>)
+) lawyer
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- dunning / order-for-payment fees</span>
+    <span class="kw">SELECT</span> <span class="fn">SUM</span>(b.amount) total <span class="kw">FROM</span> bookings b
+    <span class="kw">WHERE</span> b.case_id = c.id
+      <span class="kw">AND</span> b.booking_key <span class="kw">IN</span> (<span class="num">4251</span>,<span class="num">4255</span>)
+) dunning
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- latest claim snapshot</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
+    <span class="kw">WHERE</span> s.case_ref = c.case_ref
+    <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
 ) a
-<span class="kw">ORDER BY</span> a.total_claim <span class="kw">DESC</span>;`,
-        columns:['case_ref','active_workflow','decision','total_claim'],
-        rows: Array.from({length:8}).map(()=>({
-          case_ref: intBetween(10000000,99999999)+'/'+intBetween(10,25)+'/0',
-          active_workflow: pick(['Garnishment prep','Payment monitoring','Address tracing','Insolvency watch','Document intake']),
-          decision: pick(['Awaiting court','Plan active','Review','Escalate','On hold']),
-          total_claim: '€ '+money(between(1200,48000))
-        }))
+<span class="kw">ORDER BY</span> progress_pct <span class="kw">DESC</span>;`,
+        columns:['case_ref','payments','court_bailiff_fees','lawyer_fees','dunning_fees','progress_pct'],
+        rows: Array.from({length:8}).map(()=>{ const prog=intBetween(5,95); return { case_ref:caseRef(), payments:'€ '+money(between(200,9000)), court_bailiff_fees:'€ '+money(between(50,1200)), lawyer_fees:'€ '+money(between(80,2200)), dunning_fees:'€ '+money(between(20,400)), progress_pct:{_pbar:prog} }; }).sort((a,b)=>b.progress_pct._pbar-a.progress_pct._pbar)
       },
       {
-        id:'recoverable',
-        name:'Recoverable closed cases',
-        note:'Finds closed cases with no insolvency discharge and a recent positive booking — candidates to reactivate.',
+        id:'profile',
+        name:'360° case profile',
+        title:'Full case profile — many sub-systems, one row',
+        why:'The flagship. A dozen <b>OUTER APPLY</b> blocks each resolve one "latest relevant record": last payment (right booking keys), active workflow, current decision, latest history entry, enforcement title, country, last document. <b>Why it matters:</b> it replaces hours of manual cross-referencing with a single, repeatable row-per-case report.',
+        sql:
+`<span class="cmt">-- 360° profile: one row per case, assembled from many sub-systems</span>
+<span class="kw">SELECT</span>
+    <span class="fn">LEFT</span>(c.case_ref, <span class="fn">CHARINDEX</span>(<span class="str">'/'</span>, c.case_ref) - <span class="num">1</span>) <span class="kw">AS</span> loan_id,
+    c.case_ref,
+    ph.phase,
+    hist.note                 <span class="kw">AS</span> last_history_note,
+    pay.amount                <span class="kw">AS</span> last_payment,
+    pay.value_date            <span class="kw">AS</span> last_payment_date,
+    wf.workflow_name          <span class="kw">AS</span> active_workflow,
+    wf.current_step           <span class="kw">AS</span> current_decision,
+    a.total_claim,
+    <span class="kw">CASE WHEN</span> ttl.id <span class="kw">IS NOT NULL</span> <span class="kw">THEN</span> <span class="str">'Yes'</span> <span class="kw">ELSE</span> <span class="str">'No'</span> <span class="kw">END</span> <span class="kw">AS</span> has_title,
+    addr.country,
+    doc.title                 <span class="kw">AS</span> last_document
+<span class="kw">FROM</span> cases c
+<span class="kw">LEFT JOIN</span> phases ph <span class="kw">ON</span> ph.id = c.current_phase_id
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- last real payment</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> b.amount, b.value_date <span class="kw">FROM</span> bookings b
+    <span class="kw">WHERE</span> b.case_id = c.id
+      <span class="kw">AND</span> b.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>,<span class="num">5060</span>,<span class="num">5070</span>,<span class="num">5080</span>,<span class="num">5180</span>)
+    <span class="kw">ORDER BY</span> b.value_date <span class="kw">DESC</span>, b.id <span class="kw">DESC</span>
+) pay
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- last non-system history entry</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> h.note <span class="kw">FROM</span> case_history h
+    <span class="kw">WHERE</span> h.case_id = c.id <span class="kw">AND</span> h.note <span class="kw">NOT LIKE</span> <span class="str">'Workflow%'</span>
+    <span class="kw">ORDER BY</span> h.created_at <span class="kw">DESC</span>
+) hist
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- active workflow</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> w.workflow_name, w.current_step <span class="kw">FROM</span> workflows w
+    <span class="kw">WHERE</span> w.case_id = c.id <span class="kw">AND</span> w.status = <span class="str">'ACTIVE'</span>
+    <span class="kw">ORDER BY</span> w.started_at <span class="kw">DESC</span>
+) wf
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- latest claim snapshot</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
+    <span class="kw">WHERE</span> s.case_ref = c.case_ref <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
+) a
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- enforcement title present?</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> t.id <span class="kw">FROM</span> enforcement_titles t <span class="kw">WHERE</span> t.case_id = c.id
+) ttl
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- debtor primary address country</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> ad.country <span class="kw">FROM</span> debtors d
+    <span class="kw">JOIN</span> addresses ad <span class="kw">ON</span> ad.party_id = d.party_id
+    <span class="kw">WHERE</span> d.id = c.debtor_id <span class="kw">AND</span> ad.address_type = <span class="str">'PRIMARY'</span>
+) addr
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- last inbound document</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> dd.title <span class="kw">FROM</span> documents dd
+    <span class="kw">WHERE</span> dd.case_id = c.id <span class="kw">ORDER BY</span> dd.received_at <span class="kw">DESC</span>
+) doc
+<span class="kw">WHERE</span> ph.phase <span class="kw">NOT IN</span> (<span class="str">'WRITTEN_OFF'</span>, <span class="str">'CLOSED'</span>)
+<span class="kw">ORDER BY</span> c.case_ref;`,
+        columns:['loan_id','case_ref','phase','active_workflow','current_decision','last_payment','total_claim','has_title','country'],
+        rows: Array.from({length:9}).map(()=>{ const ref=caseRef(); return { loan_id:ref.split('/')[0], case_ref:ref, phase:{_badge:pick(['Pre-legal','Garnishment','Insolvency','Litigation']),_cls:'blue'}, active_workflow:pick(['Garnishment prep','Payment monitoring','Address tracing','Insolvency watch']), current_decision:pick(['Awaiting court','Plan active','Escalate','On hold']), last_payment:'€ '+money(between(50,2400)), total_claim:'€ '+money(between(1200,48000)), has_title:{_badge:pick(['Yes','No']),_cls:'grey'}, country:pick(['DE','DE','DE','AT','CH']) }; })
+      },
+      {
+        id:'reactivate',
+        name:'Reactivation candidates',
+        title:'Closed cases worth reactivating',
+        why:'A business driver: when collection performance dips, we look for already-closed cases that could still yield money. Filters for closed cases with <b>no insolvency discharge</b> and a positive remaining claim, then scores priority with <code>CASE</code>. <b>Why it matters:</b> turns dormant files back into recoverable cash.',
         sql:
 `<span class="cmt">-- Closed cases that may be worth reactivating</span>
 <span class="kw">SELECT</span>
@@ -419,160 +528,96 @@
 <span class="kw">LEFT JOIN</span> insolvency i <span class="kw">ON</span> i.id = d.insolvency_id
 <span class="kw">OUTER APPLY</span> (
     <span class="kw">SELECT TOP</span> <span class="num">1</span> p.value_date <span class="kw">AS</span> last_payment_at
-    <span class="kw">FROM</span> payments p
-    <span class="kw">WHERE</span> p.case_id = c.id
+    <span class="kw">FROM</span> payments p <span class="kw">WHERE</span> p.case_id = c.id
     <span class="kw">ORDER BY</span> p.value_date <span class="kw">DESC</span>
 ) lb
 <span class="kw">OUTER APPLY</span> (
-    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim
-    <span class="kw">FROM</span> claim_snapshots s
-    <span class="kw">WHERE</span> s.case_ref = c.case_ref
-    <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
+    <span class="kw">WHERE</span> s.case_ref = c.case_ref <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
 ) a
 <span class="kw">WHERE</span> c.status = <span class="str">'CLOSED'</span>
   <span class="kw">AND</span> i.discharge_granted <span class="kw">IS NULL</span>
   <span class="kw">AND</span> a.total_claim &gt; <span class="num">0</span>
 <span class="kw">ORDER BY</span> a.total_claim <span class="kw">DESC</span>;`,
         columns:['case_ref','law_firm','total_claim','last_payment_at','priority'],
-        rows: Array.from({length:9}).map(()=>{
-          const claim = between(500,42000);
-          const prio = claim>10000?'High':claim>2000?'Medium':'Low';
-          const d = new Date(2024, intBetween(0,11), intBetween(1,28));
-          return {
-            case_ref: intBetween(10000000,99999999)+'/'+intBetween(10,25)+'/0',
-            law_firm: pick(firms),
-            total_claim: '€ '+money(claim),
-            last_payment_at: d.toLocaleDateString('de-CH'),
-            priority: { _badge: prio, _cls: prio==='High'?'green':prio==='Medium'?'amber':'grey' }
-          };
-        }).sort((a,b)=> parseFloat(b.total_claim.replace(/[^\d.]/g,'')) - parseFloat(a.total_claim.replace(/[^\d.]/g,'')))
+        rows: Array.from({length:9}).map(()=>{ const claim=between(500,42000); const prio=claim>10000?'High':claim>2000?'Medium':'Low'; return { case_ref:caseRef(), law_firm:pick(firms), total_claim:'€ '+money(claim), last_payment_at:dateStr(), priority:{_badge:prio,_cls:prio==='High'?'green':prio==='Medium'?'amber':'grey'} }; }).sort((a,b)=>parseFloat(b.total_claim.replace(/[^\d.]/g,''))-parseFloat(a.total_claim.replace(/[^\d.]/g,'')))
       },
       {
-        id:'payment-plan',
-        name:'Payment plan progress',
-        note:'Calculates % progress of each active payment plan with a CASE flag for arrears.',
+        id:'orphaned',
+        name:'⚠ Orphaned cases (incident)',
+        title:'Incident: cases with no workflow and no open task',
+        why:'The incident query. Double <b>NOT EXISTS</b> finds cases that have neither an unfinished workflow nor an open task — the records a failed batch left stranded and invisible to the front end. <b>Why it matters:</b> under pressure, this is what lets the team see the damage and recover.',
         sql:
-`<span class="cmt">-- Payment plan progress with arrears flag</span>
+`<span class="cmt">-- Incident: cases stranded with no active workflow AND no open task</span>
 <span class="kw">SELECT</span>
     c.case_ref,
-    pp.plan_type,
-    <span class="kw">CASE WHEN</span> pp.arrears_amount &gt; <span class="num">0</span>
-         <span class="kw">THEN</span> <span class="str">'Yes'</span> <span class="kw">ELSE</span> <span class="str">'No'</span> <span class="kw">END</span> <span class="kw">AS</span> in_arrears,
-    a.total_claim,
-    <span class="fn">ROUND</span>(
-        paid.total /
-        <span class="fn">NULLIF</span>(paid.total + <span class="fn">ABS</span>(a.total_claim),<span class="num">0</span>) * <span class="num">100</span>, <span class="num">0</span>
-    ) <span class="kw">AS</span> progress_pct
+    a.total_claim          <span class="kw">AS</span> remaining_claim,
+    ps.procedure_name      <span class="kw">AS</span> last_procedure_state
 <span class="kw">FROM</span> cases c
-<span class="kw">JOIN</span> payment_plans pp <span class="kw">ON</span> pp.case_id = c.id
-<span class="kw">OUTER APPLY</span> (
-    <span class="kw">SELECT</span> <span class="fn">SUM</span>(p.amount) <span class="kw">AS</span> total
-    <span class="kw">FROM</span> payments p
-    <span class="kw">WHERE</span> p.case_id = c.id
-      <span class="kw">AND</span> p.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>)
-) paid
-<span class="kw">OUTER APPLY</span> (
-    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim
-    <span class="kw">FROM</span> claim_snapshots s
-    <span class="kw">WHERE</span> s.case_ref = c.case_ref
-    <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
+<span class="kw">LEFT JOIN</span> write_offs w <span class="kw">ON</span> w.case_id = c.id
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- latest remaining claim</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
+    <span class="kw">WHERE</span> s.case_ref = c.case_ref <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
 ) a
-<span class="kw">WHERE</span> pp.status = <span class="str">'ACTIVE'</span>
-<span class="kw">ORDER BY</span> progress_pct <span class="kw">DESC</span>;`,
-        columns:['case_ref','plan_type','in_arrears','total_claim','progress_pct'],
-        rows: Array.from({length:8}).map(()=>{
-          const prog = intBetween(5,95);
-          const arr = rand()>0.6;
-          return {
-            case_ref: intBetween(10000000,99999999)+'/'+intBetween(10,25)+'/0',
-            plan_type: pick(['Instalment','Lump-sum','Deferred']),
-            in_arrears: { _badge: arr?'Yes':'No', _cls: arr?'red':'green' },
-            total_claim: '€ '+money(between(800,26000)),
-            progress_pct: { _pbar: prog }
-          };
-        }).sort((a,b)=> b.progress_pct._pbar - a.progress_pct._pbar)
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- latest procedure state</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> v.procedure_name <span class="kw">FROM</span> procedure_history h
+    <span class="kw">JOIN</span> procedure_states v <span class="kw">ON</span> v.id = h.state_id
+    <span class="kw">WHERE</span> h.case_id = c.id <span class="kw">ORDER BY</span> h.created_at <span class="kw">DESC</span>
+) ps
+<span class="kw">WHERE</span> w.write_off_reason <span class="kw">IS NULL</span>
+  <span class="kw">AND NOT EXISTS</span> (  <span class="cmt">-- no open task</span>
+      <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> tasks t
+      <span class="kw">WHERE</span> t.case_id = c.id
+        <span class="kw">AND</span> (t.valid_until <span class="kw">IS NULL</span> <span class="kw">OR</span> t.valid_until &gt;= <span class="fn">CAST</span>(<span class="fn">GETDATE</span>() <span class="kw">AS</span> date))
+  )
+  <span class="kw">AND NOT EXISTS</span> (  <span class="cmt">-- no unfinished workflow</span>
+      <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> workflows wf
+      <span class="kw">WHERE</span> wf.case_id = c.id <span class="kw">AND</span> wf.status &lt;&gt; <span class="str">'FINISHED'</span>
+  )
+<span class="kw">ORDER BY</span> a.total_claim <span class="kw">DESC</span>;`,
+        columns:['case_ref','remaining_claim','last_procedure_state'],
+        rows: Array.from({length:7}).map(()=>({ case_ref:caseRef(), remaining_claim:'€ '+money(between(300,38000)), last_procedure_state:{_badge:pick(['Garnishment order','Provisional ban','Title obtained','Asset disclosure']),_cls:'amber'} })).sort((a,b)=>parseFloat(b.remaining_claim.replace(/[^\d.]/g,''))-parseFloat(a.remaining_claim.replace(/[^\d.]/g,'')))
       }
     ];
 
-    // Build tabs
     const tabsEl = document.getElementById('qv-tabs');
-    queries.forEach((q,i)=>{
-      const b=document.createElement('button'); b.className='qv-tab'+(i===0?' active':''); b.textContent=q.name;
-      b.onclick=()=>{ selectQuery(i); }; tabsEl.appendChild(b);
-    });
+    queries.forEach((q,i)=>{ const b=document.createElement('button'); b.className='qv-tab'+(i===0?' active':''); b.textContent=q.name; b.onclick=()=>selectQuery(i); tabsEl.appendChild(b); });
 
     let activeQ = 0;
     function selectQuery(i){
-      activeQ = i;
+      activeQ=i;
       document.querySelectorAll('.qv-tab').forEach((t,j)=>t.classList.toggle('active', j===i));
+      document.getElementById('qv-title').textContent = queries[i].title;
+      document.getElementById('qv-why').innerHTML = queries[i].why;
       document.getElementById('qv-code').innerHTML = queries[i].sql;
       document.getElementById('qv-table').innerHTML = '';
       document.getElementById('qv-status').innerHTML = 'Ready.';
-      document.getElementById('qv-note').textContent = '';
     }
 
     function renderTable(q){
-      const t = document.getElementById('qv-table');
-      let html = '<thead><tr>' + q.columns.map(c=>`<th>${c}</th>`).join('') + '</tr></thead><tbody>';
-      q.rows.forEach(r=>{
-        html += '<tr>' + q.columns.map(c=>{
-          const v = r[c];
-          if(v && typeof v==='object'){
-            if('_badge' in v) return `<td><span class="badge ${v._cls}">${v._badge}</span></td>`;
-            if('_pbar' in v){ return `<td><span class="pbar"><span class="pbar-track"><span class="pbar-fill" style="width:${v._pbar}%"></span></span>${v._pbar}%</span></td>`; }
-          }
-          return `<td>${v}</td>`;
-        }).join('') + '</tr>';
-      });
-      html += '</tbody>';
-      t.innerHTML = html;
+      const t=document.getElementById('qv-table');
+      let html='<thead><tr>'+q.columns.map(c=>`<th>${c}</th>`).join('')+'</tr></thead><tbody>';
+      q.rows.forEach(r=>{ html+='<tr>'+q.columns.map(c=>{ const v=r[c];
+        if(v&&typeof v==='object'){ if('_badge'in v) return `<td><span class="badge ${v._cls}">${v._badge}</span></td>`; if('_pbar'in v) return `<td><span class="pbar"><span class="pbar-track"><span class="pbar-fill" style="width:${v._pbar}%"></span></span>${v._pbar}%</span></td>`; }
+        return `<td>${v}</td>`; }).join('')+'</tr>'; });
+      html+='</tbody>'; t.innerHTML=html;
     }
 
     function runQuery(){
-      const q = queries[activeQ];
-      const status = document.getElementById('qv-status');
-      const table = document.getElementById('qv-table');
-      const note = document.getElementById('qv-note');
-      table.innerHTML=''; note.textContent='';
-      const steps = [
-        'Parsing query …',
-        'Building execution plan …',
-        'Scanning cases / payments / claim_snapshots …',
-        'Applying window functions …',
-        `Returned ${q.rows.length} rows`
-      ];
-      let i=0;
-      status.innerHTML = `<span class="spin"></span> ${steps[0]}`;
-      const t0 = performance.now();
-      const iv = setInterval(()=>{
-        i++;
-        if(i < steps.length-1){
-          status.innerHTML = `<span class="spin"></span> ${steps[i]}`;
-        } else {
-          clearInterval(iv);
-          const ms = Math.round(performance.now()-t0 + between(20,80));
-          status.innerHTML = `✓ ${steps[steps.length-1]} · ${ms} ms`;
-          renderTable(q);
-          note.textContent = '// ' + q.note;
-        }
-      }, 260);
+      const q=queries[activeQ], status=document.getElementById('qv-status'), table=document.getElementById('qv-table');
+      table.innerHTML='';
+      const steps=['Parsing query …','Building execution plan …','Scanning cases / bookings / workflows …','Resolving OUTER APPLY sub-queries …',`Returned ${q.rows.length} rows`];
+      let i=0; status.innerHTML=`<span class="spin"></span> ${steps[0]}`; const t0=performance.now();
+      const iv=setInterval(()=>{ i++;
+        if(i<steps.length-1){ status.innerHTML=`<span class="spin"></span> ${steps[i]}`; }
+        else { clearInterval(iv); const ms=Math.round(performance.now()-t0+between(20,90)); status.innerHTML=`✓ ${steps[steps.length-1]} · ${ms} ms`; renderTable(q); }
+      }, 280);
     }
 
-    // ============ CONNECTION BOOT SEQUENCE ============
-    const connText = document.getElementById('conn-text');
-    const bootSteps = [
-      'Initializing connection to <b>recovery_dwh</b> …',
-      'Authenticating · read-only analytics role …',
-      'Connection established · <b>recovery_dwh</b> · 8,341 active cases loaded'
-    ];
-    let bi=0;
-    const bootIv = setInterval(()=>{
-      bi++;
-      if(bi<bootSteps.length){ connText.innerHTML = bootSteps[bi]; }
-      else clearInterval(bootIv);
-    }, 900);
+    const connText=document.getElementById('conn-text');
+    const boot=['Initializing connection to <b>collections_dwh</b> …','Authenticating · read-only analytics role …','Connection established · <b>collections_dwh</b> · 8,341 active cases'];
+    let bi=0; const biv=setInterval(()=>{ bi++; if(bi<boot.length) connText.innerHTML=boot[bi]; else clearInterval(biv); }, 900);
 
-    // init
     selectQuery(0);
     buildCharts();
   </script>
