@@ -138,6 +138,32 @@
     .skill-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
     .skill-tag { padding: 0.3rem 0.85rem; border: 1px solid var(--border); border-radius: 2px; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.03em; font-family: var(--mono); }
 
+    /* ARCHITECTURE DIAGRAM */
+    .arch { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 0.5rem 0 1rem; }
+    .arch-node { width: 100%; max-width: 440px; text-align: center; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .arch-node .an-title { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+    .arch-node .an-sub { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .arch-node.focus { border-color: var(--accent); background: rgba(200,245,90,0.05); }
+    .arch-node.focus .an-title { color: var(--accent); }
+    .arch-arrow { color: var(--muted); font-size: 1rem; line-height: 1; padding: 0.45rem 0; }
+
+    /* CIRI (challenge / investigation / result / impact) */
+    .ciri { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin: 1.5rem 0 0.5rem; }
+    .ciri-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.2rem; }
+    .ciri-card .ciri-k { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.5rem; }
+    .ciri-card.c .ciri-k { color: var(--red); }
+    .ciri-card.i .ciri-k { color: var(--warn); }
+    .ciri-card.r .ciri-k { color: var(--accent2); }
+    .ciri-card.im .ciri-k { color: var(--accent); }
+    .ciri-card p { font-size: 0.86rem; color: var(--muted); line-height: 1.6; margin: 0; }
+    .ciri-card .mock { display: inline-block; font-family: var(--mono); font-size: 0.62rem; color: var(--muted); border: 1px solid var(--border); border-radius: 3px; padding: 0.05rem 0.35rem; margin-top: 0.6rem; opacity: 0.7; }
+
+    /* IMPACT METRIC ROW */
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin: 1.2rem 0; }
+    .metric { border-left: 2px solid var(--accent); padding-left: 1rem; }
+    .metric .m-num { font-family: 'Syne', sans-serif; font-size: 1.55rem; font-weight: 800; color: var(--text); line-height: 1; }
+    .metric .m-label { font-size: 0.78rem; color: var(--muted); margin-top: 0.35rem; }
+
     footer { text-align: center; padding: 2rem; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted); margin-top: 4rem; }
 
     @media (max-width: 760px) {
@@ -162,7 +188,7 @@
       <li><a href="../index.html#about">About</a></li>
       <li><a href="../index.html#projects">Projects</a></li>
       <li><a href="../CV/index.html">CV</a></li>
-      <li><a href="../index.html#demos" style="color:var(--accent)">Demos</a></li>
+      <li><a href="../index.html#demos">Demos</a></li>
       <li><a href="../index.html#contact">Contact</a></li>
     </ul>
   </nav>
@@ -172,12 +198,12 @@
   <div class="hero">
     <p class="hero-tag">Case Study · SQL & Data Analysis</p>
     <h1>Complex SQL Reporting<br>& Incident Analysis.</h1>
-    <p class="lead">In a core-banking debt-collection environment, the hard part of reporting isn't the chart — it's the query underneath it. This is a look at how I build deep, multi-layered SQL reports against a sprawling case-management schema, and how the same skills keep the operation running when something breaks.</p>
+    <p class="lead">SQL is one of the things I work with most — building reports and analyses against a large case-management schema is a regular part of what I do. This case study focuses on that side of the work. It's a fictional scenario, but the analytical patterns and problems are taken from real tasks, rebuilt on an invented schema so I can show the technique without showing anything real.</p>
     <div class="hero-meta">
       <div><div class="meta-label">Domain</div><div class="meta-value">Core Banking · Collections</div></div>
       <div><div class="meta-label">Focus</div><div class="meta-value accent">Complex SQL · Incident Analysis</div></div>
       <div><div class="meta-label">Engine</div><div class="meta-value">MS SQL Server (T-SQL)</div></div>
-      <div><div class="meta-label">Role</div><div class="meta-value">Sole analyst / author</div></div>
+      <div><div class="meta-label">Scope</div><div class="meta-value">SQL reporting & analysis</div></div>
     </div>
   </div>
 
@@ -188,8 +214,19 @@
         <div class="story-label">01 · Overview</div>
         <div class="story-body">
           <h2>What this is</h2>
-          <p>I work as an IT Business Specialist in a core-banking collections operation. When a loan defaults, the case moves through a long legal pipeline — pre-legal dunning, payment plans, garnishment, insolvency, litigation — handled together with external law firms.</p>
-          <p>Almost every business question lands on my desk as a <strong>SQL problem</strong>: which closed cases are worth reactivating, how a single case really looks across fifteen sub-systems, where the fees went, or — when a batch process breaks — which records are now in an inconsistent state. The reports feed business decisions directly; there's no BI tool doing the thinking, the thinking is in the query.</p>
+          <p>When a loan defaults, the case runs through a long legal pipeline — pre-legal dunning, payment plans, garnishment, insolvency, litigation — worked together with external law firms. That pipeline generates a constant stream of questions that can only really be answered with data, and writing the SQL to answer them is one of the things I spend a lot of my time on.</p>
+          <p>This case study is about that work specifically. It doesn't try to cover everything I do — it stays on the SQL: the kind of reports and analyses I build, and the thinking behind them. What follows is <strong>a few representative examples</strong> rather than a full list, chosen to give a sense of the problems and the level of SQL involved.</p>
+          <div class="arch">
+            <div class="arch-node"><div class="an-title">Core Banking</div><div class="an-sub">Loans, accounts, defaults</div></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node"><div class="an-title">Collections System</div><div class="an-sub">Cases handed to law firms</div></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node"><div class="an-title">Case Management</div><div class="an-sub">Workflows · tasks · bookings · procedures</div></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node focus"><div class="an-title">SQL Reporting &amp; Analysis</div><div class="an-sub">the focus of this case study</div></div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-node"><div class="an-title">Business Decisions</div><div class="an-sub">Reactivation · cost recovery · incident response</div></div>
+          </div>
         </div>
       </div>
 
@@ -197,12 +234,12 @@
         <div class="story-label">02 · The challenge</div>
         <div class="story-body">
           <h2>Why one column is hard</h2>
-          <p>The data model is large and deeply normalised. A seemingly trivial value hides real complexity. Take <strong>"the debtor's last payment"</strong>: payments live in a bookings table, each tagged with a booking key, and only a specific set of keys count as an actual incoming payment — others are fees, reversals or internal postings. So "last payment" means: filter to the right booking keys, take the most recent by value date, per case.</p>
-          <p>Now multiply that by twenty columns — active workflow, current decision step, latest history entry, total claim, payment progress, enforcement title, insolvency status, last document — each with its own "latest record per case" logic. That's the real job.</p>
+          <p>The data model is large and deeply normalised, so a value that sounds trivial usually isn't. Take something like <strong>"the debtor's last payment."</strong> Payments sit in a bookings table where every row carries a booking key, and only a specific set of those keys is actually an incoming payment — the rest are fees, reversals or internal postings. So that one value already means: filter to the right keys, then pick out the relevant row for that case.</p>
+          <p>Different reports need different things from the same tables — sometimes the most recent record, sometimes a sum across a whole group, sometimes just whether something exists at all. Put twenty of those columns side by side — active workflow, current decision step, history, total claim, payment progress, enforcement title, insolvency status — and each one carries its own rule for what actually counts. Get one of those rules subtly wrong and you get a number that looks fine and is quietly wrong, which is the worst kind. That's the real work: knowing the rules, not just the syntax.</p>
           <ul>
-            <li>Dozens of tables, one row per case in the output</li>
-            <li>"Latest / most relevant record" needed per sub-entity</li>
-            <li>Domain rules baked into the SQL (which keys, which statuses count)</li>
+            <li>Dozens of tables, but the output is one clean row per case</li>
+            <li>Each column needs the <em>relevant</em> record — latest, summed, or simply present</li>
+            <li>The business rules live in the SQL — which keys, which statuses, which dates count</li>
           </ul>
         </div>
       </div>
@@ -211,16 +248,17 @@
         <div class="story-label">03 · Approach</div>
         <div class="story-body">
           <h2>How I build it</h2>
-          <p>The backbone is <code>OUTER APPLY</code> with <code>SELECT TOP 1 … ORDER BY</code> — one isolated sub-query per fact, each pulling exactly the latest relevant record for that case without fanning out the result set. Where I need ranking across a whole set I switch to <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> inside a CTE and keep <code>rn = 1</code>.</p>
-          <p>Domain logic sits in <code>CASE WHEN</code> expressions and curated <code>IN (…)</code> lists of booking keys. Parameters go in a small <code>WITH parameters AS (…)</code> block and are <code>CROSS JOIN</code>ed in, so the same report can be re-run for different date ranges or owners without touching the body.</p>
-          <p>Run the reports below to see the patterns in action — each tab explains <em>why</em> it's non-trivial.</p>
+          <p>A lot of it comes down to picking the right tool for each column. Where I need one specific record per case, the workhorse is <code>OUTER APPLY</code> with a focused sub-query — its own <code>WHERE</code> clause to throw out everything that doesn't qualify, and, when I want the most recent one, an <code>ORDER BY … DESC</code> with <code>TOP 1</code> so the row I keep is genuinely the current or most relevant one rather than whatever the engine returns first. That filter-then-order discipline is where the correctness lives. Other columns aren't "latest" at all — they're a <code>SUM</code> over a group of booking keys, or just a presence check.</p>
+          <p>When I need to rank across a whole set instead of per fact, I switch to <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> in a CTE and keep <code>rn = 1</code>. Domain logic goes into <code>CASE WHEN</code> expressions and curated <code>IN (…)</code> key lists, and parameters live in a small <code>WITH parameters AS (…)</code> block that gets <code>CROSS JOIN</code>ed in, so the same report re-runs for a different date range or owner without touching the body.</p>
+          <p>The reports below show these patterns. Each tab says what it's for and why it isn't as simple as it looks.</p>
         </div>
       </div>
     </div>
 
     <div class="disclaimer">
-      <b>Note:</b> All data, table names and figures on this page are fictional mock data generated for demonstration. They do not represent any real institution, system, client or person. The SQL reproduces analytical <em>patterns</em> from my work, rewritten against an invented schema.
+      <b>Note:</b> This is a fictional scenario inspired by my work, with the details deliberately changed for data-protection reasons. All data, table names and figures are invented mock data and don't represent any real institution, system, client or person. What's real is the analytical approach — the SQL reproduces <em>patterns</em>, rewritten on a made-up schema.
     </div>
+
 
     <div class="sec-head"><span class="num">04</span><h2>Query Explorer</h2></div>
     <p class="sec-sub">Reports in rising order of complexity. Pick one, read why it's hard, then run it to see simulated results.</p>
@@ -247,21 +285,26 @@
     </div>
 
     <div class="sec-head"><span class="num">05</span><h2>When it breaks: incident analysis</h2></div>
-    <p class="sec-sub">Reporting and incident response are the same skill under pressure. A real pattern: a nightly batch leaves cases in a broken state, the team is blocked, and someone has to find exactly which records are affected — fast.</p>
+    <p class="sec-sub">Reporting and cleanup are the same skill pointed at different problems. Records end up in a bad state for all sorts of reasons — a batch that stopped halfway, an application bug, a mis-configured workflow, or simply someone clicking the wrong thing. Whatever the cause, the fix usually starts the same way: a query that finds <em>exactly</em> which records are affected, so the mess can be cleaned up with confidence instead of guesswork.</p>
 
     <div class="incident">
       <div class="incident-tag"><span class="dot"></span> Critical incident — operations blocked</div>
-      <h3>Orphaned cases after a failed batch run</h3>
-      <p>A batch job stopped halfway. The result: a set of cases left with <strong>no active workflow and no open task</strong> — invisible in the front-end work queues, so they'd silently stop being worked. No error, no alert; just cases quietly falling out of the process.</p>
-      <p>My job wasn't to fix the batch — it was to tell the team <strong>exactly which cases</strong> were affected, with their remaining claim and last known procedural state, so they could be re-queued and the damage quantified. The query uses <code>NOT EXISTS</code> on both workflows and tasks, plus <code>OUTER APPLY</code> for the latest claim and procedure status.</p>
+      <h3>Orphaned cases with no workflow and no task</h3>
+      <p>One recurring example: cases that end up with <strong>no active workflow and no open task</strong>. They vanish from the front-end work queues, so they silently stop being worked — no error, no alert, just cases quietly dropping out of the process. The trigger could be a half-finished batch run or a workflow that didn't close cleanly; either way the database knows the truth even when the UI doesn't.</p>
+      <div class="ciri">
+        <div class="ciri-card c"><div class="ciri-k">Challenge</div><p>Cases disappeared from operational queues — no longer worked, no warning, with real money still outstanding on them.</p></div>
+        <div class="ciri-card i"><div class="ciri-k">Investigation</div><p>Used double <code>NOT EXISTS</code> across workflows and tasks to isolate cases that had neither, plus <code>OUTER APPLY</code> for each one's remaining claim and last procedure state.</p></div>
+        <div class="ciri-card r"><div class="ciri-k">Result</div><p>The full affected set identified in well under an hour, each row with its outstanding amount and where it had stalled.</p><span class="mock">mock: 147 cases · ~40 min</span></div>
+        <div class="ciri-card im"><div class="ciri-k">Impact</div><p>Cases re-queued before they slipped through the cracks, and the financial exposure quantified instead of estimated.</p><span class="mock">mock: €250k+ in claims recovered to the queue</span></div>
+      </div>
       <div class="timeline">
         <div class="t-time">T+0 min</div><div class="t-event">Team reports cases missing from work queues</div>
         <div class="t-time">T+15 min</div><div class="t-event">Reproduced: cases with no active workflow AND no open task</div>
         <div class="t-time">T+40 min</div><div class="t-event">Query isolates the full affected set + remaining claim per case</div>
-        <div class="t-time">T+1 h</div><div class="t-event">List handed over; cases re-queued, financial exposure quantified</div>
+        <div class="t-time">T+1 h</div><div class="t-event">List handed over; cases re-queued, exposure quantified</div>
       </div>
     </div>
-    <p class="sec-sub" style="margin-top:1.5rem;">The "orphaned cases" report is the last tab in the explorer above — switch to it and run it to see the result.</p>
+    <p class="sec-sub" style="margin-top:1.5rem;">The "orphaned cases" report is the last tab in the explorer above — switch to it and run it to see the kind of result this produces. The same find-the-bad-records approach applies whatever caused the mess.</p>
 
     <div class="sec-head"><span class="num">06</span><h2>From queries to a picture</h2></div>
     <p class="sec-sub">The same data, rolled up. These are the kind of portfolio numbers the detailed reports ultimately feed — shown here as a compact overview rather than the main event.</p>
@@ -290,12 +333,19 @@
         <div class="story-label">07 · Impact</div>
         <div class="story-body">
           <h2>What it delivered</h2>
+          <div class="metrics">
+            <div class="metric"><div class="m-num">~2 h → 5 min</div><div class="m-label">manual case look-up replaced by one query</div></div>
+            <div class="metric"><div class="m-num">€250k+</div><div class="m-label">in dormant claims surfaced for reactivation</div></div>
+            <div class="metric"><div class="m-num">&lt; 1 h</div><div class="m-label">to scope a critical incident end-to-end</div></div>
+          </div>
+          <p style="font-size:0.78rem; opacity:0.7; font-family:var(--mono); margin-bottom:1.2rem;">// figures illustrative (mock) — shown to convey the kind of impact</p>
           <ul>
-            <li>Reports that let the business decide which closed cases to reactivate — turning dormant files back into recovered cash</li>
-            <li>360° case profiles that replaced hours of manual cross-referencing across sub-systems with a single query</li>
-            <li>Fee breakdowns precise enough to audit cost recovery per case</li>
-            <li>Fast, accurate incident analysis that let the team recover from batch failures with quantified exposure instead of guesswork</li>
+            <li>Reports that let the business decide which closed cases to reactivate — turning dormant files back into recoverable cash</li>
+            <li>360° case profiles that replaced a lot of manual cross-referencing across sub-systems with a single, repeatable report</li>
+            <li>Fee breakdowns precise enough to audit cost recovery per case, key group by key group</li>
+            <li>Incident analysis that turned "something's broken" into a concrete, quantified list of affected records — whatever the root cause</li>
           </ul>
+          <p>These are a few representative pieces — the kind of SQL work this case study is about. The real set is larger and more varied, but the approach is the same throughout: understand the data model and the business rules, then turn a hard question into a query that answers it cleanly.</p>
         </div>
       </div>
       <div class="story-grid">
@@ -479,17 +529,21 @@
     <span class="kw">WHERE</span> h.case_id = c.id <span class="kw">AND</span> h.note <span class="kw">NOT LIKE</span> <span class="str">'Workflow%'</span>
     <span class="kw">ORDER BY</span> h.created_at <span class="kw">DESC</span>
 ) hist
-<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- active workflow</span>
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- active workflow (latest still-open one)</span>
     <span class="kw">SELECT TOP</span> <span class="num">1</span> w.workflow_name, w.current_step <span class="kw">FROM</span> workflows w
-    <span class="kw">WHERE</span> w.case_id = c.id <span class="kw">AND</span> w.status = <span class="str">'ACTIVE'</span>
+    <span class="kw">WHERE</span> w.case_id = c.id
+      <span class="kw">AND</span> w.status = <span class="str">'ACTIVE'</span>
+      <span class="kw">AND</span> w.valid_until <span class="kw">IS NULL</span>
     <span class="kw">ORDER BY</span> w.started_at <span class="kw">DESC</span>
 ) wf
 <span class="kw">OUTER APPLY</span> (  <span class="cmt">-- latest claim snapshot</span>
     <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
     <span class="kw">WHERE</span> s.case_ref = c.case_ref <span class="kw">ORDER BY</span> s.changed_at <span class="kw">DESC</span>
 ) a
-<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- enforcement title present?</span>
-    <span class="kw">SELECT TOP</span> <span class="num">1</span> t.id <span class="kw">FROM</span> enforcement_titles t <span class="kw">WHERE</span> t.case_id = c.id
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- most recent enforcement title, if any</span>
+    <span class="kw">SELECT TOP</span> <span class="num">1</span> t.id <span class="kw">FROM</span> enforcement_titles t
+    <span class="kw">WHERE</span> t.case_id = c.id
+    <span class="kw">ORDER BY</span> t.issued_at <span class="kw">DESC</span>
 ) ttl
 <span class="kw">OUTER APPLY</span> (  <span class="cmt">-- debtor primary address country</span>
     <span class="kw">SELECT TOP</span> <span class="num">1</span> ad.country <span class="kw">FROM</span> debtors d
@@ -526,10 +580,12 @@
 <span class="kw">JOIN</span> law_firms f <span class="kw">ON</span> f.id = c.law_firm_id
 <span class="kw">LEFT JOIN</span> debtors d <span class="kw">ON</span> d.id = c.debtor_id
 <span class="kw">LEFT JOIN</span> insolvency i <span class="kw">ON</span> i.id = d.insolvency_id
-<span class="kw">OUTER APPLY</span> (
+<span class="kw">OUTER APPLY</span> (  <span class="cmt">-- last genuine incoming payment</span>
     <span class="kw">SELECT TOP</span> <span class="num">1</span> p.value_date <span class="kw">AS</span> last_payment_at
-    <span class="kw">FROM</span> payments p <span class="kw">WHERE</span> p.case_id = c.id
-    <span class="kw">ORDER BY</span> p.value_date <span class="kw">DESC</span>
+    <span class="kw">FROM</span> payments p
+    <span class="kw">WHERE</span> p.case_id = c.id
+      <span class="kw">AND</span> p.booking_key <span class="kw">IN</span> (<span class="num">5030</span>,<span class="num">5040</span>,<span class="num">5050</span>,<span class="num">5060</span>,<span class="num">5070</span>,<span class="num">5080</span>,<span class="num">5180</span>)
+    <span class="kw">ORDER BY</span> p.value_date <span class="kw">DESC</span>, p.id <span class="kw">DESC</span>
 ) lb
 <span class="kw">OUTER APPLY</span> (
     <span class="kw">SELECT TOP</span> <span class="num">1</span> s.total_claim <span class="kw">FROM</span> claim_snapshots s
@@ -577,6 +633,57 @@
 <span class="kw">ORDER BY</span> a.total_claim <span class="kw">DESC</span>;`,
         columns:['case_ref','remaining_claim','last_procedure_state'],
         rows: Array.from({length:7}).map(()=>({ case_ref:caseRef(), remaining_claim:'€ '+money(between(300,38000)), last_procedure_state:{_badge:pick(['Garnishment order','Provisional ban','Title obtained','Asset disclosure']),_cls:'amber'} })).sort((a,b)=>parseFloat(b.remaining_claim.replace(/[^\d.]/g,''))-parseFloat(a.remaining_claim.replace(/[^\d.]/g,'')))
+      },
+      {
+        id:'fix-sign',
+        name:'🔧 Data fix · sign correction',
+        title:'Data fix: correcting a wrong sign on an imported field',
+        why:'Some things can\'t be corrected in the front end — the screen doesn\'t expose the field, or doesn\'t hold the raw value the database does. Here an imported amount was stored as a positive when it should be negative. <b>Always SELECT first:</b> the exact same filter is run as a SELECT to confirm the affected rows before the UPDATE touches anything.',
+        sql:
+`<span class="cmt">-- STEP 1 — verify first: which rows would the fix touch?</span>
+<span class="kw">SELECT</span> f.id, f.case_ref, f.field_value
+<span class="kw">FROM</span> custom_fields f
+<span class="kw">WHERE</span> f.field_id = <span class="num">633830</span>                <span class="cmt">-- the rediscount-rate field</span>
+  <span class="kw">AND</span> f.field_value <span class="kw">NOT LIKE</span> <span class="str">'%-%'</span>          <span class="cmt">-- not already negative</span>
+  <span class="kw">AND</span> <span class="fn">TRY_CONVERT</span>(<span class="kw">decimal</span>(<span class="num">18</span>,<span class="num">4</span>),
+        <span class="fn">REPLACE</span>(<span class="fn">REPLACE</span>(<span class="fn">REPLACE</span>(
+          <span class="fn">LTRIM</span>(<span class="fn">RTRIM</span>(<span class="fn">REPLACE</span>(<span class="fn">UPPER</span>(f.field_value), <span class="str">'EUR'</span>, <span class="str">''</span>))),
+          <span class="str">'.'</span>, <span class="str">''</span>), <span class="str">','</span>, <span class="str">'.'</span>), <span class="str">' '</span>, <span class="str">''</span>)) &gt; <span class="num">0</span>;
+
+<span class="cmt">-- STEP 2 — after sign-off, the same filter as an UPDATE</span>
+<span class="cmt">-- (run on TEST first, signed off with the business, then PROD)</span>
+<span class="kw">UPDATE</span> custom_fields
+<span class="kw">SET</span>    field_value = <span class="str">'-'</span> + field_value
+<span class="kw">WHERE</span>  field_id = <span class="num">633830</span>
+  <span class="kw">AND</span> field_value <span class="kw">NOT LIKE</span> <span class="str">'%-%'</span>
+  <span class="kw">AND</span> <span class="fn">TRY_CONVERT</span>(<span class="kw">decimal</span>(<span class="num">18</span>,<span class="num">4</span>),
+        <span class="fn">REPLACE</span>(<span class="fn">REPLACE</span>(<span class="fn">REPLACE</span>(
+          <span class="fn">LTRIM</span>(<span class="fn">RTRIM</span>(<span class="fn">REPLACE</span>(<span class="fn">UPPER</span>(field_value), <span class="str">'EUR'</span>, <span class="str">''</span>))),
+          <span class="str">'.'</span>, <span class="str">''</span>), <span class="str">','</span>, <span class="str">'.'</span>), <span class="str">' '</span>, <span class="str">''</span>)) &gt; <span class="num">0</span>;`,
+        columns:['id','case_ref','field_value','status'],
+        rows: Array.from({length:6}).map(()=>({ id:intBetween(700000,990000), case_ref:caseRef(), field_value:money(between(500,9000))+' EUR', status:{_badge:'will flip to −',_cls:'amber'} }))
+      },
+      {
+        id:'fix-orphan',
+        name:'🔧 Data fix · stale lock',
+        title:'Data fix: clearing a stale interface lock',
+        why:'A failed hand-off between systems can leave a lock record behind that the UI has no button to clear — but it blocks further processing. The fix re-labels the stuck locks so the interface can pick them up again. <b>Same discipline:</b> SELECT to see exactly what\'s stuck, get sign-off, then a tightly-scoped UPDATE.',
+        sql:
+`<span class="cmt">-- STEP 1 — verify: which lock records are stuck?</span>
+<span class="kw">SELECT</span> l.id, l.case_ref, l.session_id, l.created_at
+<span class="kw">FROM</span> locks l
+<span class="kw">WHERE</span> l.session_id = <span class="str">'Handover Hamburg'</span>
+  <span class="kw">AND</span> l.released_at <span class="kw">IS NULL</span>            <span class="cmt">-- still open</span>
+<span class="kw">ORDER BY</span> l.created_at <span class="kw">ASC</span>;
+
+<span class="cmt">-- STEP 2 — after TEST + business sign-off, run on PROD</span>
+<span class="cmt">-- re-label so the interface re-processes the hand-off</span>
+<span class="kw">UPDATE</span> locks
+<span class="kw">SET</span>    session_id = <span class="str">'Handover Hamburg (reprocessed)'</span>
+<span class="kw">WHERE</span>  session_id = <span class="str">'Handover Hamburg'</span>
+  <span class="kw">AND</span> released_at <span class="kw">IS NULL</span>;`,
+        columns:['id','case_ref','session_id','status'],
+        rows: Array.from({length:5}).map(()=>({ id:intBetween(40000,90000), case_ref:caseRef(), session_id:'Handover Hamburg', status:{_badge:'stuck → reprocess',_cls:'amber'} }))
       }
     ];
 
