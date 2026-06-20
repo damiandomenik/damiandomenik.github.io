@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Complex SQL Reporting & Incident Analysis — Damian Frick</title>
+  <title>SQL Reporting & Incident Analysis — Damian Frick</title>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
@@ -186,24 +186,24 @@
     <a class="nav-logo" href="../index.html">DF</a>
     <ul class="nav-links">
       <li><a href="../index.html#about">About</a></li>
-      <li><a href="../index.html#projects">Projects</a></li>
+      <li><a href="../index.html#projects" style="color:var(--accent)">Projects</a></li>
       <li><a href="../CV/index.html">CV</a></li>
-      <li><a href="../index.html#demos" style="color:var(--accent)">Demos</a></li>
+      <li><a href="../index.html#demos">Demos</a></li>
       <li><a href="../index.html#contact">Contact</a></li>
     </ul>
   </nav>
 
-  <a href="../index.html#demos" class="back">← Back</a>
+  <a href="../index.html#projects" class="back">← Back</a>
 
   <div class="hero">
     <p class="hero-tag">Case Study · SQL & Data Analysis</p>
-    <h1>Complex SQL Reporting<br>& Incident Analysis.</h1>
+    <h1>SQL Reporting<br>& Incident Analysis.</h1>
     <p class="lead">SQL is one of the things I work with most. A lot of my time goes into building reports and analyses against a large case-management database. This case study focuses on that part of the work. The scenario is made up, but the problems and the way I approach them come from real tasks. I just rebuilt everything on an invented schema so nothing real is shown.</p>
     <div class="hero-meta">
       <div><div class="meta-label">Domain</div><div class="meta-value">Core Banking · Collections</div></div>
-      <div><div class="meta-label">Focus</div><div class="meta-value accent">Complex SQL · Incident Analysis</div></div>
+      <div><div class="meta-label">Focus</div><div class="meta-value accent">Complex SQL · Data Analysis</div></div>
       <div><div class="meta-label">Engine</div><div class="meta-value">MS SQL Server (T-SQL)</div></div>
-      <div><div class="meta-label">Scope</div><div class="meta-value">SQL reporting & analysis</div></div>
+      <div><div class="meta-label">Scope</div><div class="meta-value">Reporting · Incident Analysis · Data Fixes</div></div>
     </div>
   </div>
 
@@ -215,7 +215,7 @@
         <div class="story-body">
           <h2>What this is</h2>
           <p>When a loan defaults, the case runs through a long legal process: pre-legal dunning, payment plans, garnishment, insolvency, litigation, worked together with external law firms. That process raises a steady stream of questions that can only be answered with data, and writing the SQL to answer them is a big part of my day-to-day.</p>
-          <p>This case study is about that work specifically. It doesn't try to cover everything I do. It stays on the SQL: the kind of reports and analyses I build and the thinking behind them. What you see below is a few examples, not the full list, picked to show the type of problem and the level of SQL involved.</p>
+          <p>This case study is about that work specifically. It doesn't try to cover everything I do. It stays on the SQL: the kind of reports and analyses I build and the thinking behind them. What you see below is a few simplified examples, not the full list. The real cases tend to be larger and more involved, so these are here to show the type of problem and the level of SQL, not the ceiling of it.</p>
           <div class="arch">
             <div class="arch-node"><div class="an-title">Core Banking</div><div class="an-sub">Loans, accounts, defaults</div></div>
             <div class="arch-arrow">↓</div>
@@ -225,7 +225,7 @@
             <div class="arch-arrow">↓</div>
             <div class="arch-node focus"><div class="an-title">SQL Reporting &amp; Analysis</div><div class="an-sub">the focus of this case study</div></div>
             <div class="arch-arrow">↓ ↑</div>
-            <div class="arch-node"><div class="an-title">Business Decisions</div><div class="an-sub">Reactivation · cost recovery · incident response</div></div>
+            <div class="arch-node"><div class="an-title">Business Decisions</div><div class="an-sub">Reactivation · cost recovery · process fixes</div></div>
           </div>
           <p style="font-size:0.8rem; color:var(--muted); margin-top:0.8rem; text-align:center; max-width:440px; margin-left:auto; margin-right:auto;">The loop goes both ways. Analysis feeds decisions, and some of those decisions come back to me as data changes I run myself.</p>
         </div>
@@ -252,17 +252,19 @@
           <p>Most of it comes down to picking the right tool per column. When I need one specific record for a case, I use <code>OUTER APPLY</code> with a small focused sub-query. Each one has its own <code>WHERE</code> clause to drop everything that doesn't qualify, and when I want the most recent record, an <code>ORDER BY … DESC</code> with <code>TOP 1</code> so I actually keep the current one and not whatever the engine returns first. That filter-then-order step is where the correctness comes from. Other columns aren't "latest" at all. They're a <code>SUM</code> over a group of booking keys, or just a check whether something is there.</p>
           <p>When I need to rank across a whole set instead of one fact at a time, I use <code>ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)</code> in a CTE and keep <code>rn = 1</code>. Domain logic goes into <code>CASE WHEN</code> expressions and curated <code>IN (…)</code> key lists. Parameters sit in a small <code>WITH parameters AS (…)</code> block that I <code>CROSS JOIN</code> in, so the same report runs for a different date range or owner without changing the body.</p>
           <p>The reports below show these patterns. Each tab says what it's for and why it isn't as simple as it looks.</p>
+          <p style="border-left:2px solid var(--accent); padding-left:1.1rem; margin-top:1.6rem; color:var(--text); margin-bottom:0.9rem;">What I enjoy about this work is the mix of technical and business logic. Writing the query is rarely the hard part. The real challenge is figuring out which data actually counts under the business rules, and how all the pieces fit together.</p>
+          <p style="border-left:2px solid var(--accent); padding-left:1.1rem; color:var(--text);">That's the part I find genuinely interesting. The value isn't just in knowing SQL; it's in understanding both the data and the process behind it. When you know how the system works and what the business is really asking, you can turn a vague question into a clear and reliable answer, which saves a lot of time and guesswork.</p>
         </div>
       </div>
     </div>
 
     <div class="disclaimer">
-      <b>Note:</b> This is a made-up scenario based on my work, with the details changed for data-protection reasons. All data, table names and figures are invented and don't represent any real institution, system, client or person. What's real is the approach. The SQL shows the kind of patterns I use, rewritten on a fake schema.
+      <b>Note:</b> This is a made-up scenario based on my work, with the details changed for data-protection reasons. All data, table names and figures are invented and don't represent any real institution, system, client or person. The real cases are more complex than what's shown here. These are simplified, anonymised examples meant to give a taste of the work, not the full picture. What's real is the approach: the SQL shows the kind of patterns I use, rewritten on a fake schema.
     </div>
 
 
     <div class="sec-head"><span class="num">04</span><h2>Query Explorer</h2></div>
-    <p class="sec-sub">Reports and data fixes, roughly in rising order of complexity. Pick a tab, read what it's for, then run it to see simulated results. The 🔧 tabs are fixes (SELECT then UPDATE) rather than reports.</p>
+    <p class="sec-sub">A few reports first, then two data fixes. Pick a tab, read what it's for, then run it to see simulated results. The 🔧 tabs are fixes (SELECT then UPDATE) rather than reports.</p>
 
     <div class="conn-bar">
       <div class="conn-dot"></div>
@@ -295,8 +297,8 @@
       <div class="ciri">
         <div class="ciri-card c"><div class="ciri-k">Challenge</div><p>Cases dropped out of the work queues. No longer worked, no warning, and still real money outstanding on them.</p></div>
         <div class="ciri-card i"><div class="ciri-k">Investigation</div><p>Found the cases that had fallen out of the process completely, and pulled each one's remaining claim and last known procedural state next to it.</p></div>
-        <div class="ciri-card r"><div class="ciri-k">Result</div><p>The full affected set found in well under an hour, each row with its outstanding amount and where it had stalled.</p><span class="mock">mock: 147 cases · ~40 min</span></div>
-        <div class="ciri-card im"><div class="ciri-k">Impact</div><p>Cases put back into the queue before they slipped through, and the exposure quantified instead of guessed.</p><span class="mock">mock: €250k+ in claims back in the queue</span></div>
+        <div class="ciri-card r"><div class="ciri-k">Result</div><p>The full affected set found in well under an hour, each row with its outstanding amount and where it had stalled.</p></div>
+        <div class="ciri-card im"><div class="ciri-k">Impact</div><p>Cases put back into the queue before they slipped through, and the exposure quantified instead of guessed.</p></div>
       </div>
       <div class="timeline">
         <div class="t-time">T+0 min</div><div class="t-event">Team reports cases missing from work queues</div>
@@ -371,6 +373,7 @@
             <span class="skill-tag">OUTER APPLY</span>
             <span class="skill-tag">CASE logic</span>
             <span class="skill-tag">Incident Analysis</span>
+            <span class="skill-tag">Data Fixes (UPDATE)</span>
             <span class="skill-tag">Data Cleansing</span>
           </div>
         </div>
