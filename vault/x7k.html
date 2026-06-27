@@ -229,7 +229,7 @@
       getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
     } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
     import {
-      getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
+      getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc,
       query, where, orderBy, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
@@ -248,6 +248,7 @@
 
     let aktuelleKategorie = "code";
     let aktuellerUser = null;
+    let bearbeiteId = null;   // null = neuer Eintrag, sonst die ID des bearbeiteten
 
     const loginWrap = document.getElementById("loginWrap");
     const app = document.getElementById("app");
@@ -301,6 +302,9 @@
         }
         document.getElementById("formTitel").textContent = titelText;
         document.getElementById("inhalt").placeholder = platzhalter;
+        // Bearbeiten-Modus zurücksetzen beim Reiterwechsel
+        bearbeiteId = null;
+        document.getElementById("saveBtn").textContent = "save →";
         ladeEintraege();
       });
     });
@@ -313,13 +317,27 @@
 
       saveStatus.textContent = "saving...";
       try {
-        await addDoc(collection(db, "ablage"), {
-          user_id: aktuellerUser.uid,
-          kategorie: aktuelleKategorie,
-          titel, inhalt,
-          notiz: notiz || null,
-          erstellt_am: serverTimestamp()
-        });
+        if (bearbeiteId) {
+          // bestehenden Eintrag aktualisieren
+          await updateDoc(doc(db, "ablage", bearbeiteId), {
+            user_id: aktuellerUser.uid,
+            kategorie: aktuelleKategorie,
+            titel, inhalt,
+            notiz: notiz || null,
+            erstellt_am: serverTimestamp()
+          });
+          bearbeiteId = null;
+          document.getElementById("saveBtn").textContent = "save →";
+        } else {
+          // neuen Eintrag anlegen
+          await addDoc(collection(db, "ablage"), {
+            user_id: aktuellerUser.uid,
+            kategorie: aktuelleKategorie,
+            titel, inhalt,
+            notiz: notiz || null,
+            erstellt_am: serverTimestamp()
+          });
+        }
         document.getElementById("titel").value = "";
         document.getElementById("inhalt").value = "";
         document.getElementById("notiz").value = "";
@@ -378,6 +396,7 @@
               ${body}
               <div class="entry-actions">
                 <button class="btn-copy">copy</button>
+                <button class="btn-edit">edit</button>
                 <button class="btn-del">delete</button>
               </div>
             </div>
@@ -401,6 +420,18 @@
             const b = div.querySelector(".btn-copy");
             b.textContent = "copied ✓";
             setTimeout(() => b.textContent = "copy", 1200);
+          });
+
+          div.querySelector(".btn-edit").addEventListener("click", () => {
+            // Felder oben mit den Werten füllen und in den Bearbeiten-Modus gehen
+            document.getElementById("titel").value = e.titel;
+            document.getElementById("inhalt").value = e.inhalt;
+            document.getElementById("notiz").value = e.notiz || "";
+            bearbeiteId = id;
+            document.getElementById("saveBtn").textContent = "update →";
+            // nach oben zum Formular scrollen
+            document.getElementById("titel").scrollIntoView({ behavior: "smooth", block: "center" });
+            document.getElementById("titel").focus();
           });
 
           div.querySelector(".btn-del").addEventListener("click", async () => {
