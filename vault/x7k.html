@@ -85,6 +85,13 @@
     font-family: inherit; font-size: 14px;
   }
   input:focus { outline: none; border-color: var(--phos); }
+  #suche {
+    width: 100%; padding: 0.6rem 0.7rem; margin-bottom: 1rem;
+    background: #060a07; color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    font-family: inherit; font-size: 13px;
+  }
+  #suche:focus { outline: none; border-color: var(--phos); }
 
   button {
     font-family: inherit; font-size: 13px; font-weight: 500;
@@ -220,6 +227,8 @@
       <span id="saveStatus"></span>
     </div>
 
+    <input type="text" id="suche" placeholder="🔍 search title or content...">
+
     <div id="liste"></div>
   </div>
 
@@ -305,6 +314,7 @@
         // Bearbeiten-Modus zurücksetzen beim Reiterwechsel
         bearbeiteId = null;
         document.getElementById("saveBtn").textContent = "save →";
+        document.getElementById("suche").value = "";
         ladeEintraege();
       });
     });
@@ -349,6 +359,8 @@
       }
     });
 
+    let geladeneEintraege = [];   // hier merken wir uns die geladenen Einträge
+
     async function ladeEintraege() {
       const liste = document.getElementById("liste");
       liste.innerHTML = "<p class='empty'>loading...</p>";
@@ -360,92 +372,116 @@
           orderBy("erstellt_am", "desc")
         );
         const snap = await getDocs(q);
-        if (snap.empty) { liste.innerHTML = "<p class='empty'>nothing stored yet</p>"; return; }
 
-        liste.innerHTML = "";
-        snap.forEach(d => {
-          const e = d.data();
-          const id = d.id;
-          const div = document.createElement("div");
-          div.className = "entry";
+        // Einträge in die Variable laden (mit ID)
+        geladeneEintraege = [];
+        snap.forEach(d => geladeneEintraege.push({ id: d.id, ...d.data() }));
 
-          let datum = "";
-          if (e.erstellt_am && e.erstellt_am.toDate) {
-            datum = e.erstellt_am.toDate().toLocaleString("de-CH");
-          }
-          const notizHtml = e.notiz ? `<div class="entry-note">// ${escapeHtml(e.notiz)}</div>` : "";
-
-          let body;
-          if (e.kategorie === "link") {
-            const url = escapeHtml(e.inhalt);
-            body = `<div class="entry-link"><a href="${url}" target="_blank" rel="noopener">${url}</a></div>`;
-          } else if (e.kategorie === "download") {
-            const url = escapeHtml(e.inhalt);
-            body = `<div class="entry-link"><a class="dl-btn" href="${url}" download target="_blank" rel="noopener">↓ download</a></div>`;
-          } else {
-            body = `<pre>${escapeHtml(e.inhalt)}</pre>`;
-          }
-
-          div.innerHTML = `
-            <div class="entry-head">
-              <span class="entry-title">${escapeHtml(e.titel)}</span>
-              <span class="entry-date">${datum} <span class="arrow">▸</span></span>
-            </div>
-            <div class="entry-body" style="display:none;">
-              ${notizHtml}
-              ${body}
-              <div class="entry-actions">
-                <button class="btn-copy">copy</button>
-                <button class="btn-edit">edit</button>
-                <button class="btn-del">delete</button>
-              </div>
-            </div>
-          `;
-
-          // Kopf klickbar: auf-/zuklappen
-          const kopf = div.querySelector(".entry-head");
-          const koerper = div.querySelector(".entry-body");
-          const pfeil = div.querySelector(".arrow");
-          kopf.style.cursor = "pointer";
-          kopf.addEventListener("click", (ev) => {
-            // Klick auf copy/delete soll nicht zuklappen
-            if (ev.target.closest(".entry-actions")) return;
-            const offen = koerper.style.display !== "none";
-            koerper.style.display = offen ? "none" : "block";
-            pfeil.textContent = offen ? "▸" : "▾";
-          });
-
-          div.querySelector(".btn-copy").addEventListener("click", () => {
-            navigator.clipboard.writeText(e.inhalt);
-            const b = div.querySelector(".btn-copy");
-            b.textContent = "copied ✓";
-            setTimeout(() => b.textContent = "copy", 1200);
-          });
-
-          div.querySelector(".btn-edit").addEventListener("click", () => {
-            // Felder oben mit den Werten füllen und in den Bearbeiten-Modus gehen
-            document.getElementById("titel").value = e.titel;
-            document.getElementById("inhalt").value = e.inhalt;
-            document.getElementById("notiz").value = e.notiz || "";
-            bearbeiteId = id;
-            document.getElementById("saveBtn").textContent = "update →";
-            // nach oben zum Formular scrollen
-            document.getElementById("titel").scrollIntoView({ behavior: "smooth", block: "center" });
-            document.getElementById("titel").focus();
-          });
-
-          div.querySelector(".btn-del").addEventListener("click", async () => {
-            if (!confirm("delete this entry?")) return;
-            await deleteDoc(doc(db, "ablage", id));
-            ladeEintraege();
-          });
-
-          liste.appendChild(div);
-        });
+        zeigeEintraege();
       } catch (e) {
         liste.innerHTML = "<p class='empty'>error: " + e.message + "</p>";
       }
     }
+
+    function zeigeEintraege() {
+      const liste = document.getElementById("liste");
+      const suchbegriff = document.getElementById("suche").value.trim().toLowerCase();
+
+      // nach Suchbegriff filtern (Titel + Inhalt)
+      const gefiltert = geladeneEintraege.filter(e => {
+        if (!suchbegriff) return true;
+        const titel = (e.titel || "").toLowerCase();
+        const inhalt = (e.inhalt || "").toLowerCase();
+        return titel.includes(suchbegriff) || inhalt.includes(suchbegriff);
+      });
+
+      if (gefiltert.length === 0) {
+        liste.innerHTML = suchbegriff
+          ? "<p class='empty'>no match</p>"
+          : "<p class='empty'>nothing stored yet</p>";
+        return;
+      }
+
+      liste.innerHTML = "";
+      gefiltert.forEach(e => {
+        const id = e.id;
+        const div = document.createElement("div");
+        div.className = "entry";
+
+        let datum = "";
+        if (e.erstellt_am && e.erstellt_am.toDate) {
+          datum = e.erstellt_am.toDate().toLocaleString("de-CH");
+        }
+        const notizHtml = e.notiz ? `<div class="entry-note">// ${escapeHtml(e.notiz)}</div>` : "";
+
+        let body;
+        if (e.kategorie === "link") {
+          const url = escapeHtml(e.inhalt);
+          body = `<div class="entry-link"><a href="${url}" target="_blank" rel="noopener">${url}</a></div>`;
+        } else if (e.kategorie === "download") {
+          const url = escapeHtml(e.inhalt);
+          body = `<div class="entry-link"><a class="dl-btn" href="${url}" download target="_blank" rel="noopener">↓ download</a></div>`;
+        } else {
+          body = `<pre>${escapeHtml(e.inhalt)}</pre>`;
+        }
+
+        div.innerHTML = `
+          <div class="entry-head">
+            <span class="entry-title">${escapeHtml(e.titel)}</span>
+            <span class="entry-date">${datum} <span class="arrow">▸</span></span>
+          </div>
+          <div class="entry-body" style="display:none;">
+            ${notizHtml}
+            ${body}
+            <div class="entry-actions">
+              <button class="btn-copy">copy</button>
+              <button class="btn-edit">edit</button>
+              <button class="btn-del">delete</button>
+            </div>
+          </div>
+        `;
+
+        // Kopf klickbar: auf-/zuklappen
+        const kopf = div.querySelector(".entry-head");
+        const koerper = div.querySelector(".entry-body");
+        const pfeil = div.querySelector(".arrow");
+        kopf.style.cursor = "pointer";
+        kopf.addEventListener("click", (ev) => {
+          if (ev.target.closest(".entry-actions")) return;
+          const offen = koerper.style.display !== "none";
+          koerper.style.display = offen ? "none" : "block";
+          pfeil.textContent = offen ? "▸" : "▾";
+        });
+
+        div.querySelector(".btn-copy").addEventListener("click", () => {
+          navigator.clipboard.writeText(e.inhalt);
+          const b = div.querySelector(".btn-copy");
+          b.textContent = "copied ✓";
+          setTimeout(() => b.textContent = "copy", 1200);
+        });
+
+        div.querySelector(".btn-edit").addEventListener("click", () => {
+          document.getElementById("titel").value = e.titel;
+          document.getElementById("inhalt").value = e.inhalt;
+          document.getElementById("notiz").value = e.notiz || "";
+          bearbeiteId = id;
+          document.getElementById("saveBtn").textContent = "update →";
+          document.getElementById("titel").scrollIntoView({ behavior: "smooth", block: "center" });
+          document.getElementById("titel").focus();
+        });
+
+        div.querySelector(".btn-del").addEventListener("click", async () => {
+          if (!confirm("delete this entry?")) return;
+          await deleteDoc(doc(db, "ablage", id));
+          ladeEintraege();
+        });
+
+        liste.appendChild(div);
+      });
+    }
+
+    // Suche: bei jedem Tastendruck neu filtern (ohne Datenbank-Abfrage)
+    document.getElementById("suche").addEventListener("input", zeigeEintraege);
 
     function escapeHtml(text) {
       const div = document.createElement("div");
