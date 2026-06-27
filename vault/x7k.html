@@ -227,7 +227,7 @@
       <span id="saveStatus"></span>
     </div>
 
-    <input type="text" id="suche" placeholder="🔍 search title or content...">
+    <input type="text" id="suche" placeholder="🔍 search title, content or note...">
 
     <div id="liste"></div>
   </div>
@@ -387,12 +387,13 @@
       const liste = document.getElementById("liste");
       const suchbegriff = document.getElementById("suche").value.trim().toLowerCase();
 
-      // nach Suchbegriff filtern (Titel + Inhalt)
+      // nach Suchbegriff filtern (Titel + Inhalt + Notiz)
       const gefiltert = geladeneEintraege.filter(e => {
         if (!suchbegriff) return true;
         const titel = (e.titel || "").toLowerCase();
         const inhalt = (e.inhalt || "").toLowerCase();
-        return titel.includes(suchbegriff) || inhalt.includes(suchbegriff);
+        const notiz = (e.notiz || "").toLowerCase();
+        return titel.includes(suchbegriff) || inhalt.includes(suchbegriff) || notiz.includes(suchbegriff);
       });
 
       if (gefiltert.length === 0) {
