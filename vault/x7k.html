@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meine Ablage</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --border: #2a2f3a;
+    --text: #e6e6e6;
+    --muted: #9aa4b2;
+    --blue: #3b82f6;
+    --green: #4ade80;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    min-height: 100vh;
+  }
+
+  /* Login */
+  #loginWrap {
+    display: flex; align-items: center; justify-content: center; min-height: 100vh;
+  }
+  .box {
+    background: var(--panel); padding: 32px; border-radius: 12px; width: 320px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  h1 { font-size: 20px; margin: 0 0 20px; }
+  input, textarea, select {
+    width: 100%; padding: 10px; margin-bottom: 12px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
+  }
+  textarea { min-height: 120px; resize: vertical; }
+  button {
+    padding: 10px 14px; border: none; border-radius: 6px;
+    background: var(--blue); color: white; font-size: 14px; cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  #status { margin-top: 12px; font-size: 14px; min-height: 18px; }
+  .err { color: var(--red); }
+
+  /* App */
+  #app { display: none; max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+  }
+  .topbar .who { color: var(--muted); font-size: 13px; }
+  #logoutBtn { background: #4b5563; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab {
+    background: var(--panel); color: var(--muted); border: 1px solid var(--border);
+  }
+  .tab.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 12px; }
+
+  .entry {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; margin-bottom: 12px;
+  }
+  .entry-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .entry-title { font-weight: 600; font-size: 15px; }
+  .entry-date { color: var(--muted); font-size: 12px; }
+  .entry-note { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  .entry pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; overflow-x: auto; font-size: 13px; margin: 10px 0 0;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .entry a { color: var(--blue); word-break: break-all; }
+  .entry-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .small { padding: 6px 10px; font-size: 13px; }
+  .btn-copy { background: #374151; }
+  .btn-del { background: #7f1d1d; }
+  .muted { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginWrap">
+    <div class="box">
+      <h1>Anmelden</h1>
+      <input type="email" id="email" placeholder="E-Mail">
+      <input type="password" id="password" placeholder="Passwort">
+      <button id="loginBtn" style="width:100%">Login</button>
+      <div id="status"></div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="topbar">
+      <div>
+        <strong>Meine Ablage</strong>
+        <span class="who" id="who"></span>
+      </div>
+      <button id="logoutBtn" class="small">Logout</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-kat="code">Codes</button>
+      <button class="tab" data-kat="link">Links</button>
+    </div>
+
+    <!-- Neues Element -->
+    <div class="card">
+      <h2 id="formTitel">Neuen Code anlegen</h2>
+      <input type="text" id="titel" placeholder="Titel">
+      <textarea id="inhalt" placeholder="Code hier einfügen"></textarea>
+      <input type="text" id="notiz" placeholder="Notiz (optional)">
+      <button id="saveBtn">Speichern</button>
+      <span id="saveStatus" style="margin-left:10px;font-size:13px;"></span>
+    </div>
+
+    <!-- Liste -->
+    <div id="liste"></div>
+  </div>
+
+  <!-- Firebase-Bibliotheken -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import {
+      getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
+      query, where, orderBy, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+    // Deine Firebase-Projektdaten
+    const firebaseConfig = {
+      apiKey: "AIzaSyCiyNoLKTnxBM4oEP2RSLPoeG8HWV1rDTU",
+      authDomain: "ablage-21e9e.firebaseapp.com",
+      projectId: "ablage-21e9e",
+      storageBucket: "ablage-21e9e.firebasestorage.app",
+      messagingSenderId: "1009208526925",
+      appId: "1:1009208526925:web:1a361c47c380c701267404"
+    };
+
+    const appFb = initializeApp(firebaseConfig);
+    const auth = getAuth(appFb);
+    const db = getFirestore(appFb);
+
+    let aktuelleKategorie = "code";
+    let aktuellerUser = null;
+
+    const loginWrap = document.getElementById("loginWrap");
+    const app = document.getElementById("app");
+    const statusEl = document.getElementById("status");
+    const saveStatus = document.getElementById("saveStatus");
+
+    // Oberfläche je nach Login-Status
+    function zeigeOberflaeche(user) {
+      aktuellerUser = user;
+      if (user) {
+        loginWrap.style.display = "none";
+        app.style.display = "block";
+        document.getElementById("who").textContent = "– " + user.email;
+        ladeEintraege();
+      } else {
+        loginWrap.style.display = "flex";
+        app.style.display = "none";
+      }
+    }
+
+    // Firebase meldet automatisch, ob jemand eingeloggt ist
+    onAuthStateChanged(auth, (user) => zeigeOberflaeche(user));
+
+    // Login
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      statusEl.textContent = "Prüfe..."; statusEl.className = "";
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        statusEl.textContent = "";
+      } catch (e) {
+        statusEl.textContent = "Fehler: " + e.message;
+        statusEl.className = "err";
+      }
+    });
+
+    // Logout
+    document.getElementById("logoutBtn").addEventListener("click", async () => {
+      await signOut(auth);
+    });
+
+    // Reiter umschalten
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        aktuelleKategorie = tab.dataset.kat;
+        const istCode = aktuelleKategorie === "code";
+        document.getElementById("formTitel").textContent = istCode ? "Neuen Code anlegen" : "Neuen Link anlegen";
+        document.getElementById("inhalt").placeholder = istCode ? "Code hier einfügen" : "https://...";
+        ladeEintraege();
+      });
+    });
+
+    // Speichern
+    document.getElementById("saveBtn").addEventListener("click", async () => {
+      const titel = document.getElementById("titel").value.trim();
+      const inhalt = document.getElementById("inhalt").value.trim();
+      const notiz = document.getElementById("notiz").value.trim();
+      if (!titel || !inhalt) { saveStatus.textContent = "Titel und Inhalt nötig."; return; }
+
+      saveStatus.textContent = "Speichere...";
+      try {
+        await addDoc(collection(db, "ablage"), {
+          user_id: aktuellerUser.uid,
+          kategorie: aktuelleKategorie,
+          titel: titel,
+          inhalt: inhalt,
+          notiz: notiz || null,
+          erstellt_am: serverTimestamp()
+        });
+        document.getElementById("titel").value = "";
+        document.getElementById("inhalt").value = "";
+        document.getElementById("notiz").value = "";
+        saveStatus.textContent = "Gespeichert.";
+        setTimeout(() => saveStatus.textContent = "", 1500);
+        ladeEintraege();
+      } catch (e) {
+        saveStatus.textContent = "Fehler: " + e.message;
+      }
+    });
+
+    // Einträge laden
+    async function ladeEintraege() {
+      const liste = document.getElementById("liste");
+      liste.innerHTML = "<p class='muted'>Lade...</p>";
+
+      try {
+        const q = query(
+          collection(db, "ablage"),
+          where("user_id", "==", aktuellerUser.uid),
+          where("kategorie", "==", aktuelleKategorie),
+          orderBy("erstellt_am", "desc")
+        );
+        const snap = await getDocs(q);
+
+        if (snap.empty) { liste.innerHTML = "<p class='muted'>Noch nichts hier.</p>"; return; }
+
+        liste.innerHTML = "";
+        snap.forEach(d => {
+          const eintrag = d.data();
+          const id = d.id;
+          const div = document.createElement("div");
+          div.className = "entry";
+
+          let datum = "";
+          if (eintrag.erstellt_am && eintrag.erstellt_am.toDate) {
+            datum = eintrag.erstellt_am.toDate().toLocaleString("de-CH");
+          }
+          const notizHtml = eintrag.notiz ? `<p class="entry-note">${escapeHtml(eintrag.notiz)}</p>` : "";
+
+          let inhaltHtml;
+          if (eintrag.kategorie === "link") {
+            const url = escapeHtml(eintrag.inhalt);
+            inhaltHtml = `<p style="margin:10px 0 0"><a href="${url}" target="_blank" rel="noopener">${url}</a></p>`;
+          } else {
+            inhaltHtml = `<pre>${escapeHtml(eintrag.inhalt)}</pre>`;
+          }
+
+          div.innerHTML = `
+            <div class="entry-head">
+              <span class="entry-title">${escapeHtml(eintrag.titel)}</span>
+              <span class="entry-date">${datum}</span>
+            </div>
+            ${notizHtml}
+            ${inhaltHtml}
+            <div class="entry-actions">
+              <button class="small btn-copy">Kopieren</button>
+              <button class="small btn-del">Löschen</button>
+            </div>
+          `;
+
+          div.querySelector(".btn-copy").addEventListener("click", () => {
+            navigator.clipboard.writeText(eintrag.inhalt);
+            div.querySelector(".btn-copy").textContent = "Kopiert!";
+            setTimeout(() => div.querySelector(".btn-copy").textContent = "Kopieren", 1200);
+          });
+
+          div.querySelector(".btn-del").addEventListener("click", async () => {
+            if (!confirm("Wirklich löschen?")) return;
+            await deleteDoc(doc(db, "ablage", id));
+            ladeEintraege();
+          });
+
+          liste.appendChild(div);
+        });
+      } catch (e) {
+        liste.innerHTML = "<p class='err'>Fehler: " + e.message + "</p>";
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+
+</body>
+</html>
