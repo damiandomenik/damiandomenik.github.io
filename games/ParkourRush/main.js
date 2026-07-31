@@ -10,20 +10,30 @@ class ParkourRush extends Phaser.Scene {
     }
 
 
-    preload(){
-
-    }
-
-
     create(){
 
-        this.speed = 250;
+        this.running = false;
         this.distance = 0;
+        this.speed = 300;
+
 
         this.cameras.main.setBackgroundColor("#080820");
 
 
-        this.ui = new UI(this);
+        // Boden
+        this.ground = this.add.rectangle(
+            600,
+            580,
+            1200,
+            40,
+            0x111133
+        );
+
+
+        this.physics.add.existing(
+            this.ground,
+            true
+        );
 
 
         this.player = new Player(
@@ -33,7 +43,16 @@ class ParkourRush extends Phaser.Scene {
         );
 
 
+        this.physics.add.collider(
+            this.player.sprite,
+            this.ground
+        );
+
+
         this.world = new World(this);
+
+
+        this.ui = new UI(this);
 
 
         this.keys = this.input.keyboard.addKeys({
@@ -48,19 +67,10 @@ class ParkourRush extends Phaser.Scene {
         this.time.delayedCall(
             3000,
             ()=>{
-                this.startGame();
+                this.running = true;
+                this.ui.hide();
             }
         );
-
-    }
-
-
-
-    startGame(){
-
-        this.running=true;
-
-        this.ui.hide();
 
     }
 
@@ -76,13 +86,13 @@ class ParkourRush extends Phaser.Scene {
         this.distance += this.speed * delta/1000;
 
 
-        this.world.update(
-            this.speed
+        this.player.update(
+            this.keys
         );
 
 
-        this.player.update(
-            this.keys
+        this.world.update(
+            this.speed
         );
 
 
@@ -97,9 +107,9 @@ class ParkourRush extends Phaser.Scene {
 
 
 
-const config={
+const config = {
 
-    type:Phaser.AUTO,
+    type: Phaser.AUTO,
 
     width:1200,
 
