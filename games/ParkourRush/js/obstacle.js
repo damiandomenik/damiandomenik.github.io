@@ -1,58 +1,61 @@
-export default class Obstacle{
+export default class Obstacle {
 
 
-constructor(scene,x,y,type){
+    constructor(scene,x,y,type){
 
 
-let color = 0xff00aa;
+        let color = 0xff00aa;
 
 
-if(type==="block"){
-    color = 0xff8800;
-}
+        if(type === "block"){
+            color = 0xff8800;
+        }
 
 
-if(type==="laser"){
-    color = 0xff0000;
-}
-
-
-this.sprite = scene.add.rectangle(
-    x,
-    y,
-    60,
-    90,
-    color
-);
-
-
-this.sprite.setStrokeStyle(
-    4,
-    0xffffff
-);
-
-
-scene.physics.add.existing(
-    this.sprite
-);
-
-
-this.sprite.body.setImmovable(true);
-
-
-}
+        if(type === "laser"){
+            color = 0xff0000;
+        }
 
 
 
-update(){
+        this.sprite = scene.add.rectangle(
+            x,
+            y,
+            60,
+            90,
+            color
+        );
 
-    if(this.sprite.x < -100){
 
-        this.sprite.destroy();
+        // Physik hinzufügen
+        scene.physics.add.existing(
+            this.sprite
+        );
+
+
+        // wichtig:
+        // keine Schwerkraft für Hindernisse
+
+        this.sprite.body.allowGravity = false;
+
+
+        // unbewegliches Hindernis
+        this.sprite.body.setImmovable(true);
+
 
     }
 
-}
+
+
+    update(){
+
+        if(this.sprite.x < -200){
+
+            this.sprite.destroy();
+
+        }
+
+    }
 
 
 }
