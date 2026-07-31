@@ -26,6 +26,12 @@ this.sprite = scene.add.rectangle(
 );
 
 
+this.sprite.setStrokeStyle(
+    4,
+    0xffffff
+);
+
+
 scene.physics.add.existing(
     this.sprite
 );
