@@ -6,29 +6,26 @@ export default class World{
 
 constructor(scene){
 
-this.scene=scene;
+    this.scene = scene;
 
-this.obstacles=[];
+    this.obstacles = [];
 
-this.group.add(
-    obstacle.sprite
-);
+    this.group = scene.physics.add.group();
 
-this.group = scene.physics.add.group();
-  
-scene.time.addEvent({
 
-delay:1500,
+    scene.time.addEvent({
 
-loop:true,
+        delay:1500,
 
-callback:()=>{
+        loop:true,
 
-this.spawn();
+        callback:()=>{
 
-}
+            this.spawn();
 
-});
+        }
+
+    });
 
 
 }
@@ -38,33 +35,37 @@ this.spawn();
 spawn(){
 
 
-let types=[
-"block",
-"laser"
-];
+    let types=[
+        "block",
+        "laser"
+    ];
 
 
-let type=
-types[
-Phaser.Math.Between(
-0,
-types.length-1
-)
-];
+    let type =
+    types[
+        Phaser.Math.Between(
+            0,
+            types.length-1
+        )
+    ];
 
 
-let obstacle=new Obstacle(
-this.scene,
-1250,
-520,
-type
-);
+    let obstacle = new Obstacle(
+        this.scene,
+        1250,
+        520,
+        type
+    );
 
 
-this.obstacles.push(
-obstacle
-);
+    this.obstacles.push(
+        obstacle
+    );
 
+
+    this.group.add(
+        obstacle.sprite
+    );
 
 
 }
@@ -74,18 +75,16 @@ obstacle
 update(speed){
 
 
-this.obstacles.forEach(
-o=>{
+    this.obstacles.forEach(
+        o=>{
 
-o.sprite.x-=speed*0.008;
+            o.sprite.x -= speed * 0.008;
+
+        }
+    );
 
 
 }
-);
-
-
-}
-
 
 
 }
