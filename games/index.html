@@ -1,1 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E2E38">
+<title>Spielhalle</title>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --hall:#0E2E38;      /* Petrol, Hallenwand */
+  --hall2:#154451;
+  --floor:#0A2129;
+  --cream:#F6E7C8;     /* Automatengehäuse */
+  --ink:#15181C;
+  --amber:#FFB020;     /* Marquee-Licht */
+  --magenta:#FF4E8A;
+  --violet:#8F7FD8;    /* Farbe von PLUMPS */
+  --tomato:#FF5C6E;    /* Farbe von TURBO RACING */
+  --mint:#3FEFC0;
+  --sign:"Bungee",Impact,sans-serif;
+  --body:"Outfit","Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;background:var(--hall);color:var(--cream);font-family:var(--body);font-weight:300;
+  background-image:
+    radial-gradient(900px 420px at 50% -8%, rgba(255,176,32,.20), transparent 62%),
+    radial-gradient(700px 500px at 12% 100%, rgba(255,78,138,.14), transparent 60%),
+    linear-gradient(180deg, var(--hall) 0%, var(--hall2) 55%, var(--floor) 100%);
+  padding:0 20px 60px;
+}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid var(--amber);outline-offset:6px}
+.wrap{max-width:980px;margin:0 auto}
 
+/* ---------- Leuchtschrift ---------- */
+.marquee{text-align:center;padding:clamp(34px,7vw,64px) 0 clamp(26px,4vw,40px);position:relative}
+.bulbs{display:flex;justify-content:center;gap:clamp(8px,2.6vw,18px);margin-bottom:22px}
+.bulbs i{width:10px;height:10px;border-radius:50%;background:var(--amber);display:block;
+  box-shadow:0 0 12px var(--amber);animation:blink 1.4s infinite}
+.bulbs i:nth-child(2n){background:var(--magenta);box-shadow:0 0 12px var(--magenta);animation-delay:.2s}
+.bulbs i:nth-child(3n){animation-delay:.45s}
+.bulbs i:nth-child(5n){animation-delay:.7s}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.22}}
+
+h1{font-family:var(--sign);font-size:clamp(2.1rem,9vw,4.4rem);line-height:.95;letter-spacing:.02em;
+  color:var(--cream);text-shadow:0 0 26px rgba(255,176,32,.5), 5px 6px 0 rgba(0,0,0,.35)}
+.sub{margin-top:14px;font-size:clamp(.9rem,2.4vw,1.05rem);color:#9FC3CE;letter-spacing:.02em}
+
+/* ---------- Automatenreihe ---------- */
+.hall{display:grid;gap:clamp(22px,4vw,34px);grid-template-columns:1fr}
+@media(min-width:720px){.hall{grid-template-columns:repeat(2,1fr)}}
+
+.cab{
+  position:relative;display:block;background:var(--cream);color:var(--ink);
+  border-radius:22px 22px 10px 10px;padding:14px 14px 18px;
+  box-shadow:0 22px 0 -6px rgba(0,0,0,.35), 0 34px 60px rgba(0,0,0,.45);
+  border:3px solid var(--ink);transition:transform .18s ease, box-shadow .18s ease;
+}
+.cab:hover,.cab:focus-visible{transform:translateY(-8px);
+  box-shadow:0 30px 0 -6px rgba(0,0,0,.35), 0 44px 70px rgba(0,0,0,.5)}
+
+.cab .top{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--tint);border:3px solid var(--ink);border-radius:12px;padding:9px 14px;margin-bottom:12px}
+.cab .top b{font-family:var(--sign);font-size:clamp(1rem,3.4vw,1.35rem);letter-spacing:.02em;color:var(--ink)}
+.cab .top span{font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:rgba(21,24,28,.6)}
+
+.screen{position:relative;border:3px solid var(--ink);border-radius:10px;overflow:hidden;background:#0B0912;
+  aspect-ratio:4/3}
+.screen svg{display:block;width:100%;height:100%}
+.scanlines{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(180deg, rgba(255,255,255,.055) 0 1px, transparent 1px 3px)}
+.glare{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 70% at 25% 0%, rgba(255,255,255,.14), transparent 55%)}
+
+/* Bedienpult */
+.panel{display:flex;align-items:center;gap:14px;margin-top:12px;
+  background:linear-gradient(180deg,#e3d3b4,#cdbb97);border:3px solid var(--ink);border-radius:10px;padding:10px 14px}
+.stick{width:14px;height:26px;background:var(--ink);border-radius:7px;position:relative}
+.stick::after{content:"";position:absolute;left:50%;top:-11px;transform:translateX(-50%);
+  width:20px;height:20px;border-radius:50%;background:var(--tint);border:3px solid var(--ink)}
+.keys{display:flex;gap:8px;margin-left:auto}
+.keys i{width:19px;height:19px;border-radius:50%;background:var(--tint);border:3px solid var(--ink);display:block}
+.keys i:nth-child(2){background:#fff}
+
+.play{margin-top:12px;display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--sign);font-size:.92rem;background:var(--ink);color:var(--cream);
+  border-radius:10px;padding:11px 16px}
+.play em{font-style:normal;font-size:.58rem;letter-spacing:.2em;font-family:var(--body);font-weight:600;color:#9FC3CE}
+.cab:hover .play,.cab:focus-visible .play{background:var(--tint);color:var(--ink)}
+.cab:hover .play em,.cab:focus-visible .play em{color:rgba(21,24,28,.65)}
+
+/* Automat ausser Betrieb */
+.cab.dark{background:#20303a;border-color:#0c1519;color:#7FA3B0;box-shadow:0 18px 0 -6px rgba(0,0,0,.3)}
+.cab.dark:hover{transform:none;box-shadow:0 18px 0 -6px rgba(0,0,0,.3)}
+.cab.dark .top{background:#2c414d;border-color:#0c1519}
+.cab.dark .top b,.cab.dark .top span{color:#7FA3B0}
+.cab.dark .screen{background:#0b1418;display:grid;place-items:center}
+.cab.dark .panel{background:#2c414d;border-color:#0c1519}
+.cab.dark .stick,.cab.dark .keys i{background:#44606e;border-color:#0c1519}
+.cab.dark .stick{background:#0c1519}
+.cab.dark .play{background:#2c414d;color:#7FA3B0}
+.offline{font-family:var(--sign);font-size:1rem;color:#3d5b68;letter-spacing:.08em}
+
+footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size:.78rem;letter-spacing:.06em}
+
+/* ---------- Bildschirm-Animationen ---------- */
+.pipe{animation:slide 2.6s linear infinite}
+.pipe.b{animation-delay:1.3s}
+@keyframes slide{from{transform:translateX(0)}to{transform:translateX(-120px)}}
+.hop{animation:hop 1.15s ease-in-out infinite}
+@keyframes hop{0%,100%{transform:translateY(0) rotate(-8deg)}45%{transform:translateY(-16px) rotate(10deg)}}
+.dashline{stroke-dasharray:8 10;animation:dash 1.2s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-18}}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="marquee">
+    <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <h1>SPIELHALLE</h1>
+    <p class="sub">Zwei Automaten stehen bereit. Einwurf ist nicht nötig.</p>
+  </header>
+
+  <main class="hall">
+
+    <!-- PLUMPS -->
+    <a class="cab" href="../plumps/" style="--tint:var(--violet)">
+      <div class="top"><b>PLUMPS</b><span>1 Spieler</span></div>
+      <div class="screen">
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#0A0713"/><stop offset="1" stop-color="#2A1B47"/>
+          </linearGradient></defs>
+          <rect width="200" height="150" fill="url(#sky)"/>
+          <circle cx="30" cy="26" r="1.4" fill="#CFC4F0"/><circle cx="88" cy="16" r="1.1" fill="#CFC4F0"/>
+          <circle cx="150" cy="34" r="1.5" fill="#CFC4F0"/><circle cx="176" cy="12" r="1" fill="#CFC4F0"/>
+          <g class="pipe">
+            <rect x="120" y="0" width="26" height="52" fill="#3B2C60" stroke="#4A3878" stroke-width="2"/>
+            <rect x="120" y="92" width="26" height="58" fill="#3B2C60" stroke="#4A3878" stroke-width="2"/>
+            <rect x="117" y="50" width="32" height="4" fill="#3FEFC0"/>
+            <rect x="117" y="92" width="32" height="4" fill="#3FEFC0"/>
+          </g>
+          <g class="pipe b">
+            <rect x="196" y="0" width="26" height="76" fill="#3B2C60" stroke="#4A3878" stroke-width="2"/>
+            <rect x="196" y="116" width="26" height="34" fill="#3B2C60" stroke="#4A3878" stroke-width="2"/>
+          </g>
+          <g class="hop" style="transform-origin:56px 74px">
+            <circle cx="56" cy="64" r="6" fill="#05030A" stroke="#3FEFC0" stroke-width="1.5"/>
+            <g stroke="#05030A" stroke-width="3.5" stroke-linecap="round">
+              <path d="M56 70v12M56 72l-9-6M56 72l9-6M56 82l-6 9M56 82l6 8"/>
+            </g>
+          </g>
+          <rect x="0" y="138" width="200" height="12" fill="#120C1F"/>
+          <rect x="0" y="138" width="200" height="2" fill="#3FEFC0" opacity=".5"/>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
+      </div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">SPIELEN <em>Bestenliste</em></div>
+    </a>
+
+    <!-- TURBO RACING -->
+    <a class="cab" href="../racing/" style="--tint:var(--tomato)">
+      <div class="top"><b>TURBO RACING</b><span>bis 4 Spieler</span></div>
+      <div class="screen">
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <rect width="200" height="150" fill="#6BBE3E"/>
+          <rect y="18" width="200" height="16" fill="#5EAE35"/>
+          <rect y="66" width="200" height="16" fill="#5EAE35"/>
+          <rect y="114" width="200" height="16" fill="#5EAE35"/>
+          <path id="tr" d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
+                fill="none" stroke="#4B4A57" stroke-width="26" stroke-linejoin="round"/>
+          <path d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
+                fill="none" stroke="#E4453A" stroke-width="30" stroke-linejoin="round"
+                stroke-dasharray="9 9" opacity=".55"/>
+          <path d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
+                fill="none" stroke="#4B4A57" stroke-width="24" stroke-linejoin="round"/>
+          <path class="dashline" d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
+                fill="none" stroke="#FFF6E5" stroke-width="1.6" opacity=".45"/>
+          <g>
+            <rect x="-7" y="-5" width="14" height="10" rx="3" fill="#FF5C6E" stroke="#2B2233" stroke-width="2"/>
+            <circle cx="1" cy="0" r="2.6" fill="#FFF6E5"/>
+            <animateMotion dur="4.2s" repeatCount="indefinite" rotate="auto"
+              path="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"/>
+          </g>
+          <g>
+            <rect x="-7" y="-5" width="14" height="10" rx="3" fill="#4FC3F7" stroke="#2B2233" stroke-width="2"/>
+            <circle cx="1" cy="0" r="2.6" fill="#FFF6E5"/>
+            <animateMotion dur="4.2s" begin="-1.4s" repeatCount="indefinite" rotate="auto"
+              path="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"/>
+          </g>
+          <g>
+            <rect x="-7" y="-5" width="14" height="10" rx="3" fill="#FFD23F" stroke="#2B2233" stroke-width="2"/>
+            <circle cx="1" cy="0" r="2.6" fill="#FFF6E5"/>
+            <animateMotion dur="4.2s" begin="-2.6s" repeatCount="indefinite" rotate="auto"
+              path="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"/>
+          </g>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
+      </div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">SPIELEN <em>Raumcode</em></div>
+    </a>
+
+    <!-- Platzhalter -->
+    <div class="cab dark" aria-hidden="true">
+      <div class="top"><b>???</b><span>demnächst</span></div>
+      <div class="screen"><span class="offline">AUSSER BETRIEB</span></div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">GESCHLOSSEN</div>
+    </div>
+
+  </main>
+
+  <footer>Läuft im Browser · nichts zu installieren</footer>
+</div>
+</body>
+</html>
