@@ -100,14 +100,15 @@ class ParkourRush extends Phaser.Scene {
 
 
 
-        // Steuerung
-        this.keys = this.input.keyboard.addKeys({
+this.keys = this.input.keyboard.addKeys({
 
-            jump: Phaser.Input.Keyboard.KeyCodes.SPACE,
+    jump: Phaser.Input.Keyboard.KeyCodes.SPACE,
 
-            duck: Phaser.Input.Keyboard.KeyCodes.DOWN
+    duck: Phaser.Input.Keyboard.KeyCodes.DOWN,
 
-        });
+    restart: Phaser.Input.Keyboard.KeyCodes.R
+
+});
 
 
 
