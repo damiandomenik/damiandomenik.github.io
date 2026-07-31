@@ -36,14 +36,19 @@ for(let i = 0; i < 80; i++){
 }
 
 
-        // Boden
-        this.ground = this.add.rectangle(
-            600,
-            580,
-            1200,
-            40,
-            0x111133
-        );
+this.ground = this.add.rectangle(
+    600,
+    580,
+    1200,
+    50,
+    0x221155
+);
+
+
+this.ground.setStrokeStyle(
+    4,
+    0x00ffff
+);
 
 
         this.physics.add.existing(
