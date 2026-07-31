@@ -1,1 +1,424 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PARKOUR RUSH</title>
 
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+}
+
+body{
+    background:#050816;
+    overflow:hidden;
+    font-family:Arial,sans-serif;
+    color:white;
+}
+
+canvas{
+    display:block;
+}
+
+#ui{
+    position:absolute;
+    top:20px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:22px;
+    letter-spacing:2px;
+}
+
+#menu{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:rgba(5,8,22,.95);
+}
+
+.card{
+    text-align:center;
+    padding:40px;
+    border:1px solid #27eaff;
+    background:#0b1224;
+    box-shadow:0 0 40px #27eaff55;
+}
+
+h1{
+    font-size:48px;
+    color:#27eaff;
+    margin-bottom:20px;
+}
+
+button{
+    margin-top:20px;
+    padding:15px 40px;
+    background:#27eaff;
+    border:0;
+    cursor:pointer;
+    font-weight:bold;
+}
+
+button:hover{
+    background:white;
+}
+
+.hidden{
+    display:none!important;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">
+DISTANCE: <span id="distance">0</span> m
+</div>
+
+<div id="menu">
+    <div class="card">
+        <h1>PARKOUR RUSH</h1>
+        <p>Springe über Hindernisse und komme weiter als alle anderen.</p>
+        <button id="start">START</button>
+    </div>
+</div>
+
+
+<canvas id="game"></canvas>
+
+
+<script>
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+function resize(){
+    canvas.width=innerWidth;
+    canvas.height=innerHeight;
+}
+resize();
+addEventListener("resize",resize);
+
+
+// =================
+// SPIELER
+// =================
+
+let player={
+    x:150,
+    y:0,
+    w:35,
+    h:60,
+    vy:0,
+    grounded:false,
+    duck:false
+};
+
+
+const gravity=1800;
+const jump=-700;
+
+
+// =================
+// SPIEL
+// =================
+
+let running=false;
+let speed=450;
+let distance=0;
+
+let obstacles=[];
+
+
+// Boden
+
+let ground;
+
+
+// =================
+// INPUT
+// =================
+
+let keys={};
+
+
+addEventListener("keydown",e=>{
+    keys[e.code]=true;
+
+    if(e.code==="Space"){
+        jumpPlayer();
+    }
+
+    if(e.code==="ArrowDown" || e.code==="KeyS"){
+        player.duck=true;
+    }
+});
+
+
+addEventListener("keyup",e=>{
+    keys[e.code]=false;
+
+    if(e.code==="ArrowDown" || e.code==="KeyS"){
+        player.duck=false;
+    }
+});
+
+
+
+function jumpPlayer(){
+
+    if(player.grounded){
+        player.vy=jump;
+        player.grounded=false;
+    }
+
+}
+
+
+// =================
+// HINDERNISSE
+// =================
+
+
+function spawnObstacle(){
+
+    let h=40+Math.random()*80;
+
+    obstacles.push({
+
+        x:canvas.width+50,
+        y:canvas.height-80-h,
+        w:40,
+        h:h
+
+    });
+
+}
+
+
+let spawnTimer=0;
+
+
+
+// =================
+// UPDATE
+// =================
+
+
+function update(dt){
+
+    speed+=dt*8;
+
+    distance+=speed*dt/100;
+
+
+    document.getElementById("distance")
+    .textContent=Math.floor(distance);
+
+
+    // Spieler
+
+    player.vy+=gravity*dt;
+    player.y+=player.vy*dt;
+
+
+    ground=canvas.height-80;
+
+
+    if(player.y+player.h>=ground){
+
+        player.y=ground-player.h;
+        player.vy=0;
+        player.grounded=true;
+
+    }
+
+
+
+    // Hindernisse
+
+    spawnTimer-=dt;
+
+
+    if(spawnTimer<=0){
+
+        spawnObstacle();
+
+        spawnTimer=1+Math.random()*1.5;
+
+    }
+
+
+
+    obstacles.forEach(o=>{
+
+        o.x-=speed*dt;
+
+
+        if(
+            player.x < o.x+o.w &&
+            player.x+player.w > o.x &&
+            player.y < o.y+o.h &&
+            player.y+player.h > o.y
+        ){
+
+            gameOver();
+
+        }
+
+    });
+
+
+    obstacles=
+    obstacles.filter(o=>o.x>-100);
+
+}
+
+
+
+// =================
+// DRAW
+// =================
+
+
+function draw(){
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    // Hintergrund
+
+    ctx.fillStyle="#081025";
+    ctx.fillRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    // Boden
+
+    ctx.fillStyle="#14233d";
+
+    ctx.fillRect(
+        0,
+        canvas.height-80,
+        canvas.width,
+        80
+    );
+
+
+    // Spieler
+
+    ctx.fillStyle="#27eaff";
+
+    let ph=player.duck?35:60;
+
+    ctx.fillRect(
+        player.x,
+        player.y+(60-ph),
+        player.w,
+        ph
+    );
+
+
+    // Hindernisse
+
+    ctx.fillStyle="#ff496a";
+
+    obstacles.forEach(o=>{
+
+        ctx.fillRect(
+            o.x,
+            o.y,
+            o.w,
+            o.h
+        );
+
+    });
+
+
+}
+
+
+
+function loop(t){
+
+    if(!running)
+        return;
+
+
+    let dt=(t-last)/1000;
+    last=t;
+
+
+    if(dt>0.05)
+        dt=0.05;
+
+
+    update(dt);
+    draw();
+
+
+    requestAnimationFrame(loop);
+
+}
+
+
+let last=0;
+
+
+
+function startGame(){
+
+    document.getElementById("menu")
+    .classList.add("hidden");
+
+
+    running=true;
+    distance=0;
+    speed=450;
+
+    player.y=canvas.height-140;
+
+    requestAnimationFrame(loop);
+
+}
+
+
+function gameOver(){
+
+    running=false;
+
+
+    alert(
+        "GAME OVER\nDistanz: "+
+        Math.floor(distance)+" m"
+    );
+
+
+    location.reload();
+
+}
+
+
+
+document.getElementById("start")
+.onclick=startGame;
+
+
+</script>
+
+</body>
+</html>
