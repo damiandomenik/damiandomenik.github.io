@@ -133,13 +133,24 @@ this.keys = this.input.keyboard.addKeys({
 
 
 
+update(time,delta){
 
-    update(time,delta){
+
+    if(this.gameOver){
+
+        if(this.keys.restart.isDown){
+
+            this.scene.restart();
+
+        }
+
+        return;
+
+    }
 
 
-        if(!this.running)
-            return;
-
+    if(!this.running)
+        return;
 
 
         this.distance += delta / 100;
