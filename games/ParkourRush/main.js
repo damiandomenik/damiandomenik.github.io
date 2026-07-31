@@ -110,7 +110,6 @@ this.physics.add.overlap(
 
     update(time,delta){
 
-
         if(!this.running)
             return;
 
@@ -132,57 +131,33 @@ this.physics.add.overlap(
             Math.floor(this.distance)
         );
 
+    }
+
+
+    endGame(){
+
+        if(this.gameOver)
+            return;
+
+
+        this.gameOver = true;
+
+        this.running = false;
+
+
+        this.player.sprite.setFillStyle(
+            0x555555
+        );
+
+
+        this.ui.showGameOver(
+            Math.floor(this.distance)
+        );
 
     }
 
-}
-
-endGame(){
-
-
-if(this.gameOver)
-    return;
-
-
-this.gameOver = true;
-this.running = false;
-
-
-this.player.sprite.setFillStyle(
-    0x555555
-);
-
-
-this.ui.showGameOver(
-    Math.floor(this.distance)
-);
-
 
 }
-
-const config = {
-
-    type: Phaser.AUTO,
-
-    width:1200,
-
-    height:600,
-
-    parent:"game",
-
-    physics:{
-        default:"arcade",
-        arcade:{
-            gravity:{
-                y:1200
-            },
-            debug:false
-        }
-    },
-
-    scene:ParkourRush
-
-};
 
 
 new Phaser.Game(config);
