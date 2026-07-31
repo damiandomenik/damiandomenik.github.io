@@ -72,6 +72,17 @@ this.ground.setStrokeStyle(
 
         this.world = new World(this);
 
+        this.gameOver = false;
+
+
+this.physics.add.overlap(
+    this.player.sprite,
+    this.world.group,
+    ()=>{
+        this.endGame();
+    }
+);
+
 
         this.ui = new UI(this);
 
