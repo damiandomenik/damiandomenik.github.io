@@ -1,7 +1,7 @@
 export default class Obstacle {
 
 
-    constructor(scene,x,y,type){
+    constructor(scene, x, y, type){
 
 
         let color = 0xff00aa;
@@ -27,33 +27,12 @@ export default class Obstacle {
         );
 
 
-        // Physik hinzufügen
+        // Physik Körper erstellen
         scene.physics.add.existing(
-            this.sprite
+            this.sprite,
+            true
         );
 
-
-        // wichtig:
-        // keine Schwerkraft für Hindernisse
-
-        this.sprite.body.allowGravity = false;
-
-
-        // unbewegliches Hindernis
-        this.sprite.body.setImmovable(true);
-
-
-    }
-
-
-
-    update(){
-
-        if(this.sprite.x < -200){
-
-            this.sprite.destroy();
-
-        }
 
     }
 
