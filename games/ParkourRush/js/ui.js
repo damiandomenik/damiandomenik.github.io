@@ -46,5 +46,18 @@ export default class UI {
 
     }
 
+showGameOver(distance){
 
+    this.text.setText(
+`
+GAME OVER
+
+Distance:
+${distance} m
+
+Press SPACE
+`
+    );
+
+}
 }
