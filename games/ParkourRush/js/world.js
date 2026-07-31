@@ -53,7 +53,7 @@ spawn(){
     let obstacle = new Obstacle(
         this.scene,
         1250,
-        520,
+        490,
         type
     );
 
