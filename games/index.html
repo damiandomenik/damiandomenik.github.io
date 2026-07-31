@@ -17,6 +17,7 @@
   --magenta:#FF4E8A;
   --violet:#8F7FD8;    /* Farbe von PLUMPS */
   --tomato:#FF5C6E;    /* Farbe von TURBO RACING */
+  --frost:#7FE9FF;     /* Farbe von BRAWLER */
   --mint:#3FEFC0;
   --sign:"Bungee",Impact,sans-serif;
   --body:"Outfit","Helvetica Neue",sans-serif;
@@ -114,6 +115,16 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
 .dashline{stroke-dasharray:8 10;animation:dash 1.2s linear infinite}
 @keyframes dash{to{stroke-dashoffset:-18}}
 
+/* BRAWLER-Bildschirm */
+.bolt{animation:zap 2.4s linear infinite}
+@keyframes zap{0%{transform:translateX(0);opacity:0}
+  8%{opacity:1}70%{transform:translateX(74px);opacity:1}
+  76%{transform:translateX(78px);opacity:0}100%{transform:translateX(78px);opacity:0}}
+.duck{animation:duck 2.4s ease-in-out infinite}
+@keyframes duck{0%,64%{transform:translateY(0)}72%,86%{transform:translateY(13px)}100%{transform:translateY(0)}}
+.freeze{animation:freeze 4s ease-in-out infinite}
+@keyframes freeze{0%,100%{opacity:.25}50%{opacity:.7}}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
@@ -125,7 +136,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
   <header class="marquee">
     <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <h1>SPIELHALLE</h1>
-    <p class="sub">Zwei Automaten stehen bereit. Einwurf ist nicht nötig.</p>
+    <p class="sub">Drei Automaten stehen bereit. Einwurf ist nicht nötig.</p>
   </header>
 
   <main class="hall">
@@ -175,7 +186,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
           <rect y="18" width="200" height="16" fill="#5EAE35"/>
           <rect y="66" width="200" height="16" fill="#5EAE35"/>
           <rect y="114" width="200" height="16" fill="#5EAE35"/>
-          <path id="tr" d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
+          <path d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
                 fill="none" stroke="#4B4A57" stroke-width="26" stroke-linejoin="round"/>
           <path d="M42 44 C 92 18, 150 26, 166 58 C 180 88, 140 118, 96 112 C 54 106, 20 92, 42 44 Z"
                 fill="none" stroke="#E4453A" stroke-width="30" stroke-linejoin="round"
@@ -207,6 +218,61 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
       </div>
       <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
       <div class="play">SPIELEN <em>Raumcode</em></div>
+    </a>
+
+    <!-- BRAWLER -->
+    <a class="cab" href="../games/brawler/" style="--tint:var(--frost)">
+      <div class="top"><b>BRAWLER</b><span>2–8 players</span></div>
+      <div class="screen">
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <defs><linearGradient id="arena" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#0F1622"/><stop offset="1" stop-color="#141D2C"/>
+          </linearGradient></defs>
+          <rect width="200" height="150" fill="url(#arena)"/>
+          <g stroke="#1A2436" stroke-width="1">
+            <path d="M25 0v150M50 0v150M75 0v150M100 0v150M125 0v150M150 0v150M175 0v150"/>
+            <path d="M0 25h200M0 50h200M0 75h200M0 100h200M0 125h200"/>
+          </g>
+          <!-- Eisrand -->
+          <g class="freeze">
+            <rect x="0" y="0" width="200" height="12" fill="#7FE9FF" opacity=".18"/>
+            <rect x="0" y="138" width="200" height="12" fill="#7FE9FF" opacity=".18"/>
+            <rect x="0" y="0" width="12" height="150" fill="#7FE9FF" opacity=".18"/>
+            <rect x="188" y="0" width="12" height="150" fill="#7FE9FF" opacity=".18"/>
+            <rect x="12" y="12" width="176" height="126" fill="none" stroke="#D6F6FF" stroke-width="1.5" opacity=".6"/>
+          </g>
+          <!-- Säulen -->
+          <g>
+            <rect x="86" y="42" width="22" height="22" fill="#33243C"/>
+            <rect x="90" y="46" width="14" height="14" fill="#6B4657"/>
+            <rect x="86" y="86" width="22" height="22" fill="#33243C"/>
+            <rect x="90" y="90" width="14" height="14" fill="#6B4657"/>
+            <rect x="130" y="64" width="22" height="22" fill="#33243C"/>
+            <rect x="134" y="68" width="14" height="14" fill="#6B4657"/>
+          </g>
+          <!-- Powerup -->
+          <rect x="94" y="68" width="12" height="12" fill="none" stroke="#FFC24B" stroke-width="2"/>
+          <!-- roter Spieler schiesst -->
+          <g>
+            <rect x="30" y="66" width="16" height="16" fill="#FF5A6E"/>
+            <rect x="33" y="69" width="10" height="10" fill="#0F1622"/>
+            <rect x="47" y="71" width="5" height="5" fill="#FF5A6E"/>
+          </g>
+          <g class="bolt">
+            <rect x="56" y="72" width="14" height="3" fill="#FFFFFF"/>
+            <rect x="52" y="72.5" width="8" height="2" fill="#7FE9FF" opacity=".7"/>
+          </g>
+          <!-- blauer Spieler duckt sich weg -->
+          <g class="duck">
+            <rect x="158" y="60" width="16" height="16" fill="#4E8CFF"/>
+            <rect x="161" y="63" width="10" height="10" fill="#0F1622"/>
+            <rect x="152" y="65" width="5" height="5" fill="#4E8CFF"/>
+          </g>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
+      </div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">PLAY <em>Room code</em></div>
     </a>
 
     <!-- Platzhalter -->
