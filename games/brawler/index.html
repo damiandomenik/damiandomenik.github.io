@@ -82,7 +82,10 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
 #blinkbar{position:absolute;left:50%;bottom:max(36px,calc(env(safe-area-inset-bottom) + 12px));
   transform:translateX(-50%);width:170px;height:4px;background:#16202F;border:1px solid var(--edge);z-index:6;pointer-events:none}
 #blinkbar i{display:block;height:100%;width:100%;background:var(--gold);transform-origin:left}
-#cool.hidden,#status.hidden,#feed.hidden,#blinkbar.hidden{display:none}
+#wallbar{position:absolute;left:50%;bottom:max(30px,calc(env(safe-area-inset-bottom) + 6px));
+  transform:translateX(-50%);width:170px;height:4px;background:#16202F;border:1px solid var(--edge);z-index:6;pointer-events:none}
+#wallbar i{display:block;height:100%;width:100%;background:#D6F6FF;transform-origin:left}
+#cool.hidden,#status.hidden,#feed.hidden,#blinkbar.hidden,#wallbar.hidden{display:none}
 
 #banner{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
   gap:10px;z-index:9;pointer-events:none;text-align:center;padding:0 18px}
@@ -104,6 +107,8 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
 .blinkbtn{width:62px;height:62px;border-radius:50%;border:1px solid var(--gold);color:var(--gold);
   background:rgba(255,194,75,.10);display:grid;place-items:center;font-weight:700;letter-spacing:.08em;font-size:.6rem}
 .blinkbtn:active{background:rgba(255,194,75,.3)}
+.wallbtn{border-color:#D6F6FF;color:#D6F6FF;background:rgba(214,246,255,.10)}
+.wallbtn:active{background:rgba(214,246,255,.3)}
 .fire{width:92px;height:92px;border-radius:50%;border:1px solid var(--frost);color:var(--frost);
   background:rgba(127,233,255,.10);display:grid;place-items:center;font-weight:700;letter-spacing:.1em;font-size:.72rem}
 .fire:active{background:rgba(127,233,255,.32)}
@@ -128,6 +133,7 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
   <div id="status" class="hidden"></div>
   <div id="cool" class="hidden"><i id="coolbar"></i></div>
   <div id="blinkbar" class="hidden"><i id="blinkfill"></i></div>
+  <div id="wallbar" class="hidden"><i id="wallfill"></i></div>
   <div id="banner"><span class="big">—</span><span class="small"></span></div>
   <button id="mute" aria-label="Sound">♪</button>
 
@@ -148,6 +154,7 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
       <div></div><div data-k="down">▼</div><div></div>
     </div>
     <div class="rightpad">
+      <div class="blinkbtn wallbtn" data-k="wall">WALL</div>
       <div class="blinkbtn" data-k="blink">BLINK</div>
       <div class="fire" data-k="fire">FIRE</div>
     </div>
@@ -169,7 +176,7 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
       <div class="btn ghost" id="bSolo">Practice alone</div>
       <p class="note" id="netNote"></p>
       <div class="hint">
-        <span>WASD / arrows</span><span>Hold space to charge</span><span>R to blink</span><span>Dead: ◀ ▶ switch camera</span>
+        <span>WASD / arrows</span><span>Hold space to charge</span><span>R to blink</span><span>E for ice wall</span><span>Dead: ◀ ▶ switch camera</span>
       </div>
     </div>
   </div>
@@ -178,12 +185,13 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="module">
 "use strict";
-const BUILD="BR7b";
+const BUILD="BR9";
 
 /* ================= constants ================= */
 const CELL=44, COLS=22, ROWS=13, WW=COLS*CELL, WH=ROWS*CELL;
 const PR=9, BASE_SPEED=170;
 const BLINK_DIST=160, BLINK_COOL=20;
+const WALL_COOL=30, WALL_LIFE=4, WALL_HP=3, WALL_LEN=72, WALL_TH=14, WALL_DIST=32;
 let winsNeeded=3;                 /* first to N — 2 = Bo3, 3 = Bo5, 4 = Bo7 */
 const BASE_COOL=1.25, CHARGE_MAX=1.0, BOLT_R=4, PILL_HP=3;
 const ZONE_START=90, ZONE_RATE=7, POW_EVERY=9, POW_MAX=3;
@@ -217,13 +225,13 @@ const MODS=[
 const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
 let W=0,H=0,sc=1,ox=0,oy=0, camX=WW/2, camY=WH/2, camZ=1;
 let phase='menu';
-let players=new Map(), bolts=[], pillars=[], powers=[], shards=[], feed=[];
+let players=new Map(), bolts=[], pillars=[], powers=[], shards=[], feed=[], walls=[];
 let myId='solo', myName='PLAYER', myTeam=0, roster=[], score=[0,0];
 let roundT=0, zoneIn=0, powT=0, mapIdx=0, mapSeed=1, modIdx=0;
-let cool=0, charge=0, charging=false, specIdx=0, shake=0, idleT=0, blinkCool=0;
+let cool=0, charge=0, charging=false, specIdx=0, shake=0, idleT=0, blinkCool=0, wallCool=0;
 let lastSend=0, muted=false;
-let lastTimer='', lastStatus='', lastCool='', lastCoolCol='', lastBlink='';
-const keys={up:false,down:false,left:false,right:false,fire:false,blink:false};
+let lastTimer='', lastStatus='', lastCool='', lastCoolCol='', lastBlink='', lastWall='';
+const keys={up:false,down:false,left:false,right:false,fire:false,blink:false,wall:false};
 const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
 const $=id=>document.getElementById(id);
 const teamCol=t=>t?'#4E8CFF':'#FF5A6E';
@@ -288,7 +296,8 @@ function buildMap(idx,seed,mod){
       if(r()<0.15 && !(cx>COLS/2-2&&cx<COLS/2+2&&cy>ROWS/2-2&&cy<ROWS/2+2)) put(cx,cy);
   }
 }
-const blocked=(x,y,r)=>pillars.some(p=>p.hp>0&&x+r>p.x&&x-r<p.x+p.w&&y+r>p.y&&y-r<p.y+p.h);
+const hitsRect=(x,y,r,q)=>x+r>q.x&&x-r<q.x+q.w&&y+r>q.y&&y-r<q.y+q.h;
+const blocked=(x,y,r)=>pillars.some(p=>p.hp>0&&hitsRect(x,y,r,p))||walls.some(w=>hitsRect(x,y,r,w));
 
 /* ================= round flow ================= */
 function spawnAll(){
@@ -302,12 +311,12 @@ function spawnAll(){
     p.tx=p.x; p.ty=p.y;
     players.set(e.id,p);
   });
-  bolts=[]; powers=[]; shards=[]; roundT=0; zoneIn=0; powT=POW_EVERY*0.6;
+  bolts=[]; powers=[]; shards=[]; walls=[]; roundT=0; zoneIn=0; powT=POW_EVERY*0.6;
 }
 function startRound(){
   phase='play'; $('bar').classList.add('hidden');
-  ['hud','feed','status','cool','blinkbar'].forEach(i=>$(i).classList.remove('hidden'));
-  spawnAll(); cool=0; charge=0; charging=false; specIdx=0; camZ=1; blinkCool=0;
+  ['hud','feed','status','cool','blinkbar','wallbar'].forEach(i=>$(i).classList.remove('hidden'));
+  spawnAll(); cool=0; charge=0; charging=false; specIdx=0; camZ=1; blinkCool=0; wallCool=0;
   drawPips(); show(null);
   $('modchip').textContent=MAP().name+' · '+MOD().id;
   $('modchip').style.color=PAL().acc;
@@ -372,6 +381,11 @@ function moveMe(dt){
   if(phase==='wait'){ p.team=p.x<WW/2?0:1; return; }
   if(blinkCool>0) blinkCool-=dt;
   if(keys.blink && blinkCool<=0) doBlink();
+  if(wallCool>0) wallCool-=dt;
+  if(keys.wall && wallCool<=0 && phase==='play'){
+    wallCool=WALL_COOL; keys.wall=false; sfx('hit');
+    if(isHost) placeWall(myId); else sendToHost({t:'wall'});
+  }
   if(cool>0) cool-=dt;
   if(keys.fire && cool<=0){ charging=true; charge=Math.min(CHARGE_MAX,charge+dt); }
   else if(charging){
@@ -379,6 +393,17 @@ function moveMe(dt){
     if(isHost) spawnBolt(myId,pow); else sendToHost({t:'shot',p:pow});
     sfx(pow>0.6?'big':'shot');
   }
+}
+function placeWall(ownerId){
+  const p=players.get(ownerId); if(!p||!p.alive) return;
+  const [dx,dy]=DIRS[p.d]||[1,0];
+  const vertical = dx!==0;
+  const w = vertical?WALL_TH:WALL_LEN, h = vertical?WALL_LEN:WALL_TH;
+  const cx=p.x+dx*WALL_DIST, cy=p.y+dy*WALL_DIST;
+  const wall={x:Math.max(0,Math.min(WW-w,cx-w/2)), y:Math.max(0,Math.min(WH-h,cy-h/2)),
+              w,h,hp:WALL_HP,until:performance.now()+WALL_LIFE*1000,team:p.team};
+  walls.push(wall);
+  burst(cx,cy,'#D6F6FF');
 }
 function doBlink(){
   const p=myPlayer(); if(!p||!p.alive) return;
@@ -444,6 +469,10 @@ function hostSim(dt){
     }
   });
 
+  const now=performance.now();
+  for(let i=walls.length-1;i>=0;i--) if(walls[i].hp<=0||walls[i].until<now){
+    burst(walls[i].x+walls[i].w/2, walls[i].y+walls[i].h/2, '#D6F6FF'); walls.splice(i,1); }
+
   for(let i=bolts.length-1;i>=0;i--){
     const b=bolts[i]; let dead=false;
     for(let s=0;s<3&&!dead;s++){
@@ -457,7 +486,12 @@ function hostSim(dt){
           burst(b.x,b.y,PAL().acc);
         } else dead=true;
       }
-      const hit=pillars.find(p=>p.hp>0&&b.x+BOLT_R>p.x&&b.x-BOLT_R<p.x+p.w&&b.y+BOLT_R>p.y&&b.y-BOLT_R<p.y+p.h);
+      const wl=walls.find(w=>hitsRect(b.x,b.y,BOLT_R,w));
+      if(wl && !dead){
+        wl.hp-=(b.pow>0.4?2:1); burst(b.x,b.y,'#D6F6FF');
+        if(b.pierce>0) b.pierce--; else dead=true;
+      }
+      const hit=pillars.find(p=>p.hp>0&&hitsRect(b.x,b.y,BOLT_R,p));
       if(hit && !dead){
         hit.hp-=(b.pow>0.4?2:1); burst(b.x,b.y,'#8FA8C8');
         if(b.pierce>0) b.pierce--;
@@ -552,6 +586,21 @@ function draw(t){
       ctx.strokeStyle='rgba(6,10,18,.75)'; ctx.lineWidth=1.6;
       ctx.beginPath(); ctx.moveTo(p.x+8,p.y+6); ctx.lineTo(p.x+20,p.y+22); ctx.lineTo(p.x+13,p.y+34);
       if(dmg>0.5){ ctx.moveTo(p.x+30,p.y+8); ctx.lineTo(p.x+22,p.y+26); }
+      ctx.stroke();
+    }
+  }
+
+  for(const w of walls){
+    const frac=Math.max(0,Math.min(1,w.hp/WALL_HP));
+    ctx.fillStyle='rgba(127,233,255,'+(0.18+0.22*frac)+')';
+    ctx.fillRect(w.x,w.y,w.w,w.h);
+    ctx.strokeStyle='rgba(214,246,255,'+(0.5+0.4*frac)+')'; ctx.lineWidth=2;
+    ctx.strokeRect(w.x+1,w.y+1,w.w-2,w.h-2);
+    if(frac<0.8){
+      ctx.strokeStyle='rgba(255,255,255,.45)'; ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.moveTo(w.x+w.w*0.3,w.y); ctx.lineTo(w.x+w.w*0.5,w.y+w.h*0.5); ctx.lineTo(w.x+w.w*0.25,w.y+w.h);
+      if(frac<0.5){ ctx.moveTo(w.x+w.w*0.7,w.y); ctx.lineTo(w.x+w.w*0.6,w.y+w.h*0.6); }
       ctx.stroke();
     }
   }
@@ -661,6 +710,8 @@ function loop(ts){
     if(cbg!==lastCoolCol){ $('coolbar').style.background=cbg; lastCoolCol=cbg; }
     const bv=(1-Math.max(0,blinkCool)/BLINK_COOL).toFixed(3);
     if(bv!==lastBlink){ $('blinkfill').style.transform='scaleX('+bv+')'; lastBlink=bv; }
+    const wv=(1-Math.max(0,wallCool)/WALL_COOL).toFixed(3);
+    if(wv!==lastWall){ $('wallfill').style.transform='scaleX('+wv+')'; lastWall=wv; }
   }
 
   if((phase==='play'||phase==='wait'||phase==='over')&&ts-lastSend>50){
@@ -673,6 +724,7 @@ function loop(ts){
         bcast({t:'w',p:snap,
           b:bolts.map(b=>({x:Math.round(b.x),y:Math.round(b.y),vx:Math.round(b.vx),vy:Math.round(b.vy),p:b.pow})),
           u:powers.map(u=>({x:Math.round(u.x),y:Math.round(u.y),k:u.kind})),
+          wl:walls.map(w=>({x:w.x,y:w.y,w:w.w,h:w.h,p:w.hp})),
           z:Math.round(zoneIn),h:pillars.map(p=>p.hp),rt:Math.round(roundT)});
       } else sendToHost({t:'m',x:Math.round(me.x),y:Math.round(me.y),d:me.d,g:me.ghost?1:0});
     }
@@ -684,7 +736,7 @@ function loop(ts){
 
 /* ================= input ================= */
 const KMAP={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',
-            ArrowRight:'right',KeyD:'right',Space:'fire',KeyR:'blink',ShiftLeft:'blink'};
+            ArrowRight:'right',KeyD:'right',Space:'fire',KeyR:'blink',ShiftLeft:'blink',KeyE:'wall'};
 const typing=e=>{const t=e.target; return t&&(t.tagName==='INPUT'||t.isContentEditable);};
 addEventListener('keydown',e=>{
   if(typing(e))return;
@@ -717,12 +769,12 @@ function updateBar(){ let r=0,b=0; players.forEach(p=>p.team?b++:r++);
   $('barInfo').textContent='Red '+r+' · Blue '+b+' · walk into your side'; }
 function enterWait(){
   phase='wait'; $('bar').classList.remove('hidden');
-  ['hud','feed','status','cool','blinkbar'].forEach(i=>$(i).classList.add('hidden'));
+  ['hud','feed','status','cool','blinkbar','wallbar'].forEach(i=>$(i).classList.add('hidden'));
   $('bStart').style.display=isHost?'':'none';
   $('bFormat').style.display=isHost?'':'none';
   $('bFormat').textContent='Best of '+(winsNeeded*2-1);
-  show(null); camZ=1; bolts=[]; powers=[]; zoneIn=0; roundT=0; cool=0; charge=0;
-  charging=false; blinkCool=0; specIdx=0; feed=[]; $('feed').innerHTML='';
+  show(null); camZ=1; bolts=[]; powers=[]; walls=[]; zoneIn=0; roundT=0; cool=0; charge=0;
+  charging=false; blinkCool=0; wallCool=0; specIdx=0; feed=[]; $('feed').innerHTML='';
 
   /* alle wiederbeleben und in ihre Hälfte stellen */
   let n=0;
@@ -748,7 +800,7 @@ function cleanupNet(){
 function toMenu(msg){
   if(msg) $('netNote').textContent=msg;
   cleanupNet(); phase='menu'; show('menu');
-  ['bar','hud','feed','status','cool','blinkbar'].forEach(i=>$(i).classList.add('hidden'));
+  ['bar','hud','feed','status','cool','blinkbar','wallbar'].forEach(i=>$(i).classList.add('hidden'));
   $('banner').classList.remove('on'); $('touch').classList.remove('on');
 }
 addEventListener('beforeunload',cleanupNet);
@@ -782,6 +834,7 @@ function hostRoom(){
           p.tx=d.x; p.ty=d.y; p.d=d.d; if(MOD().ghost) p.ghost=!!d.g;
         } }
       else if(d.t==='shot'&&phase==='play'){ spawnBolt(conn.peer,Math.max(0,Math.min(CHARGE_MAX,d.p||0))); }
+      else if(d.t==='wall'&&phase==='play'){ placeWall(conn.peer); }
     });
     conn.on('close',()=>{ conns.delete(conn.peer); roster=roster.filter(r=>r.id!==conn.peer);
       players.delete(conn.peer); pushRoster(); });
@@ -823,6 +876,7 @@ function joinRoom(code){
         });
         bolts=(d.b||[]).map(b=>({x:b.x,y:b.y,vx:b.vx,vy:b.vy,pow:b.p,life:2}));
         powers=(d.u||[]).map(u=>({x:u.x,y:u.y,kind:u.k}));
+        walls=(d.wl||[]).map(w=>({x:w.x,y:w.y,w:w.w,h:w.h,hp:w.p}));
         zoneIn=d.z||0; roundT=d.rt||roundT;
         if(d.h) d.h.forEach((hp,i)=>{ if(pillars[i]) pillars[i].hp=hp; });
       }
