@@ -1,4 +1,4 @@
-export default class Player{
+export default class Player {
 
 
 constructor(scene,x,y){
@@ -11,9 +11,33 @@ this.sprite = scene.add.rectangle(
     x,
     y,
     45,
-    60,
+    65,
     0x00ffff
 );
+
+
+this.sprite.setStrokeStyle(
+    3,
+    0xffffff
+);
+
+
+scene.tweens.add({
+
+targets:this.sprite,
+
+scaleX:1.05,
+
+scaleY:1.05,
+
+duration:500,
+
+yoyo:true,
+
+repeat:-1
+
+});
+
 
 
 scene.physics.add.existing(
@@ -36,19 +60,19 @@ keys.jump.isDown &&
 this.sprite.body.blocked.down
 ){
 
-this.sprite.body.setVelocityY(-600);
+this.sprite.body.setVelocityY(-550);
 
 }
 
 
 if(keys.duck.isDown){
 
-this.sprite.height = 30;
+this.sprite.height=35;
 
 }
 else{
 
-this.sprite.height = 60;
+this.sprite.height=65;
 
 }
 
