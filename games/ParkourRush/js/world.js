@@ -31,7 +31,6 @@ export default class World {
 
         });
 
-
     }
 
 
@@ -39,34 +38,15 @@ export default class World {
     spawn(){
 
 
-        let types = [
-            "block",
-            "laser"
-        ];
-
-
-        let type = types[
-            Phaser.Math.Between(
-                0,
-                types.length - 1
-            )
-        ];
-
-
-
         let obstacle = new Obstacle(
             this.scene,
             1400,
-            490,
-            type
+            535,
+            "block"
         );
 
 
-
-        this.obstacles.push(
-            obstacle
-        );
-
+        this.obstacles.push(obstacle);
 
 
         this.group.add(
@@ -81,25 +61,13 @@ export default class World {
     update(speed){
 
 
-        this.obstacles.forEach(
-
-            o=>{
+        this.obstacles.forEach(o=>{
 
 
-                o.sprite.x -= speed * 0.015;
+            o.sprite.x -= 5;
 
 
-
-                if(o.sprite.x < -200){
-
-                    o.sprite.destroy();
-
-                }
-
-
-            }
-
-        );
+        });
 
 
     }
