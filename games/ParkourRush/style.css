@@ -1,0 +1,16 @@
+body {
+    margin:0;
+    background:#050510;
+    overflow:hidden;
+    font-family:Arial, sans-serif;
+}
+
+#game {
+    width:100vw;
+    height:100vh;
+}
+
+
+canvas {
+    display:block;
+}
