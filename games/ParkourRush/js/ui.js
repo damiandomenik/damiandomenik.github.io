@@ -55,7 +55,7 @@ GAME OVER
 Distance:
 ${distance} m
 
-Press SPACE
+Press R to restart
 `
     );
 
