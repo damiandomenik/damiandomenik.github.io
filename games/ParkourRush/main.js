@@ -160,4 +160,29 @@ this.physics.add.overlap(
 }
 
 
+const config = {
+
+    type: Phaser.AUTO,
+
+    width:1200,
+
+    height:600,
+
+    parent:"game",
+
+    physics:{
+        default:"arcade",
+        arcade:{
+            gravity:{
+                y:1200
+            },
+            debug:false
+        }
+    },
+
+    scene:ParkourRush
+
+};
+
+
 new Phaser.Game(config);
