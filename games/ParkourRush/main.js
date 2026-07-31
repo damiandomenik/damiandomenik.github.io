@@ -137,7 +137,28 @@ this.physics.add.overlap(
 
 }
 
+endGame(){
 
+
+if(this.gameOver)
+    return;
+
+
+this.gameOver = true;
+this.running = false;
+
+
+this.player.sprite.setFillStyle(
+    0x555555
+);
+
+
+this.ui.showGameOver(
+    Math.floor(this.distance)
+);
+
+
+}
 
 const config = {
 
