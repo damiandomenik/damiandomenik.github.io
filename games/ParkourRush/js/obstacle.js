@@ -14,13 +14,9 @@ export default class Obstacle {
 
 
         scene.physics.add.existing(
-            this.sprite
+            this.sprite,
+            true
         );
-
-
-        this.sprite.body.allowGravity = false;
-
-        this.sprite.body.setImmovable(true);
 
 
     }
