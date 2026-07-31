@@ -1,37 +1,26 @@
 export default class Obstacle {
 
 
-    constructor(scene, x, y, type){
-
-
-        let color = 0xff00aa;
-
-
-        if(type === "block"){
-            color = 0xff8800;
-        }
-
-
-        if(type === "laser"){
-            color = 0xff0000;
-        }
-
+    constructor(scene,x,y,type){
 
 
         this.sprite = scene.add.rectangle(
             x,
             y,
-            60,
-            90,
-            color
+            80,
+            80,
+            0xff0000
         );
 
 
-        // Physik Körper erstellen
         scene.physics.add.existing(
-            this.sprite,
-            true
+            this.sprite
         );
+
+
+        this.sprite.body.allowGravity = false;
+
+        this.sprite.body.setImmovable(true);
 
 
     }
