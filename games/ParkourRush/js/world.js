@@ -15,17 +15,13 @@ export default class World {
 
         scene.time.addEvent({
 
-            delay:3000,
+            delay:2000,
 
             loop:true,
 
             callback:()=>{
 
-                if(scene.running){
-
-                    this.spawn();
-
-                }
+                this.spawn();
 
             }
 
@@ -38,10 +34,13 @@ export default class World {
     spawn(){
 
 
+        console.log("HINDERNIS SPAWN");
+
+
         let obstacle = new Obstacle(
             this.scene,
-            1400,
-            535,
+            900,
+            500,
             "block"
         );
 
@@ -64,7 +63,7 @@ export default class World {
         this.obstacles.forEach(o=>{
 
 
-            o.sprite.x -= 5;
+            o.sprite.x -= 2;
 
 
         });
