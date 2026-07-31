@@ -5,9 +5,11 @@ import UI from "./js/ui.js";
 
 class ParkourRush extends Phaser.Scene {
 
+
     constructor(){
         super("game");
     }
+
 
 
     create(){
@@ -15,40 +17,43 @@ class ParkourRush extends Phaser.Scene {
         this.running = false;
         this.distance = 0;
         this.speed = 300;
+        this.gameOver = false;
 
 
         this.cameras.main.setBackgroundColor("#050014");
 
 
-// Hintergrund Sterne
-for(let i = 0; i < 80; i++){
 
-    let star = this.add.circle(
-        Phaser.Math.Between(0,1200),
-        Phaser.Math.Between(0,600),
-        Phaser.Math.Between(1,3),
-        0x8844ff
-    );
+        // Sterne Hintergrund
+        for(let i = 0; i < 80; i++){
 
+            let star = this.add.circle(
+                Phaser.Math.Between(0,1200),
+                Phaser.Math.Between(0,600),
+                Phaser.Math.Between(1,3),
+                0x8844ff
+            );
 
-    star.alpha = 0.5;
+            star.alpha = 0.5;
 
-}
-
-
-this.ground = this.add.rectangle(
-    600,
-    580,
-    1200,
-    50,
-    0x221155
-);
+        }
 
 
-this.ground.setStrokeStyle(
-    4,
-    0x00ffff
-);
+
+        // Boden
+        this.ground = this.add.rectangle(
+            600,
+            580,
+            1200,
+            50,
+            0x221155
+        );
+
+
+        this.ground.setStrokeStyle(
+            4,
+            0x00ffff
+        );
 
 
         this.physics.add.existing(
@@ -57,11 +62,14 @@ this.ground.setStrokeStyle(
         );
 
 
+
+        // Spieler
         this.player = new Player(
             this,
             200,
             450
         );
+
 
 
         this.physics.add.collider(
@@ -70,51 +78,71 @@ this.ground.setStrokeStyle(
         );
 
 
+
+        // Welt erstellen
         this.world = new World(this);
 
-        this.gameOver = false;
 
 
-this.physics.add.collider(
-    this.player.sprite,
-    this.world.group,
-    ()=>{
-        this.endGame();
-    }
-);
-
-
+        // UI erstellen
         this.ui = new UI(this);
 
 
+
+        // Hindernis-Kollision
+        this.physics.add.collider(
+            this.player.sprite,
+            this.world.group,
+            ()=>{
+                this.endGame();
+            }
+        );
+
+
+
+        // Steuerung
         this.keys = this.input.keyboard.addKeys({
+
             jump: Phaser.Input.Keyboard.KeyCodes.SPACE,
+
             duck: Phaser.Input.Keyboard.KeyCodes.DOWN
+
         });
+
 
 
         this.ui.showStart();
 
 
+
         this.time.delayedCall(
             3000,
             ()=>{
+
                 this.running = true;
+
                 this.ui.hide();
+
             }
         );
+
 
     }
 
 
 
+
+
     update(time,delta){
+
 
         if(!this.running)
             return;
 
 
+
         this.distance += delta / 100;
+
 
 
         this.player.update(
@@ -122,22 +150,30 @@ this.physics.add.collider(
         );
 
 
+
         this.world.update(
             this.speed
         );
+
 
 
         this.ui.updateDistance(
             Math.floor(this.distance)
         );
 
+
     }
+
+
+
 
 
     endGame(){
 
+
         if(this.gameOver)
             return;
+
 
 
         this.gameOver = true;
@@ -145,14 +181,17 @@ this.physics.add.collider(
         this.running = false;
 
 
+
         this.player.sprite.setFillStyle(
             0x555555
         );
 
 
+
         this.ui.showGameOver(
             Math.floor(this.distance)
         );
+
 
     }
 
@@ -160,29 +199,48 @@ this.physics.add.collider(
 }
 
 
+
+
+
 const config = {
+
 
     type: Phaser.AUTO,
 
+
     width:1200,
+
 
     height:600,
 
+
     parent:"game",
 
+
     physics:{
+
         default:"arcade",
+
         arcade:{
+
             gravity:{
+
                 y:1200
+
             },
+
             debug:false
+
         }
+
     },
+
 
     scene:ParkourRush
 
+
 };
+
 
 
 new Phaser.Game(config);
