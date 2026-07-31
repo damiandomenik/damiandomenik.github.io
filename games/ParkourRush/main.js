@@ -75,7 +75,7 @@ this.ground.setStrokeStyle(
         this.gameOver = false;
 
 
-this.physics.add.overlap(
+this.physics.add.collider(
     this.player.sprite,
     this.world.group,
     ()=>{
