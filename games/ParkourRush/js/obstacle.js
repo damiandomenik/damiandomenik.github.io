@@ -36,4 +36,17 @@ this.sprite.body.setImmovable(true);
 
 }
 
+
+
+update(){
+
+    if(this.sprite.x < -100){
+
+        this.sprite.destroy();
+
+    }
+
+}
+
+
 }
