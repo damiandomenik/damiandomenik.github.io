@@ -504,8 +504,9 @@ function loop(ts){
 /* ================= Eingabe ================= */
 const KMAP={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',
             ArrowUp:'gas',KeyW:'gas',ArrowDown:'brake',KeyS:'brake',Space:'drift',ShiftLeft:'drift'};
-addEventListener('keydown',e=>{const k=KMAP[e.code]; if(k){keys[k]=true; e.preventDefault();}});
-addEventListener('keyup',  e=>{const k=KMAP[e.code]; if(k){keys[k]=false; e.preventDefault();}});
+const typing=e=>{const t=e.target; return t && (t.tagName==='INPUT' || t.tagName==='TEXTAREA' || t.isContentEditable);};
+addEventListener('keydown',e=>{ if(typing(e)) return; const k=KMAP[e.code]; if(k){keys[k]=true; e.preventDefault();}});
+addEventListener('keyup',  e=>{ if(typing(e)) return; const k=KMAP[e.code]; if(k){keys[k]=false; e.preventDefault();}});
 document.querySelectorAll('.key').forEach(el=>{
   const k=el.dataset.k;
   const on=e=>{e.preventDefault(); keys[k]=true;}, off=e=>{e.preventDefault(); keys[k]=false;};
@@ -563,6 +564,9 @@ function renderPlayers(){
 }
 
 /* ================= Buttons ================= */
+['nm','cd'].forEach(id=>$(id).addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); $('bJoin').click(); }
+}));
 $('bMake').onclick=()=>{const c=randCode(); $('cd').value=c; connect(c);};
 $('bJoin').onclick=()=>{
   const c=($('cd').value||'').trim().toUpperCase();
