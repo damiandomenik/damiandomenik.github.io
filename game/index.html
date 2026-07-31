@@ -61,6 +61,24 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(1.15rem,6vw,1.85re
 .pick[aria-pressed="true"]{border-color:var(--flare);background:rgba(63,239,192,.10)}
 .pick[aria-pressed="true"] span{color:var(--flare)}
 
+/* Bestenliste */
+#lbBox{display:none;margin-top:14px;text-align:left}
+#lbBox.on{display:block}
+#lbSave{display:flex;gap:8px;margin-bottom:12px}
+#lbName{flex:1;min-width:0;background:rgba(46,33,73,.4);border:1px solid var(--line);color:var(--paper);
+  font-family:var(--data);font-size:.78rem;padding:11px 10px;text-transform:uppercase;letter-spacing:.08em}
+#lbName::placeholder{color:#6C6094;letter-spacing:.1em}
+#lbName:focus{outline:none;border-color:var(--flare)}
+#btnSave{width:auto;padding:11px 14px;flex:0 0 auto}
+#lbList{list-style:none;margin:0;padding:0;max-height:150px;overflow-y:auto}
+#lbList li{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);
+  font-family:var(--data);font-size:.72rem;color:var(--ice)}
+#lbList li:last-child{border-bottom:0}
+#lbList li b{color:var(--paper);font-weight:500}
+#lbList li.me b,#lbList li.me span{color:var(--flare)}
+#lbList li span{flex:0 0 auto}
+#lbNote{font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:#6C6094;margin:8px 0 0}
+
 @media (max-height:620px){
   .card p:not(.hint):not(.sub){display:none}
   .pick svg{width:34px;height:34px}
@@ -119,6 +137,14 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(1.15rem,6vw,1.85re
       <p class="sub">Durchflüge · Rekord <span id="best">0</span></p>
       <div class="btn" id="btnAgain">Nochmal</div>
       <div class="btn btn-ghost" id="btnSwap">Figur wechseln</div>
+      <div id="lbBox">
+        <div id="lbSave">
+          <input id="lbName" maxlength="12" placeholder="Dein Name" autocomplete="off" spellcheck="false">
+          <div class="btn" id="btnSave">Speichern</div>
+        </div>
+        <ol id="lbList"></ol>
+        <p id="lbNote"></p>
+      </div>
       <p class="hint">Tippen zum Neustart</p>
     </div>
   </div>
@@ -235,13 +261,70 @@ function die(){
   if(score>best){best=score;}
   finalEl.textContent=score; bestEl.textContent=best;
   scoreEl.classList.remove('on');
-  setTimeout(function(){cardOver.classList.remove('hidden')},520);
+  setTimeout(function(){cardOver.classList.remove('hidden'); lbShow();},520);
 }
 
-/* ---------- input ---------- */
+/* ---------- Bestenliste ---------- */
+var lbBox=document.getElementById('lbBox'),
+    lbList=document.getElementById('lbList'),
+    lbName=document.getElementById('lbName'),
+    lbNote=document.getElementById('lbNote'),
+    btnSave=document.getElementById('btnSave'),
+    lbSaveRow=document.getElementById('lbSave'),
+    lastName='';
+
+function lbRender(rows,mine){
+  lbList.innerHTML='';
+  if(!rows||!rows.length){ lbNote.textContent='Noch keine Einträge'; return; }
+  rows.forEach(function(r,i){
+    var li=document.createElement('li');
+    if(mine && r.name===mine.name && r.score===mine.score) li.className='me';
+    li.innerHTML='<b>'+(i+1)+'. '+escapeHtml(r.name)+'</b><span>'+r.score+'</span>';
+    lbList.appendChild(li);
+  });
+  lbNote.textContent='';
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function lbLoad(mine){
+  if(!window.LB) return;
+  lbNote.textContent='Lade …';
+  window.LB.top(10).then(function(rows){ lbRender(rows,mine); })
+    .catch(function(){ lbNote.textContent='Bestenliste nicht erreichbar'; });
+}
+function lbShow(){
+  if(!window.LB){ lbBox.classList.remove('on'); return; }
+  lbBox.classList.add('on');
+  lbSaveRow.style.display = score>0 ? 'flex' : 'none';
+  lbName.value=lastName;
+  lbLoad(null);
+}
+btnSave.addEventListener('click',function(e){
+  e.stopPropagation();
+  var n=(lbName.value||'').trim().slice(0,12);
+  if(n.length<3){ lbNote.textContent='Mindestens 3 Zeichen'; return; }
+  lastName=n; btnSave.textContent='…';
+  window.LB.save(n,score).then(function(){
+    btnSave.textContent='Speichern';
+    lbSaveRow.style.display='none';
+    lbLoad({name:n,score:score});
+  }).catch(function(){
+    btnSave.textContent='Speichern';
+    lbNote.textContent='Speichern fehlgeschlagen';
+  });
+});
+lbName.addEventListener('keydown',function(e){
+  e.stopPropagation();
+  if(e.key==='Enter') btnSave.click();
+});
+
+
 function press(e){
   var t=e&&e.target;
-  if(t&&t.closest&&t.closest('#mute,.pick,#btnSwap')) return;
+  if(t&&t.closest&&t.closest('#mute,.pick,#btnSwap,#lbBox')) return;
   if(STATE==='ready'){ start(); return; }
   if(STATE==='play'){ flap(); return; }
   if(STATE==='dead' && !cardOver.classList.contains('hidden')){ start(); }
@@ -481,6 +564,51 @@ window.addEventListener('resize',fitTitle);
 
 resize(); reset(); fitTitle(); requestAnimationFrame(loop);
 })();
+</script>
+<script type="module">
+/* ============================================================
+   BESTENLISTE (Firebase Firestore)
+   1. Konfiguration unten aus der Firebase-Konsole einsetzen.
+   2. Solange "DEIN_API_KEY" drinsteht, läuft das Spiel ohne Bestenliste.
+   ============================================================ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyDrJmu6zJBdyXNvl-R9eM6dAApB0goxUCg",
+  authDomain:        "plumps-cba73.firebaseapp.com",
+  projectId:         "plumps-cba73",
+  storageBucket:     "plumps-cba73.firebasestorage.app",
+  messagingSenderId: "477682004056",
+  appId:             "1:477682004056:web:fc478117a17a9d2bd61a2d"
+};
+
+if(!firebaseConfig.apiKey.startsWith("DEIN_")){
+  const V = "https://www.gstatic.com/firebasejs/12.16.0";
+  const { initializeApp }        = await import(`${V}/firebase-app.js`);
+  const { getAuth, signInAnonymously } = await import(`${V}/firebase-auth.js`);
+  const { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp }
+                                  = await import(`${V}/firebase-firestore.js`);
+
+  const app  = initializeApp(firebaseConfig);
+  const db   = getFirestore(app);
+  const auth = getAuth(app);
+  try { await signInAnonymously(auth); } catch(e){ console.warn("Anonyme Anmeldung fehlgeschlagen", e); }
+
+  const col = collection(db, "scores");
+
+  window.LB = {
+    async save(name, score){
+      await addDoc(col, {
+        name: String(name).slice(0,12),
+        score: Math.max(0, Math.min(9999, Math.floor(score))),
+        uid: auth.currentUser ? auth.currentUser.uid : null,
+        created: serverTimestamp()
+      });
+    },
+    async top(n){
+      const snap = await getDocs(query(col, orderBy("score","desc"), limit(n||10)));
+      return snap.docs.map(d => d.data());
+    }
+  };
+}
 </script>
 </body>
 </html>
