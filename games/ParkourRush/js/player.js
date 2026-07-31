@@ -4,9 +4,6 @@ export default class Player {
 constructor(scene,x,y){
 
 
-this.scene = scene;
-
-
 this.sprite = scene.add.rectangle(
     x,
     y,
@@ -17,26 +14,9 @@ this.sprite = scene.add.rectangle(
 
 
 this.sprite.setStrokeStyle(
-    3,
+    4,
     0xffffff
 );
-
-
-scene.tweens.add({
-
-targets:this.sprite,
-
-scaleX:1.05,
-
-scaleY:1.05,
-
-duration:500,
-
-yoyo:true,
-
-repeat:-1
-
-});
 
 
 
@@ -48,6 +28,23 @@ scene.physics.add.existing(
 this.sprite.body.setCollideWorldBounds(true);
 
 
+
+scene.tweens.add({
+
+targets:this.sprite,
+
+scaleX:1.05,
+scaleY:1.05,
+
+duration:500,
+
+yoyo:true,
+
+repeat:-1
+
+});
+
+
 }
 
 
@@ -55,14 +52,17 @@ this.sprite.body.setCollideWorldBounds(true);
 update(keys){
 
 
+
 if(
 keys.jump.isDown &&
 this.sprite.body.blocked.down
 ){
 
-this.sprite.body.setVelocityY(-550);
+this.sprite.body.setVelocityY(-650);
+
 
 }
+
 
 
 if(keys.duck.isDown){
@@ -78,6 +78,7 @@ this.sprite.height=65;
 
 
 }
+
 
 
 }
