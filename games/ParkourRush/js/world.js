@@ -78,7 +78,7 @@ update(speed){
     this.obstacles.forEach(
         o=>{
 
-            o.sprite.x -= speed * 0.1;
+            o.sprite.x -= speed * 0.3;
 
         }
     );
