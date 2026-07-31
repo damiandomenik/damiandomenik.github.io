@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0A0713">
-<title>NEBELFLUG</title>
+<title>PLUMPS</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -38,8 +38,8 @@ canvas{display:block;width:100%;height:100%}
   max-width:330px;width:100%;max-height:100%;overflow:hidden}
 .card.hidden{display:none}
 .eyebrow{font-size:.62rem;letter-spacing:.22em;color:var(--flare);text-transform:uppercase;margin-bottom:10px}
-h1{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,7.5vw,2.1rem);
-  letter-spacing:-.01em;line-height:1;margin-bottom:12px;white-space:nowrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(1.15rem,6vw,1.85rem);
+  letter-spacing:-.02em;line-height:1.05;margin-bottom:12px;white-space:nowrap;max-width:100%}
 .card p{font-size:.8rem;line-height:1.5;color:var(--ice);margin-bottom:16px}
 .big{font-family:var(--display);font-weight:800;font-size:clamp(2.6rem,12vh,4rem);line-height:1;color:var(--flare);margin:4px 0 2px}
 .sub{font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ice);margin-bottom:20px}
@@ -85,8 +85,8 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,7.5vw,2.1re
 
   <div class="hud">
     <div class="card" id="cardStart">
-      <p class="eyebrow">Sektor RAE-3</p>
-      <h1>NEBELFLUG</h1>
+      <p class="eyebrow">Fliegen ist leicht. Aufhören schwer.</p>
+      <h1>PLUMPS</h1>
       <p>Halte die Figur zwischen den Felsnadeln. Ein Tipp gibt Auftrieb, sonst zieht die Schwerkraft.</p>
       <div class="picker">
         <button class="pick" id="pickKevin" aria-pressed="true">
@@ -114,7 +114,7 @@ h1{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,7.5vw,2.1re
     </div>
 
     <div class="card hidden" id="cardOver">
-      <p class="eyebrow">Signal verloren</p>
+      <p class="eyebrow">War ja klar</p>
       <div class="big" id="finalScore">0</div>
       <p class="sub">Durchflüge · Rekord <span id="best">0</span></p>
       <div class="btn" id="btnAgain">Nochmal</div>
@@ -466,7 +466,20 @@ document.getElementById('btnSwap').addEventListener('click',function(e){
   cardOver.classList.add('hidden'); cardStart.classList.remove('hidden');
 });
 
-resize(); reset(); requestAnimationFrame(loop);
+function fitTitle(){
+  var h=document.querySelector('#cardStart h1');
+  if(!h||!h.parentElement) return;
+  h.style.fontSize='';
+  var size=parseFloat(window.getComputedStyle(h).fontSize)||24;
+  var avail=h.parentElement.clientWidth;
+  var guard=0;
+  while(h.scrollWidth>avail && size>11 && guard<80){ size-=0.75; h.style.fontSize=size+'px'; guard++; }
+}
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(fitTitle);
+window.addEventListener('load',fitTitle);
+window.addEventListener('resize',fitTitle);
+
+resize(); reset(); fitTitle(); requestAnimationFrame(loop);
 })();
 </script>
 </body>
