@@ -138,6 +138,7 @@ input:focus{outline:none;border-color:var(--tomato)}
   </div>
 </div>
 
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="module">
 "use strict";
 
@@ -177,9 +178,12 @@ let W=0,H=0,sc=1,ox=0,oy=0,dpr=1;
 let me=null, others=new Map(), phase='lobby';
 let countUntil=0, raceStart=0, results=[], parts=[], decor=[];
 let myName='FLITZER', myColor=KCOL[0];
-let room=null, sendState=null, sendGo=null, sendFin=null, selfId='solo';
+let peer=null, isHost=false, hostConn=null;
+const conns=new Map();          /* nur Host: peerId -> Verbindung */
+let myId='solo', roster=[];     /* [{id,name}] — Host an Position 0 */
+const ROOM_PREFIX='turboracing-', MAXP=4;
 const keys={left:false,right:false,gas:false,brake:false,drift:false};
-const BUILD="B4";
+const BUILD="P1";
 const $=id=>document.getElementById(id);
 const scLobby=$('scLobby'), scRoom=$('scRoom'), scEnd=$('scEnd');
 const show=el=>{[scLobby,scRoom,scEnd].forEach(s=>s.classList.add('hidden')); if(el) el.classList.remove('hidden');};
@@ -306,32 +310,43 @@ function confetti(){
 }
 
 /* ================= Rennen ================= */
+function slotOf(id){ const i=roster.findIndex(r=>r.id===id); return i<0?0:i; }
 function startRace(){
   phase='count'; countUntil=performance.now()+3200; results=[]; parts=[];
-  const ids=[selfId,...others.keys()].sort();
-  myColor=KCOL[Math.max(0,ids.indexOf(selfId))%4];
-  me=makeKart(selfId,myName,myColor,Math.max(0,ids.indexOf(selfId)));
-  others.forEach((o,id)=>{
-    const k=makeKart(id,o.name,KCOL[ids.indexOf(id)%4],Math.max(0,ids.indexOf(id)));
-    others.set(id,Object.assign(o,k,{tx:k.x,ty:k.y,ta:k.a}));
+  if(!roster.length) roster=[{id:myId,name:myName}];
+  myColor=KCOL[slotOf(myId)%4];
+  me=makeKart(myId,myName,myColor,slotOf(myId));
+  others.clear();
+  roster.forEach(r=>{
+    if(r.id===myId) return;
+    const k=makeKart(r.id,r.name,KCOL[slotOf(r.id)%4],slotOf(r.id));
+    others.set(r.id,Object.assign(k,{tx:k.x,ty:k.y,ta:k.a}));
   });
   show(null); $('count').classList.add('on');
   if(matchMedia('(pointer:coarse)').matches) $('touch').classList.add('on');
 }
+function addResult(id,name,ms){
+  if(results.some(r=>r.id===id)) return;
+  results.push({id,name,ms});
+}
 function finish(){
-  if(sendFin) sendFin({name:myName, ms:Math.round(me.fin-raceStart)});
-  results.push({name:myName+' (du)', ms:Math.round(me.fin-raceStart)});
-  phase='done'; confetti(); setTimeout(showResults,700);
+  const ms=Math.round(me.fin-raceStart);
+  phase='done'; confetti();
+  addResult(myId,myName,ms);
+  if(isHost) bcast({t:'res',r:results});
+  else sendToHost({t:'fin',id:myId,name:myName,ms});
+  setTimeout(showResults,700);
 }
 function showResults(){
   const l=$('rlist'); l.innerHTML='';
-  results.sort((a,b)=>a.ms-b.ms).forEach((r,i)=>{
+  const sorted=results.slice().sort((a,b)=>a.ms-b.ms);
+  sorted.forEach((r,i)=>{
     const li=document.createElement('li');
-    li.innerHTML='<span class="dot" style="background:'+KCOL[i%4]+'"></span>'+
-      ['1.','2.','3.','4.'][i]+' '+r.name+' — '+(r.ms/1000).toFixed(2)+'s';
+    li.innerHTML='<span class="dot" style="background:'+KCOL[slotOf(r.id)%4]+'"></span>'+
+      (i+1)+'. '+r.name+(r.id===myId?' (du)':'')+' — '+(r.ms/1000).toFixed(2)+'s';
     l.appendChild(li);
   });
-  $('endTitle').textContent = (results[0]&&results[0].name.includes('(du)')) ? 'GEWONNEN!' : 'ZIEL!';
+  $('endTitle').textContent = (sorted[0]&&sorted[0].id===myId) ? 'GEWONNEN!' : 'ZIEL!';
   $('touch').classList.remove('on');
   show(scEnd);
 }
@@ -493,9 +508,14 @@ function loop(ts){
     all.sort((a,b)=>(b.lap*N+b.seg+b.segT)-(a.lap*N+a.seg+a.segT));
     $('pos').textContent=(all.indexOf(me)+1)+'/'+all.length;
   }
-  if(phase==='race' && sendState && ts-lastSend>50){
+  if(phase==='race' && me && ts-lastSend>50){
     lastSend=ts;
-    sendState({x:me.x,y:me.y,a:me.a,lap:me.lap,seg:me.seg,t:me.segT,n:myName});
+    const st={id:myId,x:me.x,y:me.y,a:me.a,lap:me.lap,seg:me.seg,t:me.segT,n:myName};
+    if(isHost){
+      const list=[st];
+      others.forEach(o=>{ if(o.net) list.push(o.net); });
+      bcast({t:'all',p:list});
+    } else sendToHost({t:'st',s:st});
   }
 
   draw(t);
@@ -515,88 +535,165 @@ document.querySelectorAll('.key').forEach(el=>{
   el.addEventListener('pointerleave',off); el.addEventListener('pointercancel',off);
 });
 
-/* ================= Netzwerk ================= */
-let joinRoom=null, netError='';
-try{
-  const mod=await import('https://esm.run/trystero@0.21.8');
-  joinRoom=mod.joinRoom; selfId=mod.selfId;
-  $('netNote').textContent='Netz bereit · Build '+BUILD;
-}catch(e){
-  netError='Netzwerk nicht erreichbar — nur Solo ('+e.message+')';
-  $('netNote').textContent=netError;
-  console.error('Trystero konnte nicht geladen werden:',e);
-}
+/* ================= Netzwerk: PeerJS ================= */
+const Peer = window.Peer;
+if(!Peer) $('netNote').textContent='PeerJS konnte nicht geladen werden';
+else $('netNote').textContent='Bereit · Build '+BUILD;
+
 const randCode=()=>{let s='';for(let i=0;i<4;i++)s+='ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)];return s;};
+const readName=()=>($('nm').value||'FLITZER').trim().slice(0,10).toUpperCase()||'FLITZER';
 
-function connect(code){
-  myName=($('nm').value||'FLITZER').trim().slice(0,10).toUpperCase()||'FLITZER';
-  if(!joinRoom){ $('netNote').textContent=netError; return; }
-  try{
-    room=joinRoom({appId:'turbo-racing-p2p'},code);
-  }catch(e){
-    $('netNote').textContent='Raum fehlgeschlagen: '+e.message;
-    console.error('joinRoom:',e); return;
-  }
-  $('roomCode').textContent=code;
-  show(scRoom); phase='room';
-  const t0=Date.now();
-  clearInterval(window.__tick);
-  window.__tick=setInterval(()=>{
-    if(phase!=='room'){ return; }
-    const n=others.size, s=Math.round((Date.now()-t0)/1000);
-    $('roomNote').textContent = n
-      ? n+' Mitfahrer verbunden · Build '+BUILD
-      : 'Suche … '+s+'s · Build '+BUILD+(s>25?' · niemand gefunden':'');
-  },1000);
+function bcast(msg,except){ conns.forEach((c,id)=>{ if(id!==except && c.open){ try{c.send(msg);}catch(e){} } }); }
+function sendToHost(msg){ if(hostConn && hostConn.open){ try{hostConn.send(msg);}catch(e){} } }
+function pushRoster(){ bcast({t:'roster',r:roster}); }
 
-  const [ss,gs]=room.makeAction('st');
-  const [gg,gr]=room.makeAction('go');
-  const [fs,fr]=room.makeAction('fin');
-  sendState=ss; sendGo=gg; sendFin=fs;
-
-  gs((d,id)=>{
-    let o=others.get(id);
-    if(!o){ o={id,name:d.n,color:KCOL[(others.size+1)%4],a:0}; others.set(id,o); renderPlayers(); }
-    o.name=d.n; o.tx=d.x; o.ty=d.y; o.ta=d.a; o.lap=d.lap; o.seg=d.seg; o.segT=d.t;
-    if(o.x===undefined){o.x=d.x;o.y=d.y;o.a=d.a;}
-  });
-  gr(()=>{ if(phase==='room'||phase==='done') startRace(); });
-  fr(d=>{ results.push({name:d.name,ms:d.ms}); if(phase==='done') showResults(); });
-  room.onPeerJoin(id=>{
-    console.log('Peer da:',id);
-    if(!others.has(id)) others.set(id,{id,name:'…',color:KCOL[(others.size+1)%4],a:0});
-    renderPlayers(); $('roomNote').textContent='Bereit!';
-  });
-  room.onPeerLeave(id=>{
-    console.log('Peer weg:',id); others.delete(id); renderPlayers(); });
-  renderPlayers();
+function applyState(st){
+  if(!st || st.id===myId) return;
+  const o=others.get(st.id); if(!o) return;
+  o.tx=st.x; o.ty=st.y; o.ta=st.a; o.lap=st.lap; o.seg=st.seg; o.segT=st.t; o.name=st.n; o.net=st;
+  if(o.x===undefined){ o.x=st.x; o.y=st.y; o.a=st.a; }
 }
+function cleanupNet(){
+  conns.forEach(c=>{ try{c.close();}catch(e){} }); conns.clear();
+  if(hostConn){ try{hostConn.close();}catch(e){} hostConn=null; }
+  if(peer){ try{peer.destroy();}catch(e){} peer=null; }
+  isHost=false; roster=[]; others.clear();
+}
+addEventListener('beforeunload',cleanupNet);
+
+/* ---- Host ---- */
+function hostRoom(){
+  cleanupNet(); myName=readName();
+  if(!Peer){ $('netNote').textContent='PeerJS nicht geladen'; return; }
+  const code=randCode();
+  $('netNote').textContent='Raum wird geöffnet …';
+  peer=new Peer(ROOM_PREFIX+code); isHost=true;
+
+  peer.on('open',id=>{
+    myId=id; roster=[{id:myId,name:myName}];
+    $('roomCode').textContent=code; $('bStart').style.display='';
+    show(scRoom); phase='room'; renderPlayers();
+  });
+
+  peer.on('connection',conn=>{
+    if(conns.size>=MAXP-1 || phase!=='room'){
+      conn.on('open',()=>{ conn.send({t:'full'}); setTimeout(()=>conn.close(),400); });
+      return;
+    }
+    conns.set(conn.peer,conn);
+    conn.on('open',()=>{
+      if(!roster.some(r=>r.id===conn.peer)) roster.push({id:conn.peer,name:'…'});
+      pushRoster(); renderPlayers();
+    });
+    conn.on('data',d=>{
+      if(!d||!d.t) return;
+      if(d.t==='hi'){
+        const e=roster.find(r=>r.id===conn.peer); if(e) e.name=(d.name||'…').slice(0,10);
+        pushRoster(); renderPlayers();
+      } else if(d.t==='st'){ applyState(d.s); }
+      else if(d.t==='fin'){ addResult(d.id,d.name,d.ms); bcast({t:'res',r:results}); if(phase==='done') showResults(); }
+    });
+    conn.on('close',()=>{
+      conns.delete(conn.peer); roster=roster.filter(r=>r.id!==conn.peer);
+      others.delete(conn.peer); pushRoster(); renderPlayers();
+    });
+    conn.on('error',e=>console.warn('Verbindung:',e));
+  });
+
+  peer.on('error',e=>{
+    console.error('Peer:',e);
+    if(e.type==='unavailable-id'){ $('netNote').textContent='Code war belegt — bitte nochmal öffnen'; }
+    else { $('netNote').textContent='Fehler: '+e.type; }
+    cleanupNet(); show(scLobby); phase='lobby';
+  });
+}
+
+/* ---- Beitreten ---- */
+function joinRoom(code){
+  cleanupNet(); myName=readName();
+  if(!Peer){ $('netNote').textContent='PeerJS nicht geladen'; return; }
+  $('netNote').textContent='Verbinde mit '+code+' …';
+  peer=new Peer(); isHost=false;
+
+  peer.on('open',id=>{
+    myId=id;
+    hostConn=peer.connect(ROOM_PREFIX+code,{metadata:{name:myName}});
+
+    const timeout=setTimeout(()=>{
+      if(!hostConn || !hostConn.open){
+        $('netNote').textContent='Raum '+code+' antwortet nicht';
+        cleanupNet(); show(scLobby); phase='lobby';
+      }
+    },9000);
+
+    hostConn.on('open',()=>{
+      clearTimeout(timeout);
+      hostConn.send({t:'hi',name:myName});
+      $('roomCode').textContent=code; $('bStart').style.display='none';
+      $('roomNote').textContent='Verbunden — der Host startet das Rennen';
+      show(scRoom); phase='room'; renderPlayers();
+    });
+
+    hostConn.on('data',d=>{
+      if(!d||!d.t) return;
+      if(d.t==='roster'){ roster=d.r||[]; renderPlayers(); }
+      else if(d.t==='all'){ (d.p||[]).forEach(applyState); }
+      else if(d.t==='start'){ if(phase==='room'||phase==='done') startRace(); }
+      else if(d.t==='res'){ results=d.r||results; if(phase==='done') showResults(); }
+      else if(d.t==='full'){ $('netNote').textContent='Raum ist voll (4 Fahrer)'; cleanupNet(); show(scLobby); phase='lobby'; }
+    });
+
+    hostConn.on('close',()=>{
+      $('netNote').textContent='Host hat den Raum geschlossen';
+      cleanupNet(); show(scLobby); phase='lobby';
+    });
+    hostConn.on('error',e=>console.warn('Verbindung:',e));
+  });
+
+  peer.on('error',e=>{
+    console.error('Peer:',e);
+    $('netNote').textContent = e.type==='peer-unavailable'
+      ? 'Raum '+code+' nicht gefunden — Code prüfen'
+      : 'Fehler: '+e.type;
+    cleanupNet(); show(scLobby); phase='lobby';
+  });
+}
+
 function renderPlayers(){
   const l=$('plist'); l.innerHTML='';
-  const add=(name,color)=>{
+  const list = roster.length?roster:[{id:myId,name:myName}];
+  list.forEach((r,i)=>{
     const li=document.createElement('li');
-    li.innerHTML='<span class="dot" style="background:'+color+'"></span>'+name;
+    li.innerHTML='<span class="dot" style="background:'+KCOL[i%4]+'"></span>'+
+      (r.name||'…')+(r.id===myId?' (du)':'')+(i===0?' · Host':'');
     l.appendChild(li);
-  };
-  add(myName+' (du)',KCOL[0]);
-  let i=1; others.forEach(o=>add(o.name||'…',KCOL[i++%4]));
+  });
+  if(isHost) $('roomNote').textContent = conns.size
+    ? conns.size+' Mitfahrer verbunden · Build '+BUILD
+    : 'Warte auf Mitfahrer · Build '+BUILD;
 }
 
 /* ================= Buttons ================= */
 ['nm','cd'].forEach(id=>$(id).addEventListener('keydown',e=>{
   if(e.key==='Enter'){ e.preventDefault(); $('bJoin').click(); }
 }));
-$('bMake').onclick=()=>{const c=randCode(); $('cd').value=c; connect(c);};
+$('bMake').onclick=()=>hostRoom();
 $('bJoin').onclick=()=>{
   const c=($('cd').value||'').trim().toUpperCase();
-  if(c.length!==4){ $('netNote').textContent='Der Code hat vier Buchstaben'; return; }
-  connect(c);
+  if(!/^[A-Z]{4}$/.test(c)){ $('netNote').textContent='Der Code besteht aus vier Buchstaben'; return; }
+  joinRoom(c);
 };
-$('bSolo').onclick=()=>{ myName=($('nm').value||'FLITZER').trim().slice(0,10).toUpperCase()||'FLITZER'; startRace(); };
-$('bStart').onclick=()=>{ if(sendGo) sendGo({}); startRace(); };
-$('bLeave').onclick=()=>{ if(room) room.leave(); room=null; others.clear(); sendState=null; show(scLobby); phase='lobby'; };
-$('bAgain').onclick=()=>{ if(sendGo) sendGo({}); startRace(); };
-$('bBack').onclick =()=>{ show(room?scRoom:scLobby); phase=room?'room':'lobby'; };
+$('bSolo').onclick=()=>{ myName=readName(); myId='solo'; roster=[{id:'solo',name:myName}]; startRace(); };
+$('bStart').onclick=()=>{
+  if(!isHost && hostConn){ $('roomNote').textContent='Nur der Host kann starten'; return; }
+  bcast({t:'start'}); startRace();
+};
+$('bLeave').onclick=()=>{ cleanupNet(); show(scLobby); phase='lobby'; $('netNote').textContent=''; };
+$('bAgain').onclick=()=>{
+  if(hostConn && !isHost){ $('roomNote').textContent='Der Host startet die Revanche'; show(scRoom); phase='room'; return; }
+  bcast({t:'start'}); startRace();
+};
+$('bBack').onclick =()=>{ show(peer?scRoom:scLobby); phase=peer?'room':'lobby'; };
 
 resize(); requestAnimationFrame(loop);
 </script>
