@@ -83,7 +83,7 @@ class ParkourRush extends Phaser.Scene {
             return;
 
 
-        this.distance += this.speed * delta/1000;
+        this.distance += delta / 100;
 
 
         this.player.update(
