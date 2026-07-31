@@ -4,7 +4,7 @@ export default class Obstacle{
 constructor(scene,x,y,type){
 
 
-let color=0xff0055;
+let color=0xff00aa;
 
 
 if(type==="block")
@@ -19,8 +19,8 @@ this.sprite=
 scene.add.rectangle(
 x,
 y,
-50,
-80,
+60,
+90,
 color
 );
 
