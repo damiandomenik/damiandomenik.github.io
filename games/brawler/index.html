@@ -178,7 +178,7 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="module">
 "use strict";
-const BUILD="BR6";
+const BUILD="BR7";
 
 /* ================= constants ================= */
 const CELL=44, COLS=22, ROWS=13, WW=COLS*CELL, WH=ROWS*CELL;
@@ -222,6 +222,7 @@ let myId='solo', myName='PLAYER', myTeam=0, roster=[], score=[0,0];
 let roundT=0, zoneIn=0, powT=0, mapIdx=0, mapSeed=1, modIdx=0;
 let cool=0, charge=0, charging=false, specIdx=0, shake=0, idleT=0, blinkCool=0;
 let lastSend=0, muted=false;
+let lastTimer='', lastStatus='', lastCool='', lastCoolCol='', lastBlink='';
 const keys={up:false,down:false,left:false,right:false,fire:false,blink:false};
 const DIRS={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
 const $=id=>document.getElementById(id);
@@ -298,6 +299,7 @@ function spawnAll(){
     Object.assign(p,{name:e.name,team:t,x:t?WW-CELL*1.4:CELL*1.4,
       y:CELL*1.4+i*((WH-CELL*2.8)/Math.max(1,3)),d:t?'left':'right',
       alive:true,shield:0,speed:0,dbl:0,idle:0,ghost:false});
+    p.tx=p.x; p.ty=p.y;
     players.set(e.id,p);
   });
   bolts=[]; powers=[]; shards=[]; roundT=0; zoneIn=0; powT=POW_EVERY*0.6;
@@ -501,6 +503,19 @@ function ev(kind,txt,col){ addFeed(txt,col); bcast({t:'ev',x:txt,c:col,k:kind});
 function burst(x,y,col){ for(let i=0;i<14;i++) shards.push({x,y,vx:(Math.random()-.5)*190,vy:(Math.random()-.5)*190,life:1,col}); }
 
 /* ================= render ================= */
+let bgCan=null, bgKey='', vig=null, vigKey='';
+function bakeBG(){
+  const P=PAL();
+  bgCan=document.createElement('canvas'); bgCan.width=WW; bgCan.height=WH;
+  const g2=bgCan.getContext('2d');
+  const grd=g2.createLinearGradient(0,0,0,WH);
+  grd.addColorStop(0,P.f1); grd.addColorStop(1,P.f2);
+  g2.fillStyle=grd; g2.fillRect(0,0,WW,WH);
+  g2.strokeStyle=P.grid; g2.lineWidth=1;
+  for(let x=CELL;x<WW;x+=CELL){ g2.beginPath(); g2.moveTo(x,0); g2.lineTo(x,WH); g2.stroke(); }
+  for(let y=CELL;y<WH;y+=CELL){ g2.beginPath(); g2.moveTo(0,y); g2.lineTo(WW,y); g2.stroke(); }
+  bgKey=String(mapIdx);
+}
 function draw(t){
   const P=PAL();
   ctx.clearRect(0,0,W,H);
@@ -511,12 +526,8 @@ function draw(t){
   if(shake>0) ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
   ctx.translate(tx,ty); ctx.scale(z,z);
 
-  const g=ctx.createLinearGradient(0,0,0,WH);
-  g.addColorStop(0,P.f1); g.addColorStop(1,P.f2);
-  ctx.fillStyle=g; ctx.fillRect(0,0,WW,WH);
-  ctx.strokeStyle=P.grid; ctx.lineWidth=1;
-  for(let x=CELL;x<WW;x+=CELL){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WH); ctx.stroke(); }
-  for(let y=CELL;y<WH;y+=CELL){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WW,y); ctx.stroke(); }
+  if(!bgCan||bgKey!==String(mapIdx)) bakeBG();
+  ctx.drawImage(bgCan,0,0);
 
   if(phase==='wait'){
     ctx.fillStyle='rgba(255,90,110,.10)'; ctx.fillRect(0,0,WW/2,WH);
@@ -581,8 +592,10 @@ function draw(t){
       if(charge>0){ ctx.strokeStyle=P.acc; ctx.lineWidth=3;
         ctx.beginPath(); ctx.arc(p.x,p.y,PR+11,-Math.PI/2,-Math.PI/2+charge/CHARGE_MAX*6.283); ctx.stroke(); }
     }
-    ctx.shadowColor=col; ctx.shadowBlur=12;
-    ctx.fillStyle=col; ctx.fillRect(p.x-PR,p.y-PR,PR*2,PR*2); ctx.shadowBlur=0;
+    ctx.globalAlpha*=0.35; ctx.fillStyle=col;
+    ctx.fillRect(p.x-PR-3,p.y-PR-3,PR*2+6,PR*2+6);
+    ctx.globalAlpha = p.ghost ? (p.id===myId?0.45:0.2) : 1;
+    ctx.fillStyle=col; ctx.fillRect(p.x-PR,p.y-PR,PR*2,PR*2);
     ctx.fillStyle=P.f1; ctx.fillRect(p.x-PR+3,p.y-PR+3,PR*2-6,PR*2-6);
     const [dx,dy]=DIRS[p.d]||[1,0];
     ctx.fillStyle=col; ctx.fillRect(p.x+dx*(PR+3)-3,p.y+dy*(PR+3)-3,6,6);
@@ -603,9 +616,12 @@ function draw(t){
   ctx.globalAlpha=1;
   ctx.restore();
 
-  const vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
-  vg.addColorStop(0,'rgba(7,10,18,0)'); vg.addColorStop(1,'rgba(7,10,18,.75)');
-  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+  if(vigKey!==W+'x'+H){
+    vig=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.75);
+    vig.addColorStop(0,'rgba(7,10,18,0)'); vig.addColorStop(1,'rgba(7,10,18,.75)');
+    vigKey=W+'x'+H;
+  }
+  ctx.fillStyle=vig; ctx.fillRect(0,0,W,H);
 }
 
 /* ================= loop ================= */
@@ -619,15 +635,33 @@ function loop(ts){
   }
   if(phase==='play'){
     const me=myPlayer();
-    if(me&&me.alive){ camZ+=(1-camZ)*Math.min(1,dt*4); $('status').textContent=zoneIn>0?'the arena is freezing':''; }
-    $('timer').textContent=Math.floor(roundT/60)+':'+String(Math.floor(roundT%60)).padStart(2,'0');
+    if(me&&me.alive){
+      camZ+=(1-camZ)*Math.min(1,dt*4);
+      const st=zoneIn>0?'the arena is freezing':'';
+      if(st!==lastStatus){ $('status').textContent=st; lastStatus=st; }
+    }
+    const tstr=Math.floor(roundT/60)+':'+String(Math.floor(roundT%60)).padStart(2,'0');
+    if(tstr!==lastTimer){ $('timer').textContent=tstr; lastTimer=tstr; }
   }
+  /* fremde Figuren weich nachziehen, Blitze lokal weiterfliegen lassen */
+  players.forEach(p=>{
+    if(p.id===myId||p.tx===undefined) return;
+    p.x+=(p.tx-p.x)*Math.min(1,dt*15);
+    p.y+=(p.ty-p.y)*Math.min(1,dt*15);
+  });
+  if(!isHost) for(const b of bolts){ b.x+=b.vx*dt; b.y+=b.vy*dt; }
+
   for(let i=shards.length-1;i>=0;i--){ const s=shards[i];
     s.x+=s.vx*dt; s.y+=s.vy*dt; s.life-=dt*1.5; if(s.life<=0) shards.splice(i,1); }
   if(shake>0) shake=Math.max(0,shake-dt*40);
-  $('coolbar').style.transform='scaleX('+(charging?charge/CHARGE_MAX:1-Math.max(0,cool)/(BASE_COOL*(MOD().cool||1)))+')';
-  $('coolbar').style.background=charging?'#FFC24B':PAL().acc;
-  $('blinkfill').style.transform='scaleX('+(1-Math.max(0,blinkCool)/BLINK_COOL)+')';
+  if(phase==='play'){
+    const cv=(charging?charge/CHARGE_MAX:1-Math.max(0,cool)/(BASE_COOL*(MOD().cool||1))).toFixed(3);
+    if(cv!==lastCool){ $('coolbar').style.transform='scaleX('+cv+')'; lastCool=cv; }
+    const cbg=charging?'#FFC24B':PAL().acc;
+    if(cbg!==lastCoolCol){ $('coolbar').style.background=cbg; lastCoolCol=cbg; }
+    const bv=(1-Math.max(0,blinkCool)/BLINK_COOL).toFixed(3);
+    if(bv!==lastBlink){ $('blinkfill').style.transform='scaleX('+bv+')'; lastBlink=bv; }
+  }
 
   if((phase==='play'||phase==='wait'||phase==='over')&&ts-lastSend>50){
     lastSend=ts;
@@ -729,7 +763,10 @@ function hostRoom(){
       if(d.t==='hi'){ const e=roster.find(r=>r.id===conn.peer), p=players.get(conn.peer);
         const nm=(d.name||'…').slice(0,10); if(e)e.name=nm; if(p)p.name=nm; pushRoster(); }
       else if(d.t==='m'){ const p=players.get(conn.peer);
-        if(p&&p.alive){ p.x=d.x; p.y=d.y; p.d=d.d; if(MOD().ghost) p.ghost=!!d.g; } }
+        if(p&&p.alive){
+          if(p.x===undefined){ p.x=d.x; p.y=d.y; }
+          p.tx=d.x; p.ty=d.y; p.d=d.d; if(MOD().ghost) p.ghost=!!d.g;
+        } }
       else if(d.t==='shot'&&phase==='play'){ spawnBolt(conn.peer,Math.max(0,Math.min(CHARGE_MAX,d.p||0))); }
     });
     conn.on('close',()=>{ conns.delete(conn.peer); roster=roster.filter(r=>r.id!==conn.peer);
@@ -765,7 +802,10 @@ function joinRoom(code){
         (d.p||[]).forEach(s=>{
           let p=players.get(s.id); if(!p){ p={id:s.id}; players.set(s.id,p); }
           p.alive=s.a; p.team=s.t; p.name=s.n; p.shield=s.s?1:0; p.ghost=!!s.g;
-          if(s.id!==myId||!s.a){ p.x=s.x; p.y=s.y; p.d=s.d; }
+          if(s.id!==myId||!s.a){
+            if(p.x===undefined){ p.x=s.x; p.y=s.y; }
+            p.tx=s.x; p.ty=s.y; p.d=s.d;
+          }
         });
         bolts=(d.b||[]).map(b=>({x:b.x,y:b.y,vx:b.vx,vy:b.vy,pow:b.p,life:2}));
         powers=(d.u||[]).map(u=>({x:u.x,y:u.y,kind:u.k}));
