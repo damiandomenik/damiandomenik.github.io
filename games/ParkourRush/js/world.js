@@ -10,7 +10,12 @@ this.scene=scene;
 
 this.obstacles=[];
 
+this.group.add(
+    obstacle.sprite
+);
 
+this.group = scene.physics.add.group();
+  
 scene.time.addEvent({
 
 delay:1500,
