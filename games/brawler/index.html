@@ -178,7 +178,7 @@ input:focus{outline:none;border-color:var(--frost);box-shadow:0 0 0 3px rgba(127
 <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
 <script type="module">
 "use strict";
-const BUILD="BR7";
+const BUILD="BR7b";
 
 /* ================= constants ================= */
 const CELL=44, COLS=22, ROWS=13, WW=COLS*CELL, WH=ROWS*CELL;
@@ -677,6 +677,7 @@ function loop(ts){
       } else sendToHost({t:'m',x:Math.round(me.x),y:Math.round(me.y),d:me.d,g:me.ghost?1:0});
     }
   }
+
   draw(t);
   requestAnimationFrame(loop);
 }
@@ -720,8 +721,21 @@ function enterWait(){
   $('bStart').style.display=isHost?'':'none';
   $('bFormat').style.display=isHost?'':'none';
   $('bFormat').textContent='Best of '+(winsNeeded*2-1);
-  show(null); camZ=1;
-  if(!players.has(myId)) players.set(myId,{id:myId,name:myName,team:myTeam,x:WW/2-70,y:WH/2,d:'right',alive:true});
+  show(null); camZ=1; bolts=[]; powers=[]; zoneIn=0; roundT=0; cool=0; charge=0;
+  charging=false; blinkCool=0; specIdx=0; feed=[]; $('feed').innerHTML='';
+
+  /* alle wiederbeleben und in ihre Hälfte stellen */
+  let n=0;
+  players.forEach(p=>{
+    p.alive=true; p.shield=0; p.speed=0; p.dbl=0; p.ghost=false; p.zt=0; p.idle=0;
+    p.x = p.team ? WW/2+70 : WW/2-70;
+    p.y = WH/2 + (n%4-1.5)*46;
+    p.d = p.team ? 'left' : 'right';
+    p.tx=p.x; p.ty=p.y; n++;
+  });
+  if(!players.has(myId))
+    players.set(myId,{id:myId,name:myName,team:myTeam,x:WW/2-70,y:WH/2,tx:WW/2-70,ty:WH/2,d:'right',alive:true});
+
   if(matchMedia('(pointer:coarse)').matches) $('touch').classList.add('on');
   updateBar();
 }
