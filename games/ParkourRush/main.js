@@ -17,7 +17,23 @@ class ParkourRush extends Phaser.Scene {
         this.speed = 300;
 
 
-        this.cameras.main.setBackgroundColor("#080820");
+        this.cameras.main.setBackgroundColor("#050014");
+
+
+// Hintergrund Sterne
+for(let i = 0; i < 80; i++){
+
+    let star = this.add.circle(
+        Phaser.Math.Between(0,1200),
+        Phaser.Math.Between(0,600),
+        Phaser.Math.Between(1,3),
+        0x8844ff
+    );
+
+
+    star.alpha = 0.5;
+
+}
 
 
         // Boden
