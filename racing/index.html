@@ -179,6 +179,7 @@ let countUntil=0, raceStart=0, results=[], parts=[], decor=[];
 let myName='FLITZER', myColor=KCOL[0];
 let room=null, sendState=null, sendGo=null, sendFin=null, selfId='solo';
 const keys={left:false,right:false,gas:false,brake:false,drift:false};
+const BUILD="B4";
 const $=id=>document.getElementById(id);
 const scLobby=$('scLobby'), scRoom=$('scRoom'), scEnd=$('scEnd');
 const show=el=>{[scLobby,scRoom,scEnd].forEach(s=>s.classList.add('hidden')); if(el) el.classList.remove('hidden');};
@@ -517,20 +518,36 @@ document.querySelectorAll('.key').forEach(el=>{
 /* ================= Netzwerk ================= */
 let joinRoom=null, netError='';
 try{
-  const mod=await import('https://esm.run/trystero');
+  const mod=await import('https://esm.run/trystero@0.21.8');
   joinRoom=mod.joinRoom; selfId=mod.selfId;
+  $('netNote').textContent='Netz bereit · Build '+BUILD;
 }catch(e){
-  netError='Netzwerk nicht erreichbar — nur Solo';
+  netError='Netzwerk nicht erreichbar — nur Solo ('+e.message+')';
   $('netNote').textContent=netError;
+  console.error('Trystero konnte nicht geladen werden:',e);
 }
 const randCode=()=>{let s='';for(let i=0;i<4;i++)s+='ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random()*24)];return s;};
 
 function connect(code){
   myName=($('nm').value||'FLITZER').trim().slice(0,10).toUpperCase()||'FLITZER';
   if(!joinRoom){ $('netNote').textContent=netError; return; }
-  room=joinRoom({appId:'turbo-racing-p2p'},code);
-  $('roomCode').textContent=code; $('roomNote').textContent='Warte auf Mitfahrer …';
+  try{
+    room=joinRoom({appId:'turbo-racing-p2p'},code);
+  }catch(e){
+    $('netNote').textContent='Raum fehlgeschlagen: '+e.message;
+    console.error('joinRoom:',e); return;
+  }
+  $('roomCode').textContent=code;
   show(scRoom); phase='room';
+  const t0=Date.now();
+  clearInterval(window.__tick);
+  window.__tick=setInterval(()=>{
+    if(phase!=='room'){ return; }
+    const n=others.size, s=Math.round((Date.now()-t0)/1000);
+    $('roomNote').textContent = n
+      ? n+' Mitfahrer verbunden · Build '+BUILD
+      : 'Suche … '+s+'s · Build '+BUILD+(s>25?' · niemand gefunden':'');
+  },1000);
 
   const [ss,gs]=room.makeAction('st');
   const [gg,gr]=room.makeAction('go');
@@ -546,10 +563,12 @@ function connect(code){
   gr(()=>{ if(phase==='room'||phase==='done') startRace(); });
   fr(d=>{ results.push({name:d.name,ms:d.ms}); if(phase==='done') showResults(); });
   room.onPeerJoin(id=>{
+    console.log('Peer da:',id);
     if(!others.has(id)) others.set(id,{id,name:'…',color:KCOL[(others.size+1)%4],a:0});
     renderPlayers(); $('roomNote').textContent='Bereit!';
   });
-  room.onPeerLeave(id=>{ others.delete(id); renderPlayers(); });
+  room.onPeerLeave(id=>{
+    console.log('Peer weg:',id); others.delete(id); renderPlayers(); });
   renderPlayers();
 }
 function renderPlayers(){
