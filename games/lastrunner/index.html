@@ -208,21 +208,22 @@ const TRACK_HALF = 6.4;
 const SPAWN_Z = -230;          // hier tauchen Hindernisse auf
 const DESPAWN_Z = 14;          // hier werden sie eingesammelt
 
-const SPEED_START = 26;        // Einheiten pro Sekunde
+const SPEED_START = 42.8;      // entspricht der alten Stufe 5 — davor war es zäh
 const SPEED_STEP = 4.2;        // Zuwachs pro Stufe
-const STEP_SEC = 14;           // alle 14 Sekunden eine Stufe
-const SPEED_MAX = 88;          // irgendwann ist Schluss
+const STEP_SEC = 10;           // alle 10 Sekunden eine Stufe
+const SPEED_MAX = 96;          // irgendwann ist Schluss
+const LEVEL_OFFSET = 4;        // damit die Anzeige bei ×5 beginnt
 const METER_SCALE = 3;         // Anzeigemeter — die Zahl soll ruhiger laufen
 
-const JUMP_V = 12.5;
-const GRAVITY = 34;
+const JUMP_V = 12.2;
+const GRAVITY = 37;
 const DUCK_SCALE = 0.42;
-const LANE_SNAP = 12;          // wie schnell die Spur gewechselt wird
+const LANE_SNAP = 7.5;         // wie schnell die Spur gewechselt wird
 
-const BIOME_LENGTH = 1400;     // nach so vielen Einheiten wechselt die Welt
-const REACT_MIN = 1.22;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
-const REACT_MAX = 1.62;
-const REACT_FLOOR = 0.72;      // so eng wird es höchstens
+const BIOME_LENGTH = 1150;     // nach so vielen Einheiten wechselt die Welt
+const REACT_MIN = 1.02;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
+const REACT_MAX = 1.34;
+const REACT_FLOOR = 0.58;      // so eng wird es höchstens
 const PLAN_BATCH = 40;         // so viele Hindernisse werden im Voraus geplant
 
 /* Strecke und Tempo werden aus der Rennzeit BERECHNET, nie aufsummiert.
@@ -257,10 +258,11 @@ function timeForDistance(d) {
   return t;
 }
 
+/* Rot bleibt den Hindernissen vorbehalten — sonst zuckt man beim eigenen Team. */
 const COLORS = [
-  0xFF5B45, 0x37B7F5, 0xFFC53D, 0x4BD08A,
-  0xB07CFF, 0xFF8AC4, 0x2ED3C6, 0xFF9F45,
-  0x7A8AFF, 0xE0526B, 0x9BD24B, 0xE86FF0
+  0x37B7F5, 0x4BD08A, 0xB07CFF, 0xFF8AC4,
+  0x2ED3C6, 0x7A8AFF, 0x9BD24B, 0xE86FF0,
+  0x5AD1FF, 0x00E0B0, 0xC9A6FF, 0xFFB3E6
 ];
 
 /* Vier Welten, die während des Rennens ineinander übergehen. */
@@ -272,7 +274,16 @@ const BIOMES = [
   { name: 'ICE',    sky: 0xBFEAF7, fog: 0xDCF3FB, ground: 0xE8F6FB, rail: 0xB6DCEA,
     props: [0x9FD8EC, 0xC7EBF6, 0x7FC2DC, 0xE3F6FC], propScale: [0.55, 1.55, 0.55] },
   { name: 'NEON',   sky: 0x1B1038, fog: 0x2A1B55, ground: 0x2A2350, rail: 0x6C4BD6,
-    props: [0x53308F, 0x7A4BC4, 0x3B2470, 0x9C63FF], propScale: [0.8, 1.35, 0.8] }
+    props: [0x53308F, 0x7A4BC4, 0x3B2470, 0x9C63FF], propScale: [0.8, 1.35, 0.8] },
+  { name: 'SUNSET', sky: 0xFF9E6B, fog: 0xFFC0A0, ground: 0xF7D9C4, rail: 0xE0A783,
+    props: [0xC9748A, 0xE0906B, 0xA85F80, 0xF0A98C], propScale: [0.9, 1.2, 0.9] },
+  { name: 'JUNGLE', sky: 0x8FE0A8, fog: 0xBFF0CC, ground: 0xDDF0DC, rail: 0x8FC49A,
+    props: [0x3F9457, 0x2E7A46, 0x58B06C, 0x246038], propScale: [1.15, 1.3, 1.15] },
+  { name: 'VOID',   sky: 0x08060F, fog: 0x14102A, ground: 0x1A1730, rail: 0x4A3F7A,
+    props: [0x241E47, 0x1A1636, 0x312a5c, 0x0F0C22], propScale: [0.7, 1.6, 0.7] },
+  { name: 'RAINBOW', rainbow: true,
+    sky: 0xFF66CC, fog: 0xFFB3E6, ground: 0xFFE8FA, rail: 0xFF88DD,
+    props: [0xFF6B9D, 0xFFD166, 0x6BE7FF, 0x9B6BFF], propScale: [1.0, 1.25, 1.0] }
 ];
 let biomeIndex = 0, biomeMix = 0;
 
@@ -290,7 +301,7 @@ let travelled = 0;
 let rng = null;
 let results = [];
 let shake = 0;
-let raceTime = 0, lastLevel = -1;
+let raceTime = 0, lastLevel = -1, raceStartMs = 0;
 let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
@@ -551,6 +562,24 @@ function applyBiome(progress) {
 
   const A = BIOMES[i], B = BIOMES[j];
 
+  // Regenbogenwelt: alles kreist durch den Farbkreis
+  if ((A.rainbow && t < 0.5) || (B.rainbow && t >= 0.5)) {
+    const hue = (travelled * 0.0016) % 1;
+    scene.background.setHSL(hue, 0.85, 0.62);
+    scene.fog.color.setHSL((hue + 0.08) % 1, 0.8, 0.78);
+    if (groundMat) groundMat.color.setHSL((hue + 0.5) % 1, 0.55, 0.85);
+    if (edgeMat) edgeMat.color.setHSL((hue + 0.33) % 1, 0.9, 0.62);
+    propMats.forEach((m, k) => m.color.setHSL((hue + k * 0.17) % 1, 0.85, 0.6));
+    const sc2 = [1.0, 1.25, 1.0];
+    props.forEach(pr => {
+      const w = pr.userData.wobble;
+      pr.scale.set(sc2[0] * w, sc2[1], sc2[2] * w);
+      pr.position.y = pr.userData.baseY * sc2[1];
+    });
+    if (i !== biomeIndex) { biomeIndex = i; if (state === 'running') showToast('RAINBOW'); }
+    return;
+  }
+
   scene.background.copy(lerpHex(A.sky, B.sky, t));
   scene.fog.color.copy(lerpHex(A.fog, B.fog, t));
   if (groundMat) groundMat.color.copy(lerpHex(A.ground, B.ground, t));
@@ -585,21 +614,22 @@ let planRng = null, planDist = 0;
 
 /** Welche Bauarten sind auf dieser Stufe erlaubt? */
 function kindsForLevel(lvl) {
-  const k = ['gate', 'low', 'high', 'block'];
-  if (lvl >= 1) k.push('narrow');      // Wand mit nur einer Lücke
-  if (lvl >= 2) k.push('pit', 'mover');// Grube und wandernde Kiste
-  if (lvl >= 3) k.push('sandwich');    // ducken, sofort springen
-  if (lvl >= 4) k.push('gatelow');     // Spur wechseln UND springen
-  if (lvl >= 5) k.push('zigzag');      // zwei Tore direkt hintereinander
-  if (lvl >= 6) k.push('gatehigh');    // Spur wechseln UND ducken
-  if (lvl >= 7) k.push('slalom');      // drei Kisten kurz hintereinander
-  if (lvl >= 9) k.push('chain');       // drei verschiedene Hürden am Stück
+  const k = ['gate', 'low', 'high', 'block', 'narrow'];
+  if (lvl >= 1) k.push('pit', 'mover', 'laser');   // Grube, wandernde Kiste, Laser
+  if (lvl >= 2) k.push('boulder');        // Felsbrocken rollt entgegen
+  if (lvl >= 2) k.push('sandwich');       // ducken, sofort springen
+  if (lvl >= 3) k.push('gatelow');        // Spur wechseln UND springen
+  if (lvl >= 4) k.push('zigzag');         // zwei Tore direkt hintereinander
+  if (lvl >= 5) k.push('gatehigh');       // Spur wechseln UND ducken
+  if (lvl >= 6) k.push('slalom', 'chain');// Serien
+  // Ab Stufe 8 kommen die harten Sachen doppelt so oft
+  if (lvl >= 8) k.push('zigzag', 'chain', 'sandwich', 'gatelow', 'gatehigh');
   return k;
 }
 
 /** Abstand in Sekunden — wird mit steigender Stufe enger, aber nie unfair. */
 function gapSecondsFor(lvl, r) {
-  const tighten = Math.min(REACT_MIN - REACT_FLOOR, lvl * 0.052);
+  const tighten = Math.min(REACT_MIN - REACT_FLOOR, lvl * 0.048);
   const lo = REACT_MIN - tighten;
   const hi = REACT_MAX - tighten;
   return lo + r() * (hi - lo);
@@ -607,7 +637,7 @@ function gapSecondsFor(lvl, r) {
 
 function startPlan(seed) {
   planRng = makeRng(seed);
-  planDist = 150;                      // die ersten Meter bleiben frei
+  planDist = 110;                      // die ersten Meter bleiben frei
   plannedObstacles = [];
   extendPlan();
 }
@@ -624,12 +654,12 @@ function extendPlan() {
 
     if (kind === 'sandwich') {
       pushObstacle('high', planDist, r, lvl);
-      planDist += speedAtTime(tHere) * 0.58;
+      planDist += speedAtTime(tHere) * 0.50;
       pushObstacle('low', planDist, r, lvl);
 
     } else if (kind === 'zigzag') {
       const a = pushObstacle('narrow', planDist, r, lvl);
-      planDist += speedAtTime(tHere) * 0.66;
+      planDist += speedAtTime(tHere) * 0.56;
       const b = pushObstacle('narrow', planDist, r, lvl);
       // zweite Lücke bewusst weit weg von der ersten
       const far = (a.open[0] + 2 + Math.floor(r() * 2)) % LANES.length;
@@ -639,7 +669,7 @@ function extendPlan() {
       const seq = ['low', 'high', 'block'].sort(() => r() - 0.5);
       seq.forEach((kk, i) => {
         pushObstacle(kk, planDist, r, lvl);
-        if (i < 2) planDist += speedAtTime(tHere) * 0.55;
+        if (i < 2) planDist += speedAtTime(tHere) * 0.46;
       });
 
     } else if (kind === 'slalom') {
@@ -650,14 +680,15 @@ function extendPlan() {
         o.safeLanes = [];
         LANES.forEach((x, k) => { if (k !== lane) o.safeLanes.push(k); });
         lane = (lane + (r() < 0.5 ? 1 : 2)) % LANES.length;
-        if (i < 2) planDist += speedAtTime(tHere) * 0.5;
+        if (i < 2) planDist += speedAtTime(tHere) * 0.42;
       }
 
     } else {
       pushObstacle(kind, planDist, r, lvl);
     }
 
-    planDist += speedAtTime(tHere) * gapSecondsFor(lvl, r);
+    const extra = (kind === 'boulder') ? 0.35 : 0;
+    planDist += speedAtTime(tHere) * (gapSecondsFor(lvl, r) + extra);
   }
 }
 
@@ -666,7 +697,7 @@ function pushObstacle(kind, dist, r, lvl) {
   if (kind === 'pit') o.kind = 'pit';
 
   if (kind === 'gate' || kind === 'narrow') {
-    const openCount = kind === 'narrow' ? 1 : (r() < 0.45 ? 2 : 1);
+    const openCount = kind === 'narrow' ? 1 : (r() < 0.28 ? 2 : 1);
     const open = [];
     while (open.length < openCount) {
       const l = Math.floor(r() * LANES.length);
@@ -693,6 +724,31 @@ function pushObstacle(kind, dist, r, lvl) {
       o.movePhase = r() * 6.28;
       o.moveSpeed = 0.8 + r() * 0.5;
     }
+
+  } else if (kind === 'laser') {
+    // Waagrechter Strahl, der auf und ab fährt. Man entscheidet erst spät,
+    // ob man drüber springt oder drunter durchrutscht.
+    o.safeLanes = [0, 1, 2, 3, 4];
+    o.laserPhase = r() * 6.28;
+    o.laserSpeed = 0.9 + r() * 0.6;
+    o.zHalf = 1.1;
+
+  } else if (kind === 'boulder') {
+    // Rollt schneller als die Strecke — kommt also entgegen.
+    o.boulder = true;
+    o.approach = 0.35;
+    o.dist = dist + Math.abs(SPAWN_Z) * o.approach / (1 + o.approach);   // Vorlauf
+    const n = r() < 0.3 ? 2 : 1;
+    const used = [];
+    for (let k = 0; k < n; k++) {
+      let l = Math.floor(r() * LANES.length);
+      if (used.indexOf(l) >= 0) l = (l + 1) % LANES.length;
+      used.push(l);
+    }
+    o.used = used;
+    LANES.forEach((x, i) => { if (used.indexOf(i) < 0) o.safeLanes.push(i); });
+    o.spin = 0;
+    o.zHalf = 2.0;
 
   } else if (kind === 'pit') {
     o.safeLanes = [0, 1, 2, 3, 4];
@@ -723,7 +779,45 @@ function buildObstacle(o) {
   const dark = new THREE.MeshLambertMaterial({ color: 0x2A3644 });
   o.boxes = [];
 
-  if (o.kind === 'pit') {
+  if (o.kind === 'laser') {
+    // Dünner Strahl: schmal genug, dass immer entweder Springen oder Ducken passt
+    const core = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1.2, 0.30, 0.30),
+      new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
+    const halo = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1.2, 0.62, 0.62),
+      new THREE.MeshBasicMaterial({ color: 0xD070FF, transparent: true, opacity: 0.55 }));
+    grp.add(core, halo);
+    // Schienen an den Seiten, an denen der Strahl fährt
+    [-1, 1].forEach(sd => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5.0, 0.4),
+        new THREE.MeshLambertMaterial({ color: 0x2A3644 }));
+      rail.position.set(sd * (TRACK_HALF - 0.5), 2.5, 0);
+      grp.add(rail);
+      const knob = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7),
+        new THREE.MeshLambertMaterial({ color: 0xD070FF }));
+      knob.position.set(sd * (TRACK_HALF - 0.5), 1.6, 0);
+      grp.add(knob);
+      o.knobs = o.knobs || []; o.knobs.push(knob);
+    });
+    o.core = core; o.halo = halo;
+    o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 1.45, yMax: 1.75 });
+
+  } else if (o.boulder) {
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x8A7B6B, flatShading: true });
+    o.rocks = [];
+    o.used.forEach(l => {
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1.35, 0), rockMat);
+      rock.position.set(LANES[l], 1.35, 0);
+      grp.add(rock);
+      // Staubfahne dahinter
+      const dust = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 2.6),
+        new THREE.MeshBasicMaterial({ color: 0xC9B9A6, transparent: true, opacity: 0.35 }));
+      dust.position.set(LANES[l], 0.28, -1.8);
+      grp.add(dust);
+      o.rocks.push(rock);
+      o.boxes.push({ x: LANES[l], w: 2.5, yMin: 0, yMax: 2.7 });
+    });
+
+  } else if (o.kind === 'pit') {
     const len = o.zHalf * 2;
     // dunkler Schacht im Boden
     const hole = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.6, 0.5, len),
@@ -996,9 +1090,10 @@ const Net = {
 
   checkOver() {
     if (!this.isHost() || state !== 'running') return;
+    // Auch im Netz erst, wenn alle draussen sind — der Letzte läuft weiter.
     const total = this.roster.length;
     const outCount = this._outs.size;
-    if (total - outCount > 1) return;
+    if (total - outCount > 0) return;
 
     const rows = this.roster.map(r => ({
       n: r.name,
@@ -1144,6 +1239,16 @@ function botThink(r, dt) {
         if (next.extra === 'low') r.wantJumpAt = timeTo - 0.28;
         if (next.extra === 'high') r.wantDuckAt = timeTo - 0.26;
       }
+    } else if (next.kind === 'laser') {
+      // Nach der Höhe des Strahls entscheiden
+      const yb = next.boxes.length ? next.boxes[0].yMin : 1.6;
+      if (!blunder) { if (yb > 1.6) r.wantDuckAt = timeTo - 0.22; else r.wantJumpAt = timeTo - 0.26; }
+    } else if (next.boulder) {
+      if (next.safeLanes.length && !blunder) {
+        let best = next.safeLanes[0], bd = 99;
+        next.safeLanes.forEach(l => { const d = Math.abs(l - r.lane); if (d < bd) { bd = d; best = l; } });
+        setLane(r, best);
+      }
     } else if (next.kind === 'low' || next.kind === 'pit') {
       if (!blunder) r.wantJumpAt = timeTo - 0.30;
     } else if (next.kind === 'high') {
@@ -1207,7 +1312,7 @@ function doDuck(r, seconds) {
 
 function runnerBox(r) {
   const h = r.ducking ? 1.02 : 2.85;
-  return { x: r.laneX, w: 0.95, yMin: r.y, yMax: r.y + h };
+  return { x: r.laneX, w: 1.12, yMin: r.y, yMax: r.y + h };
 }
 
 function checkHit(r, o) {
@@ -1257,12 +1362,14 @@ function checkRaceOver() {
     if (!alive.length) finishRace(null);
     return;
   }
-  if (alive.length <= 1) {
-    if (alive.length === 1) {
-      results.push({ name: alive[0].name, dist: Math.round(travelled / METER_SCALE),
-                     color: alive[0].color, me: alive[0].isMe, winner: true });
-    }
-    finishRace(alive[0] || null);
+  // Erst wenn wirklich niemand mehr läuft. Der Letzte darf zeigen, wie weit er kommt.
+  if (alive.length === 0) {
+    let best = null;
+    runners.forEach(r => { if (!best || r.outAt > best.outAt) best = r; });
+    finishRace(best);
+  } else if (alive.length === 1 && !alive[0].soloNoticed) {
+    alive[0].soloNoticed = true;
+    if (alive[0].isMe) showToast('LAST ONE STANDING');
   }
 }
 
@@ -1277,7 +1384,7 @@ function finishRace(winner) {
     const solo = runners.length === 1;
     if (solo) {
       $('res-title').textContent = 'RUN OVER';
-      $('res-sub').textContent = Math.round((me.outAt || travelled) / METER_SCALE) + ' m  ·  speed ×' + (lastLevel + 1);
+      $('res-sub').textContent = Math.round((me.outAt || travelled) / METER_SCALE) + ' m  ·  speed ×' + (lastLevel + 1 + LEVEL_OFFSET);
     } else {
       $('res-title').textContent = won ? 'YOU WIN!' : (winner ? winner.name + ' WINS' : 'NOBODY LEFT');
       $('res-sub').textContent = won
@@ -1355,6 +1462,7 @@ function beginRace(seed, botCount) {
 
   // Startaufstellung — alle auf derselben Höhe, verteilt über die Spuren
   runners.forEach((r, i) => {
+    r.soloNoticed = false;
     const lane = i % LANES.length;
     r.lane = lane;
     r.laneX = r.targetX = LANES[lane];
@@ -1383,7 +1491,7 @@ function beginRace(seed, botCount) {
     if (steps[step] === 'GO!') sfx.go(); else sfx.count(3 - step);
     step++;
     if (step < steps.length) setTimeout(tick, 700);
-    else setTimeout(() => { state = 'running'; raceTime = 0; }, 500);
+    else setTimeout(() => { state = 'running'; raceStartMs = performance.now(); raceTime = 0; }, 500);
   };
   tick();
 }
@@ -1457,7 +1565,9 @@ function frame() {
   const t = clock.getElapsedTime();
 
   if (state === 'running') {
-    raceTime += dt;
+    // Echte Uhr statt aufsummierter Frames: läuft auch weiter, wenn der Browser
+    // den Tab drosselt oder minimiert. Sonst driften die Spieler auseinander.
+    raceTime = (performance.now() - raceStartMs) / 1000;
     speed = speedAtTime(raceTime);
     travelled = distanceAtTime(raceTime);      // berechnet, nicht aufsummiert
 
@@ -1475,7 +1585,7 @@ function frame() {
     if (lvl !== lastLevel) {
       lastLevel = lvl;
       if (lvl > 0) {
-        showToast('SPEED UP  ×' + (lvl + 1));
+        showToast('SPEED UP  ×' + (lvl + 1 + LEVEL_OFFSET));
         sfx.go();
         camera.fov = 58 + Math.min(10, lvl * 1.1);
         camera.updateProjectionMatrix();
@@ -1486,6 +1596,25 @@ function frame() {
       const o = obstacles[i];
       o.z = -(o.dist - travelled);
       o.group.position.z = o.z;
+
+      // Laser fährt auf und ab. Höhe hängt nur an der Strecke, also bei allen gleich.
+      if (o.kind === 'laser' && o.boxes.length) {
+        const sw = Math.sin(o.laserPhase + travelled * 0.055 * o.laserSpeed);
+        const y = 1.75 + sw * 1.15;                 // 0.60 bis 2.90
+        o.boxes[0].yMin = y - 0.15;
+        o.boxes[0].yMax = y + 0.15;
+        if (o.core) o.core.position.y = y;
+        if (o.halo) o.halo.position.y = y;
+        if (o.knobs) o.knobs.forEach(k => { k.position.y = y; });
+      }
+
+      // Felsbrocken rollt uns entgegen — schneller als die Strecke
+      if (o.boulder) {
+        const shown = Math.max(0, travelled - (o.dist + SPAWN_Z));
+        o.z = -(o.dist - travelled) + shown * o.approach;
+        o.group.position.z = o.z;
+        if (o.rocks) o.rocks.forEach(rk => { rk.rotation.x -= dt * 7; });
+      }
 
       // Wanderkiste pendelt seitlich — Position hängt nur an der Strecke,
       // ist also auf allen Rechnern identisch
@@ -1547,6 +1676,12 @@ function frame() {
       }
     });
 
+    // Auch im Netz melden, wenn nur noch einer läuft
+    if (isNet && me.alive && !me.soloNoticed && runners.length > 1 && aliveRunners().length === 1) {
+      me.soloNoticed = true;
+      showToast('LAST ONE STANDING');
+    }
+
     // Eigenen Zustand senden
     if (isNet && performance.now() - lastSend > 50) {
       lastSend = performance.now();
@@ -1559,7 +1694,7 @@ function frame() {
     const stepPct = ((raceTime % STEP_SEC) / STEP_SEC) * 100;
     $('progress').style.width = stepPct + '%';
     $('dist').textContent = Math.round(travelled / METER_SCALE) + 'm';
-    $('lvl').textContent = '×' + (lvl + 1);
+    $('lvl').textContent = '×' + (lvl + 1 + LEVEL_OFFSET);
     const rank = aliveRunners().length;
     $('place').textContent = me.alive
       ? (rank + (rank === 1 ? 'st' : rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'))
