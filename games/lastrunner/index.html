@@ -239,6 +239,7 @@ const ACT = {
   FLY_END:   18000,   // 6000 m — Landeanflug
   LAND_END:  18330    // 6110 m — weiter zu Fuss
 };
+const COUNTDOWN_MS = 3300;     // Dauer des Countdowns
 const BANDS = [2.2, 5.0, 7.8];      // drei Flughöhen
 const FLY_Y_MIN = 1.3, FLY_Y_MAX = 8.7, FLY_VY = 8.4;
 
@@ -334,6 +335,7 @@ const BIOMES = [
 ];
 let biomeIndex = 0, biomeMix = 0, whiteoutOn = false, nightOn = false;
 let phase2 = 'ground', clouds = [], quakeShake = 0, actAnnounced = {};
+let syncTimer = null, syncBest = Infinity;
 
 const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
                'JELLY','CACTUS','MOCHI','FLINT','WOBBLE','SPARK'];
@@ -350,7 +352,7 @@ let travelled = 0;
 let rng = null;
 let results = [];
 let shake = 0;
-let raceTime = 0, lastLevel = -1, raceStartMs = 0;
+let raceTime = 0, lastLevel = -1, raceStartMs = 0, prevTravelled = 0;
 let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
@@ -1638,6 +1640,8 @@ const Net = {
           const e = this.roster.find(r => r.id === conn.peer);
           if (e) e.name = String(d.name || '…').slice(0, 10).toUpperCase();
           this.pushRoster();
+        } else if (d.t === 'ping') {
+          try { conn.send({ t: 'pong', c: d.c, rt: raceTime }); } catch (e) {}
         } else if (d.t === 'color') {
           this.setColor(conn.peer, d.ci);
         } else if (d.t === 's') {
@@ -1688,7 +1692,8 @@ const Net = {
 
       this._host.on('data', d => {
         if (!d || !d.t) return;
-        if (d.t === 'roster') { this.roster = d.r || []; renderLobby(); }
+        if (d.t === 'pong') { applyClockSample(d.c, d.rt || 0); }
+        else if (d.t === 'roster') { this.roster = d.r || []; renderLobby(); }
         else if (d.t === 'go') { this.seed = d.seed; beginRace(d.seed); }
         else if (d.t === 'w') { applyRemote(d.p || []); }
         else if (d.t === 'res') { showNetResults(d.rows || []); }
@@ -1720,6 +1725,12 @@ const Net = {
     else if (this._host && this._host.open) {
       try { this._host.send({ t: 'color', ci: ci | 0 }); } catch (e) {}
     }
+  },
+
+  /** Rennzeit beim Host abfragen. */
+  ping() {
+    if (this.isHost() || !this._host || !this._host.open) return;
+    try { this._host.send({ t: 'ping', c: performance.now() }); } catch (e) {}
   },
 
   sendState(st) {
@@ -1800,6 +1811,7 @@ const Net = {
   },
 
   leave() {
+    stopClockSync();
     this.stopRelay();
     this._conns.forEach(c => { try { c.close(); } catch (e) {} });
     this._conns.clear();
@@ -1813,6 +1825,46 @@ const Net = {
 window.addEventListener('beforeunload', () => Net.leave());
 
 function note(text) { $('net-note').textContent = text || ''; }
+
+/* ---------------- Uhrensynchronisation ----------------
+   Selbst mit gemeinsamem Startzeitpunkt driften die Uhren: Netzlaufzeit beim
+   Startsignal, gedrosselte Tabs, ungenaue Timer. Deshalb fragt jeder Client
+   regelmässig die Rennzeit des Hosts ab und zieht seine eigene nach. */
+
+function startClockSync() {
+  stopClockSync();
+  const ping = () => {
+    if (state !== 'running' && state !== 'countdown') return;
+    Net.ping();
+  };
+  ping();
+  syncTimer = setInterval(ping, 1500);
+}
+
+function stopClockSync() {
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+}
+
+/** Antwort des Hosts verarbeiten und die eigene Uhr korrigieren. */
+function applyClockSample(sentAt, hostRaceTime) {
+  const now = performance.now();
+  const rtt = now - sentAt;
+  if (rtt > 900) return;                       // Ausreisser verwerfen
+  // Nur bessere Messungen zählen — die schnellste Antwort ist die genaueste
+  if (rtt > syncBest * 1.6 && syncBest !== Infinity) return;
+  syncBest = Math.min(syncBest, rtt);
+
+  // Zum Zeitpunkt der Antwort war der Host bei hostRaceTime; bis zu uns
+  // verging etwa die halbe Umlaufzeit.
+  const desired = now - (hostRaceTime + rtt / 2000) * 1000;
+  const diff = desired - raceStartMs;
+
+  if (Math.abs(diff) > 600) {
+    raceStartMs = desired;                      // grosser Versatz: sofort angleichen
+  } else {
+    raceStartMs += diff * 0.25;                 // kleiner Versatz: weich nachziehen
+  }
+}
 
 function openLobby(code, isHost) {
   $('menu').classList.add('hidden');
@@ -1883,6 +1935,7 @@ function applyRemote(list) {
 
 function showNetResults(rows) {
   state = 'over';
+  stopClockSync();
   $('touch').classList.remove('on');
   Net.stopRelay();
   const winner = rows[0];
@@ -2163,7 +2216,7 @@ function beginRace(seed, botCount) {
   obstacles.forEach(o => { if (o.group) scene.remove(o.group); });
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
-  nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
+  nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; prevTravelled = 0; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0;
@@ -2199,7 +2252,10 @@ function beginRace(seed, botCount) {
     const lane = i % LANES.length;
     r.lane = lane;
     r.laneX = r.targetX = LANES[lane];
-    r.group.position.set(r.laneX, 0, -Math.floor(i / LANES.length) * 1.6);
+    // Alle stehen auf exakt derselben Linie. Ab dem sechsten Spieler teilen
+    // sich zwei dieselbe Spur und überlagern sich dann — das ist gewollt:
+    // die Trefferprüfung kennt ohnehin nur Spur und Höhe, kein Vorne oder Hinten.
+    r.group.position.set(r.laneX, 0, 0);
     r.baseZ = r.group.position.z;
   });
 
@@ -2216,7 +2272,14 @@ function beginRace(seed, botCount) {
     setTimeout(() => $('swipehint').classList.add('hidden'), 3500);
   }
 
+  // Der Startzeitpunkt wird SOFORT festgelegt, nicht am Ende der Countdown-Kette.
+  // setTimeout wird von gedrosselten Tabs verzögert — dann startet dieser Spieler
+  // Sekunden später und läuft ab da auf einer ganz anderen Streckenstelle.
   state = 'countdown';
+  raceStartMs = performance.now() + COUNTDOWN_MS;
+  raceTime = 0;
+  syncBest = Infinity;
+
   let step = 0;
   const steps = ['3', '2', '1', 'GO!'];
   const tick = () => {
@@ -2224,9 +2287,10 @@ function beginRace(seed, botCount) {
     if (steps[step] === 'GO!') sfx.go(); else sfx.count(3 - step);
     step++;
     if (step < steps.length) setTimeout(tick, 700);
-    else setTimeout(() => { state = 'running'; raceStartMs = performance.now(); raceTime = 0; }, 500);
   };
   tick();
+
+  if (Net.isOnline() && !Net.isHost()) startClockSync();
 }
 
 /** Übungslauf: allein auf der Strecke, keine Gegner. */
@@ -2304,19 +2368,30 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.getElapsedTime();
 
+  if (state === 'countdown' && performance.now() >= raceStartMs) {
+    state = 'running';
+  }
+
   if (state === 'running') {
     // Echte Uhr statt aufsummierter Frames: läuft auch weiter, wenn der Browser
     // den Tab drosselt oder minimiert. Sonst driften die Spieler auseinander.
     raceTime = (performance.now() - raceStartMs) / 1000;
     speed = speedAtTime(raceTime);
+    const lastTravelled = prevTravelled;
     travelled = distanceAtTime(raceTime);      // berechnet, nicht aufsummiert
+    prevTravelled = travelled;
 
     // Nachplanen, solange der Vorrat knapp wird — die Strecke hört nie auf
     if (nextPlanIndex > plannedObstacles.length - 12) extendPlan();
 
     while (nextPlanIndex < plannedObstacles.length &&
            plannedObstacles[nextPlanIndex].dist - travelled < -SPAWN_Z) {
-      buildObstacle(plannedObstacles[nextPlanIndex]);
+      const ob = plannedObstacles[nextPlanIndex];
+      buildObstacle(ob);
+      // Kam der Browser ins Stocken, ist die Strecke seit dem letzten Frame
+      // weit gesprungen. Dann muss auch dieses Hindernis rückwirkend geprüft
+      // werden, sonst läuft man durch Wände hindurch.
+      ob.prevZ = lastTravelled - ob.dist;
       nextPlanIndex++;
     }
 
