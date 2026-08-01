@@ -237,11 +237,14 @@ const ACT = {
   QUAKE_END: 12360,   // 4120 m — die Welt bricht weg
   FLY_START: 12660,   // 4220 m — vom Flugzeug aufgefangen
   FLY_END:   18000,   // 6000 m — Landeanflug
-  LAND_END:  18330    // 6110 m — weiter zu Fuss
+  LAND_END:  18330,   // 6110 m — weiter zu Fuss
+  BEAM:      21000,   // 7000 m — das UFO taucht auf und zieht alle hoch
+  BEAM_END:  21420,   // 7140 m — abgesetzt über dem Lavaplaneten
+  DROP_END:  21840    // 7280 m — im Gleiter, ab hier bleibt es so
 };
 const COUNTDOWN_MS = 3300;     // Dauer des Countdowns
 const BANDS = [2.2, 5.0, 7.8];      // drei Flughöhen
-const FLY_Y_MIN = 1.3, FLY_Y_MAX = 8.7, FLY_VY = 8.4;
+const BAND_SNAP = 9.5;         // wie schnell zwischen die Flughöhen gewechselt wird
 
 function phaseAt(d) {
   if (d < ACT.QUAKE) return 'ground';
@@ -249,8 +252,14 @@ function phaseAt(d) {
   if (d < ACT.FLY_START) return 'fall';
   if (d < ACT.FLY_END) return 'fly';
   if (d < ACT.LAND_END) return 'land';
-  return 'ground';
+  if (d < ACT.BEAM) return 'ground';
+  if (d < ACT.BEAM_END) return 'beam';
+  if (d < ACT.DROP_END) return 'drop';
+  return 'glide';                     // Lavaplanet — ab hier bleibt es dabei
 }
+
+/** Im Gleiter gelten dieselben Regeln wie zu Fuss — nur die Optik ist anders. */
+function isFootLike(ph) { return ph === 'ground' || ph === 'glide'; }
 
 const BIOME_LENGTH = 1500;     // Regenbogen liegt damit bei rund 1000 Anzeigemetern
 const REACT_MIN = 1.02;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
@@ -335,6 +344,7 @@ const BIOMES = [
 ];
 let biomeIndex = 0, biomeMix = 0, whiteoutOn = false, nightOn = false;
 let phase2 = 'ground', clouds = [], quakeShake = 0, actAnnounced = {};
+let ufo = null, lavaOn = false, volcanoes = [];
 let syncTimer = null, syncBest = Infinity;
 
 const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
@@ -500,9 +510,43 @@ function makeRunner(name, color, isMe) {
   plane.userData.prop = prop;
   scene.add(plane);
 
+  // Gleiter für den Lavaplaneten — Rumpf liegt tief, die Figur steht darauf
+  const glider = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 4.2), mat);
+  hull.position.y = -0.05;
+  const nose2 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.62, 1.3, 8), mat);
+  nose2.rotation.x = Math.PI / 2;
+  nose2.position.set(0, -0.05, -2.4);
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 3.6), dark);
+  skirt.position.y = -0.42;
+  const engines = [];
+  [-1, 1].forEach(sd => {
+    const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 2.6, 10), mat);
+    eng.rotation.x = Math.PI / 2;
+    eng.position.set(sd * 1.25, 0.05, -0.5);
+    glider.add(eng);
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.22, 10), dark);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(sd * 1.25, 0.05, -1.85);
+    glider.add(ring);
+    // Schubglühen nach hinten
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.05, 1.4, 8),
+      new THREE.MeshBasicMaterial({ color: 0xFFB13D, transparent: true, opacity: 0.7 }));
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.set(sd * 1.25, 0.05, 1.6);
+    glider.add(glow);
+    engines.push(glow);
+  });
+  const fins = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, 0.9), dark);
+  fins.position.set(0, 0.12, 1.5);
+  glider.add(hull, nose2, skirt, fins);
+  glider.visible = false;
+  glider.userData.engines = engines;
+  scene.add(glider);
+
   const r = {
     group: g, mat, dark, head, torso, armL, armR, legL, legR, shadow,
-    plane, flying: false, planeRoll: 0,
+    plane, glider, flying: false, gliding: false, planeRoll: 0, band: 1,
     name, color, isMe: !!isMe,
     lane: 2, laneX: 0, targetX: 0,
     y: 0, vy: 0, ducking: false, duckUntil: 0, duckHeld: false, duckSince: 0,
@@ -516,6 +560,22 @@ function makeRunner(name, color, isMe) {
 
 function updateRunnerVisual(r, dt, t) {
   const g = r.group;
+  // Schatten gehört zur Figur zu Fuss — bei Flugzeug und Gleiter aus, danach wieder an
+  if (r.alive) r.shadow.visible = !((r.plane && r.plane.visible) || (r.glider && r.glider.visible));
+
+  // Gleiter schwebt unter der Figur und neigt sich in die Kurve
+  if (r.glider && r.glider.visible) {
+    r.glider.position.set(r.laneX, r.y - 0.15, r.group.position.z + 0.3);
+    const dr = r.targetX - r.laneX;
+    r.planeRoll += (-dr * 0.16 - r.planeRoll) * Math.min(1, dt * 7);
+    r.glider.rotation.z = r.planeRoll;
+    r.glider.position.y += Math.sin(t * 7 + r.phase) * 0.06;      // leichtes Wippen
+    if (r.glider.userData.engines) {
+      const f = 0.55 + 0.45 * Math.abs(Math.sin(t * 12 + r.phase));
+      r.glider.userData.engines.forEach(g => { g.material.opacity = f * 0.8; });
+    }
+    r.shadow.visible = false;
+  }
 
   // Flugzeug folgt der Spur und neigt sich in die Kurve
   if (r.plane && r.plane.visible) {
@@ -678,6 +738,7 @@ const RING_COUNT = 22;
 const TUNNEL_OFFSET = 900;     // die ersten Meter bleiben offen
 
 function inTunnel(d) {
+  if (d >= ACT.BEAM) return false;          // auf dem Lavaplaneten gibt es keine Tunnel
   const m = (((d - TUNNEL_OFFSET) % TUNNEL_EVERY) + TUNNEL_EVERY) % TUNNEL_EVERY;
   return m < TUNNEL_LEN;
 }
@@ -780,6 +841,69 @@ function whiteObstacle(o, on) {
 
 /* ---------------- Zweiter Akt: Welt umbauen ---------------- */
 
+function buildUfo() {
+  ufo = new THREE.Group();
+  const shell = new THREE.MeshLambertMaterial({ color: 0x8FA3B8 });
+  const glow = new THREE.MeshBasicMaterial({ color: 0x9BF0D6 });
+
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(9, 12, 2.2, 24), shell);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(12.4, 12.4, 0.6, 24),
+    new THREE.MeshLambertMaterial({ color: 0x5A6B80 }));
+  rim.position.y = -0.9;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(5.4, 18, 12), glow);
+  dome.scale.y = 0.55;
+  dome.position.y = 1.6;
+  ufo.add(disc, rim, dome);
+
+  // Lichter am Rand
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const l = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 6), glow);
+    l.position.set(Math.cos(a) * 11.4, -1.0, Math.sin(a) * 11.4);
+    ufo.add(l);
+  }
+
+  // Fangstrahl
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 7.5, 26, 20, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xA8FFE4, transparent: true, opacity: 0.28,
+      side: THREE.DoubleSide }));
+  beam.position.y = -14;
+  ufo.add(beam);
+  ufo.userData.beam = beam;
+
+  ufo.position.set(0, 34, -70);
+  ufo.visible = false;
+  scene.add(ufo);
+}
+
+/** Vulkane statt Häuser. Sie sind EIGENE Objekte, keine Kinder der Häuser —
+    sonst liesse sich das Haus nicht ausblenden, ohne den Vulkan mitzunehmen. */
+function buildVolcanoes() {
+  props.forEach(pr => {
+    const h = 26 + Math.random() * 26;
+    const vol = new THREE.Group();
+    const rock = new THREE.Mesh(new THREE.ConeGeometry(9 + Math.random() * 5, h, 7),
+      new THREE.MeshLambertMaterial({ color: 0x2E2320, flatShading: true }));
+    rock.position.y = h / 2;
+    const crater = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.6, 1.8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xFF6A18 }));
+    crater.position.y = h - 0.4;
+    const flow = new THREE.Mesh(new THREE.BoxGeometry(1.2, h * 0.6, 1.2),
+      new THREE.MeshBasicMaterial({ color: 0xFF7A22 }));
+    flow.position.set(2.4, h * 0.3, 2.4);
+    const smoke = new THREE.Mesh(new THREE.SphereGeometry(3.2, 8, 6),
+      new THREE.MeshBasicMaterial({ color: 0x4A3A34, transparent: true, opacity: 0.5 }));
+    smoke.position.y = h + 3.5;
+    vol.add(rock, crater, flow, smoke);
+    vol.visible = false;
+    vol.userData.smoke = smoke;
+    vol.userData.baseH = h;
+    scene.add(vol);
+    volcanoes.push(vol);
+    pr.userData.volcano = vol;
+  });
+}
+
 function buildClouds() {
   const mat = new THREE.MeshLambertMaterial({ color: 0xF3F8FD });
   for (let i = 0; i < 30; i++) {
@@ -800,7 +924,7 @@ function buildClouds() {
 }
 
 /** Blendet die Bodenwelt aus und die Wolkenwelt ein — je nach Phase. */
-function updateAct(dt) {
+function updateAct(dt, t) {
   const ph = phaseAt(travelled);
   const flyish = (ph === 'fall' || ph === 'fly' || ph === 'land');
 
@@ -810,7 +934,48 @@ function updateAct(dt) {
     if (ph === 'quake') { showToast('EARTHQUAKE'); beep('sawtooth', 90, 1.4, 0.06); }
     if (ph === 'fly') { showToast('AIRBORNE'); sfx.win(); }
     if (ph === 'land') { showToast('LANDING'); }
-    if (ph === 'ground' && travelled > ACT.LAND_END - 10) showToast('BACK ON FOOT');
+    if (ph === 'ground' && travelled > ACT.LAND_END - 10 && travelled < ACT.BEAM) showToast('BACK ON FOOT');
+    if (ph === 'beam') { showToast('ABDUCTED'); beep('sine', 900, 1.2, 0.05); }
+    if (ph === 'drop') { showToast('LAVA WORLD'); beep('sawtooth', 110, 1.0, 0.06); }
+    if (ph === 'glide') { showToast('SPEEDER'); sfx.win(); }
+  }
+
+  // ---- Dritter Akt: UFO, Absetzen, Lavaplanet ----
+  const lavaPhase = (ph === 'drop' || ph === 'glide');
+  if (lavaOn !== lavaPhase) {
+    lavaOn = lavaPhase;
+    if (lavaPhase) { whiteoutOn = false; nightOn = false; }
+    props.forEach(pr => {
+      pr.visible = !lavaPhase;
+      if (pr.userData.windows) pr.userData.windows.forEach(w => { w.visible = false; });
+    });
+    volcanoes.forEach(v => { v.visible = lavaPhase; });
+  }
+  if (lavaOn) {
+    // Vulkane folgen den Plätzen der Häuser und rauchen
+    volcanoes.forEach((v, i) => {
+      const pr = props[i];
+      if (!pr) return;
+      v.position.set(pr.userData.side * Math.max(pr.userData.baseX, 15), 0, pr.position.z);
+      if (v.userData.smoke) {
+        v.userData.smoke.position.y = v.userData.baseH + 3.5 + Math.sin(t * 1.4 + i) * 0.8;
+        v.userData.smoke.material.opacity = 0.35 + 0.2 * Math.sin(t * 0.9 + i);
+      }
+    });
+  }
+
+  if (ph === 'beam') {
+    const b = (travelled - ACT.BEAM) / (ACT.BEAM_END - ACT.BEAM);
+    ufo.visible = true;
+    ufo.position.set(0, 34 - b * 16, -34 + b * 30);
+    ufo.rotation.y += dt * 0.6;
+    if (ufo.userData.beam) ufo.userData.beam.material.opacity = 0.15 + b * 0.35;
+    quakeShake = 0.1 + b * 0.25;
+  } else if (ph === 'drop') {
+    ufo.visible = false;
+    quakeShake = 0;
+  } else if (ph !== 'glide') {
+    ufo.visible = false;
   }
 
   // Beben: Boden sackt und kippt, Häuser stürzen
@@ -876,10 +1041,49 @@ function updateActRunner(r, dt) {
   }
 
   if (ph === 'fly') {
+    if (!r.flying) { r.band = 1; }        // Einstieg immer auf mittlerer Höhe
     r.flying = true;
     r.plane.visible = true;
     r.group.visible = false;
     return true;
+  }
+
+  if (ph === 'beam') {
+    // Nach oben ins UFO gezogen
+    const b = (travelled - ACT.BEAM) / (ACT.BEAM_END - ACT.BEAM);
+    const e = b * b;
+    r.flying = false; r.gliding = false;
+    r.y = e * 26;
+    r.group.visible = b < 0.92;
+    r.group.scale.setScalar(Math.max(0.15, 1 - e * 0.85));
+    r.group.rotation.y += dt * 3.4;
+    r.plane.visible = false;
+    r.glider.visible = false;
+    return true;
+  }
+
+  if (ph === 'drop') {
+    // Auf den Lavaplaneten abgesetzt, der Gleiter fängt einen auf
+    const f = (travelled - ACT.BEAM_END) / (ACT.DROP_END - ACT.BEAM_END);
+    r.flying = false;
+    r.group.visible = true;
+    r.group.scale.setScalar(1);
+    r.group.rotation.y = 0;
+    r.y = f < 0.6 ? 26 * (1 - Math.pow(f / 0.6, 1.7)) : 0;
+    r.glider.visible = f > 0.35;
+    r.gliding = true;
+    return true;
+  }
+
+  if (ph === 'glide') {
+    // Ab hier läuft alles wie zu Fuss — nur eben im Gleiter
+    r.flying = false;
+    r.gliding = true;
+    r.glider.visible = true;
+    r.group.visible = true;
+    r.group.scale.setScalar(1);
+    r.plane.visible = false;
+    return false;
   }
 
   if (ph === 'land') {
@@ -893,7 +1097,9 @@ function updateActRunner(r, dt) {
   }
 
   r.flying = false;
+  r.gliding = false;
   r.plane.visible = false;
+  if (r.glider) r.glider.visible = false;
   r.group.visible = true;
   return false;
 }
@@ -1039,6 +1245,17 @@ function lerpHex(a, b, t) {
 
 /** Setzt Himmel, Nebel, Boden und Kulisse je nach Fortschritt. */
 function applyBiome(progress) {
+  // Auf dem Lavaplaneten gilt nur noch eine Welt
+  if (lavaOn) {
+    const pulseL = 0.5 + 0.5 * Math.sin(travelled * 0.05);
+    scene.background.setHex(0x2A0B08);
+    scene.fog.color.setHex(0x4A1A0C);
+    scene.fog.far = 200;
+    if (groundMat) groundMat.color.setHex(0x1C1310);
+    if (edgeMat) edgeMat.color.setRGB(1, 0.35 + pulseL * 0.25, 0.08);
+    return;
+  }
+
   const total = BIOMES.length;
   const pos = progress * total;
   const i = Math.min(total - 1, Math.floor(pos));
@@ -1185,6 +1402,7 @@ function extendPlan() {
     const ph = phaseAt(planDist);
     // Während Beben, Sturz und Landung wird nichts gebaut
     if (ph === 'quake' || ph === 'fall') { planDist = ACT.FLY_START + 90; planLastKind = null; continue; }
+    if (ph === 'beam' || ph === 'drop') { planDist = ACT.DROP_END + 140; planLastKind = null; continue; }
     if (ph === 'land') { planDist = ACT.LAND_END + 120; planLastKind = null; continue; }
 
     const tHere = timeForDistance(planDist);
@@ -1197,6 +1415,17 @@ function extendPlan() {
       pushAir(ak, planDist, r, lvl);
       planDist += speedAtTime(tHere) * (0.95 + r() * 0.45);
       planLastKind = 'air';
+      continue;
+    }
+
+    // Auf dem Lavaplaneten kommen drei eigene Bauarten dazu
+    if (ph === 'glide' && r() < 0.42) {
+      const lavaKinds = ['geyser', 'lavaflow', 'rockfall'];
+      const lk = lavaKinds[Math.floor(r() * lavaKinds.length)];
+      pushLava(lk, planDist, r, lvl);
+      advance(gapSecondsFor(lvl, r) + (lk === 'lavaflow' ? 0.5 : 0.15),
+              lk === 'lavaflow' ? 'low' : 'block');
+      planLastKind = lk;
       continue;
     }
 
@@ -1291,6 +1520,55 @@ function pushAir(kind, dist, r, lvl) {
   cells.forEach(c => {
     o.boxes.push({ x: LANES[c[0]], w: 2.15, yMin: BANDS[c[1]] - 1.4, yMax: BANDS[c[1]] + 1.4 });
   });
+  plannedObstacles.push(o);
+  return o;
+}
+
+/* Drei Bauarten, die es nur auf dem Lavaplaneten gibt. */
+function pushLava(kind, dist, r, lvl) {
+  const o = { dist, kind, lava: true, safeLanes: [], boxes: [], built: false, lvl, zHalf: 1.8 };
+
+  if (kind === 'geyser') {
+    // Zwei Gruppen von Fontänen, die sich abwechseln. Man muss in der Spur sein,
+    // deren Fontäne gerade schläft — das ist reines Timing, kein Auswendiglernen.
+    // Auf der Brücke dürfen nur die tragenden Spuren mitspielen, und beide
+    // Gruppen müssen dort mindestens eine Spur haben — sonst gibt es keinen Ausweg.
+    const pool = inBridge(dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+    let A = pool.filter(() => r() < 0.5);
+    let B = pool.filter(l => A.indexOf(l) < 0);
+    if (!A.length || !B.length) {          // beide Gruppen müssen besetzt sein
+      A = [pool[0]];
+      B = pool.slice(1);
+    }
+    o.groupA = A; o.groupB = B;
+    o.phase = r() * 6.28;
+    o.rate = 0.055 + r() * 0.02;
+    pool.forEach(l => o.boxes.push({ x: LANES[l], w: 2.0, yMin: 900, yMax: 901, lane: l }));
+    o.safeLanes = pool.slice();            // je nach Takt ist mal die eine, mal die andere frei
+
+  } else if (kind === 'lavaflow') {
+    // Glühender Strom quer über die Bahn — drüberspringen
+    o.safeLanes = [0, 1, 2, 3, 4];
+    o.zHalf = Math.max(2.6, speedAtTime(timeForDistance(dist)) * 0.13);
+    o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: -0.3, yMax: 0.5 });
+
+  } else {                       // rockfall
+    // Brocken stürzen aus dem Himmel und schlagen genau vor einem ein
+    const pool = inBridge(dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+    const n = 1 + (r() < 0.45 ? 1 : 0);
+    const used = [];
+    for (let k = 0; k < n; k++) {
+      let l = pool[Math.floor(r() * pool.length)];
+      let guard = 0;
+      while (used.indexOf(l) >= 0 && guard++ < 8) l = pool[(pool.indexOf(l) + 1) % pool.length];
+      used.push(l);
+    }
+    o.used = used;
+    o.fall = true;
+    pool.forEach(l => { if (used.indexOf(l) < 0) o.safeLanes.push(l); });
+    used.forEach(l => o.boxes.push({ x: LANES[l], w: 2.1, yMin: 0, yMax: 2.3 }));
+  }
+
   plannedObstacles.push(o);
   return o;
 }
@@ -1391,9 +1669,70 @@ function buildObstacle(o) {
   const blue = new THREE.MeshLambertMaterial({ color: 0x37B7F5 });
   const yellow = new THREE.MeshLambertMaterial({ color: 0xFFC53D });
   const dark = new THREE.MeshLambertMaterial({ color: 0x2A3644 });
-  o.boxes = [];
+  // Lufthindernisse bringen ihre Trefferflächen schon aus der Planung mit —
+  // die dürfen hier NICHT geleert werden, sonst fliegt man durch alles hindurch.
+  if (!o.air) o.boxes = [];
 
-  if (o.air) {
+  if (o.lava) {
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
+    const hotMat = new THREE.MeshBasicMaterial({ color: 0xFF7A22 });
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xFFD98A });
+
+    if (o.kind === 'geyser') {
+      o.jets = [];
+      [].concat(o.groupA, o.groupB).forEach(l => {
+        const jet = new THREE.Group();
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.95, 5.0, 10), hotMat);
+        col.position.y = 2.5;
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.5, 4.6, 8), coreMat);
+        core.position.y = 2.4;
+        jet.add(col, core);
+        jet.position.set(LANES[l], 0, 0);
+        jet.scale.y = 0.001;
+        grp.add(jet);
+        // Krater am Boden, damit man sieht, wo es gleich losgeht
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 0.35, 10), rockMat);
+        ring.position.set(LANES[l], 0.15, 0);
+        grp.add(ring);
+        o.jets.push({ lane: l, mesh: jet, groupA: o.groupA.indexOf(l) >= 0 });
+      });
+
+    } else if (o.kind === 'lavaflow') {
+      const len = o.zHalf * 2;
+      const stream = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.4, 0.28, len), hotMat);
+      stream.position.y = 0.06;
+      grp.add(stream);
+      const bright = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 2.4, 0.3, len * 0.55), coreMat);
+      bright.position.y = 0.09;
+      grp.add(bright);
+      [-1, 1].forEach(sd => {
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.5, 0.8), rockMat);
+        lip.position.set(0, 0.2, sd * (o.zHalf + 0.3));
+        grp.add(lip);
+      });
+      o.streamMat = hotMat;
+
+    } else {                       // rockfall
+      o.fallers = [];
+      o.used.forEach(l => {
+        const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15, 0), rockMat);
+        rk.position.set(LANES[l], 30, 0);
+        grp.add(rk);
+        // Glut an der Unterseite
+        const hot = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), hotMat);
+        hot.position.set(LANES[l], 29.4, 0);
+        grp.add(hot);
+        // Warnschatten am Boden
+        const mark = new THREE.Mesh(new THREE.CircleGeometry(1.5, 16),
+          new THREE.MeshBasicMaterial({ color: 0x120A08, transparent: true, opacity: 0.55 }));
+        mark.rotation.x = -Math.PI / 2;
+        mark.position.set(LANES[l], 0.05, 0);
+        grp.add(mark);
+        o.fallers.push({ rock: rk, hot, mark });
+      });
+    }
+
+  } else if (o.air) {
     const cloudMat = new THREE.MeshLambertMaterial({ color: 0xE9F2FA });
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x7C6B5C, flatShading: true });
     const stormMat = new THREE.MeshLambertMaterial({ color: 0x4A4270 });
@@ -2039,6 +2378,15 @@ function botThink(r, dt) {
 
 /* ---------------- Aktionen ---------------- */
 
+/** Eine Flughöhe rauf oder runter. */
+function setBand(r, delta) {
+  if (!r.alive || !r.flying) return;
+  const b = Math.max(0, Math.min(BANDS.length - 1, r.band + delta));
+  if (b === r.band) return;
+  r.band = b;
+  if (r.isMe) sfx.swap();
+}
+
 function setLane(r, lane) {
   lane = THREE.MathUtils.clamp(lane, 0, LANES.length - 1);
   if (lane === r.lane) return;
@@ -2212,14 +2560,19 @@ function updatePips() {
 
 /** Baut die Läufer auf: entweder aus der Lobby-Liste oder mit Bots. */
 function beginRace(seed, botCount) {
-  runners.forEach(r => { scene.remove(r.group); if (r.plane) scene.remove(r.plane); });
+  runners.forEach(r => { scene.remove(r.group); if (r.plane) scene.remove(r.plane); if (r.glider) scene.remove(r.glider); });
   obstacles.forEach(o => { if (o.group) scene.remove(o.group); });
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
   nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; prevTravelled = 0; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
-  nightOn = false; phase2 = 'ground'; quakeShake = 0;
+  nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
+  if (ufo) ufo.visible = false;
+  props.forEach(pr => {
+    if (pr.userData.volcano) pr.userData.volcano.visible = false;
+    pr.children.forEach(c => { if (c !== pr.userData.volcano) c.visible = true; });
+  });
   clouds.forEach(g => { g.visible = false; });
   groundTiles.forEach(t2 => { t2.position.y = 0; t2.rotation.z = 0; t2.visible = true; });
   props.forEach(pr => { if (pr.userData.windows) pr.userData.windows.forEach(w => { w.visible = false; }); });
@@ -2248,7 +2601,11 @@ function beginRace(seed, botCount) {
     r.group.scale.setScalar(1);
     r.group.visible = true;
     r.flying = false;
+    r.gliding = false;
+    r.band = 1;
     if (r.plane) r.plane.visible = false;
+    if (r.glider) r.glider.visible = false;
+    r.group.rotation.y = 0;
     const lane = i % LANES.length;
     r.lane = lane;
     r.laneX = r.targetX = LANES[lane];
@@ -2311,9 +2668,13 @@ function bindInput() {
       case 'ArrowLeft': case 'KeyA':  setLane(me, me.lane - 1); e.preventDefault(); break;
       case 'ArrowRight': case 'KeyD': setLane(me, me.lane + 1); e.preventDefault(); break;
       case 'ArrowUp': case 'KeyW': case 'Space':
-        keys.up = true; if (!me.flying) doJump(me); e.preventDefault(); break;
+        keys.up = true;
+        if (me.flying) setBand(me, 1); else doJump(me);
+        e.preventDefault(); break;
       case 'ArrowDown': case 'KeyS':
-        keys.down = true; if (!me.flying) duckStart(me); e.preventDefault(); break;
+        keys.down = true;
+        if (me.flying) setBand(me, -1); else duckStart(me);
+        e.preventDefault(); break;
     }
   });
 
@@ -2331,8 +2692,8 @@ function bindInput() {
       const k = el.dataset.k;
       if (k === 'left') setLane(me, me.lane - 1);
       if (k === 'right') setLane(me, me.lane + 1);
-      if (k === 'jump') { keys.up = true; if (!me.flying) doJump(me); }
-      if (k === 'duck') { keys.down = true; if (!me.flying) duckStart(me); }
+      if (k === 'jump') { keys.up = true; if (me.flying) setBand(me, 1); else doJump(me); }
+      if (k === 'duck') { keys.down = true; if (me.flying) setBand(me, -1); else duckStart(me); }
     });
   });
 
@@ -2356,7 +2717,8 @@ function bindInput() {
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
     if (Math.abs(dx) > Math.abs(dy)) setLane(me, me.lane + (dx > 0 ? 1 : -1));
-    else if (dy < 0) doJump(me);
+    else if (dy < 0) { if (me.flying) setBand(me, 1); else doJump(me); }
+    else if (me.flying) setBand(me, -1);
     else { duckStart(me); setTimeout(() => duckStop(me), 520); }
   });
 }
@@ -2413,7 +2775,66 @@ function frame() {
       o.z = -(o.dist - travelled);
       o.group.position.z = o.z;
 
-      if (o.air) {
+      if (o.lava) {
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
+    const hotMat = new THREE.MeshBasicMaterial({ color: 0xFF7A22 });
+    const coreMat = new THREE.MeshBasicMaterial({ color: 0xFFD98A });
+
+    if (o.kind === 'geyser') {
+      o.jets = [];
+      [].concat(o.groupA, o.groupB).forEach(l => {
+        const jet = new THREE.Group();
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.95, 5.0, 10), hotMat);
+        col.position.y = 2.5;
+        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.5, 4.6, 8), coreMat);
+        core.position.y = 2.4;
+        jet.add(col, core);
+        jet.position.set(LANES[l], 0, 0);
+        jet.scale.y = 0.001;
+        grp.add(jet);
+        // Krater am Boden, damit man sieht, wo es gleich losgeht
+        const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 0.35, 10), rockMat);
+        ring.position.set(LANES[l], 0.15, 0);
+        grp.add(ring);
+        o.jets.push({ lane: l, mesh: jet, groupA: o.groupA.indexOf(l) >= 0 });
+      });
+
+    } else if (o.kind === 'lavaflow') {
+      const len = o.zHalf * 2;
+      const stream = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.4, 0.28, len), hotMat);
+      stream.position.y = 0.06;
+      grp.add(stream);
+      const bright = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 2.4, 0.3, len * 0.55), coreMat);
+      bright.position.y = 0.09;
+      grp.add(bright);
+      [-1, 1].forEach(sd => {
+        const lip = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.5, 0.8), rockMat);
+        lip.position.set(0, 0.2, sd * (o.zHalf + 0.3));
+        grp.add(lip);
+      });
+      o.streamMat = hotMat;
+
+    } else {                       // rockfall
+      o.fallers = [];
+      o.used.forEach(l => {
+        const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15, 0), rockMat);
+        rk.position.set(LANES[l], 30, 0);
+        grp.add(rk);
+        // Glut an der Unterseite
+        const hot = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), hotMat);
+        hot.position.set(LANES[l], 29.4, 0);
+        grp.add(hot);
+        // Warnschatten am Boden
+        const mark = new THREE.Mesh(new THREE.CircleGeometry(1.5, 16),
+          new THREE.MeshBasicMaterial({ color: 0x120A08, transparent: true, opacity: 0.55 }));
+        mark.rotation.x = -Math.PI / 2;
+        mark.position.set(LANES[l], 0.05, 0);
+        grp.add(mark);
+        o.fallers.push({ rock: rk, hot, mark });
+      });
+    }
+
+  } else if (o.air) {
         if (o.spinners) o.spinners.forEach(rk => { rk.rotation.x += dt * 2.2; rk.rotation.y += dt * 1.6; });
         if (o.flashes) {
           const on = Math.sin(travelled * 0.5 + o.dist) > 0.3;
@@ -2507,7 +2928,14 @@ function frame() {
       if (!isNet && !r.isMe) botThink(r, dt);
 
       if (special) {
-        if (!r.isMe && r.netY !== undefined) r.y += (r.netY - r.y) * Math.min(1, dt * 14);
+        // Im Flug gibt es drei feste Höhen — genau wie die Spuren. Das ist
+        // treffsicher, statt eine stufenlose Höhe millimetergenau halten zu müssen.
+        if (r.flying && r.isMe) {
+          const targetY = BANDS[r.band];
+          r.y += (targetY - r.y) * Math.min(1, dt * BAND_SNAP);
+        } else if (!r.isMe && r.netY !== undefined) {
+          r.y += (r.netY - r.y) * Math.min(1, dt * 14);
+        }
         return;                                  // Schwerkraft und Ducken sind ausgesetzt
       }
 
@@ -2542,7 +2970,7 @@ function frame() {
 
     applyBiome((travelled % (BIOME_LENGTH * BIOMES.length)) / (BIOME_LENGTH * BIOMES.length));
     updateTunnel(dt, t);
-    updateAct(dt);
+    updateAct(dt, t);
     updateBridge();
     updateProps();
     updateStorm(dt);
@@ -2604,7 +3032,9 @@ if (typeof THREE === 'undefined') {
 try {
   initScene();
   buildTrack();
+  buildVolcanoes();
   buildClouds();
+  buildUfo();
   buildTunnel();
   buildStreaks();
   bindInput();
