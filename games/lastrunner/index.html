@@ -1,1 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#67C8F0">
+<title>LAST RUNNER</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky:#67C8F0; --deep:#12324A; --cream:#FFF8EC; --ink:#17202B;
+  --red:#FF5B45; --blue:#37B7F5; --amber:#FFC53D; --green:#4BD08A;
+  --f:"Baloo 2","Trebuchet MS",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden;background:#0B1A26;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--f);color:var(--cream);font-weight:600}
+::-webkit-scrollbar{display:none}
+#app{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+.hidden{display:none !important}
 
+/* ---------- HUD ---------- */
+#hud{position:fixed;top:0;left:0;right:0;z-index:8;pointer-events:none;
+  padding:max(12px,env(safe-area-inset-top)) 14px 0}
+.bar{max-width:520px;margin:0 auto;background:rgba(23,32,43,.55);border:3px solid rgba(255,248,236,.9);
+  border-radius:22px;height:26px;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;background:var(--amber);border-radius:22px;
+  transition:width .12s linear}
+.bar .flag{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:.8rem}
+.pips{max-width:520px;margin:8px auto 0;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.pip{width:15px;height:15px;border-radius:50%;border:2px solid rgba(23,32,43,.5)}
+.pip.out{opacity:.25}
+.stats{max-width:520px;margin:8px auto 0;display:flex;justify-content:space-between;
+  font-size:.9rem;letter-spacing:.04em;text-shadow:0 2px 0 rgba(23,32,43,.55)}
+.stats b{font-size:1.3rem;font-weight:800}
+
+/* ---------- Meldungen ---------- */
+#big{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+  pointer-events:none}
+#big span{font-weight:800;font-size:clamp(3.4rem,17vw,8rem);color:var(--cream);
+  -webkit-text-stroke:6px var(--ink);paint-order:stroke fill;animation:pop .45s ease-out}
+@keyframes pop{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
+
+#toast{position:fixed;left:50%;top:38%;transform:translateX(-50%);z-index:9;pointer-events:none;
+  font-weight:800;font-size:1.5rem;color:var(--amber);-webkit-text-stroke:4px var(--ink);
+  paint-order:stroke fill;animation:up .8s ease-out}
+@keyframes up{0%{opacity:0;transform:translate(-50%,14px)}
+  22%{opacity:1;transform:translate(-50%,-4px)}100%{opacity:0;transform:translate(-50%,-40px)}}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(103,200,240,.55),rgba(18,50,74,.9))}
+.card{width:100%;max-width:390px;max-height:100%;overflow-y:auto;text-align:center;
+  background:var(--cream);color:var(--ink);border:4px solid var(--ink);border-radius:26px;
+  box-shadow:0 12px 0 rgba(23,32,43,.35);padding:clamp(20px,4.5vh,30px) clamp(18px,5vw,26px)}
+h1{font-weight:800;font-size:clamp(2rem,9vw,2.9rem);line-height:1;letter-spacing:.01em}
+h1 span{color:var(--red)}
+.sub{color:#5A6675;font-size:.94rem;margin:8px 0 4px;font-weight:600}
+label{display:block;text-align:left;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;
+  color:#8A94A2;margin:16px 0 5px}
+input{width:100%;background:#fff;border:3px solid var(--ink);border-radius:14px;color:var(--ink);
+  font-family:var(--f);font-weight:700;font-size:1.05rem;letter-spacing:.14em;padding:10px;
+  text-align:center;text-transform:uppercase}
+input:focus{outline:none;border-color:var(--red)}
+.btn{display:block;width:100%;margin-top:12px;padding:13px;cursor:pointer;font-family:var(--f);
+  font-weight:800;font-size:1rem;letter-spacing:.06em;color:var(--ink);
+  background:var(--amber);border:3px solid var(--ink);border-radius:16px;box-shadow:0 5px 0 var(--ink)}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--ink)}
+.btn.red{background:var(--red);color:#fff}
+.btn.plain{background:#fff}
+.row{display:flex;gap:8px}
+.hint{display:flex;flex-wrap:wrap;gap:5px 14px;justify-content:center;margin-top:14px;
+  font-size:.74rem;color:#8A94A2;font-weight:600}
+.hint b{color:var(--ink)}
+.board{list-style:none;margin:12px 0 2px;padding:0;text-align:left}
+.board li{display:flex;justify-content:space-between;gap:10px;align-items:center;
+  padding:9px 12px;margin-bottom:7px;border:3px solid var(--ink);border-radius:14px;
+  background:#fff;font-size:.94rem;font-weight:700}
+.board li.me{background:var(--amber)}
+.board .dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--ink);flex:0 0 auto}
+.board .who{display:flex;align-items:center;gap:9px}
+.slider{display:flex;align-items:center;gap:10px;margin-top:14px}
+.slider input[type=range]{flex:1;accent-color:var(--red)}
+.slider span{font-size:.8rem;color:#5A6675;min-width:74px;text-align:right}
+
+/* ---------- Touch ---------- */
+#touch{position:fixed;inset:auto 0 0 0;z-index:12;display:none;
+  padding:0 16px max(20px,env(safe-area-inset-bottom));justify-content:space-between;align-items:flex-end}
+#touch.on{display:flex}
+.pad{display:flex;gap:10px}
+.key{width:66px;height:66px;border-radius:20px;border:3px solid var(--ink);background:rgba(255,248,236,.9);
+  color:var(--ink);display:grid;place-items:center;font-size:1.2rem;font-weight:800;
+  box-shadow:0 4px 0 rgba(23,32,43,.45)}
+.key:active{transform:translateY(3px);box-shadow:none}
+.key.jump{background:var(--green)}
+.key.duck{background:var(--blue)}
+.divider{display:flex;align-items:center;gap:10px;margin:18px 0 2px;color:#8A94A2;
+  font-size:.68rem;letter-spacing:.18em;text-transform:uppercase}
+.divider::before,.divider::after{content:"";flex:1;height:2px;background:#E2E7EC}
+.bigcode{font-weight:800;font-size:2.8rem;letter-spacing:.34em;color:var(--ink);
+  background:var(--amber);border:3px solid var(--ink);border-radius:16px;
+  padding:8px 0 8px 16px;margin:4px 0 2px}
+.note{margin-top:10px;font-size:.74rem;color:#8A94A2;font-weight:600;min-height:1.1em}
+#swipehint{position:fixed;left:50%;bottom:34%;transform:translateX(-50%);z-index:11;
+  font-size:.8rem;color:rgba(255,248,236,.75);pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="bar"><i id="progress"></i><span class="flag">⚡</span></div>
+  <div class="pips" id="pips"></div>
+  <div class="stats">
+    <span>PLACE <b id="place">1st</b></span>
+    <span>DIST <b id="dist">0m</b></span>
+    <span>SPEED <b id="lvl">×1</b></span>
+    <span>ALIVE <b id="alive">1</b></span>
+  </div>
+</div>
+
+<div id="big" class="hidden"><span>3</span></div>
+<div id="toast" class="hidden"></div>
+<div id="swipehint" class="hidden">swipe ◀ ▶ ▲ ▼</div>
+
+<div id="touch">
+  <div class="pad">
+    <div class="key" data-k="left">◀</div>
+    <div class="key" data-k="right">▶</div>
+  </div>
+  <div class="pad">
+    <div class="key duck" data-k="duck">▼</div>
+    <div class="key jump" data-k="jump">▲</div>
+  </div>
+</div>
+
+<!-- Menü -->
+<div class="overlay" id="menu">
+  <div class="card">
+    <h1>LAST <span>RUNNER</span></h1>
+    <p class="sub">Everyone runs side by side. The course comes at you — dodge, jump, duck. Last one standing wins.</p>
+
+    <label for="nm">Your name</label>
+    <input id="nm" maxlength="10" placeholder="RUNNER" autocomplete="off" spellcheck="false">
+
+    <label for="code">Room code</label>
+    <input id="code" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button class="btn plain" id="btn-host">Create room</button>
+      <button class="btn red" id="btn-join">Join</button>
+    </div>
+
+    <div class="divider"><span>or practise</span></div>
+    <button class="btn" id="btn-play">Solo run</button>
+
+    <p class="note" id="net-note"></p>
+    <div class="hint">
+      <span><b>A D</b> / <b>◀ ▶</b> switch lane</span>
+      <span><b>W</b> / <b>Space</b> jump</span>
+      <span><b>S</b> duck</span>
+    </div>
+  </div>
+</div>
+
+<!-- Lobby -->
+<div class="overlay hidden" id="lobby">
+  <div class="card">
+    <p class="sub" style="margin-bottom:2px">Share this code</p>
+    <div class="bigcode" id="lobby-code">----</div>
+    <ul class="board" id="lobby-list"></ul>
+    <button class="btn red" id="btn-start">Start race</button>
+    <button class="btn plain" id="btn-leave">Leave room</button>
+    <p class="note" id="lobby-note">—</p>
+  </div>
+</div>
+
+<!-- Ergebnis -->
+<div class="overlay hidden" id="results">
+  <div class="card">
+    <h1 id="res-title">FINISH</h1>
+    <p class="sub" id="res-sub">—</p>
+    <ul class="board" id="board"></ul>
+    <button class="btn red" id="btn-again">Race again</button>
+    <button class="btn plain" id="btn-menu">Back to menu</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   LAST RUNNER — 3D-Parkourrennen
+   Alle Läufer sind auf derselben Höhe. Die Strecke kommt auf sie zu.
+   Wer ein Hindernis trifft, scheidet aus. Der Letzte gewinnt.
+   ============================================================ */
+
+/* ---------------- Konstanten ---------------- */
+
+const LANES = [-4.6, -2.3, 0, 2.3, 4.6];
+const TRACK_HALF = 6.4;
+const SPAWN_Z = -230;          // hier tauchen Hindernisse auf
+const DESPAWN_Z = 14;          // hier werden sie eingesammelt
+
+const SPEED_START = 26;        // Einheiten pro Sekunde
+const SPEED_STEP = 4.2;        // Zuwachs pro Stufe
+const STEP_SEC = 14;           // alle 14 Sekunden eine Stufe
+const SPEED_MAX = 88;          // irgendwann ist Schluss
+const METER_SCALE = 3;         // Anzeigemeter — die Zahl soll ruhiger laufen
+
+const JUMP_V = 12.5;
+const GRAVITY = 34;
+const DUCK_SCALE = 0.42;
+const LANE_SNAP = 12;          // wie schnell die Spur gewechselt wird
+
+const BIOME_LENGTH = 1400;     // nach so vielen Einheiten wechselt die Welt
+const REACT_MIN = 1.22;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
+const REACT_MAX = 1.62;
+const REACT_FLOOR = 0.72;      // so eng wird es höchstens
+const PLAN_BATCH = 40;         // so viele Hindernisse werden im Voraus geplant
+
+/* Strecke und Tempo werden aus der Rennzeit BERECHNET, nie aufsummiert.
+   Nur so sehen alle Spieler exakt dieselbe Strecke, egal wie schnell ihr
+   Rechner zeichnet. Das Tempo springt alle 30 Sekunden eine Stufe hoch. */
+
+function levelAtTime(t) { return Math.floor(Math.max(0, t) / STEP_SEC); }
+
+function speedAtTime(t) {
+  return Math.min(SPEED_MAX, SPEED_START + levelAtTime(t) * SPEED_STEP);
+}
+
+function distanceAtTime(t) {
+  if (t <= 0) return 0;
+  const n = levelAtTime(t);
+  let d = 0;
+  for (let i = 0; i < n; i++) {
+    d += Math.min(SPEED_MAX, SPEED_START + i * SPEED_STEP) * STEP_SEC;
+  }
+  return d + speedAtTime(t) * (t - n * STEP_SEC);
+}
+
+/** Umkehrung: wie lange dauert es bis zu dieser Strecke? */
+function timeForDistance(d) {
+  let t = 0, acc = 0, i = 0;
+  for (; i < 400; i++) {
+    const v = Math.min(SPEED_MAX, SPEED_START + i * SPEED_STEP);
+    const seg = v * STEP_SEC;
+    if (acc + seg >= d) return t + (d - acc) / v;
+    acc += seg; t += STEP_SEC;
+  }
+  return t;
+}
+
+const COLORS = [
+  0xFF5B45, 0x37B7F5, 0xFFC53D, 0x4BD08A,
+  0xB07CFF, 0xFF8AC4, 0x2ED3C6, 0xFF9F45,
+  0x7A8AFF, 0xE0526B, 0x9BD24B, 0xE86FF0
+];
+
+/* Vier Welten, die während des Rennens ineinander übergehen. */
+const BIOMES = [
+  { name: 'CITY',   sky: 0x67C8F0, fog: 0x8FD8F5, ground: 0xF2F5F7, rail: 0xD8DFE6,
+    props: [0xBFD3E2, 0xA9C2D6, 0xD3E2EE, 0x93B2CB], propScale: [1.0, 1.0, 1.0] },
+  { name: 'DESERT', sky: 0xFFC98A, fog: 0xFFD9A8, ground: 0xF0DCB4, rail: 0xD9BF8E,
+    props: [0xE0A96A, 0xC98F52, 0xEFC48C, 0xB77C46], propScale: [1.5, 0.45, 1.5] },
+  { name: 'ICE',    sky: 0xBFEAF7, fog: 0xDCF3FB, ground: 0xE8F6FB, rail: 0xB6DCEA,
+    props: [0x9FD8EC, 0xC7EBF6, 0x7FC2DC, 0xE3F6FC], propScale: [0.55, 1.55, 0.55] },
+  { name: 'NEON',   sky: 0x1B1038, fog: 0x2A1B55, ground: 0x2A2350, rail: 0x6C4BD6,
+    props: [0x53308F, 0x7A4BC4, 0x3B2470, 0x9C63FF], propScale: [0.8, 1.35, 0.8] }
+];
+let biomeIndex = 0, biomeMix = 0;
+
+const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
+               'JELLY','CACTUS','MOCHI','FLINT','WOBBLE','SPARK'];
+
+/* ---------------- Zustand ---------------- */
+
+let scene, camera, renderer, clock;
+let runners = [], obstacles = [], groundTiles = [], props = [], propMats = [];
+let me = null;
+let state = 'menu';            // menu | countdown | running | over
+let speed = SPEED_START;
+let travelled = 0;
+let rng = null;
+let results = [];
+let shake = 0;
+let raceTime = 0, lastLevel = -1;
+let plannedObstacles = [];     // vorab aus dem Seed berechnet
+let nextPlanIndex = 0;
+let isNet = false;             // echtes Mehrspielerrennen?
+let lastSend = 0;
+let myIndex = 0;
+
+const $ = id => document.getElementById(id);
+
+/* ---------------- Zufall mit Seed ---------------- */
+
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* ---------------- Ton ---------------- */
+
+let actx = null;
+function beep(type, freq, dur, vol) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, n);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.55), n + dur);
+    g.gain.setValueAtTime(vol, n);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(n + dur + 0.02);
+  } catch (e) { /* egal */ }
+}
+const sfx = {
+  jump:  () => beep('square', 460, 0.10, 0.05),
+  land:  () => beep('sine', 180, 0.07, 0.04),
+  duck:  () => beep('sawtooth', 240, 0.09, 0.035),
+  swap:  () => beep('triangle', 620, 0.06, 0.035),
+  out:   () => beep('sawtooth', 220, 0.35, 0.07),
+  win:   () => { [523, 659, 784, 1047].forEach((f, i) =>
+                   setTimeout(() => beep('triangle', f, 0.26, 0.06), i * 110)); },
+  count: n => beep('triangle', 480 + n * 70, 0.12, 0.06),
+  go:    () => { [660, 880, 1320].forEach((f, i) =>
+                   setTimeout(() => beep('square', f, 0.15, 0.06), i * 70)); }
+};
+
+/* ---------------- Szene ---------------- */
+
+function initScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x67C8F0);
+  scene.fog = new THREE.Fog(0x8FD8F5, 60, 210);
+
+  camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 400);
+  camera.position.set(0, 5.4, 10.5);
+  camera.lookAt(0, 1.8, -12);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  $('app').appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xEAF8FF, 0x3A5A72, 0.95));
+  const sun = new THREE.DirectionalLight(0xFFF4DC, 0.85);
+  sun.position.set(-18, 30, 12);
+  scene.add(sun);
+
+  clock = new THREE.Clock();
+  window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/* ---------------- Läuferfigur ---------------- */
+
+function makeRunner(name, color, isMe) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color });
+  const dark = new THREE.MeshLambertMaterial({ color: new THREE.Color(color).multiplyScalar(0.72) });
+
+  // Kopf
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.52, 18, 14), mat);
+  head.position.y = 2.42;
+  g.add(head);
+
+  // Rumpf
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.98, 1.15, 0.62), mat);
+  torso.position.y = 1.42;
+  g.add(torso);
+
+  // Arme
+  const armGeo = new THREE.BoxGeometry(0.28, 0.92, 0.28);
+  const armL = new THREE.Mesh(armGeo, mat);
+  const armR = new THREE.Mesh(armGeo, mat);
+  armL.position.set(-0.66, 1.55, 0); armL.geometry.translate(0, -0.42, 0);
+  armR.position.set(0.66, 1.55, 0);
+  armR.geometry = armGeo.clone(); armR.geometry.translate(0, -0.42, 0);
+  g.add(armL, armR);
+
+  // Beine
+  const legGeo = new THREE.BoxGeometry(0.34, 0.95, 0.34);
+  legGeo.translate(0, -0.46, 0);
+  const legL = new THREE.Mesh(legGeo, dark);
+  const legR = new THREE.Mesh(legGeo.clone(), dark);
+  legL.position.set(-0.26, 0.86, 0);
+  legR.position.set(0.26, 0.86, 0);
+  g.add(legL, legR);
+
+  // Schatten als flache Scheibe — billiger als echte Schatten
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.62, 16),
+    new THREE.MeshBasicMaterial({ color: 0x0A2436, transparent: true, opacity: 0.28 })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  g.add(shadow);
+
+  const r = {
+    group: g, mat, dark, head, torso, armL, armR, legL, legR, shadow,
+    name, color, isMe: !!isMe,
+    lane: 2, laneX: 0, targetX: 0,
+    y: 0, vy: 0, ducking: false, duckUntil: 0, duckHeld: false, duckSince: 0,
+    alive: true, outAt: 0, rank: 0, phase: Math.random() * 6.28,
+    // Botsteuerung
+    plan: null, reaction: 0.16 + Math.random() * 0.14, skill: 0.86 + Math.random() * 0.12
+  };
+  scene.add(g);
+  return r;
+}
+
+function updateRunnerVisual(r, dt, t) {
+  const g = r.group;
+
+  // Spurwechsel weich
+  r.laneX += (r.targetX - r.laneX) * Math.min(1, dt * LANE_SNAP);
+  g.position.x = r.laneX;
+  g.position.y = r.y;
+
+  // Neigung beim Wechseln
+  const drift = (r.targetX - r.laneX);
+  g.rotation.z = THREE.MathUtils.clamp(-drift * 0.09, -0.3, 0.3);
+  g.rotation.y = THREE.MathUtils.clamp(-drift * 0.12, -0.4, 0.4);
+
+  const airborne = r.y > 0.05;
+
+  if (!r.alive) {
+    if (r.fellIn) {
+      g.position.y -= dt * 16;                     // stürzt in die Grube
+      g.rotation.x += dt * 2.0;
+    } else {
+      g.rotation.x += dt * 3.2;
+      g.position.z += dt * 26;                     // wird zurückgeworfen
+    }
+    r.shadow.visible = false;
+    return;
+  }
+
+  // Ducken staucht die Figur
+  const targetScaleY = r.ducking ? DUCK_SCALE : 1;
+  g.scale.y += (targetScaleY - g.scale.y) * Math.min(1, dt * 16);
+  g.scale.x = g.scale.z = 1 + (1 - g.scale.y) * 0.4;
+
+  // Lauf- und Sprungpose
+  const sw = Math.sin(t * 13 + r.phase);
+  if (airborne) {
+    r.legL.rotation.x = -0.9; r.legR.rotation.x = 0.5;
+    r.armL.rotation.x = -2.2; r.armR.rotation.x = -1.6;
+  } else if (r.ducking) {
+    r.legL.rotation.x = -1.2; r.legR.rotation.x = -0.4;
+    r.armL.rotation.x = -0.4; r.armR.rotation.x = 0.4;
+  } else {
+    r.legL.rotation.x = sw * 0.95;
+    r.legR.rotation.x = -sw * 0.95;
+    r.armL.rotation.x = -sw * 0.85;
+    r.armR.rotation.x = sw * 0.85;
+    r.torso.position.y = 1.42 + Math.abs(sw) * 0.05;
+  }
+
+  r.shadow.position.y = -r.y + 0.02;
+  r.shadow.scale.setScalar(Math.max(0.3, 1 - r.y * 0.14));
+  r.shadow.material.opacity = Math.max(0.05, 0.28 - r.y * 0.035);
+}
+
+/* ---------------- Strecke ---------------- */
+
+let groundMat = null, edgeMat = null;
+
+function buildTrack() {
+  groundMat = new THREE.MeshLambertMaterial({ color: 0xF2F5F7 });
+  edgeMat = new THREE.MeshLambertMaterial({ color: 0xD8DFE6 });
+
+  for (let i = 0; i < 14; i++) {
+    const tile = new THREE.Group();
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 1, 22), groundMat);
+    slab.position.y = -0.5;
+    tile.add(slab);
+
+    // Randleisten
+    [-1, 1].forEach(s => {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 22), edgeMat);
+      rail.position.set(s * TRACK_HALF, 0.24, 0);
+      tile.add(rail);
+    });
+
+    // Fugen als Orientierung
+    const seam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.06, 0.4),
+      new THREE.MeshBasicMaterial({ color: 0xC7D2DB }));
+    seam.position.set(0, 0.02, -11);
+    tile.add(seam);
+
+    tile.position.z = -i * 22;
+    scene.add(tile);
+    groundTiles.push(tile);
+  }
+
+  // Häuser links und rechts
+  propMats = [0xBFD3E2, 0xA9C2D6, 0xD3E2EE, 0x93B2CB].map(c =>
+    new THREE.MeshLambertMaterial({ color: c }));
+  for (let i = 0; i < 26; i++) {
+    const sd = i % 2 ? 1 : -1;
+    const h = 12 + Math.random() * 34;
+    const b = new THREE.Mesh(
+      new THREE.BoxGeometry(7 + Math.random() * 5, h, 9 + Math.random() * 7),
+      propMats[i % propMats.length]);
+    b.position.set(sd * (TRACK_HALF + 7 + Math.random() * 5), h / 2 - 1,
+      -i * 18 - Math.random() * 10);
+    b.userData.baseY = h / 2 - 1;
+    b.userData.wobble = 0.85 + Math.random() * 0.3;
+    scene.add(b);
+    props.push(b);
+  }
+
+}
+
+/* ---------------- Biome ---------------- */
+
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _cm = new THREE.Color();
+
+function lerpHex(a, b, t) {
+  _c1.setHex(a); _c2.setHex(b);
+  return _cm.copy(_c1).lerp(_c2, t);
+}
+
+/** Setzt Himmel, Nebel, Boden und Kulisse je nach Fortschritt. */
+function applyBiome(progress) {
+  const total = BIOMES.length;
+  const pos = progress * total;
+  const i = Math.min(total - 1, Math.floor(pos));
+  const j = Math.min(total - 1, i + 1);
+  const t = Math.min(1, Math.max(0, (pos - i) * 2 - 0.6));   // scharfer, kurzer Übergang
+
+  const A = BIOMES[i], B = BIOMES[j];
+
+  scene.background.copy(lerpHex(A.sky, B.sky, t));
+  scene.fog.color.copy(lerpHex(A.fog, B.fog, t));
+  if (groundMat) groundMat.color.copy(lerpHex(A.ground, B.ground, t));
+  if (edgeMat) edgeMat.color.copy(lerpHex(A.rail, B.rail, t));
+  propMats.forEach((m, k) => m.color.copy(lerpHex(A.props[k % 4], B.props[k % 4], t)));
+
+  // Kulisse formt sich um: Wüstenfelsen breit und flach, Eiszacken hoch und schmal
+  const sc = [0, 1, 2].map(k => A.propScale[k] + (B.propScale[k] - A.propScale[k]) * t);
+  props.forEach(pr => {
+    const w = pr.userData.wobble;
+    pr.scale.set(sc[0] * w, sc[1], sc[2] * w);
+    pr.position.y = pr.userData.baseY * sc[1];
+  });
+
+  if (i !== biomeIndex) {
+    biomeIndex = i;
+    if (state === 'running') showToast(BIOMES[i].name);
+  }
+}
+
+/* ---------------- Hindernisse ---------------- */
+
+/* Vier Bauarten, alle eindeutig lesbar:
+     gate  — Wand mit Lücke  -> in die freie Spur wechseln
+     low   — flache Hürde     -> springen
+     high  — Balken oben      -> ducken
+     block — einzelne Kiste   -> ausweichen oder springen  */
+
+/* Erst planen, dann bauen. Der Plan hängt nur am Seed und ist damit
+   auf allen Rechnern identisch — es muss keine Weltinfo übertragen werden. */
+let planRng = null, planDist = 0;
+
+/** Welche Bauarten sind auf dieser Stufe erlaubt? */
+function kindsForLevel(lvl) {
+  const k = ['gate', 'low', 'high', 'block'];
+  if (lvl >= 1) k.push('narrow');      // Wand mit nur einer Lücke
+  if (lvl >= 2) k.push('pit', 'mover');// Grube und wandernde Kiste
+  if (lvl >= 3) k.push('sandwich');    // ducken, sofort springen
+  if (lvl >= 4) k.push('gatelow');     // Spur wechseln UND springen
+  if (lvl >= 5) k.push('zigzag');      // zwei Tore direkt hintereinander
+  if (lvl >= 6) k.push('gatehigh');    // Spur wechseln UND ducken
+  if (lvl >= 7) k.push('slalom');      // drei Kisten kurz hintereinander
+  if (lvl >= 9) k.push('chain');       // drei verschiedene Hürden am Stück
+  return k;
+}
+
+/** Abstand in Sekunden — wird mit steigender Stufe enger, aber nie unfair. */
+function gapSecondsFor(lvl, r) {
+  const tighten = Math.min(REACT_MIN - REACT_FLOOR, lvl * 0.052);
+  const lo = REACT_MIN - tighten;
+  const hi = REACT_MAX - tighten;
+  return lo + r() * (hi - lo);
+}
+
+function startPlan(seed) {
+  planRng = makeRng(seed);
+  planDist = 150;                      // die ersten Meter bleiben frei
+  plannedObstacles = [];
+  extendPlan();
+}
+
+/** Hängt weitere Hindernisse an. Immer in derselben Reihenfolge — dadurch
+    sehen alle Spieler dieselbe Strecke, egal wann ihr Rechner nachplant. */
+function extendPlan() {
+  const r = planRng;
+  for (let n = 0; n < PLAN_BATCH; n++) {
+    const tHere = timeForDistance(planDist);
+    const lvl = levelAtTime(tHere);
+    const kinds = kindsForLevel(lvl);
+    let kind = kinds[Math.floor(r() * kinds.length)];
+
+    if (kind === 'sandwich') {
+      pushObstacle('high', planDist, r, lvl);
+      planDist += speedAtTime(tHere) * 0.58;
+      pushObstacle('low', planDist, r, lvl);
+
+    } else if (kind === 'zigzag') {
+      const a = pushObstacle('narrow', planDist, r, lvl);
+      planDist += speedAtTime(tHere) * 0.66;
+      const b = pushObstacle('narrow', planDist, r, lvl);
+      // zweite Lücke bewusst weit weg von der ersten
+      const far = (a.open[0] + 2 + Math.floor(r() * 2)) % LANES.length;
+      b.open = [far]; b.safeLanes = [far];
+
+    } else if (kind === 'chain') {
+      const seq = ['low', 'high', 'block'].sort(() => r() - 0.5);
+      seq.forEach((kk, i) => {
+        pushObstacle(kk, planDist, r, lvl);
+        if (i < 2) planDist += speedAtTime(tHere) * 0.55;
+      });
+
+    } else if (kind === 'slalom') {
+      let lane = Math.floor(r() * LANES.length);
+      for (let i = 0; i < 3; i++) {
+        const o = pushObstacle('block', planDist, r, lvl);
+        o.used = [lane];
+        o.safeLanes = [];
+        LANES.forEach((x, k) => { if (k !== lane) o.safeLanes.push(k); });
+        lane = (lane + (r() < 0.5 ? 1 : 2)) % LANES.length;
+        if (i < 2) planDist += speedAtTime(tHere) * 0.5;
+      }
+
+    } else {
+      pushObstacle(kind, planDist, r, lvl);
+    }
+
+    planDist += speedAtTime(tHere) * gapSecondsFor(lvl, r);
+  }
+}
+
+function pushObstacle(kind, dist, r, lvl) {
+  const o = { dist, kind, safeLanes: [], boxes: [], built: false, lvl };
+  if (kind === 'pit') o.kind = 'pit';
+
+  if (kind === 'gate' || kind === 'narrow') {
+    const openCount = kind === 'narrow' ? 1 : (r() < 0.45 ? 2 : 1);
+    const open = [];
+    while (open.length < openCount) {
+      const l = Math.floor(r() * LANES.length);
+      if (open.indexOf(l) < 0) open.push(l);
+    }
+    o.kind = 'gate';
+    o.open = open;
+    o.safeLanes = open.slice();
+
+  } else if (kind === 'block' || kind === 'mover') {
+    const n = kind === 'mover' ? 1 : (r() < 0.4 ? 2 : 1);
+    const used = [];
+    for (let k = 0; k < n; k++) {
+      let l = Math.floor(r() * LANES.length);
+      if (used.indexOf(l) >= 0) l = (l + 1) % LANES.length;
+      used.push(l);
+    }
+    o.kind = 'block';
+    o.used = used;
+    LANES.forEach((x, i) => { if (used.indexOf(i) < 0) o.safeLanes.push(i); });
+    if (kind === 'mover') {
+      o.mover = true;
+      o.moveRange = 1 + Math.floor(r() * 2);      // um wie viele Spuren es pendelt
+      o.movePhase = r() * 6.28;
+      o.moveSpeed = 0.8 + r() * 0.5;
+    }
+
+  } else if (kind === 'pit') {
+    o.safeLanes = [0, 1, 2, 3, 4];
+    // Länge wächst mit dem Tempo — der Sprung muss sitzen
+    o.zHalf = Math.max(3.0, speedAtTime(timeForDistance(dist)) * 0.17);
+
+  } else if (kind === 'gatelow' || kind === 'gatehigh') {
+    o.kind = 'gate';
+    o.open = [Math.floor(r() * LANES.length)];
+    o.safeLanes = o.open.slice();
+    o.extra = (kind === 'gatelow') ? 'low' : 'high';
+
+  } else {
+    o.safeLanes = [0, 1, 2, 3, 4];
+  }
+
+  if (o.zHalf === undefined) o.zHalf = 1.4;
+  plannedObstacles.push(o);
+  return o;
+}
+
+/** Baut die sichtbaren Teile eines geplanten Hindernisses. */
+function buildObstacle(o) {
+  const grp = new THREE.Group();
+  const red = new THREE.MeshLambertMaterial({ color: 0xFF5B45 });
+  const blue = new THREE.MeshLambertMaterial({ color: 0x37B7F5 });
+  const yellow = new THREE.MeshLambertMaterial({ color: 0xFFC53D });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x2A3644 });
+  o.boxes = [];
+
+  if (o.kind === 'pit') {
+    const len = o.zHalf * 2;
+    // dunkler Schacht im Boden
+    const hole = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.6, 0.5, len),
+      new THREE.MeshLambertMaterial({ color: 0x14202B }));
+    hole.position.y = -0.2;
+    grp.add(hole);
+    [-1, 1].forEach(sd => {
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.6, 0.3, 0.6),
+        new THREE.MeshLambertMaterial({ color: 0xFF5B45 }));
+      lip.position.set(0, 0.12, sd * (o.zHalf - 0.3));
+      grp.add(lip);
+    });
+    // Streifen im Schacht als Tiefenhinweis
+    for (let i = -1; i <= 1; i++) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1.2, 0.12, 0.25),
+        new THREE.MeshLambertMaterial({ color: 0x2A3644 }));
+      bar.position.set(0, -0.02, i * (o.zHalf * 0.5));
+      grp.add(bar);
+    }
+    o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: -0.4, yMax: 0.55 });
+
+  } else if (o.kind === 'gate') {
+    LANES.forEach((x, i) => {
+      if (o.open.indexOf(i) >= 0) return;
+      const w = new THREE.Mesh(new THREE.BoxGeometry(2.15, 4.4, 0.6), red);
+      w.position.set(x, 2.2, 0); grp.add(w);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.32, 0.72), dark);
+      cap.position.set(x, 4.5, 0); grp.add(cap);
+      o.boxes.push({ x, w: 2.15, yMin: 0, yMax: 4.4 });
+    });
+    o.open.forEach(i => {
+      const a = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), yellow);
+      a.rotation.x = Math.PI;
+      a.position.set(LANES[i], 5.6, 0);
+      grp.add(a);
+    });
+
+    // In der Lücke steckt noch eine Hürde: Spur wechseln reicht nicht
+    if (o.extra === 'low') {
+      o.open.forEach(i => {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.05, 0.72), yellow);
+        b.position.set(LANES[i], 0.52, 0);
+        grp.add(b);
+        const st = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.2, 0.8), dark);
+        st.position.set(LANES[i], 0.9, 0);
+        grp.add(st);
+        o.boxes.push({ x: LANES[i], w: 2.15, yMin: 0, yMax: 1.1 });
+      });
+    } else if (o.extra === 'high') {
+      o.open.forEach(i => {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.4, 0.72), blue);
+        b.position.set(LANES[i], 2.95, 0);
+        grp.add(b);
+        o.boxes.push({ x: LANES[i], w: 2.15, yMin: 2.3, yMax: 4.4 });
+      });
+    }
+
+  } else if (o.kind === 'low') {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1, 1.1, 0.7), yellow);
+    bar.position.y = 0.55; grp.add(bar);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1, 0.22, 0.78), dark);
+    stripe.position.y = 0.95; grp.add(stripe);
+    o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 0, yMax: 1.15 });
+
+  } else if (o.kind === 'high') {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1, 1.5, 0.7), blue);
+    bar.position.y = 2.85; grp.add(bar);
+    [-1, 1].forEach(sd => {
+      const pst = new THREE.Mesh(new THREE.BoxGeometry(0.45, 5.4, 0.45), dark);
+      pst.position.set(sd * (TRACK_HALF - 0.6), 2.7, 0); grp.add(pst);
+    });
+    o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 2.25, yMax: 4.4 });
+
+  } else {
+    const bodyMat = o.mover ? new THREE.MeshLambertMaterial({ color: 0xB05BFF }) : red;
+    o.meshes = [];
+    o.used.forEach(l => {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.7, 1.6), bodyMat);
+      b.position.set(LANES[l], 0.85, 0); grp.add(b);
+      const t = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.22, 1.7), dark);
+      t.position.set(LANES[l], 1.78, 0); grp.add(t);
+      o.meshes.push([b, t]);
+      o.boxes.push({ x: LANES[l], w: 1.9, yMin: 0, yMax: 1.75 });
+    });
+    if (o.mover) {
+      // Zwei Pfeile zeigen an, dass sich diese Kiste bewegt
+      [-1, 1].forEach(sd => {
+        const a = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.7, 4),
+          new THREE.MeshLambertMaterial({ color: 0xFFC53D }));
+        a.rotation.z = sd * Math.PI / 2;
+        a.position.set(LANES[o.used[0]] + sd * 1.6, 2.3, 0);
+        grp.add(a);
+        o.meshes.push([a]);
+      });
+    }
+  }
+
+  o.group = grp;
+  o.built = true;
+  grp.position.z = SPAWN_Z;
+  scene.add(grp);
+  obstacles.push(o);
+}
+
+/* ---------------- Netzwerk (PeerJS) ---------------- */
+
+const Net = {
+  mode: 'offline',            // offline | host | client
+  code: null,
+  myId: 'solo',
+  myName: 'RUNNER',
+  roster: [],                 // [{id, name}]
+  seed: 0,
+  _peer: null,
+  _conns: new Map(),          // Host: id -> Verbindung
+  _host: null,                // Client: Verbindung zum Host
+  _states: new Map(),         // Host: id -> letzter Zustand
+  _outs: new Map(),           // Host: id -> Endstrecke
+  _relay: null,
+
+  isOnline() { return this.mode !== 'offline'; },
+  isHost() { return this.mode === 'host'; },
+
+  code4() {
+    let t = '';
+    for (let i = 0; i < 4; i++) t += 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)];
+    return t;
+  },
+
+  host(name) {
+    this.leave();
+    this.myName = name;
+    if (!window.Peer) { note('PeerJS could not be loaded'); return; }
+    const code = this.code4();
+    this._peer = new Peer('lastrunner-' + code);
+    this.mode = 'host';
+    this.code = code;
+
+    this._peer.on('open', id => {
+      this.myId = id;
+      this.roster = [{ id, name: this.myName }];
+      openLobby(code, true);
+    });
+
+    this._peer.on('connection', conn => {
+      if (this._conns.size >= 11 || state === 'running' || state === 'countdown') {
+        conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); });
+        return;
+      }
+      this._conns.set(conn.peer, conn);
+      conn.on('open', () => {
+        if (!this.roster.some(r => r.id === conn.peer)) {
+          this.roster.push({ id: conn.peer, name: '…' });
+        }
+        this.pushRoster();
+      });
+      conn.on('data', d => {
+        if (!d || !d.t) return;
+        if (d.t === 'hi') {
+          const e = this.roster.find(r => r.id === conn.peer);
+          if (e) e.name = String(d.name || '…').slice(0, 10).toUpperCase();
+          this.pushRoster();
+        } else if (d.t === 's') {
+          this._states.set(conn.peer, d);
+        } else if (d.t === 'out') {
+          this._outs.set(conn.peer, d.dist | 0);
+          const st = this._states.get(conn.peer) || {};
+          st.a = 0; this._states.set(conn.peer, st);
+          this.checkOver();
+        }
+      });
+      conn.on('close', () => {
+        this._conns.delete(conn.peer);
+        this.roster = this.roster.filter(r => r.id !== conn.peer);
+        this._states.delete(conn.peer);
+        this.pushRoster();
+        this.checkOver();
+      });
+    });
+
+    this._peer.on('error', e => {
+      note(e.type === 'unavailable-id' ? 'That code was taken — try again' : 'Error: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  join(code, name) {
+    this.leave();
+    this.myName = name;
+    if (!window.Peer) { note('PeerJS could not be loaded'); return; }
+    this._peer = new Peer();
+    this.mode = 'client';
+    this.code = code;
+
+    this._peer.on('open', id => {
+      this.myId = id;
+      this._host = this._peer.connect('lastrunner-' + code, { metadata: { name } });
+      const to = setTimeout(() => {
+        if (!this._host || !this._host.open) { note('Room ' + code + ' is not responding');
+          this.leave(); backToMenu(); }
+      }, 9000);
+
+      this._host.on('open', () => {
+        clearTimeout(to);
+        this._host.send({ t: 'hi', name: this.myName });
+        openLobby(code, false);
+      });
+
+      this._host.on('data', d => {
+        if (!d || !d.t) return;
+        if (d.t === 'roster') { this.roster = d.r || []; renderLobby(); }
+        else if (d.t === 'go') { this.seed = d.seed; beginRace(d.seed); }
+        else if (d.t === 'w') { applyRemote(d.p || []); }
+        else if (d.t === 'res') { showNetResults(d.rows || []); }
+        else if (d.t === 'full') { note('That room is full or already racing'); this.leave(); backToMenu(); }
+      });
+
+      this._host.on('close', () => { note('The host closed the room'); this.leave(); backToMenu(); });
+    });
+
+    this._peer.on('error', e => {
+      note(e.type === 'peer-unavailable' ? 'Room ' + code + ' not found' : 'Error: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  startRound() {
+    if (!this.isHost()) return null;
+    this.seed = Math.floor(Math.random() * 0x7FFFFFFF);
+    this._states.clear();
+    this._outs.clear();
+    this.broadcast({ t: 'go', seed: this.seed });
+    this.startRelay();
+    return this.seed;
+  },
+
+  sendState(st) {
+    if (this.mode === 'host') this._states.set(this.myId, st);
+    else if (this._host && this._host.open) {
+      try { this._host.send(Object.assign({ t: 's' }, st)); } catch (e) {}
+    }
+  },
+
+  sendOut(dist) {
+    if (this.mode === 'host') {
+      this._outs.set(this.myId, dist | 0);
+      const st = this._states.get(this.myId) || {};
+      st.a = 0; this._states.set(this.myId, st);
+      this.checkOver();
+    } else if (this._host && this._host.open) {
+      try { this._host.send({ t: 'out', dist: dist | 0 }); } catch (e) {}
+    }
+  },
+
+  startRelay() {
+    if (this._relay || !this.isHost()) return;
+    this._relay = setInterval(() => {
+      const list = [];
+      this.roster.forEach((r, i) => {
+        const st = this._states.get(r.id);
+        if (!st) return;
+        list.push({ i, l: st.l | 0, y: +(st.y || 0).toFixed(2), d: st.d ? 1 : 0, a: st.a ? 1 : 0 });
+      });
+      this.broadcast({ t: 'w', p: list });
+      applyRemote(list);
+    }, 50);
+  },
+
+  stopRelay() { if (this._relay) { clearInterval(this._relay); this._relay = null; } },
+
+  checkOver() {
+    if (!this.isHost() || state !== 'running') return;
+    const total = this.roster.length;
+    const outCount = this._outs.size;
+    if (total - outCount > 1) return;
+
+    const rows = this.roster.map(r => ({
+      n: r.name,
+      d: this._outs.has(r.id) ? this._outs.get(r.id) : Math.round(travelled / METER_SCALE),
+      s: this._outs.has(r.id) ? 0 : 1
+    })).sort((a, b) => (b.s - a.s) || (b.d - a.d));
+
+    this.broadcast({ t: 'res', rows });
+    this.stopRelay();
+    showNetResults(rows);
+  },
+
+  pushRoster() { this.broadcast({ t: 'roster', r: this.roster }); renderLobby(); },
+
+  broadcast(m) {
+    this._conns.forEach(c => { if (c.open) { try { c.send(m); } catch (e) {} } });
+  },
+
+  leave() {
+    this.stopRelay();
+    this._conns.forEach(c => { try { c.close(); } catch (e) {} });
+    this._conns.clear();
+    if (this._host) { try { this._host.close(); } catch (e) {} this._host = null; }
+    if (this._peer) { try { this._peer.destroy(); } catch (e) {} this._peer = null; }
+    this.mode = 'offline'; this.code = null; this.roster = [];
+    this._states.clear(); this._outs.clear();
+  }
+};
+
+window.addEventListener('beforeunload', () => Net.leave());
+
+function note(text) { $('net-note').textContent = text || ''; }
+
+function openLobby(code, isHost) {
+  $('menu').classList.add('hidden');
+  $('lobby').classList.remove('hidden');
+  $('lobby-code').textContent = code;
+  $('btn-start').style.display = isHost ? '' : 'none';
+  renderLobby();
+}
+
+function renderLobby() {
+  const list = Net.roster;
+  $('lobby-list').innerHTML = list.map((r, i) => {
+    const c = '#' + COLORS[i % COLORS.length].toString(16).padStart(6, '0');
+    return '<li class="' + (r.id === Net.myId ? 'me' : '') + '">' +
+      '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
+      r.name + (r.id === Net.myId ? ' (you)' : '') + '</span>' +
+      '<span>' + (i === 0 ? 'host' : '') + '</span></li>';
+  }).join('');
+  $('lobby-note').textContent = Net.isHost()
+    ? (list.length > 1 ? list.length + ' runners ready' : 'Waiting for runners to join …')
+    : 'Waiting for the host to start';
+}
+
+/** Zustände der Mitspieler übernehmen. */
+function applyRemote(list) {
+  list.forEach(sn => {
+    const r = runners[sn.i];
+    if (!r || r.isMe) return;
+    r.targetX = LANES[Math.max(0, Math.min(LANES.length - 1, sn.l))];
+    r.lane = sn.l;
+    r.netY = sn.y;
+    r.ducking = !!sn.d;
+    if (!sn.a && r.alive) eliminate(r, true);
+  });
+}
+
+function showNetResults(rows) {
+  state = 'over';
+  $('touch').classList.remove('on');
+  Net.stopRelay();
+  const winner = rows[0];
+  const iWon = winner && winner.n === Net.myName;
+  if (iWon) sfx.win();
+
+  setTimeout(() => {
+    $('hud').classList.add('hidden');
+    $('res-title').textContent = iWon ? 'YOU WIN!' : (winner ? winner.n + ' WINS' : 'RACE OVER');
+    $('res-sub').textContent = iWon ? 'Last runner standing'
+      : 'You lasted ' + Math.round((me.outAt || travelled) / METER_SCALE) + ' m';
+    $('board').innerHTML = rows.slice(0, 12).map((r, i) => {
+      const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+      const idx = Net.roster.findIndex(e => e.name === r.n);
+      const c = '#' + COLORS[(idx < 0 ? i : idx) % COLORS.length].toString(16).padStart(6, '0');
+      return '<li class="' + (r.n === Net.myName ? 'me' : '') + '">' +
+        '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
+        medal + ' ' + r.n + '</span><span>' + r.d + 'm</span></li>';
+    }).join('');
+    $('results').classList.remove('hidden');
+  }, 1300);
+}
+
+function backToMenu() {
+  state = 'menu';
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.add('hidden');
+  $('touch').classList.remove('on');
+  $('menu').classList.remove('hidden');
+}
+
+/* ---------------- Bots ---------------- */
+
+function botThink(r, dt) {
+  // Nächstes Hindernis vor dem Läufer suchen
+  let next = null;
+  for (let i = 0; i < obstacles.length; i++) {
+    const o = obstacles[i];
+    if (o.z < -3 && (!next || o.z > next.z)) next = o;
+  }
+  if (!next) return;
+
+  const timeTo = Math.abs(next.z) / speed;
+
+  if (next !== r.plan) {
+    r.plan = next;
+    r.planned = false;
+    r.planAt = r.reaction + rng() * 0.12;
+  }
+
+  if (!r.planned && timeTo < 1.0 - r.planAt) {
+    r.planned = true;
+    const blunder = rng() > r.skill;      // gelegentlich ein Fehler
+
+    if (next.kind === 'gate' || next.kind === 'block') {
+      if (next.mover && next.boxes.length) {
+        // Zur Kiste die am weitesten entfernte Spur wählen
+        let best = 0, bd = -1;
+        LANES.forEach((x, i) => {
+          const d = Math.abs(x - next.boxes[0].x);
+          if (d > bd) { bd = d; best = i; }
+        });
+        if (!blunder) setLane(r, best);
+      } else if (next.safeLanes.length && !blunder) {
+        // nächstgelegene sichere Spur wählen
+        let best = next.safeLanes[0], bd = 99;
+        next.safeLanes.forEach(l => {
+          const d = Math.abs(l - r.lane);
+          if (d < bd) { bd = d; best = l; }
+        });
+        setLane(r, best);
+        if (next.extra === 'low') r.wantJumpAt = timeTo - 0.28;
+        if (next.extra === 'high') r.wantDuckAt = timeTo - 0.26;
+      }
+    } else if (next.kind === 'low' || next.kind === 'pit') {
+      if (!blunder) r.wantJumpAt = timeTo - 0.30;
+    } else if (next.kind === 'high') {
+      if (!blunder) r.wantDuckAt = timeTo - 0.24;
+    }
+  }
+
+  // geplante Aktion auslösen
+  if (r.wantJumpAt !== undefined && timeTo <= r.wantJumpAt) {
+    doJump(r); r.wantJumpAt = undefined;
+  }
+  if (r.wantDuckAt !== undefined && timeTo <= r.wantDuckAt) {
+    doDuck(r, 0.75); r.wantDuckAt = undefined;
+  }
+}
+
+/* ---------------- Aktionen ---------------- */
+
+function setLane(r, lane) {
+  lane = THREE.MathUtils.clamp(lane, 0, LANES.length - 1);
+  if (lane === r.lane) return;
+  r.lane = lane;
+  r.targetX = LANES[lane];
+  if (r.isMe) sfx.swap();
+}
+
+function doJump(r) {
+  if (!r.alive || r.y > 0.05) return;
+  r.vy = JUMP_V;
+  r.ducking = false;
+  r.duckHeld = false;
+  if (r.isMe) sfx.jump();
+}
+
+/* Ducken wird GEHALTEN. Ein kurzer Tipp hält trotzdem eine Mindestzeit an,
+   damit man nicht mitten im Hindernis wieder aufsteht. */
+const DUCK_MIN_MS = 420;
+
+function duckStart(r) {
+  if (!r.alive) return;
+  r.duckHeld = true;
+  if (r.ducking) return;
+  r.ducking = true;
+  r.duckSince = performance.now();
+  if (r.y > 0.05) { r.vy = Math.min(r.vy, -6); }   // aus dem Sprung nach unten ziehen
+  if (r.isMe) sfx.duck();
+}
+
+function duckStop(r) {
+  r.duckHeld = false;
+}
+
+/* Für Bots: kurz ducken und automatisch wieder aufstehen. */
+function doDuck(r, seconds) {
+  duckStart(r);
+  r.duckUntil = performance.now() + (seconds || 0.5) * 1000;
+  r.duckHeld = false;
+}
+
+/* ---------------- Treffer ---------------- */
+
+function runnerBox(r) {
+  const h = r.ducking ? 1.02 : 2.85;
+  return { x: r.laneX, w: 0.95, yMin: r.y, yMax: r.y + h };
+}
+
+function checkHit(r, o) {
+  const rb = runnerBox(r);
+  for (let i = 0; i < o.boxes.length; i++) {
+    const b = o.boxes[i];
+    const dx = Math.abs(rb.x - b.x);
+    if (dx > (rb.w + b.w) / 2) continue;
+    if (rb.yMax < b.yMin + 0.08) continue;
+    if (rb.yMin > b.yMax - 0.08) continue;
+    return true;
+  }
+  return false;
+}
+
+function eliminate(r, fromNet, intoPit) {
+  if (!r.alive) return;
+  r.alive = false;
+  r.fellIn = !!intoPit;
+  r.outAt = travelled;
+  r.mat.color.setHex(0x9AA6B2);
+  r.dark.color.setHex(0x7C8794);
+
+  if (!isNet) {
+    results.push({ name: r.name, dist: Math.round(travelled / METER_SCALE), color: r.color, me: r.isMe });
+  }
+
+  if (r.isMe) {
+    sfx.out();
+    shake = 0.5;
+    showToast('OUT!');
+    $('touch').classList.remove('on');
+    if (isNet && !fromNet) Net.sendOut(Math.round(travelled / METER_SCALE));
+  }
+  updatePips();
+  if (!isNet) checkRaceOver();
+}
+
+/* ---------------- Ablauf ---------------- */
+
+function aliveRunners() { return runners.filter(r => r.alive); }
+
+function checkRaceOver() {
+  const alive = aliveRunners();
+  if (state !== 'running') return;
+  if (runners.length === 1) {          // Übungslauf: aus heisst vorbei
+    if (!alive.length) finishRace(null);
+    return;
+  }
+  if (alive.length <= 1) {
+    if (alive.length === 1) {
+      results.push({ name: alive[0].name, dist: Math.round(travelled / METER_SCALE),
+                     color: alive[0].color, me: alive[0].isMe, winner: true });
+    }
+    finishRace(alive[0] || null);
+  }
+}
+
+function finishRace(winner) {
+  state = 'over';
+  $('touch').classList.remove('on');
+  if (winner && winner.isMe) sfx.win();
+
+  setTimeout(() => {
+    $('hud').classList.add('hidden');
+    const won = winner && winner.isMe;
+    const solo = runners.length === 1;
+    if (solo) {
+      $('res-title').textContent = 'RUN OVER';
+      $('res-sub').textContent = Math.round((me.outAt || travelled) / METER_SCALE) + ' m  ·  speed ×' + (lastLevel + 1);
+    } else {
+      $('res-title').textContent = won ? 'YOU WIN!' : (winner ? winner.name + ' WINS' : 'NOBODY LEFT');
+      $('res-sub').textContent = won
+        ? 'Last runner standing'
+        : 'You lasted ' + Math.round((me.outAt || travelled) / METER_SCALE) + ' m';
+    }
+
+    const sorted = results.slice().reverse();     // zuletzt ausgeschieden = vorne
+    $('board').innerHTML = sorted.slice(0, 8).map((r, i) => {
+      const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+      const c = '#' + r.color.toString(16).padStart(6, '0');
+      return '<li class="' + (r.me ? 'me' : '') + '">' +
+        '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
+        medal + ' ' + r.name + '</span><span>' + r.dist + 'm</span></li>';
+    }).join('');
+    $('results').classList.remove('hidden');
+  }, 1300);
+}
+
+function showBig(text, ms) {
+  const b = $('big');
+  b.querySelector('span').textContent = text;
+  b.classList.remove('hidden');
+  b.querySelector('span').style.animation = 'none';
+  void b.querySelector('span').offsetWidth;
+  b.querySelector('span').style.animation = '';
+  if (ms) setTimeout(() => b.classList.add('hidden'), ms);
+}
+
+function showToast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  t.style.animation = 'none';
+  void t.offsetWidth;
+  t.style.animation = '';
+  setTimeout(() => t.classList.add('hidden'), 800);
+}
+
+function updatePips() {
+  $('pips').innerHTML = runners.map(r => {
+    const c = '#' + r.color.toString(16).padStart(6, '0');
+    return '<span class="pip ' + (r.alive ? '' : 'out') + '" style="background:' + c + '"></span>';
+  }).join('');
+  $('alive').textContent = aliveRunners().length;
+}
+
+/* ---------------- Rennen starten ---------------- */
+
+/** Baut die Läufer auf: entweder aus der Lobby-Liste oder mit Bots. */
+function beginRace(seed, botCount) {
+  runners.forEach(r => scene.remove(r.group));
+  obstacles.forEach(o => { if (o.group) scene.remove(o.group); });
+  runners = []; obstacles = []; results = [];
+  speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
+  nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1;
+  applyBiome(0);
+
+  isNet = Net.isOnline();
+  startPlan(seed);
+
+  if (isNet) {
+    myIndex = Net.roster.findIndex(r => r.id === Net.myId);
+    Net.roster.forEach((entry, i) => {
+      const r = makeRunner(entry.name, COLORS[i % COLORS.length], entry.id === Net.myId);
+      runners.push(r);
+      if (entry.id === Net.myId) me = r;
+    });
+    if (Net.isHost()) Net.startRelay();
+  } else {
+    const myName = ($('nm').value || 'RUNNER').trim().slice(0, 10).toUpperCase() || 'RUNNER';
+    me = makeRunner(myName, COLORS[0], true);
+    runners.push(me);
+  }
+
+  // Startaufstellung — alle auf derselben Höhe, verteilt über die Spuren
+  runners.forEach((r, i) => {
+    const lane = i % LANES.length;
+    r.lane = lane;
+    r.laneX = r.targetX = LANES[lane];
+    r.group.position.set(r.laneX, 0, -Math.floor(i / LANES.length) * 1.6);
+    r.baseZ = r.group.position.z;
+  });
+
+
+  $('menu').classList.add('hidden');
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  updatePips();
+
+  if (matchMedia('(pointer:coarse)').matches) {
+    $('touch').classList.add('on');
+    $('swipehint').classList.remove('hidden');
+    setTimeout(() => $('swipehint').classList.add('hidden'), 3500);
+  }
+
+  state = 'countdown';
+  let step = 0;
+  const steps = ['3', '2', '1', 'GO!'];
+  const tick = () => {
+    showBig(steps[step], 620);
+    if (steps[step] === 'GO!') sfx.go(); else sfx.count(3 - step);
+    step++;
+    if (step < steps.length) setTimeout(tick, 700);
+    else setTimeout(() => { state = 'running'; raceTime = 0; }, 500);
+  };
+  tick();
+}
+
+/** Übungslauf: allein auf der Strecke, keine Gegner. */
+function startSolo() {
+  Net.leave();
+  beginRace(Math.floor(Math.random() * 0x7FFFFFFF), 0);
+}
+
+/* ---------------- Eingabe ---------------- */
+
+function bindInput() {
+  const typing = e => e.target && e.target.tagName === 'INPUT';
+
+  addEventListener('keydown', e => {
+    if (typing(e)) return;
+    if (state !== 'running' || !me.alive) return;
+    switch (e.code) {
+      case 'ArrowLeft': case 'KeyA':  setLane(me, me.lane - 1); e.preventDefault(); break;
+      case 'ArrowRight': case 'KeyD': setLane(me, me.lane + 1); e.preventDefault(); break;
+      case 'ArrowUp': case 'KeyW': case 'Space': doJump(me); e.preventDefault(); break;
+      case 'ArrowDown': case 'KeyS': duckStart(me); e.preventDefault(); break;
+    }
+  });
+
+  addEventListener('keyup', e => {
+    if (typing(e)) return;
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') { duckStop(me); e.preventDefault(); }
+  });
+
+  // Touch-Knöpfe
+  document.querySelectorAll('[data-k]').forEach(el => {
+    el.addEventListener('pointerdown', ev => {
+      ev.preventDefault();
+      if (state !== 'running' || !me.alive) return;
+      const k = el.dataset.k;
+      if (k === 'left') setLane(me, me.lane - 1);
+      if (k === 'right') setLane(me, me.lane + 1);
+      if (k === 'jump') doJump(me);
+      if (k === 'duck') duckStart(me);
+    });
+  });
+
+  document.querySelectorAll('[data-k="duck"]').forEach(el => {
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+      el.addEventListener(ev, e => { e.preventDefault(); duckStop(me); }));
+  });
+
+  // Wischgesten
+  let sx = 0, sy = 0, swiping = false;
+  const app = $('app');
+  app.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; swiping = true; });
+  app.addEventListener('pointerup', e => {
+    if (!swiping) return;
+    swiping = false;
+    if (state !== 'running' || !me.alive) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
+    if (Math.abs(dx) > Math.abs(dy)) setLane(me, me.lane + (dx > 0 ? 1 : -1));
+    else if (dy < 0) doJump(me);
+    else { duckStart(me); setTimeout(() => duckStop(me), 520); }
+  });
+}
+
+/* ---------------- Frame ---------------- */
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.getElapsedTime();
+
+  if (state === 'running') {
+    raceTime += dt;
+    speed = speedAtTime(raceTime);
+    travelled = distanceAtTime(raceTime);      // berechnet, nicht aufsummiert
+
+    // Nachplanen, solange der Vorrat knapp wird — die Strecke hört nie auf
+    if (nextPlanIndex > plannedObstacles.length - 12) extendPlan();
+
+    while (nextPlanIndex < plannedObstacles.length &&
+           plannedObstacles[nextPlanIndex].dist - travelled < -SPAWN_Z) {
+      buildObstacle(plannedObstacles[nextPlanIndex]);
+      nextPlanIndex++;
+    }
+
+    // Tempostufe angekündigt
+    const lvl = levelAtTime(raceTime);
+    if (lvl !== lastLevel) {
+      lastLevel = lvl;
+      if (lvl > 0) {
+        showToast('SPEED UP  ×' + (lvl + 1));
+        sfx.go();
+        camera.fov = 58 + Math.min(10, lvl * 1.1);
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      o.z = -(o.dist - travelled);
+      o.group.position.z = o.z;
+
+      // Wanderkiste pendelt seitlich — Position hängt nur an der Strecke,
+      // ist also auf allen Rechnern identisch
+      if (o.mover && o.boxes.length) {
+        const base = LANES[o.used[0]];
+        const span = o.moveRange * 2.3;
+        const off = Math.sin(o.movePhase + travelled * 0.035 * o.moveSpeed) * span;
+        const x = Math.max(LANES[0], Math.min(LANES[LANES.length - 1], base + off));
+        o.boxes[0].x = x;
+        if (o.meshes) o.meshes.forEach(pair => pair.forEach(m => {
+          m.position.x = x + (m.geometry.type === 'ConeGeometry'
+            ? (m.rotation.z > 0 ? 1.6 : -1.6) : 0);
+        }));
+      }
+      if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); continue; }
+
+      // Treffer nur im engen Fenster um z = 0, und nur für die eigene Figur
+      const half = o.zHalf || 1.4;
+      if (!o.checked && o.z > -half && o.z < half) {
+        if (me.alive && checkHit(me, o)) eliminate(me, false, o.kind === 'pit');
+        if (!isNet) {
+          runners.forEach(r => {
+            if (r.alive && !r.isMe && checkHit(r, o)) eliminate(r, false, o.kind === 'pit');
+          });
+        }
+        if (o.z > half * 0.7) o.checked = true;
+      }
+    }
+
+    // Boden, Häuser und Ziel mitziehen
+    groundTiles.forEach(tile => {
+      tile.position.z += speed * dt;
+      if (tile.position.z > 22) tile.position.z -= 22 * groundTiles.length;
+    });
+    props.forEach(pr => {
+      pr.position.z += speed * dt;
+      if (pr.position.z > 40) pr.position.z -= 26 * 18;
+    });
+
+    // Läufer aktualisieren
+    runners.forEach(r => {
+      if (!r.alive) return;
+      if (!isNet && !r.isMe) botThink(r, dt);
+
+      if (r.isMe || !isNet) {
+        if (r.y > 0 || r.vy > 0) {
+          r.vy -= GRAVITY * dt;
+          r.y += r.vy * dt;
+          if (r.y <= 0) { r.y = 0; r.vy = 0; if (r.isMe) sfx.land(); }
+        }
+        if (r.ducking) {
+          const held = r.duckHeld;
+          const minOver = performance.now() - r.duckSince > DUCK_MIN_MS;
+          const botOver = r.duckUntil && performance.now() > r.duckUntil;
+          if ((!held && minOver) || (botOver && !held)) { r.ducking = false; r.duckUntil = 0; }
+        }
+      } else if (r.netY !== undefined) {
+        r.y += (r.netY - r.y) * Math.min(1, dt * 14);     // Mitspieler weich nachziehen
+      }
+    });
+
+    // Eigenen Zustand senden
+    if (isNet && performance.now() - lastSend > 50) {
+      lastSend = performance.now();
+      Net.sendState({ l: me.lane, y: me.y, d: me.ducking ? 1 : 0, a: me.alive ? 1 : 0 });
+    }
+
+    applyBiome((travelled % (BIOME_LENGTH * BIOMES.length)) / (BIOME_LENGTH * BIOMES.length));
+
+    // HUD
+    const stepPct = ((raceTime % STEP_SEC) / STEP_SEC) * 100;
+    $('progress').style.width = stepPct + '%';
+    $('dist').textContent = Math.round(travelled / METER_SCALE) + 'm';
+    $('lvl').textContent = '×' + (lvl + 1);
+    const rank = aliveRunners().length;
+    $('place').textContent = me.alive
+      ? (rank + (rank === 1 ? 'st' : rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'))
+      : '—';
+  }
+
+  runners.forEach(r => updateRunnerVisual(r, dt, t));
+
+  const camTargetX = me ? me.laneX * 0.45 : 0;
+  camera.position.x += (camTargetX - camera.position.x) * Math.min(1, dt * 4);
+  camera.position.y = 5.4 + (me && me.y ? me.y * 0.25 : 0);
+  if (shake > 0) {
+    shake = Math.max(0, shake - dt * 1.8);
+    camera.position.x += (Math.random() - 0.5) * shake;
+    camera.position.y += (Math.random() - 0.5) * shake;
+  }
+  camera.lookAt(camTargetX * 0.6, 1.9, -14);
+
+  renderer.render(scene, camera);
+}
+
+/* ---------------- Start ---------------- */
+
+initScene();
+buildTrack();
+bindInput();
+frame();
+
+const readName = () => ($('nm').value || 'RUNNER').trim().slice(0, 10).toUpperCase() || 'RUNNER';
+const wakeAudio = () => {
+  if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+};
+
+$('btn-play').addEventListener('click', () => {
+  wakeAudio();
+  startSolo();
+});
+
+$('btn-host').addEventListener('click', () => {
+  wakeAudio();
+  note('Opening room …');
+  Net.host(readName());
+});
+
+$('btn-join').addEventListener('click', () => {
+  wakeAudio();
+  const c = ($('code').value || '').trim().toUpperCase();
+  if (!/^[A-Z]{4}$/.test(c)) { note('Room codes are four letters'); return; }
+  note('Connecting to ' + c + ' …');
+  Net.join(c, readName());
+});
+
+$('btn-start').addEventListener('click', () => {
+  if (!Net.isHost()) return;
+  if (Net.roster.length < 2) { $('lobby-note').textContent = 'At least two runners needed'; return; }
+  const seed = Net.startRound();
+  beginRace(seed);
+});
+
+$('btn-leave').addEventListener('click', () => { Net.leave(); backToMenu(); note(''); });
+
+$('btn-again').addEventListener('click', () => {
+  if (Net.isOnline()) {
+    if (Net.isHost()) { const seed = Net.startRound(); beginRace(seed); }
+    else {
+      $('results').classList.add('hidden');
+      $('lobby').classList.remove('hidden');
+      $('lobby-note').textContent = 'Waiting for the host to start the next race';
+    }
+  } else {
+    startSolo();
+  }
+});
+
+$('btn-menu').addEventListener('click', () => { Net.leave(); backToMenu(); });
+
+['nm', 'code'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('btn-join').click(); }
+}));
+
+note(window.Peer ? '' : 'PeerJS not loaded — multiplayer unavailable');
+
+})();
+</script>
+</body>
+</html>
