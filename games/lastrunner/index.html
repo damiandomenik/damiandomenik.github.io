@@ -230,6 +230,27 @@ const GRAVITY = 37;
 const DUCK_SCALE = 0.42;
 const LANE_SNAP = 7.5;         // wie schnell die Spur gewechselt wird
 
+/* ---- Zweiter Akt: Erdbeben, Rettung, Flug, Landung ----
+   Alle Grenzen in Welteinheiten. Anzeigemeter = Einheiten / 3. */
+const ACT = {
+  QUAKE:     12000,   // 4000 m — der Boden beginnt zu beben
+  QUAKE_END: 12360,   // 4120 m — die Welt bricht weg
+  FLY_START: 12660,   // 4220 m — vom Flugzeug aufgefangen
+  FLY_END:   18000,   // 6000 m — Landeanflug
+  LAND_END:  18330    // 6110 m — weiter zu Fuss
+};
+const BANDS = [2.2, 5.0, 7.8];      // drei Flughöhen
+const FLY_Y_MIN = 1.3, FLY_Y_MAX = 8.7, FLY_VY = 8.4;
+
+function phaseAt(d) {
+  if (d < ACT.QUAKE) return 'ground';
+  if (d < ACT.QUAKE_END) return 'quake';
+  if (d < ACT.FLY_START) return 'fall';
+  if (d < ACT.FLY_END) return 'fly';
+  if (d < ACT.LAND_END) return 'land';
+  return 'ground';
+}
+
 const BIOME_LENGTH = 1500;     // Regenbogen liegt damit bei rund 1000 Anzeigemetern
 const REACT_MIN = 1.02;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
 const REACT_MAX = 1.34;
@@ -301,17 +322,18 @@ const BIOMES = [
     props: [0x9FD8EC, 0xC7EBF6, 0x7FC2DC, 0xE3F6FC], propScale: [0.55, 1.55, 0.55] },
   { name: 'NEON',   sky: 0x1B1038, fog: 0x2A1B55, ground: 0x2A2350, rail: 0x6C4BD6,
     props: [0x53308F, 0x7A4BC4, 0x3B2470, 0x9C63FF], propScale: [0.8, 1.35, 0.8] },
-  { name: 'RAINBOW', rainbow: true,
-    sky: 0xFF66CC, fog: 0xFFB3E6, ground: 0xFFE8FA, rail: 0xFF88DD,
-    props: [0xFF6B9D, 0xFFD166, 0x6BE7FF, 0x9B6BFF], propScale: [1.0, 1.25, 1.0] },
+  { name: 'VOID',   sky: 0x08060F, fog: 0x14102A, ground: 0x1A1730, rail: 0x4A3F7A,
+    props: [0x241E47, 0x1A1636, 0x312a5c, 0x0F0C22], propScale: [0.7, 1.6, 0.7] },
+  { name: 'NIGHT',  night: true,
+    sky: 0x03050B, fog: 0x070A12, ground: 0x0E141F, rail: 0x1E2838,
+    props: [0x0B1119, 0x080D14, 0x0E141D, 0x060A10], propScale: [1.0, 1.45, 1.0] },
   { name: 'JUNGLE', sky: 0x8FE0A8, fog: 0xBFF0CC, ground: 0xDDF0DC, rail: 0x8FC49A,
     props: [0x3F9457, 0x2E7A46, 0x58B06C, 0x246038], propScale: [1.15, 1.3, 1.15] },
   { name: 'SUNSET', sky: 0xFF9E6B, fog: 0xFFC0A0, ground: 0xF7D9C4, rail: 0xE0A783,
-    props: [0xC9748A, 0xE0906B, 0xA85F80, 0xF0A98C], propScale: [0.9, 1.2, 0.9] },
-  { name: 'VOID',   sky: 0x08060F, fog: 0x14102A, ground: 0x1A1730, rail: 0x4A3F7A,
-    props: [0x241E47, 0x1A1636, 0x312a5c, 0x0F0C22], propScale: [0.7, 1.6, 0.7] }
+    props: [0xC9748A, 0xE0906B, 0xA85F80, 0xF0A98C], propScale: [0.9, 1.2, 0.9] }
 ];
-let biomeIndex = 0, biomeMix = 0, whiteoutOn = false;
+let biomeIndex = 0, biomeMix = 0, whiteoutOn = false, nightOn = false;
+let phase2 = 'ground', clouds = [], quakeShake = 0, actAnnounced = {};
 
 const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
                'JELLY','CACTUS','MOCHI','FLINT','WOBBLE','SPARK'];
@@ -335,6 +357,7 @@ let isNet = false;             // echtes Mehrspielerrennen?
 let lastSend = 0;
 let myIndex = 0, soloColor = 0;
 
+const keys = { up: false, down: false };
 const $ = id => document.getElementById(id);
 
 /* ---------------- Zufall mit Seed ---------------- */
@@ -453,8 +476,31 @@ function makeRunner(name, color, isMe) {
   shadow.position.y = 0.02;
   g.add(shadow);
 
+  // Flugzeug — im zweiten Akt fängt es die Figur auf
+  const plane = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.75, 3.4), mat);
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.18, 1.05), mat);
+  wing.position.z = 0.1;
+  const tailW = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.15, 0.6), mat);
+  tailW.position.set(0, 0.15, 1.5);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.8), mat);
+  fin.position.set(0, 0.7, 1.5);
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.1, 0.7, 10), dark);
+  nose.rotation.x = Math.PI / 2;
+  nose.position.z = -1.9;
+  const prop = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.12, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0xE8EEF5, transparent: true, opacity: 0.55 }));
+  prop.position.z = -2.2;
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.42, 1.1), dark);
+  canopy.position.set(0, 0.52, -0.2);
+  plane.add(body, wing, tailW, fin, nose, prop, canopy);
+  plane.visible = false;
+  plane.userData.prop = prop;
+  scene.add(plane);
+
   const r = {
     group: g, mat, dark, head, torso, armL, armR, legL, legR, shadow,
+    plane, flying: false, planeRoll: 0,
     name, color, isMe: !!isMe,
     lane: 2, laneX: 0, targetX: 0,
     y: 0, vy: 0, ducking: false, duckUntil: 0, duckHeld: false, duckSince: 0,
@@ -468,6 +514,18 @@ function makeRunner(name, color, isMe) {
 
 function updateRunnerVisual(r, dt, t) {
   const g = r.group;
+
+  // Flugzeug folgt der Spur und neigt sich in die Kurve
+  if (r.plane && r.plane.visible) {
+    r.laneX += (r.targetX - r.laneX) * Math.min(1, dt * LANE_SNAP);
+    r.plane.position.set(r.laneX, r.y, r.group.position.z - 0.4);
+    const drift2 = r.targetX - r.laneX;
+    r.planeRoll += (-drift2 * 0.22 - r.planeRoll) * Math.min(1, dt * 6);
+    r.plane.rotation.z = r.planeRoll;
+    r.plane.rotation.x = r.alive ? 0 : 0.6;
+    if (r.plane.userData.prop) r.plane.userData.prop.rotation.z += dt * 40;
+    r.shadow.visible = false;
+  }
 
   // Spurwechsel weich
   r.laneX += (r.targetX - r.laneX) * Math.min(1, dt * LANE_SNAP);
@@ -581,6 +639,26 @@ function buildTrack() {
     b.userData.side = sd;                 // links oder rechts
     b.userData.halfW = bw / 2;            // halbe Grundbreite
     b.userData.baseX = Math.abs(b.position.x);
+
+    // Beleuchtete Fenster auf der zur Bahn zeigenden Seite — nur nachts sichtbar.
+    // Sie hängen am Haus, wandern und skalieren also automatisch mit.
+    b.userData.windows = [];
+    const rows = Math.max(2, Math.floor(h / 6));
+    for (let ry = 0; ry < rows; ry++) {
+      for (let cx = -1; cx <= 1; cx++) {
+        if (Math.random() < 0.42) continue;          // nicht jedes Fenster brennt
+        const warm = Math.random() < 0.75;
+        const win = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, 0.85, 1.5),
+          new THREE.MeshBasicMaterial({ color: warm ? 0xFFD98A : 0x9FD4FF }));
+        win.position.set(-sd * (bw / 2 + 0.06),
+          -h / 2 + 3.5 + ry * 5.5,
+          cx * 2.6);
+        win.visible = false;
+        b.add(win);
+        b.userData.windows.push(win);
+      }
+    }
     scene.add(b);
     props.push(b);
   }
@@ -698,6 +776,126 @@ function whiteObstacle(o, on) {
   });
 }
 
+/* ---------------- Zweiter Akt: Welt umbauen ---------------- */
+
+function buildClouds() {
+  const mat = new THREE.MeshLambertMaterial({ color: 0xF3F8FD });
+  for (let i = 0; i < 30; i++) {
+    const g = new THREE.Group();
+    for (let k = 0; k < 3; k++) {
+      const rr = 2.5 + Math.random() * 3.5;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(rr, 8, 6), mat);
+      puff.position.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 2.5, (Math.random() - 0.5) * 7);
+      puff.scale.set(1.3, 0.6, 0.9);
+      g.add(puff);
+    }
+    const sd = i % 2 ? 1 : -1;
+    g.position.set(sd * (10 + Math.random() * 22), -6 - Math.random() * 16, -i * 20 - Math.random() * 12);
+    g.visible = false;
+    scene.add(g);
+    clouds.push(g);
+  }
+}
+
+/** Blendet die Bodenwelt aus und die Wolkenwelt ein — je nach Phase. */
+function updateAct(dt) {
+  const ph = phaseAt(travelled);
+  const flyish = (ph === 'fall' || ph === 'fly' || ph === 'land');
+
+  // Ankündigungen
+  if (ph !== phase2) {
+    phase2 = ph;
+    if (ph === 'quake') { showToast('EARTHQUAKE'); beep('sawtooth', 90, 1.4, 0.06); }
+    if (ph === 'fly') { showToast('AIRBORNE'); sfx.win(); }
+    if (ph === 'land') { showToast('LANDING'); }
+    if (ph === 'ground' && travelled > ACT.LAND_END - 10) showToast('BACK ON FOOT');
+  }
+
+  // Beben: Boden sackt und kippt, Häuser stürzen
+  if (ph === 'quake') {
+    const q = (travelled - ACT.QUAKE) / (ACT.QUAKE_END - ACT.QUAKE);
+    quakeShake = 0.15 + q * 0.9;
+    groundTiles.forEach((tile, i) => {
+      tile.position.y = -q * q * 6 * (0.6 + (i % 4) * 0.25);
+      tile.rotation.z = Math.sin(i * 1.7) * q * 0.16;
+    });
+    props.forEach((pr, i) => {
+      pr.rotation.z = Math.sin(i * 2.3) * q * 0.5;
+      pr.position.y = pr.userData.baseY * pr.scale.y - q * q * 14;
+    });
+  } else {
+    quakeShake = 0;
+  }
+
+  // Sturz und Flug: Bodenwelt weg, Wolken her
+  const hideGround = (ph === 'fall' || ph === 'fly');
+  groundTiles.forEach(tile => { tile.visible = !hideGround; });
+  props.forEach(pr => { pr.visible = !hideGround; });
+  tunnelRings.forEach(g => { if (hideGround) g.visible = false; });
+
+  if (flyish) {
+    clouds.forEach(g => {
+      g.visible = true;
+      g.position.z += speed * dt * 0.75;
+      if (g.position.z > 24) { g.position.z -= 20 * clouds.length; }
+    });
+    scene.background.setHex(0x9BD4F5);
+    scene.fog.color.setHex(0xCDE7FA);
+    scene.fog.far = 240;
+  } else {
+    clouds.forEach(g => { g.visible = false; });
+  }
+
+  // Boden nach der Landung wieder aufrichten
+  if (ph === 'ground' && travelled > ACT.LAND_END) {
+    groundTiles.forEach(tile => { tile.position.y = 0; tile.rotation.z = 0; });
+    props.forEach(pr => { pr.rotation.z = 0; });
+  }
+}
+
+/** Höhe und Zustand der eigenen Figur in Sturz, Flug und Landung. */
+function updateActRunner(r, dt) {
+  const ph = phaseAt(travelled);
+
+  if (ph === 'fall') {
+    const f = (travelled - ACT.QUAKE_END) / (ACT.FLY_START - ACT.QUAKE_END);
+    r.flying = false;
+    if (f < 0.55) {
+      r.y = -(f / 0.55) * (f / 0.55) * 24;             // freier Fall
+      r.plane.visible = false;
+    } else {
+      const t2 = (f - 0.55) / 0.45;
+      const e = 1 - Math.pow(1 - t2, 3);
+      r.y = -24 + (BANDS[1] + 24) * e;                  // das Flugzeug fängt ihn auf
+      r.plane.visible = true;
+      if (t2 > 0.25) r.group.visible = false;
+    }
+    return true;
+  }
+
+  if (ph === 'fly') {
+    r.flying = true;
+    r.plane.visible = true;
+    r.group.visible = false;
+    return true;
+  }
+
+  if (ph === 'land') {
+    const f = (travelled - ACT.FLY_END) / (ACT.LAND_END - ACT.FLY_END);
+    r.flying = false;
+    r.y = Math.max(0, r.y * (1 - f) - f * 0.2);
+    r.plane.visible = f < 0.75;
+    r.group.visible = f >= 0.6;
+    if (f >= 0.99) { r.y = 0; r.vy = 0; }
+    return true;
+  }
+
+  r.flying = false;
+  r.plane.visible = false;
+  r.group.visible = true;
+  return false;
+}
+
 /* ---------------- Kulisse auf Abstand halten ---------------- */
 
 /* Die Biome skalieren die Häuser in der Breite. Ohne Korrektur ragen sie
@@ -780,27 +978,6 @@ function updateStorm(dt) {
   }
 }
 
-/* ---------------- Duell der letzten zwei ---------------- */
-
-let duelOn = false, duelT = 0;
-
-function updateDuel(dt) {
-  const alive = aliveRunners();
-  const two = runners.length > 2 && alive.length === 2 && state === 'running';
-  if (two && !duelOn) {
-    duelOn = true; duelT = 0;
-    showToast('FINAL TWO');
-    sfx.win();
-    if (pulse) firePulse();
-  }
-  if (!two) { duelOn = false; return; }
-  duelT += dt;
-  // Kein Heranzoomen — die Kamera bleibt, wo sie ist. Nur ein leichter Puls
-  // an den beiden Übriggebliebenen zeigt an, dass es jetzt ernst wird.
-  const beat = 0.5 + 0.5 * Math.sin(duelT * 5);
-  alive.forEach(r => { if (r.group) r.group.scale.setScalar(1 + beat * 0.05); });
-}
-
 /* ---------------- Effekte ---------------- */
 
 /** Lichtstreifen, die bei hohem Tempo vorbeiziehen. */
@@ -867,6 +1044,16 @@ function applyBiome(progress) {
   const t = Math.min(1, Math.max(0, (pos - i) * 2 - 0.6));   // scharfer, kurzer Übergang
 
   const A = BIOMES[i], B = BIOMES[j];
+
+  // Nacht: fast alles verschwindet, nur die Fenster der Häuser glimmen.
+  const nt = (A.night && t < 0.5) || (B.night && t >= 0.5);
+  if (nt !== nightOn) {
+    nightOn = nt;
+    props.forEach(pr => {
+      if (pr.userData.windows) pr.userData.windows.forEach(w => { w.visible = nt; });
+    });
+    if (nt && state === 'running') showToast('NIGHT');
+  }
 
   // Weissraum: Himmel, Boden, Kulisse — alles gleisst. Nur die dunklen
   // Kanten der Hindernisse bleiben, sonst wäre nichts mehr zu erkennen.
@@ -993,8 +1180,24 @@ function advance(seconds, prevKind) {
 function extendPlan() {
   const r = planRng;
   for (let n = 0; n < PLAN_BATCH; n++) {
+    const ph = phaseAt(planDist);
+    // Während Beben, Sturz und Landung wird nichts gebaut
+    if (ph === 'quake' || ph === 'fall') { planDist = ACT.FLY_START + 90; planLastKind = null; continue; }
+    if (ph === 'land') { planDist = ACT.LAND_END + 120; planLastKind = null; continue; }
+
     const tHere = timeForDistance(planDist);
     const lvl = levelAtTime(tHere);
+
+    if (ph === 'fly') {
+      const airKinds = lvl >= 5 ? ['cloudgate', 'cloudgate', 'debris', 'stormbar']
+                                : ['cloudgate', 'cloudgate', 'debris'];
+      const ak = airKinds[Math.floor(r() * airKinds.length)];
+      pushAir(ak, planDist, r, lvl);
+      planDist += speedAtTime(tHere) * (0.95 + r() * 0.45);
+      planLastKind = 'air';
+      continue;
+    }
+
     const kinds = kindsForLevel(lvl);
     const kind = kinds[Math.floor(r() * kinds.length)];
     let last = kind;
@@ -1047,6 +1250,47 @@ function extendPlan() {
     advance(gapSecondsFor(lvl, r) + extra, last);
     planLastKind = last;
   }
+}
+
+/** Hindernisse im Flug: Wolkenwand mit Loch, Trümmer, Gewitterband. */
+function pushAir(kind, dist, r, lvl) {
+  const o = { dist, kind, air: true, safeLanes: [], boxes: [], built: false, lvl, zHalf: 1.6 };
+  const cells = [];                       // [lane, band] die blockiert sind
+
+  if (kind === 'cloudgate') {
+    // Alles zu ausser ein bis zwei Zellen — da muss man durch
+    const openCount = lvl >= 6 ? 1 : (r() < 0.4 ? 2 : 1);
+    const open = [];
+    while (open.length < openCount) {
+      const key = Math.floor(r() * 5) * 3 + Math.floor(r() * 3);
+      if (open.indexOf(key) < 0) open.push(key);
+    }
+    for (let l = 0; l < 5; l++) for (let b = 0; b < 3; b++) {
+      if (open.indexOf(l * 3 + b) < 0) cells.push([l, b]);
+    }
+    o.open = open;
+
+  } else if (kind === 'debris') {
+    const n = 3 + Math.floor(r() * 3);
+    while (cells.length < n) {
+      const l = Math.floor(r() * 5), b = Math.floor(r() * 3);
+      if (!cells.some(c => c[0] === l && c[1] === b)) cells.push([l, b]);
+    }
+    o.rocks = true;
+
+  } else {                                 // stormbar
+    const band = Math.floor(r() * 3);
+    for (let l = 0; l < 5; l++) cells.push([l, band]);
+    o.storm = true;
+    o.band = band;
+  }
+
+  o.cells = cells;
+  cells.forEach(c => {
+    o.boxes.push({ x: LANES[c[0]], w: 2.15, yMin: BANDS[c[1]] - 1.4, yMax: BANDS[c[1]] + 1.4 });
+  });
+  plannedObstacles.push(o);
+  return o;
 }
 
 function pushObstacle(kind, dist, r, lvl) {
@@ -1121,8 +1365,11 @@ function pushObstacle(kind, dist, r, lvl) {
     o.zHalf = Math.max(3.0, speedAtTime(timeForDistance(dist)) * 0.17);
 
   } else if (kind === 'gatelow' || kind === 'gatehigh') {
+    // Auf der Brücke tragen nur die mittleren Spuren — die Lücke MUSS dort liegen,
+    // sonst müsste man dorthin, wo gar kein Boden mehr ist.
+    const pool = inBridge(dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
     o.kind = 'gate';
-    o.open = [Math.floor(r() * LANES.length)];
+    o.open = [pool[Math.floor(r() * pool.length)]];
     o.safeLanes = o.open.slice();
     o.extra = (kind === 'gatelow') ? 'low' : 'high';
 
@@ -1144,7 +1391,53 @@ function buildObstacle(o) {
   const dark = new THREE.MeshLambertMaterial({ color: 0x2A3644 });
   o.boxes = [];
 
-  if (o.kind === 'laser') {
+  if (o.air) {
+    const cloudMat = new THREE.MeshLambertMaterial({ color: 0xE9F2FA });
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x7C6B5C, flatShading: true });
+    const stormMat = new THREE.MeshLambertMaterial({ color: 0x4A4270 });
+
+    o.cells.forEach(c => {
+      const x = LANES[c[0]], y = BANDS[c[1]];
+      if (o.rocks) {
+        const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(1.25, 0), rockMat);
+        rk.position.set(x, y, 0);
+        grp.add(rk);
+        o.spinners = o.spinners || [];
+        o.spinners.push(rk);
+      } else if (o.storm) {
+        const b = new THREE.Mesh(new THREE.BoxGeometry(2.3, 2.7, 1.1), stormMat);
+        b.position.set(x, y, 0);
+        grp.add(b);
+        const flash = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.6, 0.18),
+          new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.8 }));
+        flash.position.set(x, y, 0.4);
+        grp.add(flash);
+        o.flashes = o.flashes || [];
+        o.flashes.push(flash);
+      } else {
+        // Wolkenblock aus drei versetzten Ballen, damit es weich wirkt
+        [[0, 0, 0, 1.5], [-0.7, 0.4, 0.2, 1.1], [0.75, -0.35, -0.2, 1.15]].forEach(d => {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(d[3], 10, 8), cloudMat);
+          puff.position.set(x + d[0], y + d[1], d[2]);
+          puff.scale.set(1.15, 0.85, 0.7);
+          grp.add(puff);
+        });
+      }
+    });
+
+    // Der freie Durchflug bekommt einen leuchtenden Rahmen
+    if (o.open) {
+      o.open.forEach(key => {
+        const l = Math.floor(key / 3), b = key % 3;
+        const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.42, 20),
+          new THREE.MeshBasicMaterial({ color: 0xFFC53D, transparent: true,
+            opacity: 0.85, side: THREE.DoubleSide }));
+        ring.position.set(LANES[l], BANDS[b], 0.2);
+        grp.add(ring);
+      });
+    }
+
+  } else if (o.kind === 'laser') {
     // Dünner Strahl: schmal genug, dass immer entweder Springen oder Ducken passt
     const core = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 1.2, 0.30, 0.30),
       new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
@@ -1737,6 +2030,10 @@ function doDuck(r, seconds) {
 /* ---------------- Treffer ---------------- */
 
 function runnerBox(r) {
+  if (r.flying) {
+    // Im Flug ist die Trefferfläche um die Flugzeugmitte herum
+    return { x: r.laneX, w: 1.3, yMin: r.y - 0.62, yMax: r.y + 0.62 };
+  }
   const h = r.ducking ? 1.02 : 2.85;
   return { x: r.laneX, w: 1.12, yMin: r.y, yMax: r.y + h };
 }
@@ -1862,13 +2159,17 @@ function updatePips() {
 
 /** Baut die Läufer auf: entweder aus der Lobby-Liste oder mit Bots. */
 function beginRace(seed, botCount) {
-  runners.forEach(r => scene.remove(r.group));
+  runners.forEach(r => { scene.remove(r.group); if (r.plane) scene.remove(r.plane); });
   obstacles.forEach(o => { if (o.group) scene.remove(o.group); });
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
   nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
   if (pulse) pulse.material.opacity = 0;
-  duelOn = false; whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
+  whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
+  nightOn = false; phase2 = 'ground'; quakeShake = 0;
+  clouds.forEach(g => { g.visible = false; });
+  groundTiles.forEach(t2 => { t2.position.y = 0; t2.rotation.z = 0; t2.visible = true; });
+  props.forEach(pr => { if (pr.userData.windows) pr.userData.windows.forEach(w => { w.visible = false; }); });
   applyBiome(0);
 
   isNet = Net.isOnline();
@@ -1892,6 +2193,9 @@ function beginRace(seed, botCount) {
   runners.forEach((r, i) => {
     r.soloNoticed = false;
     r.group.scale.setScalar(1);
+    r.group.visible = true;
+    r.flying = false;
+    if (r.plane) r.plane.visible = false;
     const lane = i % LANES.length;
     r.lane = lane;
     r.laneX = r.targetX = LANES[lane];
@@ -1942,14 +2246,17 @@ function bindInput() {
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA':  setLane(me, me.lane - 1); e.preventDefault(); break;
       case 'ArrowRight': case 'KeyD': setLane(me, me.lane + 1); e.preventDefault(); break;
-      case 'ArrowUp': case 'KeyW': case 'Space': doJump(me); e.preventDefault(); break;
-      case 'ArrowDown': case 'KeyS': duckStart(me); e.preventDefault(); break;
+      case 'ArrowUp': case 'KeyW': case 'Space':
+        keys.up = true; if (!me.flying) doJump(me); e.preventDefault(); break;
+      case 'ArrowDown': case 'KeyS':
+        keys.down = true; if (!me.flying) duckStart(me); e.preventDefault(); break;
     }
   });
 
   addEventListener('keyup', e => {
     if (typing(e)) return;
-    if (e.code === 'ArrowDown' || e.code === 'KeyS') { duckStop(me); e.preventDefault(); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') { keys.up = false; e.preventDefault(); }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') { keys.down = false; duckStop(me); e.preventDefault(); }
   });
 
   // Touch-Knöpfe
@@ -1960,14 +2267,18 @@ function bindInput() {
       const k = el.dataset.k;
       if (k === 'left') setLane(me, me.lane - 1);
       if (k === 'right') setLane(me, me.lane + 1);
-      if (k === 'jump') doJump(me);
-      if (k === 'duck') duckStart(me);
+      if (k === 'jump') { keys.up = true; if (!me.flying) doJump(me); }
+      if (k === 'duck') { keys.down = true; if (!me.flying) duckStart(me); }
     });
   });
 
   document.querySelectorAll('[data-k="duck"]').forEach(el => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
-      el.addEventListener(ev, e => { e.preventDefault(); duckStop(me); }));
+      el.addEventListener(ev, e => { e.preventDefault(); keys.down = false; duckStop(me); }));
+  });
+  document.querySelectorAll('[data-k="jump"]').forEach(el => {
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
+      el.addEventListener(ev, e => { e.preventDefault(); keys.up = false; }));
   });
 
   // Wischgesten
@@ -2027,6 +2338,14 @@ function frame() {
       o.z = -(o.dist - travelled);
       o.group.position.z = o.z;
 
+      if (o.air) {
+        if (o.spinners) o.spinners.forEach(rk => { rk.rotation.x += dt * 2.2; rk.rotation.y += dt * 1.6; });
+        if (o.flashes) {
+          const on = Math.sin(travelled * 0.5 + o.dist) > 0.3;
+          o.flashes.forEach(f => { f.material.opacity = on ? 0.95 : 0.15; });
+        }
+      }
+
       // Laser fährt auf und ab. Drei Dinge machen ihn lesbar statt zufällig:
       //  1. langsamer als vorher
       //  2. er hält sich fast immer ganz oben oder ganz unten auf
@@ -2067,7 +2386,9 @@ function frame() {
         const base = LANES[o.used[0]];
         const span = o.moveRange * 2.3;
         const off = Math.sin(o.movePhase + travelled * 0.035 * o.moveSpeed) * span;
-        const x = Math.max(LANES[0], Math.min(LANES[LANES.length - 1], base + off));
+        // Auf der Brücke bleibt sie über dem tragenden Teil, sonst schwebt sie im Nichts
+        const lim = inBridge(o.dist) ? BRIDGE_HALF - 0.6 : LANES[LANES.length - 1];
+        const x = Math.max(-lim, Math.min(lim, base + off));
         o.boxes[0].x = x;
         if (o.meshes) o.meshes.forEach(pair => pair.forEach(m => {
           m.position.x = x + (m.geometry.type === 'ConeGeometry'
@@ -2107,7 +2428,13 @@ function frame() {
     // Läufer aktualisieren
     runners.forEach(r => {
       if (!r.alive) return;
+      const special = updateActRunner(r, dt);
       if (!isNet && !r.isMe) botThink(r, dt);
+
+      if (special) {
+        if (!r.isMe && r.netY !== undefined) r.y += (r.netY - r.y) * Math.min(1, dt * 14);
+        return;                                  // Schwerkraft und Ducken sind ausgesetzt
+      }
 
       if (r.isMe || !isNet) {
         if (r.y > 0 || r.vy > 0) {
@@ -2140,10 +2467,10 @@ function frame() {
 
     applyBiome((travelled % (BIOME_LENGTH * BIOMES.length)) / (BIOME_LENGTH * BIOMES.length));
     updateTunnel(dt, t);
+    updateAct(dt);
     updateBridge();
     updateProps();
     updateStorm(dt);
-    updateDuel(dt);
     updateStreaks(dt);
     updatePulse(dt);
 
@@ -2169,11 +2496,13 @@ function frame() {
 
   const camTargetX = me ? me.laneX * 0.45 : 0;
   camera.position.x += (camTargetX - camera.position.x) * Math.min(1, dt * 4);
-  camera.position.y = 5.4 + (me && me.y ? me.y * 0.25 : 0);
-  if (shake > 0) {
-    shake = Math.max(0, shake - dt * 1.8);
-    camera.position.x += (Math.random() - 0.5) * shake;
-    camera.position.y += (Math.random() - 0.5) * shake;
+  const camY = me ? (me.flying ? 3.4 + me.y * 0.55 : 5.4 + Math.max(0, me.y) * 0.25 + Math.min(0, me.y) * 0.8) : 5.4;
+  camera.position.y += (camY - camera.position.y) * Math.min(1, dt * 5);
+  const totalShake = shake + quakeShake;
+  if (shake > 0) shake = Math.max(0, shake - dt * 1.8);
+  if (totalShake > 0) {
+    camera.position.x += (Math.random() - 0.5) * totalShake;
+    camera.position.y += (Math.random() - 0.5) * totalShake;
   }
   camera.lookAt(camTargetX * 0.6, 1.9, -14);
   // Schräglage: die Strecke scheint sich zu neigen
@@ -2200,6 +2529,7 @@ if (typeof THREE === 'undefined') {
 try {
   initScene();
   buildTrack();
+  buildClouds();
   buildTunnel();
   buildStreaks();
   bindInput();
