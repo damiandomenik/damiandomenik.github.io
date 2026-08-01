@@ -104,6 +104,14 @@ input:focus{outline:none;border-color:var(--red)}
   background:var(--amber);border:3px solid var(--ink);border-radius:16px;
   padding:8px 0 8px 16px;margin:4px 0 2px}
 .note{margin-top:10px;font-size:.74rem;color:#8A94A2;font-weight:600;min-height:1.1em}
+.swatches{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:6px 0 4px}
+.sw{width:34px;height:34px;border-radius:50%;border:3px solid var(--ink);cursor:pointer;
+  position:relative;box-shadow:0 3px 0 rgba(23,32,43,.35);transition:transform .12s}
+.sw:active{transform:translateY(2px)}
+.sw.sel{box-shadow:0 0 0 3px var(--cream),0 0 0 6px var(--ink);transform:scale(1.1)}
+.sw.taken{opacity:.28;cursor:not-allowed;box-shadow:none}
+.sw.taken::after{content:"";position:absolute;left:4px;right:4px;top:14px;height:3px;
+  background:var(--ink);transform:rotate(-45deg)}
 #swipehint{position:fixed;left:50%;bottom:34%;transform:translateX(-50%);z-index:11;
   font-size:.8rem;color:rgba(255,248,236,.75);pointer-events:none}
 </style>
@@ -171,6 +179,8 @@ input:focus{outline:none;border-color:var(--red)}
   <div class="card">
     <p class="sub" style="margin-bottom:2px">Share this code</p>
     <div class="bigcode" id="lobby-code">----</div>
+    <p class="sub" style="margin:14px 0 2px">Pick your colour</p>
+    <div class="swatches" id="swatches"></div>
     <ul class="board" id="lobby-list"></ul>
     <button class="btn red" id="btn-start">Start race</button>
     <button class="btn plain" id="btn-leave">Leave room</button>
@@ -306,7 +316,7 @@ let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
 let lastSend = 0;
-let myIndex = 0;
+let myIndex = 0, soloColor = 0;
 
 const $ = id => document.getElementById(id);
 
@@ -805,16 +815,16 @@ function buildObstacle(o) {
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x8A7B6B, flatShading: true });
     o.rocks = [];
     o.used.forEach(l => {
-      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1.35, 0), rockMat);
-      rock.position.set(LANES[l], 1.35, 0);
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.9, 0), rockMat);
+      rock.position.set(LANES[l], 0.9, 0);
       grp.add(rock);
       // Staubfahne dahinter
-      const dust = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 2.6),
+      const dust = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.4, 2.4),
         new THREE.MeshBasicMaterial({ color: 0xC9B9A6, transparent: true, opacity: 0.35 }));
-      dust.position.set(LANES[l], 0.28, -1.8);
+      dust.position.set(LANES[l], 0.22, -1.6);
       grp.add(dust);
       o.rocks.push(rock);
-      o.boxes.push({ x: LANES[l], w: 2.5, yMin: 0, yMax: 2.7 });
+      o.boxes.push({ x: LANES[l], w: 1.85, yMin: 0, yMax: 1.8 });
     });
 
   } else if (o.kind === 'pit') {
@@ -958,7 +968,7 @@ const Net = {
 
     this._peer.on('open', id => {
       this.myId = id;
-      this.roster = [{ id, name: this.myName }];
+      this.roster = [{ id, name: this.myName, ci: 0 }];
       openLobby(code, true);
     });
 
@@ -970,7 +980,7 @@ const Net = {
       this._conns.set(conn.peer, conn);
       conn.on('open', () => {
         if (!this.roster.some(r => r.id === conn.peer)) {
-          this.roster.push({ id: conn.peer, name: '…' });
+          this.roster.push({ id: conn.peer, name: '…', ci: this.freeColor() });
         }
         this.pushRoster();
       });
@@ -980,6 +990,8 @@ const Net = {
           const e = this.roster.find(r => r.id === conn.peer);
           if (e) e.name = String(d.name || '…').slice(0, 10).toUpperCase();
           this.pushRoster();
+        } else if (d.t === 'color') {
+          this.setColor(conn.peer, d.ci);
         } else if (d.t === 's') {
           this._states.set(conn.peer, d);
         } else if (d.t === 'out') {
@@ -1054,6 +1066,14 @@ const Net = {
     return this.seed;
   },
 
+  /** Eigene Farbe wählen — Host entscheidet selbst, Clients fragen an. */
+  pickColor(ci) {
+    if (this.isHost()) this.setColor(this.myId, ci);
+    else if (this._host && this._host.open) {
+      try { this._host.send({ t: 'color', ci: ci | 0 }); } catch (e) {}
+    }
+  },
+
   sendState(st) {
     if (this.mode === 'host') this._states.set(this.myId, st);
     else if (this._host && this._host.open) {
@@ -1106,6 +1126,25 @@ const Net = {
     showNetResults(rows);
   },
 
+  /** Erster Farbindex, den noch niemand belegt. */
+  freeColor(except) {
+    for (let i = 0; i < COLORS.length; i++) {
+      if (!this.roster.some(r => r.id !== except && r.ci === i)) return i;
+    }
+    return 0;
+  },
+
+  /** Farbwunsch eines Spielers umsetzen — nur wenn die Farbe frei ist. */
+  setColor(id, ci) {
+    if (!this.isHost()) return;
+    ci = Math.max(0, Math.min(COLORS.length - 1, ci | 0));
+    const e = this.roster.find(r => r.id === id);
+    if (!e) return;
+    const taken = this.roster.some(r => r.id !== id && r.ci === ci);
+    e.ci = taken ? this.freeColor(id) : ci;
+    this.pushRoster();
+  },
+
   pushRoster() { this.broadcast({ t: 'roster', r: this.roster }); renderLobby(); },
 
   broadcast(m) {
@@ -1135,10 +1174,41 @@ function openLobby(code, isHost) {
   renderLobby();
 }
 
+/** Farbe eines Eintrags — gewählte Farbe, sonst der Listenplatz. */
+function colorOf(entry, fallbackIndex) {
+  const ci = (entry && entry.ci !== undefined) ? entry.ci : fallbackIndex;
+  return COLORS[ci % COLORS.length];
+}
+
+function renderSwatches() {
+  const box = $('swatches');
+  if (!box) return;
+  const mine = Net.roster.find(r => r.id === Net.myId);
+  const myCi = mine ? mine.ci : -1;
+
+  box.innerHTML = COLORS.map((c, i) => {
+    const takenBy = Net.roster.find(r => r.ci === i && r.id !== Net.myId);
+    const cls = 'sw' + (i === myCi ? ' sel' : '') + (takenBy ? ' taken' : '');
+    const hex = '#' + c.toString(16).padStart(6, '0');
+    const label = takenBy ? takenBy.name : 'colour ' + (i + 1);
+    return '<button class="' + cls + '" data-ci="' + i + '" ' +
+           'style="background:' + hex + '" aria-label="' + label + '"></button>';
+  }).join('');
+
+  box.querySelectorAll('.sw').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('taken')) return;
+      soloColor = parseInt(el.dataset.ci, 10);
+      Net.pickColor(soloColor);
+      sfx.swap();
+    });
+  });
+}
+
 function renderLobby() {
   const list = Net.roster;
   $('lobby-list').innerHTML = list.map((r, i) => {
-    const c = '#' + COLORS[i % COLORS.length].toString(16).padStart(6, '0');
+    const c = '#' + colorOf(r, i).toString(16).padStart(6, '0');
     return '<li class="' + (r.id === Net.myId ? 'me' : '') + '">' +
       '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
       r.name + (r.id === Net.myId ? ' (you)' : '') + '</span>' +
@@ -1147,6 +1217,7 @@ function renderLobby() {
   $('lobby-note').textContent = Net.isHost()
     ? (list.length > 1 ? list.length + ' runners ready' : 'Waiting for runners to join …')
     : 'Waiting for the host to start';
+  renderSwatches();
 }
 
 /** Zustände der Mitspieler übernehmen. */
@@ -1177,8 +1248,8 @@ function showNetResults(rows) {
       : 'You lasted ' + Math.round((me.outAt || travelled) / METER_SCALE) + ' m';
     $('board').innerHTML = rows.slice(0, 12).map((r, i) => {
       const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
-      const idx = Net.roster.findIndex(e => e.name === r.n);
-      const c = '#' + COLORS[(idx < 0 ? i : idx) % COLORS.length].toString(16).padStart(6, '0');
+      const entry = Net.roster.find(e => e.name === r.n);
+      const c = '#' + colorOf(entry, i).toString(16).padStart(6, '0');
       return '<li class="' + (r.n === Net.myName ? 'me' : '') + '">' +
         '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
         medal + ' ' + r.n + '</span><span>' + r.d + 'm</span></li>';
@@ -1449,14 +1520,14 @@ function beginRace(seed, botCount) {
   if (isNet) {
     myIndex = Net.roster.findIndex(r => r.id === Net.myId);
     Net.roster.forEach((entry, i) => {
-      const r = makeRunner(entry.name, COLORS[i % COLORS.length], entry.id === Net.myId);
+      const r = makeRunner(entry.name, colorOf(entry, i), entry.id === Net.myId);
       runners.push(r);
       if (entry.id === Net.myId) me = r;
     });
     if (Net.isHost()) Net.startRelay();
   } else {
     const myName = ($('nm').value || 'RUNNER').trim().slice(0, 10).toUpperCase() || 'RUNNER';
-    me = makeRunner(myName, COLORS[0], true);
+    me = makeRunner(myName, COLORS[soloColor % COLORS.length], true);
     runners.push(me);
   }
 
@@ -1597,15 +1668,30 @@ function frame() {
       o.z = -(o.dist - travelled);
       o.group.position.z = o.z;
 
-      // Laser fährt auf und ab. Höhe hängt nur an der Strecke, also bei allen gleich.
+      // Laser fährt auf und ab. Drei Dinge machen ihn lesbar statt zufällig:
+      //  1. langsamer als vorher
+      //  2. er hält sich fast immer ganz oben oder ganz unten auf
+      //  3. ab 40 Einheiten vor dem Spieler friert er ein — was du siehst, kommt auch
       if (o.kind === 'laser' && o.boxes.length) {
-        const sw = Math.sin(o.laserPhase + travelled * 0.055 * o.laserSpeed);
-        const y = 1.75 + sw * 1.15;                 // 0.60 bis 2.90
+        const tt = Math.min(travelled, o.dist - 40);
+        const raw = Math.sin(o.laserPhase + tt * 0.030 * o.laserSpeed);
+        const shaped = Math.sign(raw) * Math.pow(Math.abs(raw), 0.35);
+        const y = 1.75 + shaped * 1.15;             // 0.60 bis 2.90
         o.boxes[0].yMin = y - 0.15;
         o.boxes[0].yMax = y + 0.15;
         if (o.core) o.core.position.y = y;
         if (o.halo) o.halo.position.y = y;
         if (o.knobs) o.knobs.forEach(k => { k.position.y = y; });
+
+        // Farbe sagt an, was zu tun ist — gelb heisst springen, blau heisst ducken
+        const mustJump = y < 1.09;
+        const col = mustJump ? 0xFFC53D : 0x37B7F5;
+        if (o.halo) o.halo.material.color.setHex(col);
+        if (o.knobs) o.knobs.forEach(k => k.material.color.setHex(col));
+        // eingefroren: Kern blinkt kurz auf
+        if (travelled > o.dist - 40 && o.core) {
+          o.core.material.color.setHex(0xFFFFFF);
+        }
       }
 
       // Felsbrocken rollt uns entgegen — schneller als die Strecke
@@ -1613,7 +1699,7 @@ function frame() {
         const shown = Math.max(0, travelled - (o.dist + SPAWN_Z));
         o.z = -(o.dist - travelled) + shown * o.approach;
         o.group.position.z = o.z;
-        if (o.rocks) o.rocks.forEach(rk => { rk.rotation.x -= dt * 7; });
+        if (o.rocks) o.rocks.forEach(rk => { rk.rotation.x += dt * 9; });
       }
 
       // Wanderkiste pendelt seitlich — Position hängt nur an der Strecke,
@@ -1631,17 +1717,21 @@ function frame() {
       }
       if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); continue; }
 
-      // Treffer nur im engen Fenster um z = 0, und nur für die eigene Figur
+      // Treffer prüfen, sobald das Hindernis das Fenster um z = 0 BERÜHRT HAT —
+      // also über die ganze Strecke seit dem letzten Frame. Sonst kann ein
+      // schnelles Hindernis bei niedriger Bildrate einfach übersprungen werden.
       const half = o.zHalf || 1.4;
-      if (!o.checked && o.z > -half && o.z < half) {
+      if (o.prevZ === undefined) o.prevZ = o.z;
+      if (!o.checked && o.prevZ < half && o.z > -half) {
         if (me.alive && checkHit(me, o)) eliminate(me, false, o.kind === 'pit');
         if (!isNet) {
           runners.forEach(r => {
             if (r.alive && !r.isMe && checkHit(r, o)) eliminate(r, false, o.kind === 'pit');
           });
         }
-        if (o.z > half * 0.7) o.checked = true;
       }
+      if (o.z > half) o.checked = true;
+      o.prevZ = o.z;
     }
 
     // Boden, Häuser und Ziel mitziehen
