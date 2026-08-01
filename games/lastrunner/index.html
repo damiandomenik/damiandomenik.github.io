@@ -230,7 +230,7 @@ const GRAVITY = 37;
 const DUCK_SCALE = 0.42;
 const LANE_SNAP = 7.5;         // wie schnell die Spur gewechselt wird
 
-const BIOME_LENGTH = 1150;     // nach so vielen Einheiten wechselt die Welt
+const BIOME_LENGTH = 1500;     // Regenbogen liegt damit bei rund 1000 Anzeigemetern
 const REACT_MIN = 1.02;        // Sekunden zwischen zwei Hindernissen (Stufe 0)
 const REACT_MAX = 1.34;
 const REACT_FLOOR = 0.58;      // so eng wird es höchstens
@@ -268,11 +268,21 @@ function timeForDistance(d) {
   return t;
 }
 
-/* Rot bleibt den Hindernissen vorbehalten — sonst zuckt man beim eigenen Team. */
+/* Kräftige Grundfarben. Reines Schwarz und Weiss sind leicht abgetönt,
+   damit die Figur in jeder Welt noch Kontur hat. */
 const COLORS = [
-  0x37B7F5, 0x4BD08A, 0xB07CFF, 0xFF8AC4,
-  0x2ED3C6, 0x7A8AFF, 0x9BD24B, 0xE86FF0,
-  0x5AD1FF, 0x00E0B0, 0xC9A6FF, 0xFFB3E6
+  0x2B3038,   // schwarz
+  0xF7F9FC,   // weiss
+  0xE4322F,   // rot
+  0xFF8C1A,   // orange
+  0xFFD93D,   // gelb
+  0x3FBF57,   // grün
+  0x2F7FF0,   // blau
+  0x22C9D8,   // türkis
+  0x8B4BE0,   // violett
+  0xFF5FA8,   // pink
+  0x9BE02F,   // limette
+  0x8B5E3C    // braun
 ];
 
 /* Vier Welten, die während des Rennens ineinander übergehen. */
@@ -281,21 +291,27 @@ const BIOMES = [
     props: [0xBFD3E2, 0xA9C2D6, 0xD3E2EE, 0x93B2CB], propScale: [1.0, 1.0, 1.0] },
   { name: 'DESERT', sky: 0xFFC98A, fog: 0xFFD9A8, ground: 0xF0DCB4, rail: 0xD9BF8E,
     props: [0xE0A96A, 0xC98F52, 0xEFC48C, 0xB77C46], propScale: [1.5, 0.45, 1.5] },
+  { name: 'RAINBOW', rainbow: true,
+    sky: 0xFF66CC, fog: 0xFFB3E6, ground: 0xFFE8FA, rail: 0xFF88DD,
+    props: [0xFF6B9D, 0xFFD166, 0x6BE7FF, 0x9B6BFF], propScale: [1.0, 1.25, 1.0] },
+  { name: 'WHITEOUT', whiteout: true,
+    sky: 0xFFFFFF, fog: 0xFFFFFF, ground: 0xFFFFFF, rail: 0xF0FBFF,
+    props: [0xFFFFFF, 0xF6FDFF, 0xFFFFFF, 0xEDFAFF], propScale: [1.0, 1.15, 1.0] },
   { name: 'ICE',    sky: 0xBFEAF7, fog: 0xDCF3FB, ground: 0xE8F6FB, rail: 0xB6DCEA,
     props: [0x9FD8EC, 0xC7EBF6, 0x7FC2DC, 0xE3F6FC], propScale: [0.55, 1.55, 0.55] },
   { name: 'NEON',   sky: 0x1B1038, fog: 0x2A1B55, ground: 0x2A2350, rail: 0x6C4BD6,
     props: [0x53308F, 0x7A4BC4, 0x3B2470, 0x9C63FF], propScale: [0.8, 1.35, 0.8] },
-  { name: 'SUNSET', sky: 0xFF9E6B, fog: 0xFFC0A0, ground: 0xF7D9C4, rail: 0xE0A783,
-    props: [0xC9748A, 0xE0906B, 0xA85F80, 0xF0A98C], propScale: [0.9, 1.2, 0.9] },
-  { name: 'JUNGLE', sky: 0x8FE0A8, fog: 0xBFF0CC, ground: 0xDDF0DC, rail: 0x8FC49A,
-    props: [0x3F9457, 0x2E7A46, 0x58B06C, 0x246038], propScale: [1.15, 1.3, 1.15] },
-  { name: 'VOID',   sky: 0x08060F, fog: 0x14102A, ground: 0x1A1730, rail: 0x4A3F7A,
-    props: [0x241E47, 0x1A1636, 0x312a5c, 0x0F0C22], propScale: [0.7, 1.6, 0.7] },
   { name: 'RAINBOW', rainbow: true,
     sky: 0xFF66CC, fog: 0xFFB3E6, ground: 0xFFE8FA, rail: 0xFF88DD,
-    props: [0xFF6B9D, 0xFFD166, 0x6BE7FF, 0x9B6BFF], propScale: [1.0, 1.25, 1.0] }
+    props: [0xFF6B9D, 0xFFD166, 0x6BE7FF, 0x9B6BFF], propScale: [1.0, 1.25, 1.0] },
+  { name: 'JUNGLE', sky: 0x8FE0A8, fog: 0xBFF0CC, ground: 0xDDF0DC, rail: 0x8FC49A,
+    props: [0x3F9457, 0x2E7A46, 0x58B06C, 0x246038], propScale: [1.15, 1.3, 1.15] },
+  { name: 'SUNSET', sky: 0xFF9E6B, fog: 0xFFC0A0, ground: 0xF7D9C4, rail: 0xE0A783,
+    props: [0xC9748A, 0xE0906B, 0xA85F80, 0xF0A98C], propScale: [0.9, 1.2, 0.9] },
+  { name: 'VOID',   sky: 0x08060F, fog: 0x14102A, ground: 0x1A1730, rail: 0x4A3F7A,
+    props: [0x241E47, 0x1A1636, 0x312a5c, 0x0F0C22], propScale: [0.7, 1.6, 0.7] }
 ];
-let biomeIndex = 0, biomeMix = 0;
+let biomeIndex = 0, biomeMix = 0, whiteoutOn = false;
 
 const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
                'JELLY','CACTUS','MOCHI','FLINT','WOBBLE','SPARK'];
@@ -304,6 +320,7 @@ const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
 
 let scene, camera, renderer, clock;
 let runners = [], obstacles = [], groundTiles = [], props = [], propMats = [];
+let tunnelRings = [], streaks = [], pulse = null;
 let me = null;
 let state = 'menu';            // menu | countdown | running | over
 let speed = SPEED_START;
@@ -510,26 +527,39 @@ function buildTrack() {
   groundMat = new THREE.MeshLambertMaterial({ color: 0xF2F5F7 });
   edgeMat = new THREE.MeshLambertMaterial({ color: 0xD8DFE6 });
 
-  for (let i = 0; i < 14; i++) {
+  const TILE_LEN = 10;
+  for (let i = 0; i < 26; i++) {
     const tile = new THREE.Group();
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 1, 22), groundMat);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 1, TILE_LEN), groundMat);
     slab.position.y = -0.5;
     tile.add(slab);
+    tile.userData.slab = slab;
+    tile.userData.rails = [];
 
     // Randleisten
     [-1, 1].forEach(s => {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 22), edgeMat);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, TILE_LEN), edgeMat);
       rail.position.set(s * TRACK_HALF, 0.24, 0);
       tile.add(rail);
+      tile.userData.rails.push(rail);
     });
 
     // Fugen als Orientierung
     const seam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.06, 0.4),
       new THREE.MeshBasicMaterial({ color: 0xC7D2DB }));
-    seam.position.set(0, 0.02, -11);
+    seam.position.set(0, 0.02, -TILE_LEN / 2);
     tile.add(seam);
+    tile.userData.seam = seam;
 
-    tile.position.z = -i * 22;
+    // Stützpfeiler, die nur auf der Brücke sichtbar werden
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(1.6, 26, 1.6),
+      new THREE.MeshLambertMaterial({ color: 0x8FA0AE }));
+    pier.position.set(0, -14, 0);
+    pier.visible = false;
+    tile.add(pier);
+    tile.userData.pier = pier;
+
+    tile.position.z = -i * TILE_LEN;
     scene.add(tile);
     groundTiles.push(tile);
   }
@@ -540,17 +570,283 @@ function buildTrack() {
   for (let i = 0; i < 26; i++) {
     const sd = i % 2 ? 1 : -1;
     const h = 12 + Math.random() * 34;
+    const bw = 7 + Math.random() * 5;
     const b = new THREE.Mesh(
-      new THREE.BoxGeometry(7 + Math.random() * 5, h, 9 + Math.random() * 7),
+      new THREE.BoxGeometry(bw, h, 9 + Math.random() * 7),
       propMats[i % propMats.length]);
     b.position.set(sd * (TRACK_HALF + 7 + Math.random() * 5), h / 2 - 1,
       -i * 18 - Math.random() * 10);
     b.userData.baseY = h / 2 - 1;
     b.userData.wobble = 0.85 + Math.random() * 0.3;
+    b.userData.side = sd;                 // links oder rechts
+    b.userData.halfW = bw / 2;            // halbe Grundbreite
+    b.userData.baseX = Math.abs(b.position.x);
     scene.add(b);
     props.push(b);
   }
 
+}
+
+/* ---------------- Tunnel ---------------- */
+
+const TUNNEL_EVERY = 2400;     // alle so viele Einheiten
+const TUNNEL_LEN = 620;        // so lang ist er
+const RING_GAP = 13;
+const RING_COUNT = 22;
+
+/** Liegt diese Streckenstelle in einem Tunnel? */
+const TUNNEL_OFFSET = 900;     // die ersten Meter bleiben offen
+
+function inTunnel(d) {
+  const m = (((d - TUNNEL_OFFSET) % TUNNEL_EVERY) + TUNNEL_EVERY) % TUNNEL_EVERY;
+  return m < TUNNEL_LEN;
+}
+
+/** Wie tief drin? 0 am Rand, 1 in der Mitte — für weiche Übergänge. */
+function tunnelDepth(d) {
+  const m = (((d - TUNNEL_OFFSET) % TUNNEL_EVERY) + TUNNEL_EVERY) % TUNNEL_EVERY;
+  if (m >= TUNNEL_LEN) return 0;
+  const edge = 70;
+  return Math.min(1, Math.min(m, TUNNEL_LEN - m) / edge);
+}
+
+function buildTunnel() {
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x3A4657 });
+  const trimMat = new THREE.MeshLambertMaterial({ color: 0x222B38 });
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xFFE9A8, transparent: true, opacity: 1 });
+
+  for (let i = 0; i < RING_COUNT; i++) {
+    const g = new THREE.Group();
+    // Seitenwände
+    [-1, 1].forEach(sd => {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(1.4, 11, RING_GAP * 0.92), wallMat);
+      w.position.set(sd * (TRACK_HALF + 0.7), 4.6, 0);
+      g.add(w);
+      const t = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.7, RING_GAP * 0.92), trimMat);
+      t.position.set(sd * (TRACK_HALF + 0.7), 9.9, 0);
+      g.add(t);
+    });
+    // Decke
+    const c = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 + 3.2, 1.2, RING_GAP * 0.92), wallMat);
+    c.position.y = 10.4;
+    g.add(c);
+    // Deckenlampe
+    const lamp = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.28, 0.9), lampMat.clone());
+    lamp.position.y = 9.7;
+    g.add(lamp);
+    g.userData.lamp = lamp;
+
+    g.visible = false;
+    g.position.z = -i * RING_GAP;
+    scene.add(g);
+    tunnelRings.push(g);
+  }
+}
+
+function updateTunnel(dt, t) {
+  const span = RING_GAP * RING_COUNT;
+  tunnelRings.forEach(g => {
+    g.position.z += speed * dt;
+    if (g.position.z > 18) g.position.z -= span;
+    const worldDist = travelled - g.position.z;
+    g.visible = inTunnel(worldDist);
+    if (g.visible && g.userData.lamp) {
+      // Lampen flackern leicht, damit der Tunnel lebt
+      const f = 0.55 + 0.45 * Math.abs(Math.sin(worldDist * 0.9));
+      g.userData.lamp.material.opacity = f;
+    }
+  });
+
+  // Drinnen wird es dunkel und eng
+  const depth = tunnelDepth(travelled);
+  if (depth > 0) {
+    scene.fog.color.lerp(_c1.setHex(0x1A2230), depth * 0.85);
+    scene.background.lerp(_c1.setHex(0x121A26), depth * 0.9);
+    scene.fog.far = 210 - depth * 70;
+    camera.fov = (58 + Math.min(10, lastLevel * 1.1)) - depth * 5;
+    camera.updateProjectionMatrix();
+  } else if (scene.fog.far !== 210) {
+    scene.fog.far = 210;
+  }
+  if (depth > 0.05 && !tunnelAnnounced) { tunnelAnnounced = true; showToast('TUNNEL'); }
+  if (depth === 0) tunnelAnnounced = false;
+
+  if (inBridge(travelled) && !bridgeAnnounced) { bridgeAnnounced = true; showToast('NO RAILS'); }
+  if (!inBridge(travelled)) bridgeAnnounced = false;
+  if (Math.abs(bankAngle(travelled)) > 0.05 && !bankAnnounced) { bankAnnounced = true; showToast('TILT'); }
+  if (Math.abs(bankAngle(travelled)) < 0.01) bankAnnounced = false;
+}
+
+let tunnelAnnounced = false, bridgeAnnounced = false, bankAnnounced = false;
+
+/* ---------------- Weissraum ---------------- */
+
+/** Färbt ein Hindernis weiss — dunkle Kanten bleiben, damit die Form lesbar ist. */
+function whiteObstacle(o, on) {
+  if (!o.group || o.whited === on) return;
+  o.whited = on;
+  o.group.traverse(m => {
+    if (!m.material || !m.material.color) return;
+    const c = m.material;
+    if (c.userData === undefined) c.userData = {};
+    if (c.userData.orig === undefined) c.userData.orig = c.color.getHex();
+    const orig = c.userData.orig;
+    // Luminanz: alles Dunkle bleibt dunkel, der Rest wird weiss
+    const lum = ((orig >> 16 & 255) * 0.3 + (orig >> 8 & 255) * 0.59 + (orig & 255) * 0.11) / 255;
+    if (lum < 0.28) return;
+    c.color.setHex(on ? 0xFFFFFF : orig);
+  });
+}
+
+/* ---------------- Kulisse auf Abstand halten ---------------- */
+
+/* Die Biome skalieren die Häuser in der Breite. Ohne Korrektur ragen sie
+   dadurch in die Fahrbahn — in der Wüste bis auf 3.05, die Bahn geht bis 6.4.
+   Also wird die Position jedes Hauses aus seiner AKTUELLEN Breite berechnet. */
+function updateProps() {
+  props.forEach(pr => {
+    const u = pr.userData;
+    if (u.halfW === undefined) return;
+    const halfNow = u.halfW * pr.scale.x;
+    const worldDist = travelled - pr.position.z;
+    // Im Tunnel müssen sie hinter die Tunnelwand, sonst nur neben die Bahn
+    const clearance = inTunnel(worldDist) ? 9.6 : TRACK_HALF + 1.4;
+    const minX = clearance + halfNow;
+    pr.position.x = u.side * Math.max(u.baseX, minX);
+  });
+}
+
+/* ---------------- Brücke ohne Geländer ---------------- */
+
+const BRIDGE_EVERY = 3100, BRIDGE_LEN = 480, BRIDGE_OFFSET = 2000;
+const BRIDGE_HALF = 3.5;       // nur noch die mittleren drei Spuren tragen
+
+function inBridge(d) {
+  if (inTunnel(d)) return false;                 // nie beides gleichzeitig
+  const m = (((d - BRIDGE_OFFSET) % BRIDGE_EVERY) + BRIDGE_EVERY) % BRIDGE_EVERY;
+  return m < BRIDGE_LEN;
+}
+
+function updateBridge() {
+  const narrow = BRIDGE_HALF / TRACK_HALF;
+  groundTiles.forEach(tile => {
+    const worldDist = travelled - tile.position.z;
+    const on = inBridge(worldDist);
+    const slab = tile.userData.slab;
+    if (!slab) return;
+
+    // Kein weiches Nachziehen: jede Kachel ist entweder breit oder schmal.
+    // Bei 10 Einheiten Kachellänge sieht die Kante wie eine Brückenfuge aus.
+    const f = on ? narrow : 1;
+    slab.scale.x = f;
+    if (tile.userData.seam) tile.userData.seam.scale.x = f;
+
+    const halfNow = TRACK_HALF * f;
+    tile.userData.rails.forEach((r, i) => {
+      r.position.x = (i ? 1 : -1) * halfNow;
+      r.visible = !on;                            // auf der Brücke fehlt das Geländer
+    });
+    if (tile.userData.pier) tile.userData.pier.visible = on;
+  });
+}
+
+/* ---------------- Schräglage ---------------- */
+
+const BANK_EVERY = 2700, BANK_LEN = 520, BANK_OFFSET = 1500;
+
+function bankAngle(d) {
+  const m = (((d - BANK_OFFSET) % BANK_EVERY) + BANK_EVERY) % BANK_EVERY;
+  if (m >= BANK_LEN) return 0;
+  const fade = Math.min(1, Math.min(m, BANK_LEN - m) / 90);
+  return Math.sin(m * 0.012) * 0.26 * fade;       // sanftes Kippen nach links und rechts
+}
+
+/* ---------------- Gewitter im VOID ---------------- */
+
+let boltT = 0, boltNext = 2.4;
+
+function updateStorm(dt) {
+  const inVoid = BIOMES[biomeIndex] && BIOMES[biomeIndex].name === 'VOID';
+  if (!inVoid) { boltT = 0; return; }
+  boltT += dt;
+  if (boltT > boltNext) {
+    boltT = 0;
+    boltNext = 1.6 + Math.random() * 3.2;
+    // Doppelblitz, dann Donner
+    scene.background.setHex(0xC8D4FF);
+    setTimeout(() => { if (state === 'running') scene.background.setHex(0x6B7BB8); }, 60);
+    setTimeout(() => { if (state === 'running') scene.background.setHex(0xC8D4FF); }, 130);
+    beep('sawtooth', 70, 0.9, 0.05);
+  }
+}
+
+/* ---------------- Duell der letzten zwei ---------------- */
+
+let duelOn = false, duelT = 0;
+
+function updateDuel(dt) {
+  const alive = aliveRunners();
+  const two = runners.length > 2 && alive.length === 2 && state === 'running';
+  if (two && !duelOn) {
+    duelOn = true; duelT = 0;
+    showToast('FINAL TWO');
+    sfx.win();
+    if (pulse) firePulse();
+  }
+  if (!two) { duelOn = false; return; }
+  duelT += dt;
+  // Kein Heranzoomen — die Kamera bleibt, wo sie ist. Nur ein leichter Puls
+  // an den beiden Übriggebliebenen zeigt an, dass es jetzt ernst wird.
+  const beat = 0.5 + 0.5 * Math.sin(duelT * 5);
+  alive.forEach(r => { if (r.group) r.group.scale.setScalar(1 + beat * 0.05); });
+}
+
+/* ---------------- Effekte ---------------- */
+
+/** Lichtstreifen, die bei hohem Tempo vorbeiziehen. */
+function buildStreaks() {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0 });
+  for (let i = 0; i < 26; i++) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 6 + Math.random() * 10), mat.clone());
+    m.position.set((Math.random() - 0.5) * 26, 1 + Math.random() * 12, -Math.random() * 200);
+    scene.add(m);
+    streaks.push(m);
+  }
+}
+
+function updateStreaks(dt) {
+  const rush = Math.max(0, Math.min(1, (speed - 45) / 45));
+  streaks.forEach(m => {
+    m.position.z += (speed * 1.9) * dt;
+    if (m.position.z > 16) {
+      m.position.z = -180 - Math.random() * 60;
+      m.position.x = (Math.random() - 0.5) * 26;
+      m.position.y = 1 + Math.random() * 12;
+    }
+    m.material.opacity = rush * 0.4;
+  });
+}
+
+/** Druckwelle beim Tempowechsel. */
+function firePulse() {
+  if (!pulse) {
+    pulse = new THREE.Mesh(
+      new THREE.RingGeometry(2.4, 3.2, 40),
+      new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true,
+        opacity: 0, side: THREE.DoubleSide }));
+    scene.add(pulse);
+  }
+  pulse.position.set(0, 3, -70);
+  pulse.scale.setScalar(0.6);
+  pulse.material.opacity = 0.9;
+}
+
+function updatePulse(dt) {
+  if (!pulse || pulse.material.opacity <= 0) return;
+  pulse.position.z += (speed * 2.6) * dt;
+  pulse.scale.multiplyScalar(1 + dt * 2.6);
+  pulse.material.opacity -= dt * 1.1;
+  if (pulse.position.z > 12) pulse.material.opacity = 0;
 }
 
 /* ---------------- Biome ---------------- */
@@ -571,6 +867,29 @@ function applyBiome(progress) {
   const t = Math.min(1, Math.max(0, (pos - i) * 2 - 0.6));   // scharfer, kurzer Übergang
 
   const A = BIOMES[i], B = BIOMES[j];
+
+  // Weissraum: Himmel, Boden, Kulisse — alles gleisst. Nur die dunklen
+  // Kanten der Hindernisse bleiben, sonst wäre nichts mehr zu erkennen.
+  const wo = (A.whiteout && t < 0.5) || (B.whiteout && t >= 0.5);
+  if (wo !== whiteoutOn) {
+    whiteoutOn = wo;
+    if (wo && state === 'running') { showToast('WHITEOUT'); if (pulse) firePulse(); }
+  }
+  if (wo) {
+    const shimmer = 0.93 + 0.07 * Math.sin(travelled * 0.06);
+    scene.background.setRGB(shimmer, shimmer, 1);
+    scene.fog.color.setRGB(1, 1, 1);
+    if (groundMat) groundMat.color.setRGB(1, 1, 1);
+    if (edgeMat) edgeMat.color.setRGB(0.92, 0.99, 1);
+    propMats.forEach(m => m.color.setRGB(1, 1, 1));
+    props.forEach(pr => {
+      const w = pr.userData.wobble;
+      pr.scale.set(w, 1.15, w);
+      pr.position.y = pr.userData.baseY * 1.15;
+    });
+    if (i !== biomeIndex) { biomeIndex = i; }
+    return;
+  }
 
   // Regenbogenwelt: alles kreist durch den Farbkreis
   if ((A.rainbow && t < 0.5) || (B.rainbow && t >= 0.5)) {
@@ -645,11 +964,28 @@ function gapSecondsFor(lvl, r) {
   return lo + r() * (hi - lo);
 }
 
+let planLastKind = null;
+
+/** Mindestabstand NACH einem Hindernis — sonst entstehen unlösbare Folgen.
+    Wer springt, ist 0.66s in der Luft und kann sich in der Zeit nicht ducken. */
+function minGapAfter(kind) {
+  if (kind === 'low' || kind === 'pit' || kind === 'gatelow') return 0.88;
+  if (kind === 'high' || kind === 'gatehigh') return 0.44;
+  return 0.38;
+}
+
 function startPlan(seed) {
   planRng = makeRng(seed);
   planDist = 110;                      // die ersten Meter bleiben frei
+  planLastKind = null;
   plannedObstacles = [];
   extendPlan();
+}
+
+/** Rückt den Planzeiger weiter und achtet dabei auf den Mindestabstand. */
+function advance(seconds, prevKind) {
+  const t = timeForDistance(planDist);
+  planDist += speedAtTime(t) * Math.max(seconds, minGapAfter(prevKind));
 }
 
 /** Hängt weitere Hindernisse an. Immer in derselben Reihenfolge — dadurch
@@ -660,45 +996,56 @@ function extendPlan() {
     const tHere = timeForDistance(planDist);
     const lvl = levelAtTime(tHere);
     const kinds = kindsForLevel(lvl);
-    let kind = kinds[Math.floor(r() * kinds.length)];
+    const kind = kinds[Math.floor(r() * kinds.length)];
+    let last = kind;
 
     if (kind === 'sandwich') {
+      // Erst ducken, dann springen — nie umgekehrt, sonst hängt man in der Luft
       pushObstacle('high', planDist, r, lvl);
-      planDist += speedAtTime(tHere) * 0.50;
+      advance(0.55, 'high');
       pushObstacle('low', planDist, r, lvl);
+      last = 'low';
 
     } else if (kind === 'zigzag') {
       const a = pushObstacle('narrow', planDist, r, lvl);
-      planDist += speedAtTime(tHere) * 0.56;
+      advance(0.62, 'gate');
       const b = pushObstacle('narrow', planDist, r, lvl);
-      // zweite Lücke bewusst weit weg von der ersten
-      const far = (a.open[0] + 2 + Math.floor(r() * 2)) % LANES.length;
+      const pool = inBridge(planDist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+      const far = pool[(pool.indexOf(a.open[0]) + 2 + Math.floor(r() * 2)) % pool.length];
       b.open = [far]; b.safeLanes = [far];
+      last = 'gate';
 
     } else if (kind === 'chain') {
-      const seq = ['low', 'high', 'block'].sort(() => r() - 0.5);
-      seq.forEach((kk, i) => {
-        pushObstacle(kk, planDist, r, lvl);
-        if (i < 2) planDist += speedAtTime(tHere) * 0.46;
-      });
+      // Reihenfolge fest: ducken, ausweichen, springen. Der Sprung kommt zuletzt,
+      // damit danach kein Hindernis folgt, das man am Boden lösen müsste.
+      pushObstacle('high', planDist, r, lvl);
+      advance(0.50, 'high');
+      pushObstacle('block', planDist, r, lvl);
+      advance(0.46, 'block');
+      pushObstacle('low', planDist, r, lvl);
+      last = 'low';
 
     } else if (kind === 'slalom') {
-      let lane = Math.floor(r() * LANES.length);
+      const sPool = inBridge(planDist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+      let li = Math.floor(r() * sPool.length);
       for (let i = 0; i < 3; i++) {
+        const lane = sPool[li];
         const o = pushObstacle('block', planDist, r, lvl);
         o.used = [lane];
         o.safeLanes = [];
-        LANES.forEach((x, k) => { if (k !== lane) o.safeLanes.push(k); });
-        lane = (lane + (r() < 0.5 ? 1 : 2)) % LANES.length;
-        if (i < 2) planDist += speedAtTime(tHere) * 0.42;
+        sPool.forEach(k => { if (k !== lane) o.safeLanes.push(k); });
+        li = (li + (r() < 0.5 ? 1 : 2)) % sPool.length;
+        if (i < 2) advance(0.46, 'block');
       }
+      last = 'block';
 
     } else {
       pushObstacle(kind, planDist, r, lvl);
     }
 
     const extra = (kind === 'boulder') ? 0.35 : 0;
-    planDist += speedAtTime(tHere) * (gapSecondsFor(lvl, r) + extra);
+    advance(gapSecondsFor(lvl, r) + extra, last);
+    planLastKind = last;
   }
 }
 
@@ -708,9 +1055,11 @@ function pushObstacle(kind, dist, r, lvl) {
 
   if (kind === 'gate' || kind === 'narrow') {
     const openCount = kind === 'narrow' ? 1 : (r() < 0.28 ? 2 : 1);
+    // Auf der Brücke tragen nur die mittleren drei Spuren — die Lücke muss dort liegen
+    const pool = inBridge(dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
     const open = [];
     while (open.length < openCount) {
-      const l = Math.floor(r() * LANES.length);
+      const l = pool[Math.floor(r() * pool.length)];
       if (open.indexOf(l) < 0) open.push(l);
     }
     o.kind = 'gate';
@@ -718,11 +1067,15 @@ function pushObstacle(kind, dist, r, lvl) {
     o.safeLanes = open.slice();
 
   } else if (kind === 'block' || kind === 'mover') {
-    const n = kind === 'mover' ? 1 : (r() < 0.4 ? 2 : 1);
+    // Auf der Brücke tragen nur die Spuren 1–3. Höchstens zwei davon blockieren,
+    // sonst bliebe kein sicherer Ausweg.
+    const pool = inBridge(dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+    const n = kind === 'mover' ? 1 : (r() < 0.4 ? Math.min(2, pool.length - 1) : 1);
     const used = [];
     for (let k = 0; k < n; k++) {
-      let l = Math.floor(r() * LANES.length);
-      if (used.indexOf(l) >= 0) l = (l + 1) % LANES.length;
+      let l = pool[Math.floor(r() * pool.length)];
+      let guard = 0;
+      while (used.indexOf(l) >= 0 && guard++ < 8) l = pool[(pool.indexOf(l) + 1) % pool.length];
       used.push(l);
     }
     o.kind = 'block';
@@ -748,11 +1101,13 @@ function pushObstacle(kind, dist, r, lvl) {
     o.boulder = true;
     o.approach = 0.35;
     o.dist = dist + Math.abs(SPAWN_Z) * o.approach / (1 + o.approach);   // Vorlauf
-    const n = r() < 0.3 ? 2 : 1;
+    const pool = inBridge(o.dist) ? [1, 2, 3] : [0, 1, 2, 3, 4];
+    const n = r() < 0.3 ? Math.min(2, pool.length - 1) : 1;
     const used = [];
     for (let k = 0; k < n; k++) {
-      let l = Math.floor(r() * LANES.length);
-      if (used.indexOf(l) >= 0) l = (l + 1) % LANES.length;
+      let l = pool[Math.floor(r() * pool.length)];
+      let guard = 0;
+      while (used.indexOf(l) >= 0 && guard++ < 8) l = pool[(pool.indexOf(l) + 1) % pool.length];
       used.push(l);
     }
     o.used = used;
@@ -1511,7 +1866,9 @@ function beginRace(seed, botCount) {
   obstacles.forEach(o => { if (o.group) scene.remove(o.group); });
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
-  nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1;
+  nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
+  if (pulse) pulse.material.opacity = 0;
+  duelOn = false; whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   applyBiome(0);
 
   isNet = Net.isOnline();
@@ -1534,6 +1891,7 @@ function beginRace(seed, botCount) {
   // Startaufstellung — alle auf derselben Höhe, verteilt über die Spuren
   runners.forEach((r, i) => {
     r.soloNoticed = false;
+    r.group.scale.setScalar(1);
     const lane = i % LANES.length;
     r.lane = lane;
     r.laneX = r.targetX = LANES[lane];
@@ -1658,6 +2016,7 @@ function frame() {
       if (lvl > 0) {
         showToast('SPEED UP  ×' + (lvl + 1 + LEVEL_OFFSET));
         sfx.go();
+        firePulse();
         camera.fov = 58 + Math.min(10, lvl * 1.1);
         camera.updateProjectionMatrix();
       }
@@ -1715,6 +2074,7 @@ function frame() {
             ? (m.rotation.z > 0 ? 1.6 : -1.6) : 0);
         }));
       }
+      whiteObstacle(o, whiteoutOn);
       if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); continue; }
 
       // Treffer prüfen, sobald das Hindernis das Fenster um z = 0 BERÜHRT HAT —
@@ -1737,7 +2097,7 @@ function frame() {
     // Boden, Häuser und Ziel mitziehen
     groundTiles.forEach(tile => {
       tile.position.z += speed * dt;
-      if (tile.position.z > 22) tile.position.z -= 22 * groundTiles.length;
+      if (tile.position.z > 10) tile.position.z -= 10 * groundTiles.length;
     });
     props.forEach(pr => {
       pr.position.z += speed * dt;
@@ -1779,6 +2139,20 @@ function frame() {
     }
 
     applyBiome((travelled % (BIOME_LENGTH * BIOMES.length)) / (BIOME_LENGTH * BIOMES.length));
+    updateTunnel(dt, t);
+    updateBridge();
+    updateProps();
+    updateStorm(dt);
+    updateDuel(dt);
+    updateStreaks(dt);
+    updatePulse(dt);
+
+    // Wer auf der Brücke zu weit aussen läuft, stürzt ab
+    if (me.alive && me.y < 0.45 && Math.abs(me.laneX) > BRIDGE_HALF + 0.15
+        && inBridge(travelled)) {
+      eliminate(me, false, true);
+      showToast('OFF THE EDGE');
+    }
 
     // HUD
     const stepPct = ((raceTime % STEP_SEC) / STEP_SEC) * 100;
@@ -1802,16 +2176,40 @@ function frame() {
     camera.position.y += (Math.random() - 0.5) * shake;
   }
   camera.lookAt(camTargetX * 0.6, 1.9, -14);
+  // Schräglage: die Strecke scheint sich zu neigen
+  const bank = (state === 'running') ? bankAngle(travelled) : 0;
+  camera.rotation.z += (bank - camera.rotation.z) * Math.min(1, dt * 3);
 
   renderer.render(scene, camera);
 }
 
 /* ---------------- Start ---------------- */
 
-initScene();
-buildTrack();
-bindInput();
-frame();
+if (typeof THREE === 'undefined') {
+  // Ohne Three.js geht gar nichts — das passiert, wenn eine Vorschau- oder
+  // Firewall-Umgebung das CDN blockt. Lieber deutlich sagen als stumm scheitern.
+  const box = $('net-note');
+  if (box) box.innerHTML = '<b style="color:#E4322F">3D-Bibliothek konnte nicht geladen werden.</b>' +
+    '<br>Auf GitHub Pages oder über einen lokalen Server öffnen.';
+  ['btn-play', 'btn-host', 'btn-join'].forEach(id => {
+    const b = $(id); if (b) { b.style.opacity = .4; b.style.pointerEvents = 'none'; }
+  });
+  return;
+}
+
+try {
+  initScene();
+  buildTrack();
+  buildTunnel();
+  buildStreaks();
+  bindInput();
+  frame();
+} catch (err) {
+  console.error('[LAST RUNNER] Start fehlgeschlagen:', err);
+  const box = $('net-note');
+  if (box) box.innerHTML = '<b style="color:#E4322F">Start fehlgeschlagen:</b> ' + err.message;
+  return;
+}
 
 const readName = () => ($('nm').value || 'RUNNER').trim().slice(0, 10).toUpperCase() || 'RUNNER';
 const wakeAudio = () => {
