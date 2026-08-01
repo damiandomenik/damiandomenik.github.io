@@ -125,6 +125,15 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
 .freeze{animation:freeze 4s ease-in-out infinite}
 @keyframes freeze{0%,100%{opacity:.25}50%{opacity:.7}}
 
+/* LAST RUNNER-Bildschirm */
+.gate{animation:approach 2.2s linear infinite}
+@keyframes approach{0%{transform:translateY(0) scale(1);opacity:0}
+  15%{opacity:1}100%{transform:translateY(46px) scale(1.9);opacity:0}}
+.run1{animation:bob 0.5s ease-in-out infinite}
+.run2{animation:bob 0.5s ease-in-out infinite .16s}
+.run3{animation:bob 0.5s ease-in-out infinite .32s}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
@@ -136,13 +145,13 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
   <header class="marquee">
     <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <h1>SPIELHALLE</h1>
-    <p class="sub">Drei Automaten stehen bereit. Einwurf ist nicht nötig.</p>
+    <p class="sub">Vier Automaten stehen bereit. Einwurf ist nicht nötig.</p>
   </header>
 
   <main class="hall">
 
     <!-- PLUMPS -->
-    <a class="cab" href="../games/plumps/" style="--tint:var(--violet)">
+    <a class="cab" href="/games/plumps/" style="--tint:var(--violet)">
       <div class="top"><b>PLUMPS</b><span>1 Spieler</span></div>
       <div class="screen">
         <svg viewBox="0 0 200 150" aria-hidden="true">
@@ -178,7 +187,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
     </a>
 
     <!-- TURBO RACING -->
-    <a class="cab" href="../games/racing/" style="--tint:var(--tomato)">
+    <a class="cab" href="/games/racing/" style="--tint:var(--tomato)">
       <div class="top"><b>TURBO RACING</b><span>bis 4 Spieler</span></div>
       <div class="screen">
         <svg viewBox="0 0 200 150" aria-hidden="true">
@@ -221,7 +230,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
     </a>
 
     <!-- BRAWLER -->
-    <a class="cab" href="../games/brawler/" style="--tint:var(--frost)">
+    <a class="cab" href="/games/brawler/" style="--tint:var(--frost)">
       <div class="top"><b>BRAWLER</b><span>2–8 players</span></div>
       <div class="screen">
         <svg viewBox="0 0 200 150" aria-hidden="true">
@@ -275,18 +284,62 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
       <div class="play">PLAY <em>Room code</em></div>
     </a>
 
-    <!-- BRAWLER -->
-    <a class="cab" href="../games/lastrunner/" style="--tint:var(--frost)">
-      <div class="top"><b>LAST RUNNER</b><span>1–8 players</span></div>
+    <!-- LAST RUNNER -->
+    <a class="cab" href="/games/lastrunner/" style="--tint:var(--sun)">
+      <div class="top"><b>LAST RUNNER</b><span>2–12 players</span></div>
       <div class="screen">
-      <div class="scanlines"></div><div class="glare"></div>
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <defs>
+            <linearGradient id="sky3" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8FD8F5"/><stop offset="1" stop-color="#C8ECFA"/>
+            </linearGradient>
+            <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#DCE6EC"/><stop offset="1" stop-color="#F6F9FB"/>
+            </linearGradient>
+          </defs>
+          <rect width="200" height="150" fill="url(#sky3)"/>
+          <!-- Skyline -->
+          <g fill="#A9C2D6" opacity=".7">
+            <rect x="6" y="44" width="16" height="34"/><rect x="26" y="30" width="13" height="48"/>
+            <rect x="160" y="36" width="15" height="42"/><rect x="180" y="48" width="14" height="30"/>
+          </g>
+          <!-- Fluchtende Bahn -->
+          <path d="M78 76 L122 76 L172 150 L28 150 Z" fill="url(#road)"/>
+          <path d="M78 76 L122 76 L128 86 L72 86 Z" fill="#E4EBF0"/>
+          <path d="M69 96 L131 96 L136 106 L64 106 Z" fill="#E4EBF0"/>
+          <!-- Randleisten -->
+          <path d="M78 76 L28 150 L20 150 L74 76 Z" fill="#C3D2DB"/>
+          <path d="M122 76 L172 150 L180 150 L126 76 Z" fill="#C3D2DB"/>
+          <!-- Wand mit Lücke -->
+          <g class="gate">
+            <rect x="62" y="84" width="20" height="20" rx="2" fill="#FF5B45"/>
+            <rect x="118" y="84" width="20" height="20" rx="2" fill="#FF5B45"/>
+            <polygon points="100,78 96,86 104,86" fill="#FFC53D"/>
+          </g>
+          <!-- Läufer -->
+          <g class="run1">
+            <circle cx="86" cy="116" r="5" fill="#37B7F5"/>
+            <rect x="82" y="121" width="8" height="12" rx="3" fill="#37B7F5"/>
+            <rect x="82" y="133" width="3" height="7" fill="#2A93C9"/>
+            <rect x="87" y="133" width="3" height="7" fill="#2A93C9"/>
+          </g>
+          <g class="run2">
+            <circle cx="114" cy="114" r="5" fill="#4BD08A"/>
+            <rect x="110" y="119" width="8" height="12" rx="3" fill="#4BD08A"/>
+            <rect x="110" y="131" width="3" height="7" fill="#37A66C"/>
+            <rect x="115" y="131" width="3" height="7" fill="#37A66C"/>
+          </g>
+          <g class="run3">
+            <circle cx="100" cy="124" r="5" fill="#B07CFF"/>
+            <rect x="96" y="129" width="8" height="12" rx="3" fill="#B07CFF"/>
+          </g>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
       </div>
       <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
       <div class="play">PLAY <em>Room code</em></div>
     </a>
-    
 
-    
     <!-- Platzhalter -->
     <div class="cab dark" aria-hidden="true">
       <div class="top"><b>???</b><span>demnächst</span></div>
