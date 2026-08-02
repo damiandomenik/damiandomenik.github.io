@@ -360,7 +360,8 @@ const NAMES = ['ZIPPY','BOLT','NOVA','PIXEL','TOAST','RUMBLE','ECHO','WASABI',
 
 let scene, camera, renderer, clock;
 let runners = [], obstacles = [], groundTiles = [], props = [], propMats = [];
-let tunnelRings = [], streaks = [], pulse = null;
+let tunnelRings = [], loopRings = [], streaks = [], pulse = null;
+let loopAnnounced = false, loopOn = false;
 let me = null;
 let state = 'menu';            // menu | countdown | running | over
 let speed = SPEED_START;
@@ -895,7 +896,10 @@ function updateTunnel(dt, t) {
     camera.fov = (58 + Math.min(10, lastLevel * 1.1)) - depth * 5
                + flipAmount(travelled) * 9;
     camera.updateProjectionMatrix();
-  } else if (scene.fog.far !== 210) {
+  } else if (scene.fog.far !== 210 && !loopOn && !lavaOn) {
+    // Ohne die beiden Ausnahmen setzt diese Zeile die Sichtweite jeden Frame
+    // auf 210 zurück — die 185 des Loopings und die 225 des Lavaplaneten
+    // kamen dadurch nie an, weil updateTunnel nach applyBiome läuft.
     scene.fog.far = 210;
   }
   if (depth > 0.05 && !tunnelAnnounced) { tunnelAnnounced = true; showToast('TUNNEL'); }
@@ -911,8 +915,10 @@ function updateTunnel(dt, t) {
 
   if (inBridge(travelled) && !bridgeAnnounced) { bridgeAnnounced = true; showToast('NO RAILS'); }
   if (!inBridge(travelled)) bridgeAnnounced = false;
-  if (Math.abs(bankAngle(travelled)) > 0.05 && !bankAnnounced) { bankAnnounced = true; showToast('TILT'); }
-  if (Math.abs(bankAngle(travelled)) < 0.01) bankAnnounced = false;
+  // Im Looping ist die Schräglage abgeschaltet — dann auch nicht ansagen.
+  const bankNow = inLoop(travelled) ? 0 : Math.abs(bankAngle(travelled));
+  if (bankNow > 0.05 && !bankAnnounced) { bankAnnounced = true; showToast('TILT'); }
+  if (bankNow < 0.01) bankAnnounced = false;
 }
 
 let tunnelAnnounced = false, bridgeAnnounced = false, bankAnnounced = false;
@@ -1002,6 +1008,73 @@ function buildVolcanoes() {
     volcanoes.push(vol);
     pr.userData.volcano = vol;
   });
+}
+
+/** Die Röhre des Loopings. Jeder Ring dreht sich zusätzlich um die eigene
+    Achse, dadurch entsteht das Korkenziehermuster. */
+function buildLoop() {
+  const shell = new THREE.MeshLambertMaterial({ color: 0x1B2436 });
+  const ribMat = new THREE.MeshLambertMaterial({ color: 0x0B111C });
+  const N = 14;
+  const panelW = (2 * Math.PI * LOOP_RADIUS / N) * 1.06;
+
+  for (let i = 0; i < LOOP_RINGS; i++) {
+    const g = new THREE.Group();
+    // Jeder Ring bekommt ein EIGENES Leuchtmaterial. Nur so kann die Farbe an
+    // der Weltposition hängen statt am Ring — dadurch stehen die Farbbänder
+    // fest im Raum und rasen an einem vorbei, statt mitzuwandern.
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x37B7F5 });
+    g.userData.glow = glowMat;
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      const p = new THREE.Mesh(new THREE.BoxGeometry(panelW, 0.7, LOOP_SEG * 0.9), shell);
+      p.position.set(Math.cos(a) * LOOP_RADIUS, Math.sin(a) * LOOP_RADIUS, 0);
+      p.rotation.z = a + Math.PI / 2;
+      g.add(p);
+      // jedes dritte Feld leuchtet — gibt der Drehung eine Spur zum Verfolgen
+      if (k % 3 === 0) {
+        const l = new THREE.Mesh(new THREE.BoxGeometry(panelW * 0.5, 0.16, LOOP_SEG * 0.55), glowMat);
+        l.position.set(Math.cos(a) * (LOOP_RADIUS - 0.45), Math.sin(a) * (LOOP_RADIUS - 0.45), 0);
+        l.rotation.z = a + Math.PI / 2;
+        g.add(l);
+      }
+    }
+    // Spant am vorderen Ende
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * Math.PI * 2;
+      const rb = new THREE.Mesh(new THREE.BoxGeometry(panelW, 1.0, 0.7), ribMat);
+      rb.position.set(Math.cos(a) * (LOOP_RADIUS + 0.2), Math.sin(a) * (LOOP_RADIUS + 0.2),
+                      -LOOP_SEG / 2);
+      rb.rotation.z = a + Math.PI / 2;
+      g.add(rb);
+    }
+    g.position.y = LOOP_CENTER_Y;
+    g.visible = false;
+    scene.add(g);
+    loopRings.push(g);
+  }
+}
+
+function updateLoop() {
+  const span = LOOP_SEG * LOOP_RINGS;
+  loopRings.forEach((g, i) => {
+    g.position.z = ((travelled - i * LOOP_SEG + span - 18) % span + span) % span - (span - 18);
+    const worldDist = travelled - g.position.z;
+    g.visible = inLoop(worldDist);
+    if (g.visible) {
+      g.rotation.z = worldDist * 0.022;                 // Korkenzieher
+      if (g.userData.glow) {
+        const h = ((worldDist * 0.004) % 1 + 1) % 1;
+        g.userData.glow.color.setHSL(h, 1.0, 0.62);
+      }
+    }
+  });
+  if (inLoop(travelled) && !loopAnnounced) {
+    loopAnnounced = true;
+    showToast('LOOP');
+    beep('triangle', 520, 0.5, 0.05);
+  }
+  if (!inLoop(travelled)) loopAnnounced = false;
 }
 
 function buildClouds() {
@@ -1102,7 +1175,7 @@ function updateAct(dt, t) {
   groundTiles.forEach(tile => { tile.visible = !hideGround; });
   // Diese Zeile lief jeden Frame und hat die Häuser auf dem Lavaplaneten
   // wieder eingeschaltet — dort standen dann Haus UND Vulkan übereinander.
-  props.forEach(pr => { pr.visible = !hideGround && !lavaOn; });
+  props.forEach(pr => { pr.visible = !hideGround && !lavaOn && !loopOn; });
   tunnelRings.forEach(g => { if (hideGround) g.visible = false; });
 
   if (flyish) {
@@ -1350,6 +1423,24 @@ function lerpHex(a, b, t) {
 
 /** Setzt Himmel, Nebel, Boden und Kulisse je nach Fortschritt. */
 function applyBiome(progress) {
+  /* Der Loop bringt seine eigene Welt mit. Ohne das fiel er mitten in den
+     WHITEOUT — weisse Kolben in weisser Röhre vor weissem Himmel. Hier gilt
+     das Gegenteil: fast schwarzer Raum, damit die Röhre und die Hindernisse
+     als einzige Lichtquellen stehen bleiben. */
+  loopOn = inLoop(travelled);
+  if (loopOn) {
+    whiteoutOn = false;                       // Ausbleichen der Hindernisse aus
+    const hue = (travelled * 0.0022) % 1;
+    const beat = 0.5 + 0.5 * Math.sin(travelled * 0.09);
+    scene.background.setHSL((hue + 0.62) % 1, 0.9, 0.05 + beat * 0.03);
+    scene.fog.color.setHSL((hue + 0.70) % 1, 0.95, 0.14);
+    scene.fog.far = 185;
+    if (groundMat) groundMat.color.setHSL((hue + 0.66) % 1, 0.5, 0.10);
+    if (edgeMat) edgeMat.color.setHSL(hue, 1.0, 0.55 + beat * 0.15);
+    propMats.forEach((m, k) => m.color.setHSL((hue + k * 0.09) % 1, 0.95, 0.45));
+    return;
+  }
+
   // Auf dem Lavaplaneten gilt nur noch eine Welt
   if (lavaOn) {
     const pulseL = 0.5 + 0.5 * Math.sin(travelled * 0.05);
@@ -1534,6 +1625,20 @@ function extendPlan() {
       continue;
     }
 
+    // Looping: eigener Hindernissatz, alles andere bleibt draussen.
+    // Vorlauf von 100 Einheiten: boulder schiebt seine Distanz selbst nach vorn,
+    // chain und sandwich setzen mehrere Hindernisse hintereinander. Ohne diesen
+    // Puffer greifen sie über die Loopgrenze hinein.
+    if (planDist > LOOP_A - 100 && planDist < LOOP_B) {
+      if (planDist < LOOP_A + LOOP_EDGE) { planDist = LOOP_A + LOOP_EDGE; planLastKind = null; continue; }
+      if (planDist > LOOP_B - LOOP_EDGE) { planDist = LOOP_B + 20; planLastKind = null; continue; }
+      const lk = r() < 0.55 ? 'loophole' : 'piston';
+      pushObstacle(lk, planDist, r, lvl);
+      advance(gapSecondsFor(lvl, r) + 0.25, 'block');
+      planLastKind = lk;
+      continue;
+    }
+
     // Ein- und Ausdrehen des gefluteten Tunnels bleiben hindernisfrei
     const busy = flipBusy(planDist);
     if (busy) { planDist = busy; planLastKind = null; continue; }
@@ -1710,6 +1815,28 @@ const WRECK_FREEZE = 8;        // erst so kurz davor einfrieren — sonst wirkt 
 function wreckX(o, d) {
   return Math.sin(o.wreckPhase + Math.min(d, o.dist - WRECK_FREEZE) * o.wreckRate) * WRECK_AMP;
 }
+/* ---- Looping ----
+   1350 bis 1600 Anzeigemeter. Die Bahn bleibt flach — gedreht wird die Sicht,
+   einmal ganz herum. Der Winkel folgt einer Smoothstep-Kurve: am Anfang und
+   am Ende steht er still, dazwischen dreht es gleichmässig. Weil er allein aus
+   travelled folgt, sehen alle Spieler dieselbe Drehung. Ein- und Ausfahrt
+   bleiben hindernisfrei, damit man die Röhre erst einmal lesen kann. */
+const LOOP_A = 4050;           // 1350 m
+const LOOP_B = 4800;           // 1600 m
+const LOOP_EDGE = 90;          // freie Zone an beiden Enden
+const LOOP_RADIUS = 9.5;
+const LOOP_CENTER_Y = 5.0;
+const LOOP_SEG = 14;
+const LOOP_RINGS = 20;
+
+function inLoop(d) { return d > LOOP_A && d < LOOP_B; }
+
+function loopRoll(d) {
+  if (d <= LOOP_A || d >= LOOP_B) return 0;
+  const t = (d - LOOP_A) / (LOOP_B - LOOP_A);
+  return Math.PI * 2 * (t * t * (3 - 2 * t));
+}
+
 /* ---- Schiebewand ----
    Volle Wand über die Bahn mit EINER Tür, die seitlich hin und her fährt.
    Die Lücke ist 3.8 breit; selbst wenn sie genau zwischen zwei Spuren steht,
@@ -1719,6 +1846,11 @@ const SLIDE_GAP = 1.9;         // halbe Türbreite
 const SLIDE_AMP = 4.6;         // bis zur äussersten Spur
 const SLIDE_H = 4.6;           // Wandhöhe
 const SLIDE_FREEZE = 8;        // so kurz vorher steht die Tür fest
+
+/** Abstand der beiden Kolbensäulen von der Mitte. */
+function pistonX(o, d) {
+  return Math.abs(Math.cos(o.pistPhase + Math.min(d, o.dist - SLIDE_FREEZE) * o.pistRate)) * 4.9;
+}
 
 function slideX(o, d) {
   return Math.sin(o.slidePhase + Math.min(d, o.dist - SLIDE_FREEZE) * o.slideRate) * SLIDE_AMP;
@@ -1800,6 +1932,27 @@ function pushObstacle(kind, dist, r, lvl) {
     o.spin = 0;
     o.zHalf = 2.0;
 
+  } else if (kind === 'loophole') {
+    // Schott quer durch die Röhre, genau ein Loch. Reine Spurentscheidung.
+    o.open = [Math.floor(r() * LANES.length)];
+    o.safeLanes = o.open.slice();
+    o.zHalf = 1.5;
+    LANES.forEach((x, i) => {
+      if (o.open.indexOf(i) < 0) o.boxes.push({ x, w: 2.15, yMin: 0, yMax: 4.6 });
+    });
+
+  } else if (kind === 'piston') {
+    // Zwei Säulen, die aufeinander zu und wieder auseinander fahren.
+    o.pistPhase = r() * 6.28;
+    o.pistRate = 0.028 + r() * 0.016;
+    o.zHalf = 1.4;
+    const px = pistonX(o, dist);
+    o.boxes.push({ x: -px, w: 1.7, yMin: 0, yMax: 4.6 },
+                  { x:  px, w: 1.7, yMin: 0, yMax: 4.6 });
+    LANES.forEach((x, i) => {
+      if (Math.abs(x - px) > 1.41 && Math.abs(x + px) > 1.41) o.safeLanes.push(i);
+    });
+
   } else if (kind === 'slidewall') {
     o.slidePhase = r() * 6.28;
     o.slideRate = 0.030 + r() * 0.014;   // eine volle Fahrt in gut drei Sekunden
@@ -1866,7 +2019,8 @@ function buildObstacle(o) {
   // Lufthindernisse, Lavahindernisse und die Abrissbirne bringen ihre
   // Trefferflächen schon aus der Planung mit — die dürfen hier NICHT
   // geleert werden, sonst läuft man durch alles hindurch.
-  if (!o.air && !o.lava && o.kind !== 'wrecker' && o.kind !== 'slidewall') o.boxes = [];
+  if (!o.air && !o.lava && o.kind !== 'wrecker' && o.kind !== 'slidewall'
+      && o.kind !== 'loophole' && o.kind !== 'piston') o.boxes = [];
 
   if (o.lava) {
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
@@ -2084,6 +2238,53 @@ function buildObstacle(o) {
       pst.position.set(sd * (TRACK_HALF - 0.6), 2.7, 0); grp.add(pst);
     });
     o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 2.25, yMax: 4.4 });
+
+  } else if (o.kind === 'loophole') {
+    const hull = new THREE.MeshLambertMaterial({ color: 0x1F2A40 });
+    const edge = new THREE.MeshBasicMaterial({ color: 0x37B7F5 });
+    const warn = new THREE.MeshBasicMaterial({ color: 0xFF5B45 });
+    // Aussenring als Schott
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(LOOP_RADIUS - 0.4, 0.55, 8, 22), hull);
+    ring.position.y = LOOP_CENTER_Y;
+    grp.add(ring);
+    LANES.forEach((x, i) => {
+      if (o.open.indexOf(i) >= 0) return;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(2.15, 4.6, 0.55), hull);
+      b.position.set(x, 2.3, 0);
+      grp.add(b);
+      const st = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.3, 0.68), warn);
+      st.position.set(x, 4.5, 0);
+      grp.add(st);
+    });
+    // Leuchtring um das Loch
+    o.open.forEach(i => {
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.16, 8, 20), edge);
+      halo.position.set(LANES[i], 1.5, 0.1);
+      grp.add(halo);
+      const halo2 = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.07, 6, 20), edge);
+      halo2.position.set(LANES[i], 1.5, 0.1);
+      grp.add(halo2);
+    });
+
+  } else if (o.kind === 'piston') {
+    const steel = new THREE.MeshLambertMaterial({ color: 0x3B4A63 });
+    const hot = new THREE.MeshBasicMaterial({ color: 0xB05BFF });
+    o.cols = [];
+    [-1, 1].forEach(sd => {
+      const col = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 4.6, 0.9), steel);
+      body.position.y = 2.3;
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.34, 1.0), hot);
+      cap.position.y = 4.45;
+      const mid = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.22, 1.0), hot);
+      mid.position.y = 2.3;
+      // Stange nach aussen zur Röhrenwand
+      const rod = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.3, 0.3), steel);
+      rod.position.set(sd * 2.4, 2.3, 0);
+      col.add(body, cap, mid, rod);
+      grp.add(col);
+      o.cols.push(col);
+    });
 
   } else if (o.kind === 'slidewall') {
     const panelMat = new THREE.MeshLambertMaterial({ color: 0x2F3A4A });
@@ -2961,7 +3162,8 @@ function beginRace(seed, botCount) {
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
   nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; prevTravelled = 0; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
-  floodAnnounced = false;
+  floodAnnounced = false; loopAnnounced = false; loopOn = false;
+  loopRings.forEach(g => { g.visible = false; g.rotation.z = 0; });
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
@@ -3313,6 +3515,14 @@ function frame() {
             ? (m.rotation.z > 0 ? 1.6 : -1.6) : 0);
         }));
       }
+      // Kolbensäulen fahren aufeinander zu und wieder auseinander
+      if (o.kind === 'piston' && o.boxes.length >= 2) {
+        const px = pistonX(o, travelled);
+        o.boxes[0].x = -px;
+        o.boxes[1].x = px;
+        if (o.cols) { o.cols[0].position.x = -px; o.cols[1].position.x = px; }
+      }
+
       // Schiebewand: Tür fährt, die beiden Wandstücke wachsen und schrumpfen
       if (o.kind === 'slidewall' && o.boxes.length >= 2) {
         const gx = slideX(o, travelled);
@@ -3426,6 +3636,7 @@ function frame() {
 
     applyBiome((travelled % (BIOME_LENGTH * BIOMES.length)) / (BIOME_LENGTH * BIOMES.length));
     updateTunnel(dt, t);
+    updateLoop();
     updateAct(dt, t);
     updateBridge();
     updateProps();
@@ -3472,10 +3683,14 @@ function frame() {
   // wird nur weich in Richtung Bankwinkel gezogen. NICHT auf einen festen Wert
   // setzen — damit ginge der Anteil verloren, den lookAt() selbst berechnet,
   // und die Welt wirkt verkantet.
-  const bank = (state === 'running') ? bankAngle(travelled) : 0;
+  // Im Looping wird die Schräglage unterdrückt, sonst überlagern sich zwei
+  // Drehungen und man verliert jede Orientierung.
+  const bank = (state === 'running' && !inLoop(travelled)) ? bankAngle(travelled) : 0;
   camera.rotation.z += (bank - camera.rotation.z) * Math.min(1, dt * 3);
-  // Die Überkopf-Drehung kommt obendrauf und wirkt dadurch voll.
-  if (state === 'running') camera.rotation.z += flipAmount(travelled) * Math.PI;
+  // Überkopf-Passage und Looping kommen obendrauf und wirken dadurch voll.
+  if (state === 'running') {
+    camera.rotation.z += flipAmount(travelled) * Math.PI + loopRoll(travelled);
+  }
 
   renderer.render(scene, camera);
 }
@@ -3501,6 +3716,7 @@ try {
   buildClouds();
   buildUfo();
   buildTunnel();
+  buildLoop();
   buildStreaks();
   bindInput();
   LB.init();
