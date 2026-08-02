@@ -979,8 +979,9 @@ function buildUfo() {
 function buildVolcanoes() {
   props.forEach(pr => {
     const h = 26 + Math.random() * 26;
+    const rad = 9 + Math.random() * 5;
     const vol = new THREE.Group();
-    const rock = new THREE.Mesh(new THREE.ConeGeometry(9 + Math.random() * 5, h, 7),
+    const rock = new THREE.Mesh(new THREE.ConeGeometry(rad, h, 7),
       new THREE.MeshLambertMaterial({ color: 0x2E2320, flatShading: true }));
     rock.position.y = h / 2;
     const crater = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.6, 1.8, 8),
@@ -996,6 +997,7 @@ function buildVolcanoes() {
     vol.visible = false;
     vol.userData.smoke = smoke;
     vol.userData.baseH = h;
+    vol.userData.rad = rad;             // Fussradius — bestimmt den Abstand zur Bahn
     scene.add(vol);
     volcanoes.push(vol);
     pr.userData.volcano = vol;
@@ -1054,7 +1056,10 @@ function updateAct(dt, t) {
     volcanoes.forEach((v, i) => {
       const pr = props[i];
       if (!pr) return;
-      v.position.set(pr.userData.side * Math.max(pr.userData.baseX, 15), 0, pr.position.z);
+      // Der Kegel ist bis zu 14 Einheiten breit. Mit pauschal 15 Abstand ragte
+      // sein Fuss bis auf x=1 in die Bahn hinein — die geht bis 6.4.
+      const clear = TRACK_HALF + (v.userData.rad || 12) + 2.5;
+      v.position.set(pr.userData.side * Math.max(pr.userData.baseX, clear), 0, pr.position.z);
       if (v.userData.smoke) {
         v.userData.smoke.position.y = v.userData.baseH + 3.5 + Math.sin(t * 1.4 + i) * 0.8;
         v.userData.smoke.material.opacity = 0.35 + 0.2 * Math.sin(t * 0.9 + i);
@@ -1095,7 +1100,9 @@ function updateAct(dt, t) {
   // Sturz und Flug: Bodenwelt weg, Wolken her
   const hideGround = (ph === 'fall' || ph === 'fly');
   groundTiles.forEach(tile => { tile.visible = !hideGround; });
-  props.forEach(pr => { pr.visible = !hideGround; });
+  // Diese Zeile lief jeden Frame und hat die Häuser auf dem Lavaplaneten
+  // wieder eingeschaltet — dort standen dann Haus UND Vulkan übereinander.
+  props.forEach(pr => { pr.visible = !hideGround && !lavaOn; });
   tunnelRings.forEach(g => { if (hideGround) g.visible = false; });
 
   if (flyish) {
@@ -1346,10 +1353,10 @@ function applyBiome(progress) {
   // Auf dem Lavaplaneten gilt nur noch eine Welt
   if (lavaOn) {
     const pulseL = 0.5 + 0.5 * Math.sin(travelled * 0.05);
-    scene.background.setHex(0x2A0B08);
-    scene.fog.color.setHex(0x4A1A0C);
-    scene.fog.far = 200;
-    if (groundMat) groundMat.color.setHex(0x1C1310);
+    scene.background.setHex(0x4A1206);
+    scene.fog.color.setHex(0x7A2A10);
+    scene.fog.far = 225;
+    if (groundMat) groundMat.color.setHex(0x40302A);
     if (edgeMat) edgeMat.color.setRGB(1, 0.35 + pulseL * 0.25, 0.08);
     return;
   }
@@ -1537,9 +1544,10 @@ function extendPlan() {
     // und die Kugel schwingt von unten herauf — das liest sich nicht.
     if (ph === 'ground' && planDist < WRECKER_UNTIL && !inBridge(planDist)
         && flipAmount(planDist) === 0 && r() < 0.24) {
-      pushObstacle('wrecker', planDist, r, lvl);
+      const heavy = r() < 0.5 ? 'wrecker' : 'slidewall';
+      pushObstacle(heavy, planDist, r, lvl);
       advance(gapSecondsFor(lvl, r) + 0.30, 'block');
-      planLastKind = 'wrecker';
+      planLastKind = heavy;
       continue;
     }
 
@@ -1702,6 +1710,25 @@ const WRECK_FREEZE = 8;        // erst so kurz davor einfrieren — sonst wirkt 
 function wreckX(o, d) {
   return Math.sin(o.wreckPhase + Math.min(d, o.dist - WRECK_FREEZE) * o.wreckRate) * WRECK_AMP;
 }
+/* ---- Schiebewand ----
+   Volle Wand über die Bahn mit EINER Tür, die seitlich hin und her fährt.
+   Die Lücke ist 3.8 breit; selbst wenn sie genau zwischen zwei Spuren steht,
+   bleibt an beiden noch Platz — es gibt also immer einen Weg hindurch.
+   Zu hoch zum Springen, bis zum Boden geschlossen: reine Spurentscheidung. */
+const SLIDE_GAP = 1.9;         // halbe Türbreite
+const SLIDE_AMP = 4.6;         // bis zur äussersten Spur
+const SLIDE_H = 4.6;           // Wandhöhe
+const SLIDE_FREEZE = 8;        // so kurz vorher steht die Tür fest
+
+function slideX(o, d) {
+  return Math.sin(o.slidePhase + Math.min(d, o.dist - SLIDE_FREEZE) * o.slideRate) * SLIDE_AMP;
+}
+/** Breite des linken und rechten Wandstücks bei dieser Türposition. */
+function slideWidths(gx) {
+  return [Math.max(0, (gx - SLIDE_GAP) + TRACK_HALF),
+          Math.max(0, TRACK_HALF - (gx + SLIDE_GAP))];
+}
+
 function wreckY(x) {
   const sn = Math.max(-1, Math.min(1, x / WRECK_LEN));
   return WRECK_PIVOT - WRECK_LEN * Math.sqrt(1 - sn * sn);
@@ -1773,6 +1800,24 @@ function pushObstacle(kind, dist, r, lvl) {
     o.spin = 0;
     o.zHalf = 2.0;
 
+  } else if (kind === 'slidewall') {
+    o.slidePhase = r() * 6.28;
+    o.slideRate = 0.030 + r() * 0.014;   // eine volle Fahrt in gut drei Sekunden
+    o.zHalf = 1.4;
+    const gx = slideX(o, dist);
+    const w = slideWidths(gx);
+    // Zwei Blöcke: links und rechts der Tür. Ist eine Seite leer, wird ihre
+    // Trefferfläche weit aus der Bahn geschoben statt entfernt — so bleibt
+    // die Länge des Arrays gleich und die Animation kann fest zugreifen.
+    o.boxes.push(
+      w[0] > 0.02 ? { x: -TRACK_HALF + w[0] / 2, w: w[0], yMin: 0, yMax: SLIDE_H }
+                  : { x: -999, w: 0.01, yMin: 0, yMax: SLIDE_H },
+      w[1] > 0.02 ? { x: TRACK_HALF - w[1] / 2, w: w[1], yMin: 0, yMax: SLIDE_H }
+                  : { x: 999, w: 0.01, yMin: 0, yMax: SLIDE_H });
+    LANES.forEach((x, i) => {
+      if (Math.abs(x - gx) < SLIDE_GAP - 0.56 - 0.05) o.safeLanes.push(i);
+    });
+
   } else if (kind === 'wrecker') {
     o.wreckPhase = r() * 6.28;
     o.wreckRate = 0.034 + r() * 0.016;   // volle Schwingung in gut 3 Sekunden
@@ -1821,7 +1866,7 @@ function buildObstacle(o) {
   // Lufthindernisse, Lavahindernisse und die Abrissbirne bringen ihre
   // Trefferflächen schon aus der Planung mit — die dürfen hier NICHT
   // geleert werden, sonst läuft man durch alles hindurch.
-  if (!o.air && !o.lava && o.kind !== 'wrecker') o.boxes = [];
+  if (!o.air && !o.lava && o.kind !== 'wrecker' && o.kind !== 'slidewall') o.boxes = [];
 
   if (o.lava) {
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
@@ -2039,6 +2084,53 @@ function buildObstacle(o) {
       pst.position.set(sd * (TRACK_HALF - 0.6), 2.7, 0); grp.add(pst);
     });
     o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 2.25, yMax: 4.4 });
+
+  } else if (o.kind === 'slidewall') {
+    const panelMat = new THREE.MeshLambertMaterial({ color: 0x2F3A4A });
+    const warnMat = new THREE.MeshLambertMaterial({ color: 0xFFC53D });
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x4BD08A });
+    // Panele haben Breite 1 und werden pro Frame in x skaliert
+    const panel = () => {
+      const p = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1, SLIDE_H, 0.7), panelMat);
+      body.position.y = SLIDE_H / 2;
+      const band = new THREE.Mesh(new THREE.BoxGeometry(1, 0.42, 0.8), warnMat);
+      band.position.y = SLIDE_H * 0.66;
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(1, 0.32, 0.95), warnMat);
+      foot.position.y = 0.16;
+      p.add(body, band, foot);
+      return p;
+    };
+    const left = panel(), right = panel();
+    grp.add(left, right);
+
+    // Türrahmen — leuchtet und fährt mit der Lücke
+    const frame = new THREE.Group();
+    [-1, 1].forEach(sd => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.24, SLIDE_H, 0.95), glowMat);
+      post.position.set(sd * SLIDE_GAP, SLIDE_H / 2, 0.12);
+      frame.add(post);
+    });
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(SLIDE_GAP * 2, 0.24, 0.95), glowMat);
+    lintel.position.set(0, SLIDE_H, 0.12);
+    frame.add(lintel);
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(SLIDE_GAP * 2, 0.1, 1.1), glowMat);
+    sill.position.set(0, 0.06, 0.12);
+    frame.add(sill);
+    grp.add(frame);
+
+    // Laufschiene oben und Pfosten aussen
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 + 0.6, 0.38, 1.0),
+      new THREE.MeshLambertMaterial({ color: 0x1E2836 }));
+    rail.position.y = SLIDE_H + 0.3;
+    grp.add(rail);
+    [-1, 1].forEach(sd => {
+      const pst = new THREE.Mesh(new THREE.BoxGeometry(0.42, SLIDE_H + 0.8, 0.7), dark);
+      pst.position.set(sd * (TRACK_HALF + 0.2), (SLIDE_H + 0.8) / 2, 0);
+      grp.add(pst);
+    });
+
+    o.left = left; o.right = right; o.frame = frame;
 
   } else if (o.kind === 'wrecker') {
     const steel = new THREE.MeshLambertMaterial({ color: 0x6B7480 });
@@ -3221,6 +3313,25 @@ function frame() {
             ? (m.rotation.z > 0 ? 1.6 : -1.6) : 0);
         }));
       }
+      // Schiebewand: Tür fährt, die beiden Wandstücke wachsen und schrumpfen
+      if (o.kind === 'slidewall' && o.boxes.length >= 2) {
+        const gx = slideX(o, travelled);
+        const w = slideWidths(gx);
+        const px = [-TRACK_HALF + w[0] / 2, TRACK_HALF - w[1] / 2];
+        [0, 1].forEach(k => {
+          const wide = w[k] > 0.02;
+          o.boxes[k].x = wide ? px[k] : (k ? 999 : -999);
+          o.boxes[k].w = wide ? w[k] : 0.01;
+          const mesh = k ? o.right : o.left;
+          if (mesh) {
+            mesh.visible = wide;
+            mesh.position.x = px[k];
+            mesh.scale.x = Math.max(0.001, w[k]);
+          }
+        });
+        if (o.frame) o.frame.position.x = gx;
+      }
+
       // Abrissbirne schwingt — Trefferfläche wandert mit, auch in der Höhe
       if (o.kind === 'wrecker' && o.boxes.length) {
         const wx = wreckX(o, travelled), wy = wreckY(wx);
