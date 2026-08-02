@@ -710,6 +710,7 @@ function buildTrack() {
     b.position.set(sd * (TRACK_HALF + 7 + Math.random() * 5), h / 2 - 1,
       -i * 18 - Math.random() * 10);
     b.userData.baseY = h / 2 - 1;
+    b.userData.baseZ = b.position.z;      // Ausgangsposition für die Umlaufrechnung
     b.userData.wobble = 0.85 + Math.random() * 0.3;
     b.userData.side = sd;                 // links oder rechts
     b.userData.halfW = bw / 2;            // halbe Grundbreite
@@ -854,9 +855,10 @@ function buildTunnel() {
 
 function updateTunnel(dt, t) {
   const span = RING_GAP * RING_COUNT;
-  tunnelRings.forEach(g => {
-    g.position.z += speed * dt;
-    if (g.position.z > 18) g.position.z -= span;
+  tunnelRings.forEach((g, i) => {
+    // Ebenfalls aus der Strecke berechnet — sonst wandert die Wand gegenüber
+    // dem Wasser und den Hindernissen davon.
+    g.position.z = ((travelled - i * RING_GAP + span - 18) % span + span) % span - (span - 18);
     const worldDist = travelled - g.position.z;
     g.visible = inTunnel(worldDist);
     // Nur der erste Tunnel ist geflutet
@@ -907,7 +909,7 @@ function updateTunnel(dt, t) {
 }
 
 let tunnelAnnounced = false, bridgeAnnounced = false, bankAnnounced = false;
-let floodAnnounced = false, camBank = 0;
+let floodAnnounced = false;
 
 /* ---------------- Weissraum ---------------- */
 
@@ -2840,7 +2842,7 @@ function beginRace(seed, botCount) {
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
   nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; prevTravelled = 0; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
-  floodAnnounced = false; camBank = 0;
+  floodAnnounced = false;
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
@@ -3213,14 +3215,19 @@ function frame() {
       if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); }
     }
 
-    // Boden, Häuser und Ziel mitziehen
-    groundTiles.forEach(tile => {
-      tile.position.z += speed * dt;
-      if (tile.position.z > 10) tile.position.z -= 10 * groundTiles.length;
+    // Boden und Häuser AUS DER STRECKE berechnen, nicht Frame für Frame
+    // aufsummieren. Sonst schluckt jeder Ruckler Weg — aber nur bei der
+    // Kulisse, nicht bei den Hindernissen — und beide driften auseinander.
+    const tileSpan = 10 * groundTiles.length;
+    groundTiles.forEach((tile, i) => {
+      tile.position.z = ((travelled - i * 10 + tileSpan - 10) % tileSpan + tileSpan) % tileSpan
+                        - (tileSpan - 10);
     });
+    const propSpan = 26 * 18;
     props.forEach(pr => {
-      pr.position.z += speed * dt;
-      if (pr.position.z > 40) pr.position.z -= 26 * 18;
+      const base = pr.userData.baseZ || 0;
+      pr.position.z = ((base + travelled + propSpan - 40) % propSpan + propSpan) % propSpan
+                      - (propSpan - 40);
     });
 
     // Läufer aktualisieren
@@ -3314,13 +3321,14 @@ function frame() {
     camera.position.y += (Math.random() - 0.5) * totalShake;
   }
   camera.lookAt(camTargetX * 0.6, 1.9 + flipNow * 0.6, -14 - flipNow * 3);
-  // Schräglage und Überkopf-Passage. camera.lookAt() setzt die Drehung jeden
-  // Frame zurück, deshalb wird der Rollwinkel getrennt geglättet und danach
-  // GESETZT statt aufaddiert — sonst käme davon fast nichts an.
-  const bankTarget = (state === 'running') ? bankAngle(travelled) : 0;
-  camBank += (bankTarget - camBank) * Math.min(1, dt * 3);
-  const flipRoll = (state === 'running') ? flipAmount(travelled) * Math.PI : 0;
-  camera.rotation.z = camBank + flipRoll;
+  // Schräglage exakt wie vorher: lookAt() hat rotation.z schon gesetzt, hier
+  // wird nur weich in Richtung Bankwinkel gezogen. NICHT auf einen festen Wert
+  // setzen — damit ginge der Anteil verloren, den lookAt() selbst berechnet,
+  // und die Welt wirkt verkantet.
+  const bank = (state === 'running') ? bankAngle(travelled) : 0;
+  camera.rotation.z += (bank - camera.rotation.z) * Math.min(1, dt * 3);
+  // Die Überkopf-Drehung kommt obendrauf und wirkt dadurch voll.
+  if (state === 'running') camera.rotation.z += flipAmount(travelled) * Math.PI;
 
   renderer.render(scene, camera);
 }
