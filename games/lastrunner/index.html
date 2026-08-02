@@ -239,14 +239,14 @@ const LANE_SNAP = 7.5;         // wie schnell die Spur gewechselt wird
 /* ---- Zweiter Akt: Erdbeben, Rettung, Flug, Landung ----
    Alle Grenzen in Welteinheiten. Anzeigemeter = Einheiten / 3. */
 const ACT = {
-  QUAKE:     12000,   // 4000 m — der Boden beginnt zu beben
-  QUAKE_END: 12360,   // 4120 m — die Welt bricht weg
-  FLY_START: 12660,   // 4220 m — vom Flugzeug aufgefangen
-  FLY_END:   18000,   // 6000 m — Landeanflug
-  LAND_END:  18330,   // 6110 m — weiter zu Fuss
-  BEAM:      21000,   // 7000 m — das UFO taucht auf und zieht alle hoch
-  BEAM_END:  21420,   // 7140 m — abgesetzt über dem Lavaplaneten
-  DROP_END:  21840    // 7280 m — im Gleiter, ab hier bleibt es so
+  QUAKE:      9840,   // 3280 m — der Boden beginnt zu beben
+  QUAKE_END: 10200,   // 3400 m — die Welt bricht weg
+  FLY_START: 10500,   // 3500 m — vom Flugzeug aufgefangen
+  FLY_END:   15000,   // 5000 m — Landeanflug (1500 m in der Luft)
+  LAND_END:  15330,   // 5110 m — weiter zu Fuss
+  BEAM:      18000,   // 6000 m — das UFO taucht auf und zieht alle hoch
+  BEAM_END:  18420,   // 6140 m — abgesetzt über dem Lavaplaneten
+  DROP_END:  18840    // 6280 m — im Gleiter, ab hier bleibt es so
 };
 const COUNTDOWN_MS = 3300;     // Dauer des Countdowns
 const BANDS = [2.2, 5.0, 7.8];      // drei Flughöhen
@@ -750,6 +750,44 @@ const RING_COUNT = 22;
 /** Liegt diese Streckenstelle in einem Tunnel? */
 const TUNNEL_OFFSET = 900;     // die ersten Meter bleiben offen
 
+/* ---- Gefluteter Tunnel ----
+   Nur der ERSTE Tunnel steht unter Wasser. Man läuft dort kopfüber an der
+   Decke, die Kamera rollt dafür um 180 Grad — die Welt selbst bleibt
+   unangetastet, gedreht wird nur die Sicht. Dadurch ändert sich keine
+   einzige Trefferfläche, und Mehrspielerrennen bleiben synchron, weil der
+   Rollwinkel allein aus der Strecke folgt. */
+const FLIP_A = TUNNEL_OFFSET;                    //  900 — Tunnel beginnt
+const FLIP_B = TUNNEL_OFFSET + TUNNEL_LEN;       // 1520 — Tunnel endet
+const FLIP_RAMP = 110;                           // so lang dreht sich die Welt
+
+function flipAmount(d) {
+  if (d <= FLIP_A || d >= FLIP_B) return 0;
+  const up = Math.min(1, (d - FLIP_A) / FLIP_RAMP);
+  const dn = Math.min(1, (FLIP_B - d) / FLIP_RAMP);
+  const f = Math.min(up, dn);
+  return f * f * (3 - 2 * f);                    // weich anfahren und ausrollen
+}
+
+/** Steht die Welt gerade auf dem Kopf? Ab hier sind die Tasten getauscht. */
+function flipped() {
+  return state === 'running' && flipAmount(travelled) > 0.5;
+}
+
+/* Solange sich die Welt dreht, ist kein Hindernis fair — man müsste es lesen,
+   während oben und unten noch tauschen. Diese Zonen bleiben deshalb leer.
+   Gibt die Strecke zurück, ab der wieder gebaut werden darf, sonst 0. */
+const FLIP_CLEAR = 70;         // Puffer nach dem Ende der Drehung
+
+function flipBusy(d) {
+  if (d > FLIP_A - 40 && d < FLIP_A + FLIP_RAMP + FLIP_CLEAR) {
+    return FLIP_A + FLIP_RAMP + FLIP_CLEAR;
+  }
+  if (d > FLIP_B - FLIP_RAMP - FLIP_CLEAR && d < FLIP_B + 40) {
+    return FLIP_B + 40;
+  }
+  return 0;
+}
+
 function inTunnel(d) {
   if (d >= ACT.BEAM) return false;          // auf dem Lavaplaneten gibt es keine Tunnel
   const m = (((d - TUNNEL_OFFSET) % TUNNEL_EVERY) + TUNNEL_EVERY) % TUNNEL_EVERY;
@@ -790,6 +828,23 @@ function buildTunnel() {
     g.add(lamp);
     g.userData.lamp = lamp;
 
+    // Wasser — füllt im ersten Tunnel den oberen Teil. Nach der Kameradrehung
+    // liegt es auf dem Bildschirm unter dem Läufer.
+    const water = new THREE.Mesh(
+      new THREE.BoxGeometry(TRACK_HALF * 2, 2.7, RING_GAP * 0.95),
+      new THREE.MeshLambertMaterial({ color: 0x2E86C8, transparent: true, opacity: 0.5 }));
+    water.position.y = 8.45;                   // Unterkante 7.1 — Luft bis dahin
+    water.visible = false;
+    g.add(water);
+    const surf = new THREE.Mesh(
+      new THREE.BoxGeometry(TRACK_HALF * 2, 0.16, RING_GAP * 0.95),
+      new THREE.MeshBasicMaterial({ color: 0xBFE9FF, transparent: true, opacity: 0.75 }));
+    surf.position.y = 7.1;
+    surf.visible = false;
+    g.add(surf);
+    g.userData.water = water;
+    g.userData.surf = surf;
+
     g.visible = false;
     g.position.z = -i * RING_GAP;
     scene.add(g);
@@ -804,6 +859,16 @@ function updateTunnel(dt, t) {
     if (g.position.z > 18) g.position.z -= span;
     const worldDist = travelled - g.position.z;
     g.visible = inTunnel(worldDist);
+    // Nur der erste Tunnel ist geflutet
+    const wet = g.visible && worldDist > FLIP_A && worldDist < FLIP_B;
+    if (g.userData.water) {
+      g.userData.water.visible = wet;
+      if (wet) g.userData.water.position.y = 8.45 + Math.sin(t * 2.1 + worldDist * 0.05) * 0.14;
+    }
+    if (g.userData.surf) {
+      g.userData.surf.visible = wet;
+      if (wet) g.userData.surf.position.y = 7.1 + Math.sin(t * 2.1 + worldDist * 0.05) * 0.14;
+    }
     if (g.visible && g.userData.lamp) {
       // Lampen flackern leicht, damit der Tunnel lebt
       const f = 0.55 + 0.45 * Math.abs(Math.sin(worldDist * 0.9));
@@ -817,13 +882,23 @@ function updateTunnel(dt, t) {
     scene.fog.color.lerp(_c1.setHex(0x1A2230), depth * 0.85);
     scene.background.lerp(_c1.setHex(0x121A26), depth * 0.9);
     scene.fog.far = 210 - depth * 70;
-    camera.fov = (58 + Math.min(10, lastLevel * 1.1)) - depth * 5;
+    // Kopfueber braucht man mehr Uebersicht, also Blickfeld aufziehen
+    camera.fov = (58 + Math.min(10, lastLevel * 1.1)) - depth * 5
+               + flipAmount(travelled) * 9;
     camera.updateProjectionMatrix();
   } else if (scene.fog.far !== 210) {
     scene.fog.far = 210;
   }
   if (depth > 0.05 && !tunnelAnnounced) { tunnelAnnounced = true; showToast('TUNNEL'); }
   if (depth === 0) tunnelAnnounced = false;
+
+  const fl = flipAmount(travelled);
+  if (fl > 0.02 && !floodAnnounced) {
+    floodAnnounced = true;
+    showToast('FLOODED — CONTROLS FLIP');
+    beep('sine', 320, 0.7, 0.05);
+  }
+  if (fl === 0 && floodAnnounced) { floodAnnounced = false; showToast('BACK UPRIGHT'); }
 
   if (inBridge(travelled) && !bridgeAnnounced) { bridgeAnnounced = true; showToast('NO RAILS'); }
   if (!inBridge(travelled)) bridgeAnnounced = false;
@@ -832,6 +907,7 @@ function updateTunnel(dt, t) {
 }
 
 let tunnelAnnounced = false, bridgeAnnounced = false, bankAnnounced = false;
+let floodAnnounced = false, camBank = 0;
 
 /* ---------------- Weissraum ---------------- */
 
@@ -1442,6 +1518,22 @@ function extendPlan() {
       continue;
     }
 
+    // Ein- und Ausdrehen des gefluteten Tunnels bleiben hindernisfrei
+    const busy = flipBusy(planDist);
+    if (busy) { planDist = busy; planLastKind = null; continue; }
+
+    // Abrissbirne nur im ruhigen Anfangsteil. Nicht auf der Brücke — dort
+    // tragen die äusseren Spuren nicht, das Ausweichen wäre zu eng.
+    // Nicht im gefluteten Tunnel: kopfüber haengt das Portal unten im Wasser
+    // und die Kugel schwingt von unten herauf — das liest sich nicht.
+    if (ph === 'ground' && planDist < WRECKER_UNTIL && !inBridge(planDist)
+        && flipAmount(planDist) === 0 && r() < 0.24) {
+      pushObstacle('wrecker', planDist, r, lvl);
+      advance(gapSecondsFor(lvl, r) + 0.30, 'block');
+      planLastKind = 'wrecker';
+      continue;
+    }
+
     const kinds = kindsForLevel(lvl);
     const kind = kinds[Math.floor(r() * kinds.length)];
     let last = kind;
@@ -1502,8 +1594,8 @@ function pushAir(kind, dist, r, lvl) {
   const cells = [];                       // [lane, band] die blockiert sind
 
   if (kind === 'cloudgate') {
-    // Alles zu ausser ein bis zwei Zellen — da muss man durch
-    const openCount = lvl >= 6 ? 1 : (r() < 0.4 ? 2 : 1);
+    // Alles zu ausser zwei Zellen — es gibt also immer zwei Ringe zur Auswahl
+    const openCount = 2;
     const open = [];
     while (open.length < openCount) {
       const key = Math.floor(r() * 5) * 3 + Math.floor(r() * 3);
@@ -1586,6 +1678,26 @@ function pushLava(kind, dist, r, lvl) {
   return o;
 }
 
+/* ---- Abrissbirne ----
+   Hängt an einem Portal und schwingt quer über alle Spuren. Die Auslenkung
+   hängt ALLEIN an der Strecke, ist also auf jedem Rechner gleich, und wird
+   40 Einheiten vor dem Spieler eingefroren — was du siehst, trifft dich auch.
+   An den Umkehrpunkten hebt sie sich, dort passt man geduckt darunter. */
+const WRECKER_UNTIL = 6000;    // 2000 Anzeigemeter — nur der ruhige Anfangsteil
+const WRECK_PIVOT = 8.2;       // Höhe der Aufhängung
+const WRECK_LEN = 6.8;         // Kettenlänge
+const WRECK_AMP = 4.2;         // maximale Auslenkung zur Seite
+const WRECK_R = 1.2;           // Radius der Kugel
+const WRECK_FREEZE = 8;        // erst so kurz davor einfrieren — sonst wirkt sie starr
+
+function wreckX(o, d) {
+  return Math.sin(o.wreckPhase + Math.min(d, o.dist - WRECK_FREEZE) * o.wreckRate) * WRECK_AMP;
+}
+function wreckY(x) {
+  const sn = Math.max(-1, Math.min(1, x / WRECK_LEN));
+  return WRECK_PIVOT - WRECK_LEN * Math.sqrt(1 - sn * sn);
+}
+
 function pushObstacle(kind, dist, r, lvl) {
   const o = { dist, kind, safeLanes: [], boxes: [], built: false, lvl };
   if (kind === 'pit') o.kind = 'pit';
@@ -1652,6 +1764,19 @@ function pushObstacle(kind, dist, r, lvl) {
     o.spin = 0;
     o.zHalf = 2.0;
 
+  } else if (kind === 'wrecker') {
+    o.wreckPhase = r() * 6.28;
+    o.wreckRate = 0.034 + r() * 0.016;   // volle Schwingung in gut 3 Sekunden
+    o.zHalf = 1.6;
+    // Endstand vorausberechnen — daraus ergeben sich die sicheren Spuren
+    const xe = wreckX(o, dist), ye = wreckY(xe);
+    const lo = Math.max(0, ye - WRECK_R - 0.15), hi = ye + WRECK_R + 0.15;
+    o.boxes.push({ x: xe, w: 2.4, yMin: lo, yMax: hi });
+    const under = lo > 1.10;                     // geduckt passt man darunter
+    LANES.forEach((x, i) => {
+      if (under || Math.abs(x - xe) > (2.4 + 1.12) / 2 + 0.2) o.safeLanes.push(i);
+    });
+
   } else if (kind === 'pit') {
     o.safeLanes = [0, 1, 2, 3, 4];
     // Länge wächst mit dem Tempo — der Sprung muss sitzen
@@ -1684,7 +1809,10 @@ function buildObstacle(o) {
   const dark = new THREE.MeshLambertMaterial({ color: 0x2A3644 });
   // Lufthindernisse bringen ihre Trefferflächen schon aus der Planung mit —
   // die dürfen hier NICHT geleert werden, sonst fliegt man durch alles hindurch.
-  if (!o.air) o.boxes = [];
+  // Lufthindernisse, Lavahindernisse und die Abrissbirne bringen ihre
+  // Trefferflächen schon aus der Planung mit — die dürfen hier NICHT
+  // geleert werden, sonst läuft man durch alles hindurch.
+  if (!o.air && !o.lava && o.kind !== 'wrecker') o.boxes = [];
 
   if (o.lava) {
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
@@ -1902,6 +2030,28 @@ function buildObstacle(o) {
       pst.position.set(sd * (TRACK_HALF - 0.6), 2.7, 0); grp.add(pst);
     });
     o.boxes.push({ x: 0, w: TRACK_HALF * 2, yMin: 2.25, yMax: 4.4 });
+
+  } else if (o.kind === 'wrecker') {
+    const steel = new THREE.MeshLambertMaterial({ color: 0x6B7480 });
+    const ballMat = new THREE.MeshLambertMaterial({ color: 0x3A424E });
+    [-1, 1].forEach(sd => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, WRECK_PIVOT, 0.5), steel);
+      post.position.set(sd * (TRACK_HALF - 0.3), WRECK_PIVOT / 2, 0);
+      grp.add(post);
+    });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.5, 0.5), steel);
+    beam.position.y = WRECK_PIVOT;
+    grp.add(beam);
+    // Kette dreht um ihr oberes Ende, deshalb die Geometrie nach unten schieben
+    const chainGeo = new THREE.BoxGeometry(0.18, WRECK_LEN, 0.18);
+    chainGeo.translate(0, -WRECK_LEN / 2, 0);
+    const chain = new THREE.Mesh(chainGeo, dark);
+    chain.position.y = WRECK_PIVOT;
+    grp.add(chain);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(WRECK_R, 14, 10), ballMat);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(WRECK_R + 0.05, 0.11, 6, 18), yellow);
+    grp.add(ball, band);
+    o.chain = chain; o.ball = ball; o.band = band;
 
   } else {
     const bodyMat = o.mover ? new THREE.MeshLambertMaterial({ color: 0xB05BFF }) : red;
@@ -2690,6 +2840,7 @@ function beginRace(seed, botCount) {
   runners = []; obstacles = []; results = [];
   speed = SPEED_START; travelled = 0; raceTime = 0; shake = 0;
   nextPlanIndex = 0; biomeIndex = 0; lastLevel = -1; prevTravelled = 0; tunnelAnnounced = false; bridgeAnnounced = false; bankAnnounced = false;
+  floodAnnounced = false; camBank = 0;
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
@@ -2791,6 +2942,22 @@ function startSolo() {
 
 /* ---------------- Eingabe ---------------- */
 
+/* Zwischen Eingabe und Aktion liegt eine Übersetzung: steht die Welt auf dem
+   Kopf, zeigt der Bildschirm links nach rechts, und die Taste, die nach unten
+   deutet, führt vom Boden weg — also springt sie. Die Spielwelt selbst bleibt
+   unverändert, nur die Zuordnung dreht sich. */
+function goSide(dir) {
+  setLane(me, me.lane + (flipped() ? -dir : dir));
+}
+function goUp() {
+  if (me.flying) { setBand(me, 1); return; }
+  if (flipped()) duckStart(me); else doJump(me);
+}
+function goDown() {
+  if (me.flying) { setBand(me, -1); return; }
+  if (flipped()) doJump(me); else duckStart(me);
+}
+
 function bindInput() {
   const typing = e => e.target && e.target.tagName === 'INPUT';
 
@@ -2798,23 +2965,23 @@ function bindInput() {
     if (typing(e)) return;
     if (state !== 'running' || !me.alive) return;
     switch (e.code) {
-      case 'ArrowLeft': case 'KeyA':  setLane(me, me.lane - 1); e.preventDefault(); break;
-      case 'ArrowRight': case 'KeyD': setLane(me, me.lane + 1); e.preventDefault(); break;
+      case 'ArrowLeft': case 'KeyA':  goSide(-1); e.preventDefault(); break;
+      case 'ArrowRight': case 'KeyD': goSide(1); e.preventDefault(); break;
       case 'ArrowUp': case 'KeyW': case 'Space':
-        keys.up = true;
-        if (me.flying) setBand(me, 1); else doJump(me);
-        e.preventDefault(); break;
+        keys.up = true; goUp(); e.preventDefault(); break;
       case 'ArrowDown': case 'KeyS':
-        keys.down = true;
-        if (me.flying) setBand(me, -1); else duckStart(me);
-        e.preventDefault(); break;
+        keys.down = true; goDown(); e.preventDefault(); break;
     }
   });
 
   addEventListener('keyup', e => {
     if (typing(e)) return;
-    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') { keys.up = false; e.preventDefault(); }
-    if (e.code === 'ArrowDown' || e.code === 'KeyS') { keys.down = false; duckStop(me); e.preventDefault(); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+      keys.up = false; duckStop(me); e.preventDefault();
+    }
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+      keys.down = false; duckStop(me); e.preventDefault();
+    }
   });
 
   // Touch-Knöpfe
@@ -2823,10 +2990,10 @@ function bindInput() {
       ev.preventDefault();
       if (state !== 'running' || !me.alive) return;
       const k = el.dataset.k;
-      if (k === 'left') setLane(me, me.lane - 1);
-      if (k === 'right') setLane(me, me.lane + 1);
-      if (k === 'jump') { keys.up = true; if (me.flying) setBand(me, 1); else doJump(me); }
-      if (k === 'duck') { keys.down = true; if (me.flying) setBand(me, -1); else duckStart(me); }
+      if (k === 'left') goSide(-1);
+      if (k === 'right') goSide(1);
+      if (k === 'jump') { keys.up = true; goUp(); }
+      if (k === 'duck') { keys.down = true; goDown(); }
     });
   });
 
@@ -2836,7 +3003,7 @@ function bindInput() {
   });
   document.querySelectorAll('[data-k="jump"]').forEach(el => {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev =>
-      el.addEventListener(ev, e => { e.preventDefault(); keys.up = false; }));
+      el.addEventListener(ev, e => { e.preventDefault(); keys.up = false; duckStop(me); }));
   });
 
   // Wischgesten
@@ -2849,10 +3016,9 @@ function bindInput() {
     if (state !== 'running' || !me.alive) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.abs(dx) < 30 && Math.abs(dy) < 30) return;
-    if (Math.abs(dx) > Math.abs(dy)) setLane(me, me.lane + (dx > 0 ? 1 : -1));
-    else if (dy < 0) { if (me.flying) setBand(me, 1); else doJump(me); }
-    else if (me.flying) setBand(me, -1);
-    else { duckStart(me); setTimeout(() => duckStop(me), 520); }
+    if (Math.abs(dx) > Math.abs(dy)) goSide(dx > 0 ? 1 : -1);
+    else if (dy < 0) goUp();
+    else { goDown(); setTimeout(() => duckStop(me), 520); }
   });
 }
 
@@ -3017,6 +3183,16 @@ function frame() {
             ? (m.rotation.z > 0 ? 1.6 : -1.6) : 0);
         }));
       }
+      // Abrissbirne schwingt — Trefferfläche wandert mit, auch in der Höhe
+      if (o.kind === 'wrecker' && o.boxes.length) {
+        const wx = wreckX(o, travelled), wy = wreckY(wx);
+        o.boxes[0].x = wx;
+        o.boxes[0].yMin = Math.max(0, wy - WRECK_R - 0.15);
+        o.boxes[0].yMax = wy + WRECK_R + 0.15;
+        if (o.ball) o.ball.position.set(wx, wy, 0);
+        if (o.band) { o.band.position.set(wx, wy, 0); o.band.rotation.z += dt * 1.6; }
+        if (o.chain) o.chain.rotation.z = Math.asin(Math.max(-1, Math.min(1, wx / WRECK_LEN)));
+      }
       whiteObstacle(o, whiteoutOn);
 
       // WICHTIG: erst prüfen, dann aufräumen. Stand der Browser still, wird ein
@@ -3125,18 +3301,26 @@ function frame() {
 
   const camTargetX = me ? me.laneX * 0.45 : 0;
   camera.position.x += (camTargetX - camera.position.x) * Math.min(1, dt * 4);
+  // Im gefluteten Tunnel steigt die Kamera und rueckt zurueck. Sie muss dabei
+  // unter der Wasserkante bei 7.1 bleiben, sonst blickt man durch die Schicht.
+  const flipNow = (state === 'running') ? flipAmount(travelled) : 0;
   const camY = me ? (me.flying ? 3.4 + me.y * 0.55 : 5.4 + Math.max(0, me.y) * 0.25 + Math.min(0, me.y) * 0.8) : 5.4;
-  camera.position.y += (camY - camera.position.y) * Math.min(1, dt * 5);
+  camera.position.y += ((camY + flipNow * 0.85) - camera.position.y) * Math.min(1, dt * 5);
+  camera.position.z += ((10.5 + flipNow * 3.4) - camera.position.z) * Math.min(1, dt * 3);
   const totalShake = shake + quakeShake;
   if (shake > 0) shake = Math.max(0, shake - dt * 1.8);
   if (totalShake > 0) {
     camera.position.x += (Math.random() - 0.5) * totalShake;
     camera.position.y += (Math.random() - 0.5) * totalShake;
   }
-  camera.lookAt(camTargetX * 0.6, 1.9, -14);
-  // Schräglage: die Strecke scheint sich zu neigen
-  const bank = (state === 'running') ? bankAngle(travelled) : 0;
-  camera.rotation.z += (bank - camera.rotation.z) * Math.min(1, dt * 3);
+  camera.lookAt(camTargetX * 0.6, 1.9 + flipNow * 0.6, -14 - flipNow * 3);
+  // Schräglage und Überkopf-Passage. camera.lookAt() setzt die Drehung jeden
+  // Frame zurück, deshalb wird der Rollwinkel getrennt geglättet und danach
+  // GESETZT statt aufaddiert — sonst käme davon fast nichts an.
+  const bankTarget = (state === 'running') ? bankAngle(travelled) : 0;
+  camBank += (bankTarget - camBank) * Math.min(1, dt * 3);
+  const flipRoll = (state === 'running') ? flipAmount(travelled) * Math.PI : 0;
+  camera.rotation.z = camBank + flipRoll;
 
   renderer.render(scene, camera);
 }
