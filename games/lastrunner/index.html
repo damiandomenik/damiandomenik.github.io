@@ -376,6 +376,13 @@ let lastFrameMs = 0, hiddenAt = 0;
      schwachen Rechner sein -> erst ab 2.5 s, sonst fliegt jemand grundlos raus */
 const AWAY_HIDDEN_MS = 900;
 const AWAY_FREEZE_MS = 2500;
+/* Dritter Fall: das Zeichnen stoppt nicht, läuft aber nur noch mit etwa einem
+   Bild pro Sekunde. Jede einzelne Lücke bleibt dann unter AWAY_FREEZE_MS, in
+   Summe fehlt trotzdem die halbe Strecke. Deshalb ein Konto: alles über
+   AWAY_SLOW_MS wird aufaddiert, ein flüssiger Lauf baut es wieder ab. */
+const AWAY_SLOW_MS = 260;
+const AWAY_BUDGET_MS = 1200;
+let awayLost = 0;
 let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
@@ -2246,10 +2253,19 @@ const Net = {
       });
       conn.on('close', () => {
         this._conns.delete(conn.peer);
-        this.roster = this.roster.filter(r => r.id !== conn.peer);
         this._states.delete(conn.peer);
-        this.pushRoster();
-        this.checkOver();
+        if (state === 'running' || state === 'countdown') {
+          // Läuft das Rennen, darf der Eintrag NICHT verschwinden: das
+          // runners-Array wurde einmal aus dem Roster gebaut, und der Relay
+          // verschickt Positionen als Roster-INDEX. Fällt einer heraus,
+          // rutschen alle dahinter eine Stelle vor — ab dann steuert jeder
+          // die Figur seines Nachbarn. Stattdessen gilt er als ausgeschieden.
+          if (!this._outs.has(conn.peer)) this._outs.set(conn.peer, 0);
+          this.checkOver();
+        } else {
+          this.roster = this.roster.filter(r => r.id !== conn.peer);
+          this.pushRoster();
+        }
       });
     });
 
@@ -2421,21 +2437,28 @@ const Net = {
 
 window.addEventListener('beforeunload', () => Net.leave());
 
-/* Zweiter Weg zur selben Erkennung: der Browser meldet, wenn der Tab in den
-   Hintergrund geht. Das greift auch dann, wenn das Zeichnen nicht ganz stoppt. */
+/* Weitere Wege zur selben Erkennung. 'visibilitychange' allein reicht nicht:
+   ein minimiertes oder verdecktes Fenster meldet auf manchen Systemen gar
+   nichts, während der Browser das Zeichnen trotzdem auf etwa ein Bild pro
+   Sekunde drosselt. Genau in dieser Lücke lief man bisher durch Wände. */
+function awayGone() {
+  if (!hiddenAt) hiddenAt = performance.now();
+}
+function awayBack() {
+  if (!hiddenAt) return;
+  const away = performance.now() - hiddenAt;
+  hiddenAt = 0;
+  if (state === 'running' && me && me.alive && away > AWAY_HIDDEN_MS) {
+    eliminate(me);
+    showToast('AWAY — OUT');
+  }
+}
 if (typeof document !== 'undefined' && document.addEventListener) {
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      hiddenAt = performance.now();
-    } else if (hiddenAt) {
-      const away = performance.now() - hiddenAt;
-      hiddenAt = 0;
-      if (state === 'running' && me && me.alive && away > AWAY_HIDDEN_MS) {
-        eliminate(me);
-        showToast('AWAY — OUT');
-      }
-    }
+    if (document.hidden) awayGone(); else awayBack();
   });
+  addEventListener('blur', awayGone);
+  addEventListener('focus', awayBack);
 }
 
 function note(text) { $('net-note').textContent = text || ''; }
@@ -2465,6 +2488,10 @@ function applyClockSample(sentAt, hostRaceTime) {
   const rtt = now - sentAt;
   if (rtt > 900) return;                       // Ausreisser verwerfen
   // Nur bessere Messungen zählen — die schnellste Antwort ist die genaueste
+  // syncBest sank bisher nur. Ein einziger Glückstreffer mit sehr kurzer
+  // Laufzeit sperrte danach jede weitere Messung — die Uhr lief dann bis zum
+  // Rennende unkorrigiert weiter. Deshalb vergisst der Wert langsam.
+  if (syncBest !== Infinity) syncBest = Math.min(syncBest * 1.08, 900);
   if (rtt > syncBest * 1.6 && syncBest !== Infinity) return;
   syncBest = Math.min(syncBest, rtt);
 
@@ -2846,7 +2873,7 @@ function beginRace(seed, botCount) {
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
-  lastFrameMs = 0; hiddenAt = 0;
+  lastFrameMs = 0; hiddenAt = 0; awayLost = 0;
   if (ufo) ufo.visible = false;
   // Kulisse vollständig zurücksetzen. Ohne das bleiben Häuser nach einem
   // Abbruch im Beben oder im Flug schief bzw. unsichtbar stehen — die Erholung
@@ -3037,9 +3064,18 @@ function frame() {
   // scheidet aus. Sonst rennt man unverwundbar durch die halbe Strecke.
   const nowMs = performance.now();
   if (state === 'running' && lastFrameMs && me && me.alive) {
-    if (nowMs - lastFrameMs > AWAY_FREEZE_MS) {
+    const gap = nowMs - lastFrameMs;
+    if (gap > AWAY_FREEZE_MS) {
       eliminate(me);
       showToast('AWAY — OUT');
+    } else if (gap > AWAY_SLOW_MS) {
+      awayLost += gap - AWAY_SLOW_MS;
+      if (awayLost > AWAY_BUDGET_MS) {
+        eliminate(me);
+        showToast('AWAY — OUT');
+      }
+    } else {
+      awayLost = Math.max(0, awayLost - gap * 0.6);   // flüssiger Lauf baut ab
     }
   }
   lastFrameMs = nowMs;
