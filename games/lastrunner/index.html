@@ -194,6 +194,10 @@ input:focus{outline:none;border-color:var(--red)}
     <h1 id="res-title">FINISH</h1>
     <p class="sub" id="res-sub">—</p>
     <ul class="board" id="board"></ul>
+    <div id="lb-wrap" class="hidden">
+      <div class="divider"><span>all-time top 10</span></div>
+      <ul class="board" id="lb-list"></ul>
+    </div>
     <button class="btn red" id="btn-again">Race again</button>
     <button class="btn plain" id="btn-menu">Back to menu</button>
   </div>
@@ -201,6 +205,8 @@ input:focus{outline:none;border-color:var(--red)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 (function () {
 "use strict";
@@ -1928,6 +1934,93 @@ function buildObstacle(o) {
   obstacles.push(o);
 }
 
+/* ---------------- Bestenliste (Firebase) ----------------
+   Gilt nur für Onlinerennen. Eingetragen wird ausschliesslich der Gewinner,
+   also der letzte Überlebende, und nur wenn seine Strecke in die Top 10 passt.
+   Geschrieben wird vom HOST — sonst schickt jeder Client denselben Lauf ab. */
+
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyA638Beed6w2PEu8GjlHtkPGNtdufVr2kM',
+  authDomain: 'lastrunner-ac4ac.firebaseapp.com',
+  projectId: 'lastrunner-ac4ac',
+  appId: '1:124601987248:web:03ee115ec13323760b0b75'
+};
+const LB_COLLECTION = 'lastrunner_scores';
+const LB_SIZE = 10;
+
+function esc(t) {
+  return String(t).replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+const LB = {
+  db: null, ready: false, top: [],
+
+  init() {
+    if (!window.firebase || !FIREBASE_CONFIG.projectId) return;
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      this.db = firebase.firestore();
+      this.ready = true;
+      this.load();
+    } catch (e) { console.warn('[LAST RUNNER] Bestenliste aus:', e.message); }
+  },
+
+  /** Die besten zehn holen, längste Strecke zuerst. */
+  load() {
+    if (!this.ready) return Promise.resolve([]);
+    return this.db.collection(LB_COLLECTION)
+      .orderBy('dist', 'desc').limit(LB_SIZE).get()
+      .then(snap => { this.top = snap.docs.map(d => d.data()); return this.top; })
+      .catch(e => { console.warn('[LAST RUNNER] Bestenliste laden:', e.message); return this.top; });
+  },
+
+  /** Gewinnerzeile eintragen. Nur der Host schreibt, und nur bei Top-10-Wert. */
+  submitWinner(row) {
+    if (!this.ready || !Net.isHost() || !row) return Promise.resolve(false);
+    const dist = row.d | 0;
+    const name = String(row.n || 'RUNNER').slice(0, 10).toUpperCase();
+    if (dist <= 0) return Promise.resolve(false);
+    return this.load().then(top => {
+      // Liste voll und der Wert reicht nicht an den Zehnten heran: nichts tun.
+      if (top.length >= LB_SIZE && dist <= top[top.length - 1].dist) return false;
+      return this.db.collection(LB_COLLECTION)
+        .add({ name, dist, at: Date.now() })
+        .then(() => this.load())
+        .then(() => true);
+    }).catch(e => {
+      console.warn('[LAST RUNNER] Bestenliste schreiben:', e.message);
+      return false;
+    });
+  },
+
+  /** In die Ergebniskarte zeichnen. Der frische Eintrag wird hervorgehoben. */
+  render(hlName, hlDist) {
+    const wrap = $('lb-wrap'), list = $('lb-list');
+    if (!wrap || !list) return;
+    wrap.classList.remove('hidden');
+    if (!this.ready) {
+      list.innerHTML = '<li><span class="who">leaderboard not configured</span></li>';
+      return;
+    }
+    list.innerHTML = '<li><span class="who">loading …</span></li>';
+    this.load().then(top => {
+      if (!top.length) {
+        list.innerHTML = '<li><span class="who">no entries yet</span></li>';
+        return;
+      }
+      let marked = false;
+      list.innerHTML = top.map((e, i) => {
+        const medal = ['🥇', '🥈', '🥉'][i] || (i + 1) + '.';
+        const mine = !marked && e.name === hlName && e.dist === hlDist;
+        if (mine) marked = true;
+        return '<li class="' + (mine ? 'me' : '') + '"><span class="who">' +
+          medal + ' ' + esc(e.name) + '</span><span>' + (e.dist | 0) + 'm</span></li>';
+      }).join('');
+    });
+  }
+};
+
 /* ---------------- Netzwerk (PeerJS) ---------------- */
 
 const Net = {
@@ -2126,9 +2219,15 @@ const Net = {
       s: this._outs.has(r.id) ? 0 : 1
     })).sort((a, b) => (b.s - a.s) || (b.d - a.d));
 
-    this.broadcast({ t: 'res', rows });
     this.stopRelay();
-    showNetResults(rows);
+    // Erst eintragen, dann verteilen — sonst liest die Ergebniskarte eine
+    // Bestenliste, in der der frische Lauf noch fehlt. Nach 2.5 s geht es
+    // ohnehin weiter, damit ein hängendes Firebase niemanden blockiert.
+    const show = () => { this.broadcast({ t: 'res', rows }); showNetResults(rows); };
+    Promise.race([
+      LB.submitWinner(rows[0]),
+      new Promise(res => setTimeout(res, 2500))
+    ]).then(show, show);
   },
 
   /** Erster Farbindex, den noch niemand belegt. */
@@ -2318,6 +2417,7 @@ function showNetResults(rows) {
         '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
         medal + ' ' + r.n + '</span><span>' + r.d + 'm</span></li>';
     }).join('');
+    LB.render(winner ? winner.n : null, winner ? winner.d : null);
     $('results').classList.remove('hidden');
   }, 1300);
 }
@@ -2548,6 +2648,7 @@ function finishRace(winner) {
         '<span class="who"><span class="dot" style="background:' + c + '"></span>' +
         medal + ' ' + r.name + '</span><span>' + r.dist + 'm</span></li>';
     }).join('');
+    $('lb-wrap').classList.add('hidden');       // Bestenliste gilt nur online
     $('results').classList.remove('hidden');
   }, 1300);
 }
@@ -3063,6 +3164,7 @@ try {
   buildTunnel();
   buildStreaks();
   bindInput();
+  LB.init();
   frame();
 } catch (err) {
   console.error('[LAST RUNNER] Start fehlgeschlagen:', err);
