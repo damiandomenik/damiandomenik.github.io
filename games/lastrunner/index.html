@@ -364,7 +364,12 @@ let results = [];
 let shake = 0;
 let raceTime = 0, lastLevel = -1, raceStartMs = 0, prevTravelled = 0;
 let lastFrameMs = 0, hiddenAt = 0;
-const AWAY_MS = 900;           // so lange darf der Browser höchstens stillstehen
+/* Zwei getrennte Schwellen, weil die Signale unterschiedlich sicher sind:
+   - Tab im Hintergrund ist eindeutig  -> schon ab 0.9 s
+   - eine Lücke zwischen zwei Bildern kann auch ein einzelner Ruckler auf einem
+     schwachen Rechner sein -> erst ab 2.5 s, sonst fliegt jemand grundlos raus */
+const AWAY_HIDDEN_MS = 900;
+const AWAY_FREEZE_MS = 2500;
 let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
@@ -2174,7 +2179,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     } else if (hiddenAt) {
       const away = performance.now() - hiddenAt;
       hiddenAt = 0;
-      if (state === 'running' && me && me.alive && away > AWAY_MS) {
+      if (state === 'running' && me && me.alive && away > AWAY_HIDDEN_MS) {
         eliminate(me);
         showToast('AWAY — OUT');
       }
@@ -2756,7 +2761,7 @@ function frame() {
   // scheidet aus. Sonst rennt man unverwundbar durch die halbe Strecke.
   const nowMs = performance.now();
   if (state === 'running' && lastFrameMs && me && me.alive) {
-    if (nowMs - lastFrameMs > AWAY_MS) {
+    if (nowMs - lastFrameMs > AWAY_FREEZE_MS) {
       eliminate(me);
       showToast('AWAY — OUT');
     }
