@@ -363,6 +363,8 @@ let rng = null;
 let results = [];
 let shake = 0;
 let raceTime = 0, lastLevel = -1, raceStartMs = 0, prevTravelled = 0;
+let lastFrameMs = 0, hiddenAt = 0;
+const AWAY_MS = 900;           // so lange darf der Browser höchstens stillstehen
 let plannedObstacles = [];     // vorab aus dem Seed berechnet
 let nextPlanIndex = 0;
 let isNet = false;             // echtes Mehrspielerrennen?
@@ -2163,6 +2165,23 @@ const Net = {
 
 window.addEventListener('beforeunload', () => Net.leave());
 
+/* Zweiter Weg zur selben Erkennung: der Browser meldet, wenn der Tab in den
+   Hintergrund geht. Das greift auch dann, wenn das Zeichnen nicht ganz stoppt. */
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      hiddenAt = performance.now();
+    } else if (hiddenAt) {
+      const away = performance.now() - hiddenAt;
+      hiddenAt = 0;
+      if (state === 'running' && me && me.alive && away > AWAY_MS) {
+        eliminate(me);
+        showToast('AWAY — OUT');
+      }
+    }
+  });
+}
+
 function note(text) { $('net-note').textContent = text || ''; }
 
 /* ---------------- Uhrensynchronisation ----------------
@@ -2568,6 +2587,7 @@ function beginRace(seed, botCount) {
   if (pulse) pulse.material.opacity = 0;
   whiteoutOn = false; camera.position.z = 10.5; camera.rotation.z = 0;
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
+  lastFrameMs = 0; hiddenAt = 0;
   if (ufo) ufo.visible = false;
   props.forEach(pr => {
     if (pr.userData.volcano) pr.userData.volcano.visible = false;
@@ -2729,6 +2749,19 @@ function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.getElapsedTime();
+
+  // Wechselt man den Tab, hält der Browser das Zeichnen an. Die Rennuhr läuft
+  // aber weiter — die Strecke springt dann auf einen Schlag hunderte Meter
+  // nach vorn, und alles dazwischen wurde nie gespielt. Wer so lange weg war,
+  // scheidet aus. Sonst rennt man unverwundbar durch die halbe Strecke.
+  const nowMs = performance.now();
+  if (state === 'running' && lastFrameMs && me && me.alive) {
+    if (nowMs - lastFrameMs > AWAY_MS) {
+      eliminate(me);
+      showToast('AWAY — OUT');
+    }
+  }
+  lastFrameMs = nowMs;
 
   if (state === 'countdown' && performance.now() >= raceStartMs) {
     state = 'running';
@@ -2892,11 +2925,10 @@ function frame() {
         }));
       }
       whiteObstacle(o, whiteoutOn);
-      if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); continue; }
 
-      // Treffer prüfen, sobald das Hindernis das Fenster um z = 0 BERÜHRT HAT —
-      // also über die ganze Strecke seit dem letzten Frame. Sonst kann ein
-      // schnelles Hindernis bei niedriger Bildrate einfach übersprungen werden.
+      // WICHTIG: erst prüfen, dann aufräumen. Stand der Browser still, wird ein
+      // Hindernis unter Umständen erst gebaut, wenn es rechnerisch schon vorbei
+      // ist — wurde es vorher weggeräumt, zählte der Treffer nie.
       const half = o.zHalf || 1.4;
       if (o.prevZ === undefined) o.prevZ = o.z;
       if (!o.checked && o.prevZ < half && o.z > -half) {
@@ -2909,6 +2941,7 @@ function frame() {
       }
       if (o.z > half) o.checked = true;
       o.prevZ = o.z;
+      if (o.z > DESPAWN_Z) { scene.remove(o.group); obstacles.splice(i, 1); }
     }
 
     // Boden, Häuser und Ziel mitziehen
