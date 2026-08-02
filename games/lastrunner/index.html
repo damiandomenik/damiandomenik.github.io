@@ -2594,9 +2594,16 @@ function beginRace(seed, botCount) {
   nightOn = false; phase2 = 'ground'; quakeShake = 0; lavaOn = false;
   lastFrameMs = 0; hiddenAt = 0;
   if (ufo) ufo.visible = false;
+  // Kulisse vollständig zurücksetzen. Ohne das bleiben Häuser nach einem
+  // Abbruch im Beben oder im Flug schief bzw. unsichtbar stehen — die Erholung
+  // in updateAct greift erst hinter ACT.LAND_END, also nie am Rennanfang.
   props.forEach(pr => {
     if (pr.userData.volcano) pr.userData.volcano.visible = false;
-    pr.children.forEach(c => { if (c !== pr.userData.volcano) c.visible = true; });
+    pr.visible = true;
+    pr.rotation.set(0, 0, 0);
+    pr.scale.set(1, 1, 1);
+    pr.position.y = pr.userData.baseY;
+    if (pr.userData.windows) pr.userData.windows.forEach(w => { w.visible = false; });
   });
   clouds.forEach(g => { g.visible = false; });
   groundTiles.forEach(t2 => { t2.position.y = 0; t2.rotation.z = 0; t2.visible = true; });
@@ -2814,65 +2821,45 @@ function frame() {
       o.group.position.z = o.z;
 
       if (o.lava) {
-    const rockMat = new THREE.MeshLambertMaterial({ color: 0x2A211E, flatShading: true });
-    const hotMat = new THREE.MeshBasicMaterial({ color: 0xFF7A22 });
-    const coreMat = new THREE.MeshBasicMaterial({ color: 0xFFD98A });
+        if (o.kind === 'geyser') {
+          // Takt einfrieren, sobald das Hindernis nah ist — was du siehst, kommt auch
+          const tt = Math.min(travelled, o.dist - 40);
+          const s = Math.sin(o.phase + tt * o.rate);
+          // Gruppe A ist oben, wenn s > 0 — Gruppe B genau umgekehrt
+          const upA = Math.pow(Math.max(0, s), 0.4);
+          const upB = Math.pow(Math.max(0, -s), 0.4);
+          if (o.jets) o.jets.forEach(j => {
+            const up = j.groupA ? upA : upB;
+            j.mesh.scale.y = Math.max(0.001, up);
+            j.mesh.visible = up > 0.02;
+          });
+          o.boxes.forEach(b => {
+            const up = (o.groupA.indexOf(b.lane) >= 0) ? upA : upB;
+            if (up > 0.30) { b.yMin = 0; b.yMax = 1.0 + up * 4.0; }
+            else { b.yMin = 900; b.yMax = 901; }   // schläft — Spur ist frei
+          });
 
-    if (o.kind === 'geyser') {
-      o.jets = [];
-      [].concat(o.groupA, o.groupB).forEach(l => {
-        const jet = new THREE.Group();
-        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.95, 5.0, 10), hotMat);
-        col.position.y = 2.5;
-        const core = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.5, 4.6, 8), coreMat);
-        core.position.y = 2.4;
-        jet.add(col, core);
-        jet.position.set(LANES[l], 0, 0);
-        jet.scale.y = 0.001;
-        grp.add(jet);
-        // Krater am Boden, damit man sieht, wo es gleich losgeht
-        const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 0.35, 10), rockMat);
-        ring.position.set(LANES[l], 0.15, 0);
-        grp.add(ring);
-        o.jets.push({ lane: l, mesh: jet, groupA: o.groupA.indexOf(l) >= 0 });
-      });
+        } else if (o.kind === 'lavaflow') {
+          if (o.streamMat) {
+            const g = 0.30 + 0.28 * Math.sin(travelled * 0.12 + o.dist);
+            o.streamMat.color.setRGB(1, g, 0.08);
+          }
 
-    } else if (o.kind === 'lavaflow') {
-      const len = o.zHalf * 2;
-      const stream = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 0.4, 0.28, len), hotMat);
-      stream.position.y = 0.06;
-      grp.add(stream);
-      const bright = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2 - 2.4, 0.3, len * 0.55), coreMat);
-      bright.position.y = 0.09;
-      grp.add(bright);
-      [-1, 1].forEach(sd => {
-        const lip = new THREE.Mesh(new THREE.BoxGeometry(TRACK_HALF * 2, 0.5, 0.8), rockMat);
-        lip.position.set(0, 0.2, sd * (o.zHalf + 0.3));
-        grp.add(lip);
-      });
-      o.streamMat = hotMat;
+        } else if (o.fallers) {                  // rockfall
+          // Brocken so fallen lassen, dass sie beim Eintreffen unten sind
+          const f = Math.max(0, Math.min(1, 1 - (o.dist - travelled) / 120));
+          const y = 30 * (1 - f * f);
+          o.fallers.forEach(fl => {
+            fl.rock.position.y = y;
+            fl.rock.rotation.x += dt * 3.4;
+            fl.rock.rotation.z += dt * 2.2;
+            fl.hot.position.y = y - 0.6;
+            fl.mark.material.opacity = 0.2 + f * 0.55;
+            fl.mark.scale.setScalar(0.55 + f * 0.55);
+          });
+        }
 
-    } else {                       // rockfall
-      o.fallers = [];
-      o.used.forEach(l => {
-        const rk = new THREE.Mesh(new THREE.DodecahedronGeometry(1.15, 0), rockMat);
-        rk.position.set(LANES[l], 30, 0);
-        grp.add(rk);
-        // Glut an der Unterseite
-        const hot = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), hotMat);
-        hot.position.set(LANES[l], 29.4, 0);
-        grp.add(hot);
-        // Warnschatten am Boden
-        const mark = new THREE.Mesh(new THREE.CircleGeometry(1.5, 16),
-          new THREE.MeshBasicMaterial({ color: 0x120A08, transparent: true, opacity: 0.55 }));
-        mark.rotation.x = -Math.PI / 2;
-        mark.position.set(LANES[l], 0.05, 0);
-        grp.add(mark);
-        o.fallers.push({ rock: rk, hot, mark });
-      });
-    }
-
-  } else if (o.air) {
+      } else if (o.air) {
         if (o.spinners) o.spinners.forEach(rk => { rk.rotation.x += dt * 2.2; rk.rotation.y += dt * 1.6; });
         if (o.flashes) {
           const on = Math.sin(travelled * 0.5 + o.dist) > 0.3;
