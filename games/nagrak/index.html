@@ -52,6 +52,23 @@ canvas{display:block;width:100%;height:100%}
   100%{opacity:0;transform:translate(-50%,-40px)}}
 #hitflash{position:fixed;inset:0;z-index:7;pointer-events:none;background:var(--red);opacity:0;
   transition:opacity .12s}
+/* Fadenkreuz: vier Striche um eine Lücke, damit die Mitte frei bleibt.
+   Es spreizt sich beim Schlag auf und färbt sich bei einem Treffer. */
+#cross{position:fixed;left:50%;top:50%;z-index:8;pointer-events:none;width:44px;height:44px;
+  margin:-22px 0 0 -22px;transition:transform .07s ease-out}
+#cross i{position:absolute;background:#F2F7FB;box-shadow:0 0 0 1px rgba(5,9,15,.85);
+  transition:background .1s}
+#cross i:nth-child(1){left:50%;top:0;width:2px;height:13px;margin-left:-1px}
+#cross i:nth-child(2){left:50%;bottom:0;width:2px;height:13px;margin-left:-1px}
+#cross i:nth-child(3){top:50%;left:0;height:2px;width:13px;margin-top:-1px}
+#cross i:nth-child(4){top:50%;right:0;height:2px;width:13px;margin-top:-1px}
+#cross.wide{transform:scale(1.5)}
+#cross.hit i{background:var(--red)}
+#cross .dot{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
+  border-radius:50%;background:rgba(242,247,251,.75)}
+#lockhint{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);z-index:11;
+  background:rgba(11,20,32,.75);border:2px solid var(--cyan);border-radius:12px;
+  padding:7px 14px;font-size:.8rem;letter-spacing:.05em;pointer-events:none}
 
 /* ---------- Overlays ---------- */
 .overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
@@ -95,8 +112,8 @@ input:focus{outline:none;border-color:var(--amber)}
   position:relative;box-shadow:0 3px 0 rgba(5,9,15,.6)}
 .sw.sel{box-shadow:0 0 0 3px #101B29,0 0 0 6px var(--cyan);transform:scale(1.12)}
 .sw.taken{opacity:.26;cursor:not-allowed;box-shadow:none}
-.picks{display:flex;gap:8px;justify-content:center;margin-top:6px}
-.pick{flex:1;padding:9px 6px;border:3px solid #22344A;border-radius:13px;background:#08111C;
+.picks{display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.pick{flex:1 1 40%;padding:9px 6px;border:3px solid #22344A;border-radius:13px;background:#08111C;
   cursor:pointer;font-weight:800;font-size:.82rem;letter-spacing:.05em}
 .pick.sel{border-color:var(--cyan);background:#1B3550}
 .hint{display:flex;flex-wrap:wrap;gap:5px 14px;justify-content:center;margin-top:14px;
@@ -145,6 +162,8 @@ input:focus{outline:none;border-color:var(--amber)}
 </div>
 
 <div id="hitflash"></div>
+<div id="cross" class="hidden"><i></i><i></i><i></i><i></i><span class="dot"></span></div>
+<div id="lockhint" class="hidden">Click to capture the mouse · <b>Esc</b> releases it</div>
 <div id="big" class="hidden"><span>3</span></div>
 <div id="toast" class="hidden"></div>
 
@@ -158,15 +177,17 @@ input:focus{outline:none;border-color:var(--amber)}
   <div class="card">
     <h1>RING OF <span>NAGRAK</span></h1>
     <p class="sub">A duel pit on a rock in deep space. Three clean hits and your opponent is done.
-      The camera locks onto your opponent — you never have to steer it.</p>
+      Aim with the mouse, punch what the crosshair covers.</p>
 
     <label for="nm">Your name</label>
     <input id="nm" maxlength="10" placeholder="FIGHTER" autocomplete="off" spellcheck="false">
 
     <label>Your fighter</label>
-    <div class="picks">
+    <div class="picks" id="menu-picks">
       <div class="pick sel" data-ch="0">SCOUT</div>
       <div class="pick" data-ch="1">TROOPER</div>
+      <div class="pick" data-ch="2">HUSK</div>
+      <div class="pick" data-ch="3">CRAWLER</div>
     </div>
 
     <label for="code">Room code</label>
@@ -181,8 +202,8 @@ input:focus{outline:none;border-color:var(--amber)}
 
     <p class="note" id="net-note"></p>
     <div class="hint">
-      <span><b>W</b> close in</span><span><b>S</b> back off</span>
-      <span><b>A D</b> circle</span><span><b>Space</b> / <b>Click</b> punch</span>
+      <span><b>W A S D</b> move</span><span><b>Mouse</b> aim</span>
+      <span><b>Click</b> / <b>Space</b> punch</span>
     </div>
   </div>
 </div>
@@ -196,6 +217,8 @@ input:focus{outline:none;border-color:var(--amber)}
     <div class="picks" id="lobby-picks">
       <div class="pick sel" data-ch="0">SCOUT</div>
       <div class="pick" data-ch="1">TROOPER</div>
+      <div class="pick" data-ch="2">HUSK</div>
+      <div class="pick" data-ch="3">CRAWLER</div>
     </div>
     <label>Colour</label>
     <div class="swatches" id="swatches"></div>
@@ -219,6 +242,9 @@ input:focus{outline:none;border-color:var(--amber)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
 <script>
 (function () {
@@ -237,13 +263,13 @@ input:focus{outline:none;border-color:var(--amber)}
    Fassung. Damit die Figuren klein WIRKEN, reicht die Fläche allein nicht —
    entscheidend ist, dass Mauer, Säulen und Statue deutlich über sie
    hinauswachsen. Deshalb sind alle Bauteile zusätzlich hochskaliert. */
-const ARENA_R = 28;            // begehbarer Radius
-const WALL_R = 30.5;           // dahinter steht die Mauer
-const WALL_S = 2.6;            // Wandsegmente: 10.4 breit, 11.5 hoch
-const COL_S = 3.2;             // Randsäulen: 14.3 hoch
-const TOWER_S = 9.0;           // die vier Türme: 6.1 dick, 40 hoch
-const TOWER_R = 14.5;          // Abstand der Türme von der Mitte
-const MOVE_SPEED = 10.2;
+const ARENA_R = 42;            // begehbarer Radius
+const WALL_R = 45;             // dahinter steht die Mauer
+const WALL_S = 3.0;            // Wandsegmente: 12 breit, 13.3 hoch
+const COL_S = 3.8;             // Randsäulen: 17 hoch
+const TOWER_S = 11.0;          // die vier Türme: 7.5 dick, 49 hoch
+const TOWER_R = 22;            // Abstand der Türme von der Mitte
+const MOVE_SPEED = 12.6;       // grössere Fläche braucht mehr Tempo
 const TURN_SNAP = 12;          // wie schnell sich die Figur zur Laufrichtung dreht
 const GRAVITY = 26;
 
@@ -260,7 +286,16 @@ const COLORS = [
   0x37E0F5, 0xFF5B45, 0xFFC53D, 0x4BD08A, 0xB05BFF, 0xFF5FA8,
   0x9BE02F, 0xFF8C1A, 0x2F7FF0, 0xF2F7FB, 0x8B5E3C, 0x2B3038
 ];
-const CHARS = ['Alien', 'AlienHelmet'];
+/* Vier Skins aus dem Kenney-Paket auf EINEM Skelett — die Figur wird nur
+   einmal geladen, jeder Spieler bekommt eine andere Textur. */
+const CHARS = [
+  { id: 'survivorFemaleA', label: 'SCOUT' },
+  { id: 'survivorMaleB',   label: 'TROOPER' },
+  { id: 'zombieA',         label: 'HUSK' },
+  { id: 'zombieC',         label: 'CRAWLER' }
+];
+const CHAR_HEIGHT = 2.9;       // auf diese Höhe wird das Modell normiert
+let CHAR_TEMPLATE = null, CLIPS = {}, SKINS = {};
 
 const $ = id => document.getElementById(id);
 
@@ -270,7 +305,12 @@ let scene, camera, renderer, clock;
 let MODELS = {};                       // Name -> Object3D aus der GLB
 let fighters = [], me = null;
 let state = 'load';                    // load | menu | lobby | countdown | fight | over
-let camYaw = 0, camDist = 7.0;   // Grundabstand; die Kamera legt je nach Distanz zu
+/* Blickwinkel wie in einem Shooter: die Maus dreht, die Figur schaut immer
+   dorthin, wo das Fadenkreuz steht. camPitch positiv heisst nach unten. */
+let camYaw = 0, camPitch = 0.16, camDist = 5.4;
+const CAM_SHOULDER = 1.05;     // seitlicher Versatz der Kamera
+const CAM_HEAD = 1.95;         // Höhe, um die sich alles dreht
+let pointerLocked = false;
 let colliders = [];                    // {x, z, r} für Deckung
 let isNet = false, myIndex = 0;
 let soloColor = 0, soloChar = 0;
@@ -278,6 +318,7 @@ let lastSend = 0, roundStartMs = 0;
 let hitflashUntil = 0;
 
 const keys = {};
+const MOUSE_SENS = 0.0026;     // Empfindlichkeit des Mausblicks
 const touch = { active: false, id: -1, x: 0, y: 0, dx: 0, dy: 0 };
 
 /* ---------------- Ton ---------------- */
@@ -312,12 +353,13 @@ const sfx = {
 function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060A12);
-  scene.fog = new THREE.Fog(0x0A1220, 60, 175);
+  scene.fog = new THREE.Fog(0x0A1220, 85, 255);
 
   camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 700);
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;    // sonst wirken die Skins ausgewaschen
   $('app').appendChild(renderer.domElement);
 
   scene.add(new THREE.HemisphereLight(0xBFE4FF, 0x24313F, 1.05));
@@ -426,13 +468,13 @@ function buildArena() {
 
   // --- Randsäulen ---
   const c1 = [], c2 = [], c3 = [];
-  const colN = 16;
+  const colN = 22;
   for (let i = 0; i < colN; i++) {
     const a = (i / colN) * Math.PI * 2 + 0.2;
     const t = { x: Math.cos(a) * (ARENA_R - 1.2), z: Math.sin(a) * (ARENA_R - 1.2),
                 ry: -a, s: COL_S };
     (i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3).push(t);
-    colliders.push({ x: t.x, z: t.z, r: 1.2 });
+    colliders.push({ x: t.x, z: t.z, r: 1.4 });
   }
   placeInstanced('Column_1', c1);
   placeInstanced('Column_2', c2);
@@ -446,25 +488,28 @@ function buildArena() {
     const a = Math.PI / 4 + i * Math.PI / 2;
     const x = Math.cos(a) * TOWER_R, z = Math.sin(a) * TOWER_R;
     towers.push({ x, z, ry: a, s: TOWER_S });
-    colliders.push({ x, z, r: 3.2 });
+    colliders.push({ x, z, r: 3.9 });
     // Sockel, damit der Turm nicht aus dem Nichts wächst
-    addProp('Props_Base', x, z, a, 3.6);
+    addProp('Props_Base', x, z, a, 4.4);
   }
   placeInstanced('Column_2', towers);
 
   // --- Mitte: Podest mit Statue, das Wahrzeichen der Arena ---
-  addProp('Props_Base', 0, 0, 0, 4.2);
-  addProp('Props_Statue', 0, 0, 0, 3.4);
-  colliders.push({ x: 0, z: 0, r: 4.0 });
+  addProp('Props_Base', 0, 0, 0, 6.0);
+  addProp('Props_Statue', 0, 0, 0, 4.8);
+  colliders.push({ x: 0, z: 0, r: 5.6 });
 
   // --- Deckung: punktsymmetrisch, damit kein Spieler bevorzugt ist ---
   // --- Deckung auf Figurenhöhe, punktsymmetrisch verteilt ---
   const CS = 2.4;                         // Requisiten mitskalieren
+  // Deckung wächst mit der Fläche mit, bleibt aber auf Figurenhöhe
   const cover = [
-    ['Props_Crate', 9.5, 6.2, 0.4, 1.9], ['Props_Crate', 11.0, 7.9, 1.1, 1.9],
-    ['Props_Crate', 10.2, 4.4, 0.8, 1.9],
-    ['Props_Vessel_Tall', 15.4, -3.0, 0, 2.6], ['Props_Pod', -16.5, 9.9, 0.9, 2.2],
-    ['Props_Laser', 5.5, 17.0, 1.9, 2.2], ['Props_Computer', 19.0, 7.3, -2.2, 2.4]
+    ['Props_Crate', 14.3, 9.3, 0.4, 2.2], ['Props_Crate', 16.5, 11.9, 1.1, 2.2],
+    ['Props_Crate', 15.3, 6.6, 0.8, 2.2],
+    ['Props_Crate', 30.0, -8.0, 0.3, 2.2], ['Props_Crate', 28.4, -10.5, 1.4, 2.2],
+    ['Props_Vessel_Tall', 23.1, -4.5, 0, 3.0], ['Props_Pod', -24.8, 14.9, 0.9, 2.6],
+    ['Props_Laser', 8.3, 25.5, 1.9, 2.6], ['Props_Computer', 28.5, 11.0, -2.2, 2.8],
+    ['Props_Pod', 6.0, -30.0, 0.2, 2.6]
   ];
   cover.forEach(([n, x, z, ry, sc]) => {
     [1, -1].forEach(sd => {
@@ -475,14 +520,14 @@ function buildArena() {
   });
 
   // --- Startplattformen ---
-  [[0, -ARENA_R * 0.72], [0, ARENA_R * 0.72]].forEach(([x, z]) =>
-    addProp('Props_Teleporter_1', x, z, 0, 3.2));
+  [[0, -ARENA_R * 0.66], [0, ARENA_R * 0.66]].forEach(([x, z]) =>
+    addProp('Props_Teleporter_1', x, z, 0, 4.0));
 
   // --- Sternenhimmel und ein Planet am Rand ---
   const starGeo = new THREE.BufferGeometry();
   const pts = [];
-  for (let i = 0; i < 900; i++) {
-    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 260;
+  for (let i = 0; i < 1300; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 360;
     pts.push(Math.sin(ph) * Math.cos(th) * r, Math.abs(Math.cos(ph)) * r * 0.8 - 10,
              Math.sin(ph) * Math.sin(th) * r);
   }
@@ -491,7 +536,7 @@ function buildArena() {
 
   const planet = new THREE.Mesh(new THREE.SphereGeometry(56, 26, 20),
     new THREE.MeshLambertMaterial({ color: 0x2E5C8A }));
-  planet.position.set(-150, 56, -190);
+  planet.position.set(-210, 74, -270);
   scene.add(planet);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(86, 2.6, 8, 48),
     new THREE.MeshBasicMaterial({ color: 0x4C7FB0 }));
@@ -500,9 +545,9 @@ function buildArena() {
   scene.add(ring);
 
   // Fels unter der Arena, damit die Plattform schwebend wirkt
-  const rock = new THREE.Mesh(new THREE.ConeGeometry(WALL_R + 2.5, 46, 9),
+  const rock = new THREE.Mesh(new THREE.ConeGeometry(WALL_R + 3.5, 64, 10),
     new THREE.MeshLambertMaterial({ color: 0x1A2130, flatShading: true }));
-  rock.position.y = -23.2;
+  rock.position.y = -32.2;
   rock.rotation.y = 0.4;
   scene.add(rock);
 }
@@ -511,23 +556,36 @@ function buildArena() {
 
 function makeFighter(name, color, charIdx, isMe) {
   const g = new THREE.Group();
-  const body = cloneModel(CHARS[charIdx % CHARS.length], color);
+
+  /* SkeletonUtils.clone statt Object3D.clone: bei gerigten Modellen muss die
+     Kopie ihr EIGENES Skelett bekommen, sonst bewegen sich alle Figuren
+     gleichzeitig, weil sie sich dieselben Knochen teilen. */
+  const body = THREE.SkeletonUtils.clone(CHAR_TEMPLATE);
+  const ch = CHARS[charIdx % CHARS.length];
+  const bones = {};
+  body.traverse(m => {
+    if (m.isBone) { bones[m.name] = m; return; }
+    if (!m.isMesh) return;
+    m.material = m.material.clone();
+    m.material.map = SKINS[ch.id] || null;
+    // Die Spielerfarbe wird auf die Textur multipliziert — sie bleibt sichtbar,
+    // die Zugehörigkeit ist trotzdem auf einen Blick klar.
+    m.material.color = new THREE.Color(color).lerp(new THREE.Color(0xFFFFFF), 0.45);
+    m.material.skinning = true;
+    m.material.needsUpdate = true;
+    m.frustumCulled = false;
+  });
   g.add(body);
 
-  /* Toon-Kontur: dieselbe Geometrie noch einmal, leicht aufgeblasen und von
-     innen gerendert. Low-Poly-Modelle wirken ohne Umrandung platt und gehen
-     vor der Kulisse unter — damit stehen sie klar im Bild und die Spielerfarbe
-     ist auch dann erkennbar, wenn die Figur im Schatten steht. */
-  const outline = new THREE.Group();
-  body.traverse(m => {
-    if (!m.isMesh) return;
-    const o = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({
-      color, side: THREE.BackSide }));
-    o.position.copy(m.position); o.rotation.copy(m.rotation);
-    o.scale.copy(m.scale).multiplyScalar(1.055);
-    outline.add(o);
+  // Animationen: idle und run laufen dauerhaft, überblendet nach Tempo
+  const mixer = new THREE.AnimationMixer(body);
+  const actions = {};
+  ['idle', 'run'].forEach(k => {
+    if (!CLIPS[k]) return;
+    actions[k] = mixer.clipAction(CLIPS[k]);
+    actions[k].play();
+    actions[k].setEffectiveWeight(k === 'idle' ? 1 : 0);
   });
-  g.add(outline);
 
   // Weicher Schlagschatten — ohne ihn schweben die Figuren über dem Boden
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 20),
@@ -554,12 +612,13 @@ function makeFighter(name, color, charIdx, isMe) {
 
   scene.add(g);
   return {
-    group: g, body, outline, shadow, marker, arc, name, color, charIdx, isMe: !!isMe,
+    group: g, body, mixer, actions, bones, shadow, marker, arc,
+    name, color, charIdx, isMe: !!isMe,
     x: 0, z: 0, y: 0, vy: 0, yaw: 0,
     kx: 0, kz: 0,                       // Rückstoss
-    hp: MAX_HP, alive: true,
+    hp: MAX_HP, alive: true, speedNow: 0,
     punchT: -9, cooldown: 0, invuln: 0, hitFlash: 0,
-    walk: 0, netX: 0, netZ: 0, netYaw: 0, bot: false
+    netX: 0, netZ: 0, netYaw: 0, bot: false
   };
 }
 
@@ -567,8 +626,8 @@ function placeFighters() {
   const n = fighters.length;
   fighters.forEach((f, i) => {
     const a = (i / n) * Math.PI * 2 + Math.PI / 2;
-    f.x = Math.cos(a) * ARENA_R * 0.72;
-    f.z = Math.sin(a) * ARENA_R * 0.72;
+    f.x = Math.cos(a) * ARENA_R * 0.66;
+    f.z = Math.sin(a) * ARENA_R * 0.66;
     f.yaw = Math.atan2(-f.x, -f.z);
     f.netX = f.x; f.netZ = f.z; f.netYaw = f.yaw;
     f.hp = MAX_HP; f.alive = true;
@@ -583,15 +642,27 @@ function placeFighters() {
 
 /* ---------------- Bewegung und Kollision ---------------- */
 
-/** Nächster lebender Gegner. Er bestimmt Blickrichtung, Laufachsen und Kamera. */
-function targetOf(f) {
-  let best = null, bd = 1e9;
-  fighters.forEach(o => {
-    if (o === f || !o.alive) return;
-    const d = Math.hypot(o.x - f.x, o.z - f.z);
-    if (d < bd) { bd = d; best = o; }
-  });
-  return best;
+const FWD = new THREE.Vector3();
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3();
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+
+/** Dreht einen Knochen so, dass er in die Weltrichtung `dir` zeigt — anteilig.
+    Achsenunabhängig, weil die aktuelle Richtung gemessen statt angenommen wird. */
+function aimBone(bone, dir, amount) {
+  const child = bone.children.find(c => c.isBone);
+  if (!child) return;
+  bone.updateWorldMatrix(true, false);
+  child.updateWorldMatrix(false, false);
+  _v1.setFromMatrixPosition(bone.matrixWorld);
+  _v2.setFromMatrixPosition(child.matrixWorld).sub(_v1);
+  if (_v2.lengthSq() < 1e-8) return;
+  _v2.normalize();
+  _q1.setFromUnitVectors(_v2, dir);                 // Drehung im Weltraum
+  bone.parent.getWorldQuaternion(_q2);              // in den Elternraum bringen
+  _q2.invert();
+  const target = _q2.clone().multiply(_q1).multiply(
+    bone.parent.getWorldQuaternion(new THREE.Quaternion())).multiply(bone.quaternion);
+  bone.quaternion.slerp(target, amount);
 }
 
 function slideOut(f) {
@@ -632,22 +703,19 @@ function stepLocal(f, dt, mx, mz) {
   const speed = punching ? MOVE_SPEED * 0.32 : MOVE_SPEED;
 
   const len = Math.hypot(mx, mz);
+  f.speedNow = len > 0.01 ? speed : 0;
   if (len > 0.01) {
     f.x += (mx / len) * speed * dt;
     f.z += (mz / len) * speed * dt;
-    f.walk += dt * 9;
-  } else {
-    f.walk += dt * 2.2;
   }
 
-  /* Ausrichtung: Solange ein Gegner lebt, schaut man IHN an — nicht in die
-     Laufrichtung. Erst dadurch funktioniert Umkreisen, und der Schlag geht
-     immer dorthin, wo man ihn haben will. Ohne Gegner zählt die Laufrichtung. */
-  const tgt = targetOf(f);
-  const want = tgt ? Math.atan2(tgt.x - f.x, tgt.z - f.z)
-                   : (len > 0.01 ? Math.atan2(mx, mz) : f.yaw);
+  /* Ausrichtung: die eigene Figur dreht sich mit dem Fadenkreuz, nicht mit
+     der Laufrichtung. Dadurch schlägt man immer dorthin, wohin man zielt, und
+     Seitwärtslaufen bleibt möglich. Bots und Mitspieler drehen sich zu ihrem
+     Ziel beziehungsweise zu dem, was der Host meldet. */
+  const want = f.isMe ? camYaw : (len > 0.01 ? Math.atan2(mx, mz) : f.yaw);
   let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-  f.yaw += diff * Math.min(1, dt * TURN_SNAP);
+  f.yaw += diff * Math.min(1, dt * (f.isMe ? 26 : TURN_SNAP));
 
   // Rückstoss klingt ab
   f.x += f.kx * dt; f.z += f.kz * dt;
@@ -664,7 +732,12 @@ function tryPunch(f) {
   f.punchT = clock.elapsedTime;
   f.cooldown = PUNCH_COOLDOWN;
   f.swungAt = false;
-  if (f.isMe) sfx.swing();
+  if (f.isMe) {
+    sfx.swing();
+    const c = $('cross');
+    c.classList.add('wide');
+    setTimeout(() => c.classList.remove('wide'), 130);
+  }
 }
 
 /** Prüft im aktiven Fenster, ob jemand vor der Faust steht. */
@@ -704,6 +777,12 @@ function applyDamage(idx, nx, nz) {
   t.kx = nx * KNOCKBACK;
   t.kz = nz * KNOCKBACK;
   sfx.hit();
+  // Getroffen zu HABEN muss man sehen: das Fadenkreuz färbt sich kurz rot
+  if (fighters.some(f => f.isMe && f !== t && f.alive)) {
+    const c = $('cross');
+    c.classList.add('hit');
+    setTimeout(() => c.classList.remove('hit'), 160);
+  }
   if (t.isMe) { hitflashUntil = performance.now() + 140; showToast('HIT  -1'); }
   if (t.hp <= 0) knockOut(idx);
   updateHud();
@@ -756,6 +835,10 @@ function updateFighterVisual(f, dt) {
   g.position.set(f.x, f.y, f.z);
   g.rotation.y = f.yaw;
 
+  // Erst die Animation rechnen, DANACH den Schlag auf die Knochen legen —
+  // sonst überschreibt der Mixer die Armdrehung im selben Frame wieder.
+  if (f.mixer) f.mixer.update(dt);
+
   if (!f.alive) {
     // umkippen und liegen bleiben
     g.rotation.x = Math.min(Math.PI / 2 - 0.1, g.rotation.x + dt * 4);
@@ -763,6 +846,10 @@ function updateFighterVisual(f, dt) {
     f.marker.visible = false;
     f.arc.material.opacity = 0;
     f.shadow.material.opacity = 0.2;
+    if (f.actions && f.actions.run) {
+      f.actions.run.setEffectiveWeight(0);
+      f.actions.idle.setEffectiveWeight(0);
+    }
     return;
   }
   g.rotation.x = 0;
@@ -770,24 +857,35 @@ function updateFighterVisual(f, dt) {
   const t = clock.elapsedTime - f.punchT;
   const punching = t >= 0 && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.18;
 
-  /* Der ganze Körper schlägt: erst zurücklehnen und stauchen, dann nach vorn
-     schnellen. Ein einzelner Faustball ohne Arm daran sah nach Fehler aus. */
-  let reach = 0, squash = 0;
-  if (punching) {
-    if (t < PUNCH_WINDUP) { reach = -(t / PUNCH_WINDUP) * 0.30; squash = -reach * 0.5; }
-    else if (t < PUNCH_WINDUP + PUNCH_ACTIVE) {
-      const u = (t - PUNCH_WINDUP) / PUNCH_ACTIVE;
-      reach = u * 0.85; squash = -u * 0.12;
-    } else {
-      const u = (t - PUNCH_WINDUP - PUNCH_ACTIVE) / 0.18;
-      reach = 0.85 * (1 - u); squash = 0;
-    }
+  /* Laufen und Stehen werden überblendet. Der Gewichtswechsel läuft weich,
+     damit ein kurzer Stopp nicht in die Standanimation springt. */
+  const moving = f.speedNow > 0.6;
+  if (f.actions && f.actions.idle && f.actions.run) {
+    const w = f.actions.run.getEffectiveWeight();
+    const want = moving ? 1 : 0;
+    const nw = w + (want - w) * Math.min(1, dt * 8);
+    f.actions.run.setEffectiveWeight(nw);
+    f.actions.idle.setEffectiveWeight(1 - nw);
   }
+
+  /* Der Schlag kommt aus dem Arm. Weil die lokalen Achsen der Knochen nicht
+     bekannt sind, wird nicht um eine geratene Achse gedreht: stattdessen wird
+     gemessen, wohin der Arm gerade zeigt, und die Drehung berechnet, die ihn
+     nach vorn bringt. Das funktioniert unabhängig davon, wie das Skelett
+     ausgerichtet ist. */
+  let reach = 0;
+  if (punching) {
+    if (t < PUNCH_WINDUP) reach = -(t / PUNCH_WINDUP) * 0.35;
+    else if (t < PUNCH_WINDUP + PUNCH_ACTIVE) reach = (t - PUNCH_WINDUP) / PUNCH_ACTIVE;
+    else reach = 1 - (t - PUNCH_WINDUP - PUNCH_ACTIVE) / 0.18;
+  }
+  if (reach > 0.01 && f.bones && f.bones.RightArm) {
+    aimBone(f.bones.RightArm, FWD, Math.min(1, reach) * 0.85);
+    if (f.bones.RightForeArm) aimBone(f.bones.RightForeArm, FWD, Math.min(1, reach) * 0.9);
+  }
+  // Körper lehnt leicht mit
   const k = Math.min(1, dt * 14);
-  f.body.position.z += (reach - f.body.position.z) * k;
-  f.body.rotation.x += ((-reach * 0.42) - f.body.rotation.x) * k;
-  f.body.scale.y += ((1 + squash) - f.body.scale.y) * k;
-  f.body.scale.x = f.body.scale.z = 1 + (1 - f.body.scale.y) * 0.5;
+  f.body.position.z += (Math.max(0, reach) * 0.22 - f.body.position.z) * k;
 
   // Schlagwelle im Trefferfenster
   const inSwing = t >= PUNCH_WINDUP && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.14;
@@ -798,68 +896,40 @@ function updateFighterVisual(f, dt) {
     f.arc.material.opacity = 0.75 * (1 - u);
   } else f.arc.material.opacity = 0;
 
-  // Laufwippen, weil das Modell kein Skelett hat
-  const bob = Math.abs(Math.sin(f.walk)) * 0.075;
-  f.body.position.y = bob;
-  f.body.rotation.z = Math.sin(f.walk * 0.5) * 0.05;
-
-  // Kontur und Schatten folgen dem Körper
-  f.outline.position.copy(f.body.position);
-  f.outline.rotation.copy(f.body.rotation);
-  f.outline.scale.copy(f.body.scale);
-  f.shadow.position.set(f.body.position.x, 0.06, f.body.position.z * 0.4);
-  f.shadow.scale.setScalar(1 - bob * 1.6);
+  f.shadow.position.set(0, 0.06, 0);
 
   // Treffer blinkt
   if (f.hitFlash > 0) {
     f.hitFlash = Math.max(0, f.hitFlash - dt);
-    const on = Math.floor(f.hitFlash * 24) % 2 === 0;
-    f.body.visible = !on;
-    f.outline.visible = true;
-    f.outline.children.forEach(o => o.material.color.setHex(on ? 0xFFFFFF : f.color));
-  } else {
-    f.body.visible = true;
-    f.outline.visible = true;
-  }
+    f.body.visible = Math.floor(f.hitFlash * 24) % 2 !== 0;
+  } else f.body.visible = true;
 
   f.marker.visible = f.isMe;
   f.marker.material.opacity = 0.55 + 0.3 * Math.sin(clock.elapsedTime * 4);
 }
 
-/* Die Kamera steht hinter dir auf der Linie zum Gegner und schaut an dir
-   vorbei auf ihn. Je weiter ihr auseinander seid, desto weiter rückt sie
-   zurück, damit beide im Bild bleiben. */
+/* Kamera über der rechten Schulter. Sie hängt starr am Blickwinkel — kein
+   Nachziehen, kein Einrasten auf einen Gegner. Das Fadenkreuz in der
+   Bildmitte zeigt genau dorthin, wohin der Schlag geht. */
 function updateCamera(dt) {
   if (!me) return;
-  const tgt = targetOf(me);
-  let bx, bz;                                   // Blickachse
-  if (tgt) {
-    bx = tgt.x - me.x; bz = tgt.z - me.z;
-    const d = Math.hypot(bx, bz) || 1;
-    bx /= d; bz /= d;
-    camYaw += (((Math.atan2(bx, bz) - camYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
-              * Math.min(1, dt * 6);
-  } else {
-    bx = Math.sin(camYaw); bz = Math.cos(camYaw);
-  }
+  const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+  const fx = Math.sin(camYaw) * cp, fy = -sp, fz = Math.cos(camYaw) * cp;
+  const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
 
-  const gap = tgt ? Math.hypot(tgt.x - me.x, tgt.z - me.z) : 6;
-  const back = camDist + Math.min(4.2, gap * 0.34);
-  const high = 3.1 + Math.min(2.2, gap * 0.16);
+  const px = me.x + rx * CAM_SHOULDER, py = CAM_HEAD, pz = me.z + rz * CAM_SHOULDER;
+  let tx = px - fx * camDist, ty = py - fy * camDist, tz = pz - fz * camDist;
 
-  let tx = me.x - bx * back, tz = me.z - bz * back;
-  // Nicht durch die Arenawand fallen
+  // Nicht durch Boden oder Aussenmauer rutschen
+  ty = Math.max(0.8, ty);
   const dd = Math.hypot(tx, tz);
-  if (dd > WALL_R - 0.6) { tx = tx / dd * (WALL_R - 0.6); tz = tz / dd * (WALL_R - 0.6); }
+  if (dd > WALL_R - 1.2) { tx = tx / dd * (WALL_R - 1.2); tz = tz / dd * (WALL_R - 1.2); }
 
-  const k = Math.min(1, dt * 7);
+  const k = Math.min(1, dt * 18);
   camera.position.x += (tx - camera.position.x) * k;
-  camera.position.y += (high - camera.position.y) * k;
+  camera.position.y += (ty - camera.position.y) * k;
   camera.position.z += (tz - camera.position.z) * k;
-
-  // Blickpunkt liegt zwischen beiden, aber näher an dir
-  const lx = me.x + bx * gap * 0.34, lz = me.z + bz * gap * 0.34;
-  camera.lookAt(lx, 1.55, lz);
+  camera.lookAt(px + fx * 40, py + fy * 40, pz + fz * 40);
 }
 
 /* ---------------- HUD ---------------- */
@@ -1200,7 +1270,7 @@ function renderLobby() {
     '<span class="who"><span class="dot" style="background:' +
     hex(COLORS[(r.ci || 0) % COLORS.length]) + '"></span>' + r.name +
     (r.id === Net.myId ? ' (you)' : '') + '</span><span>' +
-    (CHARS[(r.ch || 0)] === 'AlienHelmet' ? 'TROOPER' : 'SCOUT') + '</span></li>').join('');
+    (CHARS[(r.ch || 0) % CHARS.length].label) + '</span></li>').join('');
   $('lobby-note').textContent = Net.isHost()
     ? (list.length > 1 ? list.length + ' fighters ready' : 'Waiting for an opponent …')
     : 'Waiting for the host to start';
@@ -1242,7 +1312,9 @@ function beginRound() {
   $('lobby').classList.add('hidden');
   $('results').classList.add('hidden');
   $('hud').classList.remove('hidden');
+  $('cross').classList.remove('hidden');
   if (matchMedia('(pointer:coarse)').matches) $('touch').classList.add('on');
+  else $('lockhint').classList.toggle('hidden', pointerLocked);
 
   state = 'countdown';
   roundStartMs = performance.now() + 3300;
@@ -1262,6 +1334,9 @@ function endRound(winnerIdx) {
   state = 'over';
   Net.stopRelay();
   $('touch').classList.remove('on');
+  $('cross').classList.add('hidden');
+  $('lockhint').classList.add('hidden');
+  if (document.pointerLockElement) document.exitPointerLock();
   const w = fighters[winnerIdx];
   if (w && w.isMe) sfx.win();
 
@@ -1287,6 +1362,8 @@ function backToMenu() {
   $('results').classList.add('hidden');
   $('hud').classList.add('hidden');
   $('touch').classList.remove('on');
+  $('cross').classList.add('hidden');
+  $('lockhint').classList.add('hidden');
   $('menu').classList.remove('hidden');
 }
 
@@ -1301,18 +1378,34 @@ function bindInput() {
   });
   addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
 
-  /* Linke Maustaste schlägt — sofort beim Drücken, nicht erst beim Loslassen.
-     Vorher teilten sich Schlag und Kameradrehen dieselbe Geste, das war der
-     Hauptgrund, warum sich die Steuerung zäh anfühlte. Die Kamera folgt jetzt
-     von selbst; das Rad regelt nur noch den Abstand. */
+  /* Mauszeiger einfangen: erst dann liefert der Browser unbegrenzte
+     Bewegungswerte, und der Zeiger kann nicht aus dem Fenster laufen.
+     Ohne Einfangen wäre Zielen mit Fadenkreuz nicht möglich. */
   const app = $('app');
+  const canvas = () => renderer.domElement;
+
   app.addEventListener('pointerdown', e => {
     if (e.pointerType === 'touch') return;
+    if (state !== 'fight' && state !== 'countdown') return;
+    if (!pointerLocked) { canvas().requestPointerLock(); return; }
     if (state === 'fight') { tryPunch(me); e.preventDefault(); }
   });
   app.addEventListener('contextmenu', e => e.preventDefault());
+
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === renderer.domElement;
+    $('lockhint').classList.toggle('hidden',
+      pointerLocked || (state !== 'fight' && state !== 'countdown'));
+  });
+
+  addEventListener('mousemove', e => {
+    if (!pointerLocked) return;
+    camYaw -= e.movementX * MOUSE_SENS;
+    camPitch = Math.max(-0.55, Math.min(0.95, camPitch + e.movementY * MOUSE_SENS));
+  });
+
   addEventListener('wheel', e => {
-    camDist = Math.max(4.5, Math.min(12, camDist + Math.sign(e.deltaY) * 0.6));
+    camDist = Math.max(3.2, Math.min(9, camDist + Math.sign(e.deltaY) * 0.5));
   }, { passive: true });
 
   // Touch: linker Stick läuft, rechter Knopf schlägt
@@ -1340,13 +1433,31 @@ function bindInput() {
     e.preventDefault();
     if (state === 'fight') tryPunch(me);
   });
-  // Auf dem Handy braucht es nichts weiter: Stick läuft, Knopf schlägt,
-  // die Kamera hält den Gegner von allein im Bild.
+  /* Auf dem Handy übernimmt die rechte Bildhälfte den Blick: ein Finger,
+     der NICHT auf dem Stick oder dem Schlagknopf startet, dreht die Kamera. */
+  let lookId = -1, lastLx = 0, lastLy = 0;
+  app.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      if (lookId !== -1) break;
+      if (t.clientX < innerWidth * 0.4) continue;      // linke Seite gehört dem Stick
+      lookId = t.identifier; lastLx = t.clientX; lastLy = t.clientY;
+    }
+  }, { passive: true });
+  app.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier !== lookId) continue;
+      camYaw -= (t.clientX - lastLx) * 0.005;
+      camPitch = Math.max(-0.55, Math.min(0.95, camPitch + (t.clientY - lastLy) * 0.004));
+      lastLx = t.clientX; lastLy = t.clientY;
+    }
+  }, { passive: true });
+  ['touchend', 'touchcancel'].forEach(ev => app.addEventListener(ev, e => {
+    for (const t of e.changedTouches) if (t.identifier === lookId) lookId = -1;
+  }, { passive: true }));
 }
 
-/* Laufachsen liegen auf dem Gegner: W geht auf ihn zu, S weg, A und D
-   umkreisen ihn. Das ist die Steuerung, die man aus Arena-Duellen kennt —
-   sie braucht keine Maus, und die Kamera muss man nie selbst nachziehen. */
+/* Laufachsen liegen auf der Blickrichtung: W nach vorn, S zurück, A und D
+   seitwärts — wie in jedem Shooter. */
 function moveInput() {
   let ix = 0, iz = 0;
   if (keys['KeyW'] || keys['ArrowUp']) iz += 1;
@@ -1356,17 +1467,11 @@ function moveInput() {
   if (touch.dx || touch.dy) { ix += touch.dx; iz -= touch.dy; }
   if (!ix && !iz) return [0, 0];
 
-  const tgt = me ? targetOf(me) : null;
-  let fx, fz;
-  if (tgt) {
-    fx = tgt.x - me.x; fz = tgt.z - me.z;
-    const d = Math.hypot(fx, fz) || 1;
-    fx /= d; fz /= d;
-  } else {                              // ohne Gegner: relativ zur Kamera
-    fx = Math.sin(camYaw); fz = Math.cos(camYaw);
-  }
-  // Rechts steht senkrecht auf Vorwärts
-  return [iz * fx + ix * fz, iz * fz - ix * fx];
+  const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+  /* Rechts ist (-fz, fx), nicht (fz, -fx). Die Kamera blickt entlang ihrer
+     lokalen -Z, ihr lokales +X — also die rechte Bildseite — zeigt damit auf
+     (-fz, fx). Mit dem umgekehrten Vorzeichen lagen A und D vertauscht. */
+  return [iz * fx - ix * fz, iz * fz + ix * fx];
 }
 
 /* ---------------- Bildschleife ---------------- */
@@ -1390,11 +1495,13 @@ function frame() {
         if (canMove) resolvePunch(f);
       } else {
         // Mitspieler weich nachziehen — die Wahrheit liegt beim Host
+        // Tempo aus der Bewegung ableiten, damit auch Mitspieler laufen statt zu gleiten
+        const mv = Math.hypot(f.netX - f.x, f.netZ - f.z);
+        f.speedNow = mv > 0.05 ? 8 : 0;
         f.x += (f.netX - f.x) * Math.min(1, dt * 14);
         f.z += (f.netZ - f.z) * Math.min(1, dt * 14);
         let diff = ((f.netYaw - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
         f.yaw += diff * Math.min(1, dt * 14);
-        f.walk += dt * 7;
       }
     });
 
@@ -1406,7 +1513,10 @@ function frame() {
     if (!isNet) checkRoundOver();
   }
 
-  fighters.forEach(f => updateFighterVisual(f, dt));
+  fighters.forEach(f => {
+    FWD.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
+    updateFighterVisual(f, dt);
+  });
   updateCamera(dt);
 
   $('hitflash').style.opacity = performance.now() < hitflashUntil ? 0.28 : 0;
@@ -1415,7 +1525,8 @@ function frame() {
 
 /* ---------------- Start ---------------- */
 
-if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
+if (typeof THREE === 'undefined' || !THREE.GLTFLoader || !THREE.FBXLoader ||
+    !THREE.SkeletonUtils) {
   $('load-note').innerHTML = '<b style="color:#FF5B45">3D libraries could not be loaded.</b>' +
     '<br>Open via GitHub Pages or a local server.';
 } else {
@@ -1423,21 +1534,81 @@ if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
   bindInput();
   frame();
 
+  /* Ladekette. Sechs Dateien, deshalb ein gemeinsamer Fortschritt statt
+     sechs einzelner Balken — sonst springt die Anzeige ständig zurück. */
+  let done = 0;
+  const TOTAL = 3 + CHARS.length;
+  const step = txt => {
+    done++;
+    $('load-bar').style.width = Math.round(done / TOTAL * 100) + '%';
+    $('load-note').textContent = txt;
+  };
+  const fail = what => err => {
+    $('load-note').innerHTML = '<b style="color:#FF5B45">' + what + ' could not be loaded.</b>' +
+      '<br>Check that the chars/ folder sits next to this HTML file.';
+    console.error(err);
+  };
+
+  /** Kenney legt in jede Animationsdatei zusätzlich eine "Targeting Pose".
+      Gesucht ist der Clip, dessen Name den Bewegungsnamen enthält. */
+  function pickClip(clips, want) {
+    const hit = clips.find(c => c.name.toLowerCase().indexOf(want) >= 0 &&
+                                c.name.toLowerCase().indexOf('targeting') < 0);
+    return hit || clips.find(c => c.name.toLowerCase().indexOf('targeting') < 0) || clips[0];
+  }
+
+  const fbx = new THREE.FBXLoader();
+  const tex = new THREE.TextureLoader();
+
   new THREE.GLTFLoader().load('arena.glb', gltf => {
     gltf.scene.updateMatrixWorld(true);
     gltf.scene.children.slice().forEach(n => { MODELS[n.name] = n; });
     buildArena();
+    step('Loading fighter …');
+
+    fbx.load('chars/characterMedium.fbx', obj => {
+      // Auf eine feste Höhe normieren — das FBX kommt in eigenen Einheiten
+      const box = new THREE.Box3().setFromObject(obj);
+      const h = box.max.y - box.min.y;
+      const sc = h > 0.001 ? CHAR_HEIGHT / h : 1;
+      obj.scale.setScalar(sc);
+      obj.position.y = -box.min.y * sc;
+      const wrap = new THREE.Group();
+      wrap.add(obj);
+      CHAR_TEMPLATE = wrap;
+      step('Loading animations …');
+
+      let anim = 0;
+      const afterAnim = () => {
+        if (++anim < 2) return;
+        step('Loading skins …');
+        let sk = 0;
+        CHARS.forEach(c => {
+          tex.load('chars/' + c.id + '.png', t => {
+            t.encoding = THREE.sRGBEncoding;
+            // flipY bleibt auf dem Standardwert: FBX-Modelle erwarten die
+            // gleiche Ausrichtung, die der FBXLoader seinen eigenen Texturen
+            // gibt. Sitzt die Haut später verkehrt, ist t.flipY = false die
+            // einzige Stelle, an der man drehen muss.
+            SKINS[c.id] = t;
+            step('Ready');
+            if (++sk === CHARS.length) ready();
+          }, undefined, fail('Skin ' + c.id));
+        });
+      };
+      fbx.load('chars/idle.fbx', a => { CLIPS.idle = pickClip(a.animations, 'idle'); afterAnim(); },
+               undefined, fail('idle.fbx'));
+      fbx.load('chars/run.fbx', a => { CLIPS.run = pickClip(a.animations, 'run'); afterAnim(); },
+               undefined, fail('run.fbx'));
+    }, undefined, fail('characterMedium.fbx'));
+  }, undefined, fail('arena.glb'));
+
+  function ready() {
     $('loading').classList.add('hidden');
     $('menu').classList.remove('hidden');
     state = 'menu';
     note(window.Peer ? '' : 'PeerJS not loaded — multiplayer unavailable');
-  }, ev => {
-    if (ev.total) $('load-bar').style.width = Math.round(ev.loaded / ev.total * 100) + '%';
-  }, err => {
-    $('load-note').innerHTML = '<b style="color:#FF5B45">arena.glb not found.</b>' +
-      '<br>It has to sit next to this HTML file.';
-    console.error(err);
-  });
+  }
 }
 
 /* ---------------- Knöpfe ---------------- */
@@ -1445,8 +1616,8 @@ if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
 const readName = () => ($('nm').value || 'FIGHTER').trim().slice(0, 10).toUpperCase() || 'FIGHTER';
 const wake = () => { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } };
 
-document.querySelectorAll('#menu .pick').forEach(el => el.addEventListener('click', () => {
-  document.querySelectorAll('#menu .pick').forEach(o => o.classList.remove('sel'));
+document.querySelectorAll('#menu-picks .pick').forEach(el => el.addEventListener('click', () => {
+  document.querySelectorAll('#menu-picks .pick').forEach(o => o.classList.remove('sel'));
   el.classList.add('sel');
   soloChar = parseInt(el.dataset.ch, 10);
 }));
