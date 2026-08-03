@@ -56,6 +56,8 @@ canvas{display:block;width:100%;height:100%}
    Es spreizt sich beim Schlag auf und färbt sich bei einem Treffer. */
 #cross{position:fixed;left:50%;top:50%;z-index:8;pointer-events:none;width:44px;height:44px;
   margin:-22px 0 0 -22px;transition:transform .07s ease-out}
+/* Die Waagerechte wird per JS gesetzt, damit sie zum verschobenen
+   Kamerazentrum passt — Fadenkreuz und Schlagrichtung müssen zusammenfallen. */
 #cross i{position:absolute;background:#F2F7FB;box-shadow:0 0 0 1px rgba(5,9,15,.85);
   transition:background .1s}
 #cross i:nth-child(1){left:50%;top:0;width:2px;height:13px;margin-left:-1px}
@@ -116,6 +118,9 @@ input:focus{outline:none;border-color:var(--amber)}
 .pick{flex:1 1 40%;padding:9px 6px;border:3px solid #22344A;border-radius:13px;background:#08111C;
   cursor:pointer;font-weight:800;font-size:.82rem;letter-spacing:.05em}
 .pick.sel{border-color:var(--cyan);background:#1B3550}
+.slider{display:flex;align-items:center;gap:10px;margin-top:6px}
+.slider input[type=range]{flex:1;accent-color:var(--cyan)}
+.slider span{font-size:.85rem;color:var(--cream);min-width:62px;text-align:right;font-weight:800}
 .hint{display:flex;flex-wrap:wrap;gap:5px 14px;justify-content:center;margin-top:14px;
   font-size:.72rem;color:#6F87A0}
 .hint b{color:var(--cream)}
@@ -132,6 +137,12 @@ input:focus{outline:none;border-color:var(--amber)}
   position:relative;background:rgba(11,20,32,.35)}
 #stick i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
   border-radius:50%;background:rgba(55,224,245,.65);border:3px solid var(--ink)}
+.rbtns{display:flex;align-items:flex-end;gap:10px}
+.minibtns{display:flex;flex-direction:column;gap:8px}
+.mini{width:62px;height:48px;border-radius:14px;background:rgba(34,52,74,.9);
+  border:3px solid var(--ink);display:grid;place-items:center;font-weight:800;
+  font-size:.7rem;color:var(--cream);box-shadow:0 4px 0 rgba(5,9,15,.7)}
+.mini.on{background:var(--cyan);color:var(--ink)}
 #hitbtn{width:96px;height:96px;border-radius:50%;background:var(--red);border:4px solid var(--ink);
   display:grid;place-items:center;font-weight:800;font-size:1rem;color:#fff;
   box-shadow:0 5px 0 rgba(5,9,15,.7)}
@@ -169,7 +180,13 @@ input:focus{outline:none;border-color:var(--amber)}
 
 <div id="touch">
   <div id="stick"><i></i></div>
-  <div id="hitbtn">HIT</div>
+  <div class="rbtns">
+    <div class="minibtns">
+      <div class="mini" id="jumpbtn">JUMP</div>
+      <div class="mini" id="crouchbtn">DUCK</div>
+    </div>
+    <div id="hitbtn">HIT</div>
+  </div>
 </div>
 
 <!-- Menu -->
@@ -199,11 +216,13 @@ input:focus{outline:none;border-color:var(--amber)}
 
     <div class="divider"><span>or train</span></div>
     <button class="btn" id="btn-solo">Fight a dummy</button>
+    <button class="btn plain" id="btn-settings">Settings</button>
 
     <p class="note" id="net-note"></p>
     <div class="hint">
       <span><b>W A S D</b> move</span><span><b>Mouse</b> aim</span>
-      <span><b>Click</b> / <b>Space</b> punch</span>
+      <span><b>Click</b> punch</span><span><b>Space</b> jump</span>
+      <span><b>Shift</b> sprint</span><span><b>C</b> crouch</span>
     </div>
   </div>
 </div>
@@ -226,6 +245,22 @@ input:focus{outline:none;border-color:var(--amber)}
     <button class="btn red" id="btn-start">Start duel</button>
     <button class="btn plain" id="btn-leave">Leave room</button>
     <p class="note" id="lobby-note">—</p>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="overlay hidden" id="settings">
+  <div class="card">
+    <h1>SET<span>TINGS</span></h1>
+    <label>Mouse sensitivity</label>
+    <div class="slider">
+      <input type="range" id="sens" min="0.2" max="4" step="0.05" value="1">
+      <span id="sens-val">1.00×</span>
+    </div>
+    <p class="sub" style="text-align:left;font-size:.78rem">
+      Applies to mouse look and to dragging on touch screens. Saved on this device.</p>
+    <button class="btn" id="btn-sens-reset">Reset to default</button>
+    <button class="btn red" id="btn-set-close">Back</button>
   </div>
 </div>
 
@@ -271,11 +306,17 @@ const TOWER_S = 11.0;          // die vier Türme: 7.5 dick, 49 hoch
 const TOWER_R = 22;            // Abstand der Türme von der Mitte
 const MOVE_SPEED = 12.6;       // grössere Fläche braucht mehr Tempo
 const TURN_SNAP = 12;          // wie schnell sich die Figur zur Laufrichtung dreht
-const GRAVITY = 26;
+const GRAVITY = 30;
+const JUMP_V = 9.6;            // reicht für gut 1.5 Einheiten Höhe
+const SPRINT_MUL = 1.42;
+const CROUCH_MUL = 0.46;
+const CROUCH_DROP = 0.62;      // so weit sinkt der Blick beim Ducken
 
 const PUNCH_WINDUP = 0.12;     // Ausholen
 const PUNCH_ACTIVE = 0.14;     // in diesem Fenster trifft es
 const PUNCH_COOLDOWN = 0.55;
+const PUNCH_TOTAL = 0.42;      // Ausholen, Treffen, Zurückkommen
+const PUNCH_DRAG = 0.42;       // stärkste Bremsung — 58 % Tempo im Treffermoment
 const PUNCH_RANGE = 2.5;
 const PUNCH_ARC = Math.cos(50 * Math.PI / 180);   // halber Öffnungswinkel
 const HIT_INVULN = 0.65;       // danach ist man kurz unverwundbar
@@ -307,10 +348,12 @@ let fighters = [], me = null;
 let state = 'load';                    // load | menu | lobby | countdown | fight | over
 /* Blickwinkel wie in einem Shooter: die Maus dreht, die Figur schaut immer
    dorthin, wo das Fadenkreuz steht. camPitch positiv heisst nach unten. */
-let camYaw = 0, camPitch = 0.16, camDist = 5.4;
-const CAM_SHOULDER = 1.05;     // seitlicher Versatz der Kamera
+let camYaw = 0, camPitch = 0.14, camDist = 4.2;
+const CAM_SHOULDER = 1.35;     // seitlicher Versatz — je grösser, desto weiter
+                               // steht die Figur links im Bild
 const CAM_HEAD = 1.95;         // Höhe, um die sich alles dreht
-let pointerLocked = false;
+const BASE_FOV = 76;           // weiter als vorher — näher am Shooter-Gefühl
+let camHead = 1.95, pointerLocked = false;
 let colliders = [];                    // {x, z, r} für Deckung
 let isNet = false, myIndex = 0;
 let soloColor = 0, soloChar = 0;
@@ -318,8 +361,22 @@ let lastSend = 0, roundStartMs = 0;
 let hitflashUntil = 0;
 
 const keys = {};
-const MOUSE_SENS = 0.0026;     // Empfindlichkeit des Mausblicks
-const touch = { active: false, id: -1, x: 0, y: 0, dx: 0, dy: 0 };
+const MOUSE_BASE = 0.0026;     // Grundempfindlichkeit; der Regler skaliert sie
+const CROSS_OFF = 0.10;        // Fadenkreuz um diesen Anteil der Breite nach rechts
+let sens = 1.0;
+
+/* Einstellungen überleben den Seitenwechsel. Fehlschläge sind egal — dann
+   gilt eben der Standardwert. */
+function loadSettings() {
+  try {
+    const v = parseFloat(localStorage.getItem('nagrak.sens'));
+    if (v >= 0.2 && v <= 4) sens = v;
+  } catch (e) {}
+}
+function saveSettings() {
+  try { localStorage.setItem('nagrak.sens', String(sens)); } catch (e) {}
+}
+const touch = { active: false, id: -1, x: 0, y: 0, dx: 0, dy: 0, sprint: false, crouch: false };
 
 /* ---------------- Ton ---------------- */
 
@@ -355,7 +412,7 @@ function initScene() {
   scene.background = new THREE.Color(0x060A12);
   scene.fog = new THREE.Fog(0x0A1220, 85, 255);
 
-  camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 700);
+  camera = new THREE.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.1, 700);
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
@@ -376,9 +433,11 @@ function initScene() {
   clock = new THREE.Clock();
   addEventListener('resize', () => {
     camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+    applyViewOffset();
+    camera.updateProjectionMatrix();
   });
+  applyViewOffset();
 }
 
 /* ---------------- Modelle ---------------- */
@@ -580,7 +639,7 @@ function makeFighter(name, color, charIdx, isMe) {
   // Animationen: idle und run laufen dauerhaft, überblendet nach Tempo
   const mixer = new THREE.AnimationMixer(body);
   const actions = {};
-  ['idle', 'run'].forEach(k => {
+  ['idle', 'run', 'jump'].forEach(k => {
     if (!CLIPS[k]) return;
     actions[k] = mixer.clipAction(CLIPS[k]);
     actions[k].play();
@@ -617,6 +676,8 @@ function makeFighter(name, color, charIdx, isMe) {
     x: 0, z: 0, y: 0, vy: 0, yaw: 0,
     kx: 0, kz: 0,                       // Rückstoss
     hp: MAX_HP, alive: true, speedNow: 0,
+    sprint: false, crouch: false, wantJump: false, jumpedAt: -9,
+    vx: 0, vz: 0,
     punchT: -9, cooldown: 0, invuln: 0, hitFlash: 0,
     netX: 0, netZ: 0, netYaw: 0, bot: false
   };
@@ -633,6 +694,8 @@ function placeFighters() {
     f.hp = MAX_HP; f.alive = true;
     f.kx = f.kz = 0; f.y = 0; f.vy = 0;
     f.punchT = -9; f.cooldown = 0; f.invuln = 0;
+    f.sprint = false; f.crouch = false; f.wantJump = false; f.jumpedAt = -9;
+    f.vx = 0; f.vz = 0;
     f.group.visible = true;
     f.group.position.set(f.x, 0, f.z);
     f.group.rotation.y = f.yaw;
@@ -699,15 +762,36 @@ function stepLocal(f, dt, mx, mz) {
   f.cooldown = Math.max(0, f.cooldown - dt);
   f.invuln = Math.max(0, f.invuln - dt);
 
-  const punching = (clock.elapsedTime - f.punchT) < (PUNCH_WINDUP + PUNCH_ACTIVE);
-  const speed = punching ? MOVE_SPEED * 0.32 : MOVE_SPEED;
+  const grounded = f.y <= 0.001;
 
+  /* Bremsung beim Schlagen als weiche Glocke statt als Stufe: beim Ausholen
+     kaum spürbar, am stärksten genau im Treffermoment, danach schnell wieder
+     frei. Vorher fiel das Tempo schlagartig auf ein Drittel und sprang ebenso
+     schlagartig zurück — das war der Grund, warum es sich wie Stehenbleiben
+     anfühlte, obwohl man nie ganz stand. */
+  const tp = clock.elapsedTime - f.punchT;
+  const drag = (tp >= 0 && tp < PUNCH_TOTAL) ? Math.sin(Math.PI * tp / PUNCH_TOTAL) : 0;
+
+  let speed = MOVE_SPEED;
+  if (f.crouch) speed *= CROUCH_MUL;
+  else if (f.sprint) speed *= SPRINT_MUL - drag * 0.34;   // Sprint bricht weich ein
+  speed *= 1 - drag * PUNCH_DRAG;
+  if (!grounded) speed *= 0.9;                  // in der Luft weniger Kontrolle
+
+  /* Zweite Ursache: die Position wurde direkt aus der Tastenrichtung gesetzt.
+     Jede Änderung — loslassen, Richtungswechsel, Schlag — schlug damit ohne
+     Übergang durch. Jetzt liegt eine Geschwindigkeit dazwischen, die dem Ziel
+     schnell, aber stetig folgt. Anhalten wird kurz getragen, Richtungswechsel
+     rutschen minimal. Die Reaktionszeit bleibt bei rund einem Zehntel. */
   const len = Math.hypot(mx, mz);
-  f.speedNow = len > 0.01 ? speed : 0;
-  if (len > 0.01) {
-    f.x += (mx / len) * speed * dt;
-    f.z += (mz / len) * speed * dt;
-  }
+  const wantX = len > 0.01 ? (mx / len) * speed : 0;
+  const wantZ = len > 0.01 ? (mz / len) * speed : 0;
+  const acc = Math.min(1, dt * (len > 0.01 ? 19 : 13));
+  f.vx += (wantX - f.vx) * acc;
+  f.vz += (wantZ - f.vz) * acc;
+  f.x += f.vx * dt;
+  f.z += f.vz * dt;
+  f.speedNow = Math.hypot(f.vx, f.vz);
 
   /* Ausrichtung: die eigene Figur dreht sich mit dem Fadenkreuz, nicht mit
      der Laufrichtung. Dadurch schlägt man immer dorthin, wohin man zielt, und
@@ -716,6 +800,15 @@ function stepLocal(f, dt, mx, mz) {
   const want = f.isMe ? camYaw : (len > 0.01 ? Math.atan2(mx, mz) : f.yaw);
   let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
   f.yaw += diff * Math.min(1, dt * (f.isMe ? 26 : TURN_SNAP));
+
+  // Sprung und Schwerkraft
+  if (f.wantJump && grounded && !f.crouch) { f.vy = JUMP_V; f.jumpedAt = clock.elapsedTime; }
+  f.wantJump = false;
+  if (!grounded || f.vy > 0) {
+    f.vy -= GRAVITY * dt;
+    f.y += f.vy * dt;
+    if (f.y <= 0) { f.y = 0; f.vy = 0; }
+  }
 
   // Rückstoss klingt ab
   f.x += f.kx * dt; f.z += f.kz * dt;
@@ -728,7 +821,7 @@ function stepLocal(f, dt, mx, mz) {
 /* ---------------- Schlag ---------------- */
 
 function tryPunch(f) {
-  if (!f.alive || f.cooldown > 0) return;
+  if (!f.alive || f.cooldown > 0 || f.crouch) return;
   f.punchT = clock.elapsedTime;
   f.cooldown = PUNCH_COOLDOWN;
   f.swungAt = false;
@@ -750,9 +843,13 @@ function resolvePunch(f) {
   const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
   fighters.forEach(o => {
     if (o === f || !o.alive || o.invuln > 0) return;
+    // Ducken lässt den Schlag über den Kopf gehen — dafür kann man selbst
+    // nicht zuschlagen und ist nur halb so schnell.
+    if (o.crouch && !f.crouch) return;
     const dx = o.x - f.x, dz = o.z - f.z;
     const d = Math.hypot(dx, dz);
     if (d > PUNCH_RANGE || d < 0.0001) return;
+    if (Math.abs(o.y - f.y) > 1.9) return;       // zu weit über- oder untereinander
     if ((dx / d) * fx + (dz / d) * fz < PUNCH_ARC) return;   // nicht im Blickfeld
     landHit(f, o, dx / d, dz / d);
   });
@@ -860,13 +957,22 @@ function updateFighterVisual(f, dt) {
   /* Laufen und Stehen werden überblendet. Der Gewichtswechsel läuft weich,
      damit ein kurzer Stopp nicht in die Standanimation springt. */
   const moving = f.speedNow > 0.6;
+  const airborne = f.y > 0.08;
   if (f.actions && f.actions.idle && f.actions.run) {
+    const wj = f.actions.jump ? f.actions.jump.getEffectiveWeight() : 0;
+    const nj = wj + ((airborne ? 1 : 0) - wj) * Math.min(1, dt * 12);
+    if (f.actions.jump) f.actions.jump.setEffectiveWeight(nj);
     const w = f.actions.run.getEffectiveWeight();
     const want = moving ? 1 : 0;
     const nw = w + (want - w) * Math.min(1, dt * 8);
-    f.actions.run.setEffectiveWeight(nw);
-    f.actions.idle.setEffectiveWeight(1 - nw);
+    f.actions.run.setEffectiveWeight(nw * (1 - nj));
+    f.actions.idle.setEffectiveWeight((1 - nw) * (1 - nj));
   }
+  // Ducken: es gibt keinen passenden Clip, also wird die Figur gestaucht
+  const cw = f.crouch ? 1 : 0;
+  f.crouchAmt = (f.crouchAmt || 0) + (cw - (f.crouchAmt || 0)) * Math.min(1, dt * 12);
+  f.body.scale.y = 1 - f.crouchAmt * 0.34;
+  f.body.scale.x = f.body.scale.z = 1 + f.crouchAmt * 0.10;
 
   /* Der Schlag kommt aus dem Arm. Weil die lokalen Achsen der Knochen nicht
      bekannt sind, wird nicht um eine geratene Achse gedreht: stattdessen wird
@@ -896,7 +1002,11 @@ function updateFighterVisual(f, dt) {
     f.arc.material.opacity = 0.75 * (1 - u);
   } else f.arc.material.opacity = 0;
 
-  f.shadow.position.set(0, 0.06, 0);
+  // Der Schatten bleibt am Boden, auch wenn die Figur springt
+  f.shadow.position.set(0, 0.06 - f.y, 0);
+  f.shadow.scale.setScalar(Math.max(0.45, 1 - f.y * 0.14));
+  f.shadow.material.opacity = Math.max(0.12, 0.4 - f.y * 0.06);
+  f.marker.position.y = 0.08 - f.y;
 
   // Treffer blinkt
   if (f.hitFlash > 0) {
@@ -915,9 +1025,32 @@ function updateCamera(dt) {
   if (!me) return;
   const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
   const fx = Math.sin(camYaw) * cp, fy = -sp, fz = Math.cos(camYaw) * cp;
-  const rx = Math.cos(camYaw), rz = -Math.sin(camYaw);
+  // Rechts ist -Z-Achse gedreht — dieselbe Herleitung wie bei den Laufachsen
+  const rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
 
-  const px = me.x + rx * CAM_SHOULDER, py = CAM_HEAD, pz = me.z + rz * CAM_SHOULDER;
+  // Blickhöhe folgt Ducken und Springen
+  const headWant = CAM_HEAD - (me.crouch ? CROUCH_DROP : 0) + me.y;
+  camHead += (headWant - camHead) * Math.min(1, dt * 12);
+
+  // Beim Sprinten zieht das Bild leicht auf — das macht Tempo spürbar
+  const fovWant = BASE_FOV + (me.sprint && me.speedNow > 1 ? 7 : 0);
+  if (Math.abs(camera.fov - fovWant) > 0.05) {
+    camera.fov += (fovWant - camera.fov) * Math.min(1, dt * 6);
+    camera.updateProjectionMatrix();
+  }
+
+  /* Der Drehpunkt sitzt RECHTS neben der Figur, dadurch steht sie links im
+     Bild — so wie in der Vorlage. Vorher lag die Kamera auf der anderen Seite
+     und die Figur stand rechts, also genau gespiegelt. */
+  const px = me.x + rx * CAM_SHOULDER, py = camHead, pz = me.z + rz * CAM_SHOULDER;
+
+  /* Und hier lag der eigentliche Fehler beim Zielen: die Kameraposition wurde
+     weich nachgezogen, der Blickpunkt aber aus der SOLL-Position berechnet.
+     Solange die Kamera hinterherhing, zeigte sie also woandershin als
+     gedacht — die Sicht schwamm bei jeder Mausbewegung nach. Jetzt hängt die
+     Kamera starr am Drehpunkt: Mausbewegung wirkt eins zu eins, ohne Nachlauf.
+     Geglättet wird nur noch die Blickhöhe, damit Ducken und Springen nicht
+     springen. */
   let tx = px - fx * camDist, ty = py - fy * camDist, tz = pz - fz * camDist;
 
   // Nicht durch Boden oder Aussenmauer rutschen
@@ -925,11 +1058,21 @@ function updateCamera(dt) {
   const dd = Math.hypot(tx, tz);
   if (dd > WALL_R - 1.2) { tx = tx / dd * (WALL_R - 1.2); tz = tz / dd * (WALL_R - 1.2); }
 
-  const k = Math.min(1, dt * 18);
-  camera.position.x += (tx - camera.position.x) * k;
-  camera.position.y += (ty - camera.position.y) * k;
-  camera.position.z += (tz - camera.position.z) * k;
+  camera.position.set(tx, ty, tz);
   camera.lookAt(px + fx * 40, py + fy * 40, pz + fz * 40);
+}
+
+/* Das Fadenkreuz sitzt rechts vom Bildmittelpunkt. Damit es weiterhin genau
+   die Schlagrichtung markiert, wird nicht das Kreuz verschoben, sondern das
+   Kamerazentrum: setViewOffset verrückt das Bildfenster, wodurch die
+   Blickachse auf dem Bildschirm nach rechts wandert. Beides bleibt dadurch
+   deckungsgleich — ein einfach nach rechts geschobenes Kreuz würde lügen. */
+function applyViewOffset() {
+  const w = innerWidth, h = innerHeight;
+  const d = Math.round(w * CROSS_OFF);
+  camera.setViewOffset(w, h, -d, 0, w, h);
+  const c = $('cross');
+  if (c) c.style.left = 'calc(50% + ' + d + 'px)';
 }
 
 /* ---------------- HUD ---------------- */
@@ -1163,11 +1306,12 @@ const Net = {
       const list = [];
       this.roster.forEach((r, i) => {
         const st = r.id === this.myId
-          ? { x: me.x, z: me.z, r: me.yaw, p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 }
+          ? { x: me.x, z: me.z, y: me.y, r: me.yaw, c: me.crouch ? 1 : 0,
+              p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 }
           : this._states.get(r.id);
         if (!st) return;
-        list.push({ i, x: +st.x.toFixed(2), z: +st.z.toFixed(2),
-                    r: +st.r.toFixed(2), p: st.p ? 1 : 0 });
+        list.push({ i, x: +st.x.toFixed(2), z: +st.z.toFixed(2), y: +(st.y || 0).toFixed(2),
+                    r: +st.r.toFixed(2), c: st.c ? 1 : 0, p: st.p ? 1 : 0 });
       });
       this.broadcast({ t: 'w', p: list });
       applyRemote(list);
@@ -1212,6 +1356,8 @@ function applyRemote(list) {
     const f = fighters[sn.i];
     if (!f || f.isMe) return;
     f.netX = sn.x; f.netZ = sn.z; f.netYaw = sn.r;
+    f.netY = sn.y || 0;
+    f.crouch = !!sn.c;
     if (sn.p && (clock.elapsedTime - f.punchT) > 0.3) {
       f.punchT = clock.elapsedTime;
       f.swungAt = true;                   // Gegner lösen keine Treffer bei uns aus
@@ -1360,6 +1506,7 @@ function backToMenu() {
   state = 'menu';
   $('lobby').classList.add('hidden');
   $('results').classList.add('hidden');
+  $('settings').classList.add('hidden');
   $('hud').classList.add('hidden');
   $('touch').classList.remove('on');
   $('cross').classList.add('hidden');
@@ -1374,7 +1521,9 @@ function bindInput() {
   addEventListener('keydown', e => {
     if (typing(e)) return;
     keys[e.code] = true;
-    if (e.code === 'Space' && state === 'fight') { tryPunch(me); e.preventDefault(); }
+    if (state !== 'fight') return;
+    if (e.code === 'Space') { me.wantJump = true; e.preventDefault(); }
+    if (e.code === 'KeyC') e.preventDefault();
   });
   addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
 
@@ -1400,8 +1549,8 @@ function bindInput() {
 
   addEventListener('mousemove', e => {
     if (!pointerLocked) return;
-    camYaw -= e.movementX * MOUSE_SENS;
-    camPitch = Math.max(-0.55, Math.min(0.95, camPitch + e.movementY * MOUSE_SENS));
+    camYaw -= e.movementX * MOUSE_BASE * sens;
+    camPitch = Math.max(-0.55, Math.min(0.95, camPitch + e.movementY * MOUSE_BASE * sens));
   });
 
   addEventListener('wheel', e => {
@@ -1423,16 +1572,29 @@ function bindInput() {
     const d = Math.hypot(dx, dy), max = 42;
     if (d > max) { dx = dx / d * max; dy = dy / d * max; }
     touch.dx = dx / max; touch.dy = dy / max;
+    touch.sprint = touch.dy < -0.88;         // Stick ganz nach vorn = Sprint
     knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
   });
   ['pointerup', 'pointercancel'].forEach(ev => stick.addEventListener(ev, () => {
-    touch.active = false; touch.dx = touch.dy = 0;
+    touch.active = false; touch.dx = touch.dy = 0; touch.sprint = false;
     knob.style.transform = '';
   }));
   $('hitbtn').addEventListener('pointerdown', e => {
     e.preventDefault();
     if (state === 'fight') tryPunch(me);
   });
+  $('jumpbtn').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (state === 'fight') me.wantJump = true;
+  });
+  // Ducken wird gehalten, nicht umgeschaltet — wie die Taste C
+  const cb = $('crouchbtn');
+  cb.addEventListener('pointerdown', e => {
+    e.preventDefault(); touch.crouch = true; cb.classList.add('on');
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+    cb.addEventListener(ev, () => { touch.crouch = false; cb.classList.remove('on'); }));
+
   /* Auf dem Handy übernimmt die rechte Bildhälfte den Blick: ein Finger,
      der NICHT auf dem Stick oder dem Schlagknopf startet, dreht die Kamera. */
   let lookId = -1, lastLx = 0, lastLy = 0;
@@ -1446,8 +1608,8 @@ function bindInput() {
   app.addEventListener('touchmove', e => {
     for (const t of e.changedTouches) {
       if (t.identifier !== lookId) continue;
-      camYaw -= (t.clientX - lastLx) * 0.005;
-      camPitch = Math.max(-0.55, Math.min(0.95, camPitch + (t.clientY - lastLy) * 0.004));
+      camYaw -= (t.clientX - lastLx) * 0.005 * sens;
+      camPitch = Math.max(-0.55, Math.min(0.95, camPitch + (t.clientY - lastLy) * 0.004 * sens));
       lastLx = t.clientX; lastLy = t.clientY;
     }
   }, { passive: true });
@@ -1459,6 +1621,12 @@ function bindInput() {
 /* Laufachsen liegen auf der Blickrichtung: W nach vorn, S zurück, A und D
    seitwärts — wie in jedem Shooter. */
 function moveInput() {
+  // Halten statt umschalten — das ist die Erwartung aus jedem Shooter
+  if (me) {
+    me.sprint = !!(keys['ShiftLeft'] || keys['ShiftRight'] || touch.sprint);
+    me.crouch = !!(keys['KeyC'] || touch.crouch);
+    if (me.crouch) me.sprint = false;
+  }
   let ix = 0, iz = 0;
   if (keys['KeyW'] || keys['ArrowUp']) iz += 1;
   if (keys['KeyS'] || keys['ArrowDown']) iz -= 1;
@@ -1500,6 +1668,7 @@ function frame() {
         f.speedNow = mv > 0.05 ? 8 : 0;
         f.x += (f.netX - f.x) * Math.min(1, dt * 14);
         f.z += (f.netZ - f.z) * Math.min(1, dt * 14);
+        f.y += ((f.netY || 0) - f.y) * Math.min(1, dt * 16);
         let diff = ((f.netYaw - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
         f.yaw += diff * Math.min(1, dt * 14);
       }
@@ -1507,7 +1676,8 @@ function frame() {
 
     if (isNet && performance.now() - lastSend > 50) {
       lastSend = performance.now();
-      Net.sendState({ x: me.x, z: me.z, r: me.yaw,
+      Net.sendState({ x: me.x, z: me.z, r: me.yaw, y: +me.y.toFixed(2),
+                      c: me.crouch ? 1 : 0,
                       p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 });
     }
     if (!isNet) checkRoundOver();
@@ -1537,7 +1707,7 @@ if (typeof THREE === 'undefined' || !THREE.GLTFLoader || !THREE.FBXLoader ||
   /* Ladekette. Sechs Dateien, deshalb ein gemeinsamer Fortschritt statt
      sechs einzelner Balken — sonst springt die Anzeige ständig zurück. */
   let done = 0;
-  const TOTAL = 3 + CHARS.length;
+  const TOTAL = 4 + CHARS.length;
   const step = txt => {
     done++;
     $('load-bar').style.width = Math.round(done / TOTAL * 100) + '%';
@@ -1580,7 +1750,7 @@ if (typeof THREE === 'undefined' || !THREE.GLTFLoader || !THREE.FBXLoader ||
 
       let anim = 0;
       const afterAnim = () => {
-        if (++anim < 2) return;
+        if (++anim < 3) return;
         step('Loading skins …');
         let sk = 0;
         CHARS.forEach(c => {
@@ -1600,6 +1770,8 @@ if (typeof THREE === 'undefined' || !THREE.GLTFLoader || !THREE.FBXLoader ||
                undefined, fail('idle.fbx'));
       fbx.load('chars/run.fbx', a => { CLIPS.run = pickClip(a.animations, 'run'); afterAnim(); },
                undefined, fail('run.fbx'));
+      fbx.load('chars/jump.fbx', a => { CLIPS.jump = pickClip(a.animations, 'jump'); afterAnim(); },
+               undefined, fail('jump.fbx'));
     }, undefined, fail('characterMedium.fbx'));
   }, undefined, fail('arena.glb'));
 
@@ -1625,6 +1797,23 @@ document.querySelectorAll('#lobby-picks .pick').forEach(el => el.addEventListene
   Net.pickChar(parseInt(el.dataset.ch, 10));
   renderLobby();
 }));
+
+loadSettings();
+const sensBox = $('sens'), sensVal = $('sens-val');
+function showSens() { sensBox.value = sens; sensVal.textContent = sens.toFixed(2) + '×'; }
+showSens();
+sensBox.addEventListener('input', () => {
+  sens = parseFloat(sensBox.value) || 1;
+  sensVal.textContent = sens.toFixed(2) + '×';
+  saveSettings();
+});
+$('btn-sens-reset').addEventListener('click', () => { sens = 1; showSens(); saveSettings(); });
+$('btn-settings').addEventListener('click', () => {
+  $('menu').classList.add('hidden'); $('settings').classList.remove('hidden');
+});
+$('btn-set-close').addEventListener('click', () => {
+  $('settings').classList.add('hidden'); $('menu').classList.remove('hidden');
+});
 
 $('btn-solo').addEventListener('click', () => { wake(); Net.leave(); beginRound(); });
 $('btn-host').addEventListener('click', () => { wake(); note('Opening room …'); Net.host(readName()); });
