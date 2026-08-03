@@ -40,6 +40,9 @@ canvas{display:block;width:100%;height:100%}
   border:2px solid rgba(242,247,251,.6);border-radius:12px;padding:3px 8px}
 .rchip.out{opacity:.32}
 .rchip .dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink)}
+.rpips{display:flex;gap:3px;margin-left:3px}
+.rpip{width:11px;height:6px;border-radius:3px;background:var(--green);border:1px solid var(--ink)}
+.rpip.gone{background:rgba(242,247,251,.2)}
 
 #big{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;pointer-events:none}
 #big span{font-weight:800;font-size:clamp(3rem,15vw,7rem);color:var(--cream);
@@ -193,7 +196,8 @@ input:focus{outline:none;border-color:var(--amber)}
 <div class="overlay hidden" id="menu">
   <div class="card">
     <h1>RING OF <span>NAGRAK</span></h1>
-    <p class="sub">A duel pit on a rock in deep space. Three clean hits and your opponent is done.
+    <p class="sub">A pit on a rock in deep space. Free-for-all for up to four fighters —
+      three clean hits and you are out, last one standing wins.
       Aim with the mouse, punch what the crosshair covers.</p>
 
     <label for="nm">Your name</label>
@@ -322,6 +326,7 @@ const PUNCH_ARC = Math.cos(50 * Math.PI / 180);   // halber Öffnungswinkel
 const HIT_INVULN = 0.65;       // danach ist man kurz unverwundbar
 const KNOCKBACK = 9.5;
 const MAX_HP = 3;
+const MAX_PLAYERS = 4;         // Host plus drei Gäste, jeder gegen jeden
 
 const COLORS = [
   0x37E0F5, 0xFF5B45, 0xFFC53D, 0x4BD08A, 0xB05BFF, 0xFF5FA8,
@@ -1095,7 +1100,10 @@ function updateHud() {
   $('me-dot').style.background = hex(me.color);
   $('me-hearts').innerHTML = hearts(me.hp);
 
-  const foe = fighters.find(f => f !== me);
+  /* Im Duell steht der Gegner gross oben rechts. Ab drei Spielern wäre die
+     Anzeige willkürlich — dann zählt die Leiste darunter, mit Leben pro Kopf. */
+  const duel = fighters.length === 2;
+  const foe = duel ? fighters.find(f => f !== me) : null;
   if (foe) {
     $('foe-side').classList.remove('hidden');
     $('foe-name').textContent = foe.name;
@@ -1103,10 +1111,15 @@ function updateHud() {
     $('foe-hearts').innerHTML = hearts(foe.hp);
   } else $('foe-side').classList.add('hidden');
 
-  $('roster').innerHTML = fighters.length > 2 ? fighters.map(f =>
-    '<span class="rchip ' + (f.alive ? '' : 'out') + '">' +
-    '<span class="dot" style="background:' + hex(f.color) + '"></span>' +
-    f.name + ' ' + f.hp + '</span>').join('') : '';
+  $('roster').innerHTML = duel ? '' : fighters.filter(f => !f.isMe).map(f => {
+    let pips = '';
+    for (let i = 0; i < MAX_HP; i++) {
+      pips += '<span class="rpip' + (i < f.hp ? '' : ' gone') + '"></span>';
+    }
+    return '<span class="rchip ' + (f.alive ? '' : 'out') + '">' +
+      '<span class="dot" style="background:' + hex(f.color) + '"></span>' +
+      f.name + '<span class="rpips">' + pips + '</span></span>';
+  }).join('');
 }
 
 function showBig(text, ms) {
@@ -1159,12 +1172,20 @@ const Net = {
     });
 
     this._peer.on('connection', conn => {
-      if (this._conns.size >= 5 || state === 'fight' || state === 'countdown') {
+      // Host zählt mit, also bleiben MAX_PLAYERS - 1 Plätze für Gäste
+      if (this._conns.size >= MAX_PLAYERS - 1 || state === 'fight' || state === 'countdown') {
         conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); });
         return;
       }
       this._conns.set(conn.peer, conn);
       conn.on('open', () => {
+        // Zweite Prüfung: zwischen Verbindungsaufbau und diesem Punkt kann
+        // ein weiterer Spieler dazugekommen sein.
+        if (this.roster.length >= MAX_PLAYERS) {
+          try { conn.send({ t: 'full' }); } catch (e) {}
+          setTimeout(() => conn.close(), 400);
+          return;
+        }
         if (!this.roster.some(r => r.id === conn.peer)) {
           this.roster.push({ id: conn.peer, name: '…', ci: this.freeColor(), ch: 0 });
         }
@@ -1243,7 +1264,10 @@ const Net = {
         else if (d.t === 'w') { applyRemote(d.p || []); }
         else if (d.t === 'hp') { applyHealth(d.h || []); }
         else if (d.t === 'end') { endRound(d.w); }
-        else if (d.t === 'full') { note('That room is full or already fighting'); this.leave(); backToMenu(); }
+        else if (d.t === 'full') {
+          note('That room is full (' + MAX_PLAYERS + ' max) or already fighting');
+          this.leave(); backToMenu();
+        }
       });
 
       this._host.on('close', () => { note('The host closed the room'); this.leave(); backToMenu(); });
@@ -1423,7 +1447,10 @@ function renderLobby() {
     (r.id === Net.myId ? ' (you)' : '') + '</span><span>' +
     (CHARS[(r.ch || 0) % CHARS.length].label) + '</span></li>').join('');
   $('lobby-note').textContent = Net.isHost()
-    ? (list.length > 1 ? list.length + ' fighters ready' : 'Waiting for an opponent …')
+    ? (list.length > 1
+        ? list.length + ' / ' + MAX_PLAYERS + ' fighters ready' +
+          (list.length >= MAX_PLAYERS ? ' — room is full' : '')
+        : 'Waiting for an opponent … up to ' + MAX_PLAYERS + ' can join')
     : 'Waiting for the host to start';
   $('lobby-picks').querySelectorAll('.pick').forEach(el =>
     el.classList.toggle('sel', parseInt(el.dataset.ch, 10) === soloChar));
@@ -1832,6 +1859,7 @@ $('btn-join').addEventListener('click', () => {
 $('btn-start').addEventListener('click', () => {
   if (!Net.isHost()) return;
   if (Net.roster.length < 2) { $('lobby-note').textContent = 'At least two fighters needed'; return; }
+  if (Net.roster.length > MAX_PLAYERS) { $('lobby-note').textContent = 'Too many fighters'; return; }
   Net.startRound();
   beginRound();
 });
