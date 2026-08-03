@@ -71,6 +71,16 @@ canvas{display:block;width:100%;height:100%}
 #cross.hit i{background:var(--red)}
 #cross .dot{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
   border-radius:50%;background:rgba(242,247,251,.75)}
+#castwrap{position:fixed;left:50%;bottom:23%;transform:translateX(-50%);z-index:9;
+  pointer-events:none;text-align:center}
+#castbar{width:min(330px,62vw);height:17px;background:rgba(11,20,32,.75);
+  border:3px solid var(--cyan);border-radius:10px;overflow:hidden}
+#castbar i{display:block;height:100%;width:0;
+  background:linear-gradient(90deg,#37E0F5,#FFFFFF)}
+#castlabel{display:block;margin-top:5px;font-size:.76rem;letter-spacing:.22em;
+  color:var(--cyan);text-shadow:0 2px 0 rgba(5,9,15,.8)}
+#lasercd{position:fixed;left:50%;bottom:17%;transform:translateX(-50%);z-index:8;
+  pointer-events:none;font-size:.74rem;letter-spacing:.14em;color:#8FA6BC}
 #lockhint{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);z-index:11;
   background:rgba(11,20,32,.75);border:2px solid var(--cyan);border-radius:12px;
   padding:7px 14px;font-size:.8rem;letter-spacing:.05em;pointer-events:none}
@@ -176,7 +186,12 @@ input:focus{outline:none;border-color:var(--amber)}
 </div>
 
 <div id="hitflash"></div>
+<div id="castwrap" class="hidden">
+  <div id="castbar"><i></i></div>
+  <span id="castlabel">CHARGING</span>
+</div>
 <div id="cross" class="hidden"><i></i><i></i><i></i><i></i><span class="dot"></span></div>
+<div id="lasercd" class="hidden"></div>
 <div id="lockhint" class="hidden">Click to capture the mouse · <b>Esc</b> releases it</div>
 <div id="big" class="hidden"><span>3</span></div>
 <div id="toast" class="hidden"></div>
@@ -227,6 +242,7 @@ input:focus{outline:none;border-color:var(--amber)}
       <span><b>W A S D</b> move</span><span><b>Mouse</b> aim</span>
       <span><b>Click</b> punch</span><span><b>Space</b> jump</span>
       <span><b>Shift</b> sprint</span><span><b>C</b> crouch</span>
+      <span><b>F</b> charge beam</span>
     </div>
   </div>
 </div>
@@ -371,6 +387,14 @@ const MOUSE_BASE = 0.0026;     // Grundempfindlichkeit; der Regler skaliert sie
    allein vom Schulterversatz der Kamera — nicht davon, dass irgendetwas
    verschoben wird. Genau so ist es in der Vorlage. */
 const CROSS_OFF = 0;
+const AIM_CONVERGE = 3.4;      // hier treffen sich Blickachse und Schlagrichtung
+const AIM_RADIUS = 1.2;        // so nah muss ein Gegner am Strahl liegen
+const LASER_CAST = 2.0;        // Ladezeit in Sekunden
+const LASER_RANGE = 36;
+const LASER_RADIUS = 1.7;
+const LASER_DMG = 2;
+const LASER_CD = 7.0;
+const LASER_MOVE = 0.3;        // Tempo während des Ladens
 let sens = 1.0;
 
 /* Einstellungen überleben den Seitenwechsel. Fehlschläge sind egal — dann
@@ -677,15 +701,38 @@ function makeFighter(name, color, charIdx, isMe) {
   arc.position.y = 1.25;
   g.add(arc);
 
+  /* Ladekugel und Strahl hängen NICHT an der Figurengruppe: der Strahl folgt
+     auch der Neigung des Blicks, die Gruppe kennt aber nur die Drehung um die
+     Hochachse. Deshalb sitzen beide direkt in der Szene. */
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 10),
+    new THREE.MeshBasicMaterial({ color: 0x9BF0FF, transparent: true, opacity: 0.9 }));
+  orb.visible = false;
+  scene.add(orb);
+
+  const beam = new THREE.Group();
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, LASER_RANGE, 12),
+    new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.95 }));
+  const halo = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.25, LASER_RANGE, 14),
+    new THREE.MeshBasicMaterial({ color: 0x37E0F5, transparent: true, opacity: 0.42 }));
+  // Zylinder liegen entlang Y, der Strahl soll entlang Z zeigen
+  core.rotation.x = Math.PI / 2; halo.rotation.x = Math.PI / 2;
+  core.position.z = LASER_RANGE / 2; halo.position.z = LASER_RANGE / 2;
+  beam.add(core, halo);
+  beam.visible = false;
+  beam.userData.core = core; beam.userData.halo = halo;
+  scene.add(beam);
+
   scene.add(g);
   return {
-    group: g, body, mixer, actions, bones, shadow, marker, arc,
+    group: g, body, mixer, actions, bones, shadow, marker, arc, orb, beam,
     name, color, charIdx, isMe: !!isMe,
     x: 0, z: 0, y: 0, vy: 0, yaw: 0,
     kx: 0, kz: 0,                       // Rückstoss
     hp: MAX_HP, alive: true, speedNow: 0,
     sprint: false, crouch: false, wantJump: false, jumpedAt: -9,
     vx: 0, vz: 0,
+    casting: false, castT: 0, laserCd: 0, fireT: -9, fireDir: null,
+    netCast: 0, netCastT: 0,
     punchT: -9, cooldown: 0, invuln: 0, hitFlash: 0,
     netX: 0, netZ: 0, netYaw: 0, bot: false
   };
@@ -704,6 +751,9 @@ function placeFighters() {
     f.punchT = -9; f.cooldown = 0; f.invuln = 0;
     f.sprint = false; f.crouch = false; f.wantJump = false; f.jumpedAt = -9;
     f.vx = 0; f.vz = 0;
+    f.casting = false; f.castT = 0; f.laserCd = 0; f.fireT = -9;
+    f.netCast = 0; f.netCastT = 0;
+    f.orb.visible = false; f.beam.visible = false;
     f.group.visible = true;
     f.group.position.set(f.x, 0, f.z);
     f.group.rotation.y = f.yaw;
@@ -734,6 +784,30 @@ function aimBone(bone, dir, amount) {
   const target = _q2.clone().multiply(_q1).multiply(
     bone.parent.getWorldQuaternion(new THREE.Quaternion())).multiply(bone.quaternion);
   bone.quaternion.slerp(target, amount);
+}
+
+/* Der entscheidende Punkt beim Zielen: die Blickachse geht NICHT durch die
+   Figur, sondern durch den Kamerapunkt neben ihrer Schulter. Wer das Kreuz
+   auf jemanden legt, zielt also von einem um 1.35 Einheiten versetzten Punkt
+   aus — auf Schlagdistanz sind das rund 28 Grad. Genau deshalb ging die Faust
+   daneben. Der Strahl wird jetzt einmal zentral berechnet und überall
+   verwendet: für die Ausrichtung der Figur, für den Schlag und für den Laser. */
+function aimRay() {
+  const cp = Math.cos(camPitch), sp = Math.sin(camPitch);
+  const fx = Math.sin(camYaw) * cp, fy = -sp, fz = Math.cos(camYaw) * cp;
+  const rx = -Math.cos(camYaw), rz = Math.sin(camYaw);
+  return { ox: me.x + rx * CAM_SHOULDER, oy: camHead, oz: me.z + rz * CAM_SHOULDER,
+           fx, fy, fz };
+}
+
+/** Liegt dieser Kämpfer unter dem Fadenkreuz, innerhalb von maxDist? */
+function underCrosshair(o, maxDist, radius) {
+  const a = aimRay();
+  const dx = o.x - a.ox, dy = (o.y + 1.35) - a.oy, dz = o.z - a.oz;
+  const t = dx * a.fx + dy * a.fy + dz * a.fz;       // Projektion auf den Strahl
+  if (t < 0.2 || t > maxDist) return false;
+  const px = dx - a.fx * t, py = dy - a.fy * t, pz = dz - a.fz * t;
+  return Math.hypot(px, py, pz) <= radius;           // senkrechter Abstand
 }
 
 function slideOut(f) {
@@ -784,6 +858,7 @@ function stepLocal(f, dt, mx, mz) {
   if (f.crouch) speed *= CROUCH_MUL;
   else if (f.sprint) speed *= SPRINT_MUL - drag * 0.34;   // Sprint bricht weich ein
   speed *= 1 - drag * PUNCH_DRAG;
+  if (f.casting) speed *= LASER_MOVE;           // Aufladen macht langsam
   if (!grounded) speed *= 0.9;                  // in der Luft weniger Kontrolle
 
   /* Zweite Ursache: die Position wurde direkt aus der Tastenrichtung gesetzt.
@@ -805,7 +880,17 @@ function stepLocal(f, dt, mx, mz) {
      der Laufrichtung. Dadurch schlägt man immer dorthin, wohin man zielt, und
      Seitwärtslaufen bleibt möglich. Bots und Mitspieler drehen sich zu ihrem
      Ziel beziehungsweise zu dem, was der Host meldet. */
-  const want = f.isMe ? camYaw : (len > 0.01 ? Math.atan2(mx, mz) : f.yaw);
+  /* Die Figur dreht sich auf den Punkt, an dem der Zielstrahl in
+     Schlagdistanz liegt — nicht stur in Kamerarichtung. Sonst schaut sie
+     an dem vorbei, was unter dem Fadenkreuz steht. */
+  let want;
+  if (f.isMe) {
+    const a = aimRay();
+    want = Math.atan2(a.ox + a.fx * AIM_CONVERGE - f.x,
+                      a.oz + a.fz * AIM_CONVERGE - f.z);
+  } else {
+    want = len > 0.01 ? Math.atan2(mx, mz) : f.yaw;
+  }
   let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
   f.yaw += diff * Math.min(1, dt * (f.isMe ? 26 : TURN_SNAP));
 
@@ -829,7 +914,7 @@ function stepLocal(f, dt, mx, mz) {
 /* ---------------- Schlag ---------------- */
 
 function tryPunch(f) {
-  if (!f.alive || f.cooldown > 0 || f.crouch) return;
+  if (!f.alive || f.cooldown > 0 || f.crouch || f.casting) return;
   f.punchT = clock.elapsedTime;
   f.cooldown = PUNCH_COOLDOWN;
   f.swungAt = false;
@@ -858,29 +943,36 @@ function resolvePunch(f) {
     const d = Math.hypot(dx, dz);
     if (d > PUNCH_RANGE || d < 0.0001) return;
     if (Math.abs(o.y - f.y) > 1.9) return;       // zu weit über- oder untereinander
-    if ((dx / d) * fx + (dz / d) * fz < PUNCH_ARC) return;   // nicht im Blickfeld
-    landHit(f, o, dx / d, dz / d);
+    if (f.isMe) {
+      // Was unter dem Fadenkreuz steht, wird getroffen — nichts anderes
+      if (!underCrosshair(o, PUNCH_RANGE + CAM_SHOULDER + 0.6, AIM_RADIUS)) return;
+    } else if ((dx / d) * fx + (dz / d) * fz < PUNCH_ARC) return;
+    landHit(f, o, dx / d, dz / d, 1);
   });
 }
 
 /** Treffer anwenden. Im Netz entscheidet ausschliesslich der Host. */
-function landHit(from, target, nx, nz) {
+function landHit(from, target, nx, nz, amount) {
+  const a = amount || 1;
   if (isNet) {
-    if (Net.isHost()) applyDamage(fighters.indexOf(target), nx, nz);
-    else if (from.isMe) Net.sendHit(fighters.indexOf(target), nx, nz);
+    if (Net.isHost()) applyDamage(fighters.indexOf(target), nx, nz, a);
+    else if (from.isMe) Net.sendHit(fighters.indexOf(target), nx, nz, a);
     return;
   }
-  applyDamage(fighters.indexOf(target), nx, nz);
+  applyDamage(fighters.indexOf(target), nx, nz, a);
 }
 
-function applyDamage(idx, nx, nz) {
+function applyDamage(idx, nx, nz, amount) {
   const t = fighters[idx];
   if (!t || !t.alive || t.invuln > 0) return;
-  t.hp = Math.max(0, t.hp - 1);
+  const a = amount || 1;
+  t.hp = Math.max(0, t.hp - a);
   t.invuln = HIT_INVULN;
   t.hitFlash = 0.25;
-  t.kx = nx * KNOCKBACK;
-  t.kz = nz * KNOCKBACK;
+  t.kx = nx * KNOCKBACK * (a > 1 ? 1.8 : 1);
+  t.kz = nz * KNOCKBACK * (a > 1 ? 1.8 : 1);
+  // Ein Treffer bricht das Aufladen ab — sonst wäre der Laser risikolos
+  if (t.casting) { t.casting = false; t.castT = 0; if (t.isMe) showToast('INTERRUPTED'); }
   sfx.hit();
   // Getroffen zu HABEN muss man sehen: das Fadenkreuz färbt sich kurz rot
   if (fighters.some(f => f.isMe && f !== t && f.alive)) {
@@ -888,7 +980,7 @@ function applyDamage(idx, nx, nz) {
     c.classList.add('hit');
     setTimeout(() => c.classList.remove('hit'), 160);
   }
-  if (t.isMe) { hitflashUntil = performance.now() + 140; showToast('HIT  -1'); }
+  if (t.isMe) { hitflashUntil = performance.now() + 140; showToast('HIT  -' + a); }
   if (t.hp <= 0) knockOut(idx);
   updateHud();
   if (isNet && Net.isHost()) Net.pushHealth();
@@ -914,6 +1006,93 @@ function checkRoundOver() {
     if (isNet) Net.endRound(winner ? fighters.indexOf(winner) : -1);
     else endRound(winner ? fighters.indexOf(winner) : -1);
   }
+}
+
+/* ---------------- Laser ----------------
+   Zwei Sekunden aufladen, dann ein Strahl in Blickrichtung. Während des
+   Ladens ist man langsam und kann nicht schlagen, ein Treffer bricht ab.
+   Das ist der Preis für zwei Leben auf einen Schlag. */
+
+function startCast(f) {
+  if (!f.alive || f.casting || f.laserCd > 0 || f.crouch) return;
+  if ((clock.elapsedTime - f.punchT) < PUNCH_TOTAL) return;
+  f.casting = true;
+  f.castT = 0;
+  beep('sine', 180, 0.3, 0.04);
+}
+
+function updateCast(f, dt) {
+  f.laserCd = Math.max(0, f.laserCd - dt);
+  if (!f.casting) return;
+  if (!f.alive) { f.casting = false; return; }
+  const before = f.castT;
+  f.castT += dt;
+  // Der Ton steigt mit der Ladung — auch Gegner hören, was gleich kommt
+  if (Math.floor(f.castT * 6) !== Math.floor(before * 6)) {
+    beep('sine', 220 + f.castT * 260, 0.09, 0.03);
+  }
+  if (f.castT >= LASER_CAST) fireLaser(f);
+}
+
+function fireLaser(f) {
+  f.casting = false;
+  f.castT = 0;
+  f.laserCd = LASER_CD;
+  f.fireT = clock.elapsedTime;
+
+  // Richtung: beim Spieler die Blickachse, sonst geradeaus
+  const d = f.isMe ? aimRay()
+    : { ox: f.x, oy: f.y + 1.35, oz: f.z,
+        fx: Math.sin(f.yaw), fy: 0, fz: Math.cos(f.yaw) };
+  f.fireDir = d;
+
+  beep('sawtooth', 90, 0.9, 0.09);
+  setTimeout(() => beep('square', 420, 0.5, 0.05), 40);
+
+  /* Treffer rechnet nur, wer den Strahl abfeuert — im Netz meldet er sie dem
+     Host, genau wie beim Schlag. Sonst zählte derselbe Strahl mehrfach. */
+  if (f.isMe || !isNet) {
+    fighters.forEach(o => {
+      if (o === f || !o.alive) return;
+      const dx = o.x - d.ox, dy = (o.y + 1.35) - d.oy, dz = o.z - d.oz;
+      const t = dx * d.fx + dy * d.fy + dz * d.fz;
+      if (t < 0.3 || t > LASER_RANGE) return;
+      const px = dx - d.fx * t, py = dy - d.fy * t, pz = dz - d.fz * t;
+      if (Math.hypot(px, py, pz) > LASER_RADIUS + 0.5) return;
+      const len = Math.hypot(dx, dz) || 1;
+      landHit(f, o, dx / len, dz / len, LASER_DMG);
+    });
+  }
+}
+
+function updateLaserVisual(f, dt) {
+  const mine = f.isMe || f.bot || !isNet;
+  const charging = mine ? f.casting : f.netCast === 1;
+  if (charging) {
+    if (!mine) f.netCastT += dt;
+    const u = Math.min(1, (mine ? f.castT : f.netCastT) / LASER_CAST);
+    const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
+    f.orb.visible = true;
+    f.orb.position.set(f.x + fx * 0.85, f.y + 1.35, f.z + fz * 0.85);
+    f.orb.scale.setScalar(0.35 + u * 1.25 + Math.sin(clock.elapsedTime * 22) * 0.06);
+    f.orb.material.opacity = 0.55 + u * 0.4;
+  } else {
+    f.orb.visible = false;
+    if (!mine) f.netCastT = 0;
+  }
+
+  const t = clock.elapsedTime - f.fireT;
+  if (t >= 0 && t < 0.45 && f.fireDir) {
+    const d = f.fireDir;
+    f.beam.visible = true;
+    f.beam.position.set(d.ox, d.oy, d.oz);
+    f.beam.lookAt(d.ox + d.fx, d.oy + d.fy, d.oz + d.fz);
+    const u = t / 0.45;
+    const w = (1 - u * 0.55) * (1 + Math.sin(u * 18) * 0.06);
+    f.beam.scale.set(w, w, 1);
+    f.beam.userData.core.material.opacity = 0.95 * (1 - u);
+    f.beam.userData.halo.material.opacity = 0.42 * (1 - u);
+  } else f.beam.visible = false;
 }
 
 /* ---------------- Bot für den Übungskampf ---------------- */
@@ -1210,7 +1389,10 @@ const Net = {
           const tgt = fighters[d.i];
           if (src && tgt && src.alive && tgt.alive) {
             const dd = Math.hypot(tgt.x - src.x, tgt.z - src.z);
-            if (dd <= PUNCH_RANGE + 1.2) applyDamage(d.i, d.nx, d.nz);
+            // Der Laser reicht weiter als die Faust, deshalb zwei Grenzen
+            const a = Math.max(1, Math.min(LASER_DMG, d.a | 0));
+            const max = a > 1 ? LASER_RANGE + 4 : PUNCH_RANGE + CAM_SHOULDER + 2;
+            if (dd <= max) applyDamage(d.i, d.nx, d.nz, a);
           }
         }
       });
@@ -1311,9 +1493,10 @@ const Net = {
     }
   },
 
-  sendHit(i, nx, nz) {
+  sendHit(i, nx, nz, a) {
     if (this._host && this._host.open) {
-      try { this._host.send({ t: 'hit', i, nx: +nx.toFixed(3), nz: +nz.toFixed(3) }); } catch (e) {}
+      try { this._host.send({ t: 'hit', i, nx: +nx.toFixed(3), nz: +nz.toFixed(3), a: a | 0 });
+      } catch (e) {}
     }
   },
 
@@ -1336,11 +1519,14 @@ const Net = {
       this.roster.forEach((r, i) => {
         const st = r.id === this.myId
           ? { x: me.x, z: me.z, y: me.y, r: me.yaw, c: me.crouch ? 1 : 0,
+              l: me.casting ? 1 : 0,
+              lf: (clock.elapsedTime - me.fireT) < 0.08 ? 1 : 0,
               p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 }
           : this._states.get(r.id);
         if (!st) return;
         list.push({ i, x: +st.x.toFixed(2), z: +st.z.toFixed(2), y: +(st.y || 0).toFixed(2),
-                    r: +st.r.toFixed(2), c: st.c ? 1 : 0, p: st.p ? 1 : 0 });
+                    r: +st.r.toFixed(2), c: st.c ? 1 : 0, l: st.l ? 1 : 0,
+                    lf: st.lf ? 1 : 0, p: st.p ? 1 : 0 });
       });
       this.broadcast({ t: 'w', p: list });
       applyRemote(list);
@@ -1387,6 +1573,14 @@ function applyRemote(list) {
     f.netX = sn.x; f.netZ = sn.z; f.netYaw = sn.r;
     f.netY = sn.y || 0;
     f.crouch = !!sn.c;
+    f.netCast = sn.l ? 1 : 0;
+    // Schuss des Mitspielers nachzeichnen — der Schaden kommt vom Host
+    if (sn.lf && (clock.elapsedTime - f.fireT) > 0.5) {
+      f.fireT = clock.elapsedTime;
+      f.fireDir = { ox: f.x, oy: f.y + 1.35, oz: f.z,
+                    fx: Math.sin(f.yaw), fy: 0, fz: Math.cos(f.yaw) };
+      beep('sawtooth', 90, 0.7, 0.05);
+    }
     if (sn.p && (clock.elapsedTime - f.punchT) > 0.3) {
       f.punchT = clock.elapsedTime;
       f.swungAt = true;                   // Gegner lösen keine Treffer bei uns aus
@@ -1460,7 +1654,11 @@ function renderLobby() {
 /* ---------------- Runde ---------------- */
 
 function beginRound() {
-  fighters.forEach(f => scene.remove(f.group));
+  fighters.forEach(f => {
+    scene.remove(f.group);
+    if (f.orb) scene.remove(f.orb);
+    if (f.beam) scene.remove(f.beam);
+  });
   fighters = [];
   isNet = Net.isOnline();
 
@@ -1555,6 +1753,7 @@ function bindInput() {
     keys[e.code] = true;
     if (state !== 'fight') return;
     if (e.code === 'Space') { me.wantJump = true; e.preventDefault(); }
+    if (e.code === 'KeyF') { startCast(me); e.preventDefault(); }
     if (e.code === 'KeyC') e.preventDefault();
   });
   addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
@@ -1685,6 +1884,7 @@ function frame() {
   if (state === 'fight' || state === 'countdown') {
     const canMove = state === 'fight';
     fighters.forEach(f => {
+      updateCast(f, dt);
       if (f.isMe) {
         const [mx, mz] = canMove ? moveInput() : [0, 0];
         stepLocal(f, dt, mx, mz);
@@ -1709,7 +1909,8 @@ function frame() {
     if (isNet && performance.now() - lastSend > 50) {
       lastSend = performance.now();
       Net.sendState({ x: me.x, z: me.z, r: me.yaw, y: +me.y.toFixed(2),
-                      c: me.crouch ? 1 : 0,
+                      c: me.crouch ? 1 : 0, l: me.casting ? 1 : 0,
+                      lf: (clock.elapsedTime - me.fireT) < 0.08 ? 1 : 0,
                       p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 });
     }
     if (!isNet) checkRoundOver();
@@ -1718,8 +1919,30 @@ function frame() {
   fighters.forEach(f => {
     FWD.set(Math.sin(f.yaw), 0, Math.cos(f.yaw));
     updateFighterVisual(f, dt);
+    updateLaserVisual(f, dt);
   });
   updateCamera(dt);
+
+  // Ladebalken und Abklingzeit
+  if (me && (state === 'fight' || state === 'countdown')) {
+    const cw = $('castwrap');
+    if (me.casting) {
+      cw.classList.remove('hidden');
+      cw.querySelector('i').style.width =
+        Math.min(100, me.castT / LASER_CAST * 100).toFixed(1) + '%';
+    } else cw.classList.add('hidden');
+    const cd = $('lasercd');
+    if (!me.casting && me.laserCd > 0) {
+      cd.classList.remove('hidden');
+      cd.textContent = 'F  ·  ' + me.laserCd.toFixed(1) + 's';
+    } else if (!me.casting) {
+      cd.classList.remove('hidden');
+      cd.textContent = 'F  ·  READY';
+    } else cd.classList.add('hidden');
+  } else {
+    $('castwrap').classList.add('hidden');
+    $('lasercd').classList.add('hidden');
+  }
 
   $('hitflash').style.opacity = performance.now() < hitflashUntil ? 0.28 : 0;
   renderer.render(scene, camera);
