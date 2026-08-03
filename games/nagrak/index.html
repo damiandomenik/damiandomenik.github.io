@@ -157,7 +157,8 @@ input:focus{outline:none;border-color:var(--amber)}
 <div class="overlay hidden" id="menu">
   <div class="card">
     <h1>RING OF <span>NAGRAK</span></h1>
-    <p class="sub">A duel pit on a rock in deep space. Three clean hits and your opponent is done.</p>
+    <p class="sub">A duel pit on a rock in deep space. Three clean hits and your opponent is done.
+      The camera locks onto your opponent — you never have to steer it.</p>
 
     <label for="nm">Your name</label>
     <input id="nm" maxlength="10" placeholder="FIGHTER" autocomplete="off" spellcheck="false">
@@ -180,8 +181,8 @@ input:focus{outline:none;border-color:var(--amber)}
 
     <p class="note" id="net-note"></p>
     <div class="hint">
-      <span><b>W A S D</b> move</span><span><b>Mouse</b> look</span>
-      <span><b>Space</b> / <b>Click</b> punch</span>
+      <span><b>W</b> close in</span><span><b>S</b> back off</span>
+      <span><b>A D</b> circle</span><span><b>Space</b> / <b>Click</b> punch</span>
     </div>
   </div>
 </div>
@@ -232,9 +233,17 @@ input:focus{outline:none;border-color:var(--amber)}
 
 /* ---------------- Konstanten ---------------- */
 
-const ARENA_R = 15.2;          // begehbarer Radius
-const WALL_R = 17.4;           // dahinter steht die Mauer
-const MOVE_SPEED = 7.4;
+/* Die Arena ist bewusst weit: Fläche gut das Dreieinhalbfache der ersten
+   Fassung. Damit die Figuren klein WIRKEN, reicht die Fläche allein nicht —
+   entscheidend ist, dass Mauer, Säulen und Statue deutlich über sie
+   hinauswachsen. Deshalb sind alle Bauteile zusätzlich hochskaliert. */
+const ARENA_R = 28;            // begehbarer Radius
+const WALL_R = 30.5;           // dahinter steht die Mauer
+const WALL_S = 2.6;            // Wandsegmente: 10.4 breit, 11.5 hoch
+const COL_S = 3.2;             // Randsäulen: 14.3 hoch
+const TOWER_S = 9.0;           // die vier Türme: 6.1 dick, 40 hoch
+const TOWER_R = 14.5;          // Abstand der Türme von der Mitte
+const MOVE_SPEED = 10.2;
 const TURN_SNAP = 12;          // wie schnell sich die Figur zur Laufrichtung dreht
 const GRAVITY = 26;
 
@@ -261,7 +270,7 @@ let scene, camera, renderer, clock;
 let MODELS = {};                       // Name -> Object3D aus der GLB
 let fighters = [], me = null;
 let state = 'load';                    // load | menu | lobby | countdown | fight | over
-let camYaw = 0, camPitch = 0.30, camDist = 9.5;
+let camYaw = 0, camDist = 7.0;   // Grundabstand; die Kamera legt je nach Distanz zu
 let colliders = [];                    // {x, z, r} für Deckung
 let isNet = false, myIndex = 0;
 let soloColor = 0, soloChar = 0;
@@ -303,20 +312,23 @@ const sfx = {
 function initScene() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060A12);
-  scene.fog = new THREE.Fog(0x0A1220, 34, 96);
+  scene.fog = new THREE.Fog(0x0A1220, 60, 175);
 
-  camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 400);
+  camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 700);
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
   $('app').appendChild(renderer.domElement);
 
-  scene.add(new THREE.HemisphereLight(0x9FD8FF, 0x1A2436, 0.85));
-  const key = new THREE.DirectionalLight(0xFFF0D8, 1.05);
+  scene.add(new THREE.HemisphereLight(0xBFE4FF, 0x24313F, 1.05));
+  const key = new THREE.DirectionalLight(0xFFF4E2, 1.5);
   key.position.set(14, 26, 10);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0x37E0F5, 0.45);
-  rim.position.set(-16, 10, -14);
+  const fill = new THREE.DirectionalLight(0x7FB6FF, 0.6);
+  fill.position.set(-12, 14, 16);
+  scene.add(fill);
+  const rim = new THREE.DirectionalLight(0x37E0F5, 0.8);
+  rim.position.set(-16, 10, -16);
   scene.add(rim);
 
   clock = new THREE.Clock();
@@ -338,7 +350,11 @@ function cloneModel(name, tint) {
     if (!m.isMesh) return;
     m.material = m.material.clone();
     // Nur die Hauptfarbe des Körpers wird ersetzt, Augen und Nägel bleiben
-    if (tint !== undefined && m.material.name === 'Main') m.material.color.setHex(tint);
+    // Die Körperfarbe wird zur Spielerfarbe HIN gemischt, nicht ersetzt.
+    // Ein flacher Vollton nimmt dem Modell jede Plastizität.
+    if (tint !== undefined && m.material.name === 'Main') {
+      m.material.color.lerp(new THREE.Color(tint), 0.62);
+    }
   });
   return g;
 }
@@ -377,93 +393,116 @@ function addProp(name, x, z, ry, s) {
 /* ---------------- Arena ---------------- */
 
 function buildArena() {
-  // --- Boden: 2x2-Platten auf einem Raster, alles innerhalb des Kreises ---
+  // --- Boden: 2x2-Platten auf einem Raster, alles innerhalb des Kreises.
+  //     Die Platten bleiben klein — gerade die vielen Wiederholungen lassen
+  //     die Fläche gross wirken. Als InstancedMesh kostet das fast nichts. ---
   const floor = [], rim = [];
-  for (let gx = -10; gx <= 10; gx++) {
-    for (let gz = -10; gz <= 10; gz++) {
+  const G = Math.ceil(ARENA_R / 2) + 1;
+  for (let gx = -G; gx <= G; gx++) {
+    for (let gz = -G; gz <= G; gz++) {
       const x = gx * 2, z = gz * 2;
       const d = Math.hypot(x, z);
       if (d > ARENA_R + 1.4) continue;
       const t = { x, z, ry: (Math.floor(Math.abs(gx * 7 + gz * 3)) % 4) * Math.PI / 2 };
-      if (d > ARENA_R - 1.6) rim.push(t); else floor.push(t);
+      if (d > ARENA_R - 2.4) rim.push(t); else floor.push(t);
     }
   }
   placeInstanced('FloorTile_Basic', floor);
   placeInstanced('FloorTile_Basic2', rim);
 
-  // --- Mauerring: Wände sind 4 breit, also tangential aneinanderreihen ---
-  const wallN = Math.round((2 * Math.PI * WALL_R) / 3.9);
+  // --- Mauerring: Segment ist 4 breit, hochskaliert also 4*WALL_S ---
+  const seg = 4 * WALL_S * 0.98;
+  const wallN = Math.round((2 * Math.PI * WALL_R) / seg);
   const w1 = [], w2 = [], w3 = [];
   for (let i = 0; i < wallN; i++) {
     const a = (i / wallN) * Math.PI * 2;
-    const t = { x: Math.cos(a) * WALL_R, z: Math.sin(a) * WALL_R, ry: -a + Math.PI / 2 };
+    const t = { x: Math.cos(a) * WALL_R, z: Math.sin(a) * WALL_R,
+                ry: -a + Math.PI / 2, s: WALL_S };
     (i % 3 === 0 ? w1 : i % 3 === 1 ? w2 : w3).push(t);
   }
   placeInstanced('Wall_1', w1);
   placeInstanced('Wall_2', w2);
   placeInstanced('Wall_3', w3);
 
-  // --- Säulen: gleichmässig verteilt, abwechselnde Typen ---
+  // --- Randsäulen ---
   const c1 = [], c2 = [], c3 = [];
-  const colN = 12;
+  const colN = 16;
   for (let i = 0; i < colN; i++) {
-    const a = (i / colN) * Math.PI * 2 + 0.26;
-    const t = { x: Math.cos(a) * (ARENA_R - 0.5), z: Math.sin(a) * (ARENA_R - 0.5), ry: -a };
+    const a = (i / colN) * Math.PI * 2 + 0.2;
+    const t = { x: Math.cos(a) * (ARENA_R - 1.2), z: Math.sin(a) * (ARENA_R - 1.2),
+                ry: -a, s: COL_S };
     (i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3).push(t);
-    colliders.push({ x: t.x, z: t.z, r: 0.75 });
+    colliders.push({ x: t.x, z: t.z, r: 1.2 });
   }
   placeInstanced('Column_1', c1);
   placeInstanced('Column_2', c2);
   placeInstanced('Column_3', c3);
 
+  /* --- Die vier Türme --- Auf den Diagonalen, punktsymmetrisch. Sie sind
+     zugleich die einzige echte Deckung im Innenfeld: 6 Einheiten dick bei
+     einer Figur von 1.4 Breite, dahinter verschwindet man vollständig. */
+  const towers = [];
+  for (let i = 0; i < 4; i++) {
+    const a = Math.PI / 4 + i * Math.PI / 2;
+    const x = Math.cos(a) * TOWER_R, z = Math.sin(a) * TOWER_R;
+    towers.push({ x, z, ry: a, s: TOWER_S });
+    colliders.push({ x, z, r: 3.2 });
+    // Sockel, damit der Turm nicht aus dem Nichts wächst
+    addProp('Props_Base', x, z, a, 3.6);
+  }
+  placeInstanced('Column_2', towers);
+
   // --- Mitte: Podest mit Statue, das Wahrzeichen der Arena ---
-  addProp('Props_Base', 0, 0, 0, 1.6);
-  addProp('Props_Statue', 0, 0, 0, 1.25);
-  colliders.push({ x: 0, z: 0, r: 1.5 });
+  addProp('Props_Base', 0, 0, 0, 4.2);
+  addProp('Props_Statue', 0, 0, 0, 3.4);
+  colliders.push({ x: 0, z: 0, r: 4.0 });
 
   // --- Deckung: punktsymmetrisch, damit kein Spieler bevorzugt ist ---
+  // --- Deckung auf Figurenhöhe, punktsymmetrisch verteilt ---
+  const CS = 2.4;                         // Requisiten mitskalieren
   const cover = [
-    ['Props_Crate', 5.2, 3.4, 0.4], ['Props_Crate', 6.0, 4.3, 1.1],
-    ['Props_Crate', 5.6, 2.4, 0.8],
-    ['Props_Vessel_Tall', 8.4, -1.6, 0], ['Props_Pod', -9.0, 5.4, 0.9],
-    ['Props_Laser', 3.0, 9.2, 1.9], ['Props_Computer', 10.4, 4.0, -2.2]
+    ['Props_Crate', 9.5, 6.2, 0.4, 1.9], ['Props_Crate', 11.0, 7.9, 1.1, 1.9],
+    ['Props_Crate', 10.2, 4.4, 0.8, 1.9],
+    ['Props_Vessel_Tall', 15.4, -3.0, 0, 2.6], ['Props_Pod', -16.5, 9.9, 0.9, 2.2],
+    ['Props_Laser', 5.5, 17.0, 1.9, 2.2], ['Props_Computer', 19.0, 7.3, -2.2, 2.4]
   ];
-  cover.forEach(([n, x, z, ry]) => {
+  cover.forEach(([n, x, z, ry, sc]) => {
     [1, -1].forEach(sd => {
-      addProp(n, x * sd, z * sd, ry + (sd < 0 ? Math.PI : 0));
-      colliders.push({ x: x * sd, z: z * sd, r: n === 'Props_Pod' ? 1.1
-                     : n === 'Props_Laser' ? 1.3 : 0.65 });
+      addProp(n, x * sd, z * sd, ry + (sd < 0 ? Math.PI : 0), sc || CS);
+      colliders.push({ x: x * sd, z: z * sd,
+        r: (n === 'Props_Pod' ? 1.1 : n === 'Props_Laser' ? 1.3 : 0.65) * (sc || CS) });
     });
   });
 
   // --- Startplattformen ---
-  [[0, -11], [0, 11]].forEach(([x, z]) => addProp('Props_Teleporter_1', x, z, 0, 1.5));
+  [[0, -ARENA_R * 0.72], [0, ARENA_R * 0.72]].forEach(([x, z]) =>
+    addProp('Props_Teleporter_1', x, z, 0, 3.2));
 
   // --- Sternenhimmel und ein Planet am Rand ---
   const starGeo = new THREE.BufferGeometry();
   const pts = [];
   for (let i = 0; i < 900; i++) {
-    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 150;
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 260;
     pts.push(Math.sin(ph) * Math.cos(th) * r, Math.abs(Math.cos(ph)) * r * 0.8 - 10,
              Math.sin(ph) * Math.sin(th) * r);
   }
   starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
   scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xCFE6FF, size: 0.9 })));
 
-  const planet = new THREE.Mesh(new THREE.SphereGeometry(34, 26, 20),
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(56, 26, 20),
     new THREE.MeshLambertMaterial({ color: 0x2E5C8A }));
-  planet.position.set(-95, 34, -120);
+  planet.position.set(-150, 56, -190);
   scene.add(planet);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(52, 1.6, 8, 48),
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(86, 2.6, 8, 48),
     new THREE.MeshBasicMaterial({ color: 0x4C7FB0 }));
   ring.position.copy(planet.position);
   ring.rotation.set(1.15, 0.4, 0);
   scene.add(ring);
 
   // Fels unter der Arena, damit die Plattform schwebend wirkt
-  const rock = new THREE.Mesh(new THREE.ConeGeometry(WALL_R + 1.5, 26, 9),
+  const rock = new THREE.Mesh(new THREE.ConeGeometry(WALL_R + 2.5, 46, 9),
     new THREE.MeshLambertMaterial({ color: 0x1A2130, flatShading: true }));
-  rock.position.y = -13.2;
+  rock.position.y = -23.2;
   rock.rotation.y = 0.4;
   scene.add(rock);
 }
@@ -475,24 +514,47 @@ function makeFighter(name, color, charIdx, isMe) {
   const body = cloneModel(CHARS[charIdx % CHARS.length], color);
   g.add(body);
 
-  // Ring am Boden — im Getümmel erkennt man sonst nicht, wer man selbst ist
-  const marker = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.95, 22),
+  /* Toon-Kontur: dieselbe Geometrie noch einmal, leicht aufgeblasen und von
+     innen gerendert. Low-Poly-Modelle wirken ohne Umrandung platt und gehen
+     vor der Kulisse unter — damit stehen sie klar im Bild und die Spielerfarbe
+     ist auch dann erkennbar, wenn die Figur im Schatten steht. */
+  const outline = new THREE.Group();
+  body.traverse(m => {
+    if (!m.isMesh) return;
+    const o = new THREE.Mesh(m.geometry, new THREE.MeshBasicMaterial({
+      color, side: THREE.BackSide }));
+    o.position.copy(m.position); o.rotation.copy(m.rotation);
+    o.scale.copy(m.scale).multiplyScalar(1.055);
+    outline.add(o);
+  });
+  g.add(outline);
+
+  // Weicher Schlagschatten — ohne ihn schweben die Figuren über dem Boden
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.75, 20),
+    new THREE.MeshBasicMaterial({ color: 0x040A12, transparent: true, opacity: 0.4 }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.06;
+  g.add(shadow);
+
+  // Ring am Boden — zeigt an, wer man selbst ist
+  const marker = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.06, 26),
     new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85,
       side: THREE.DoubleSide }));
   marker.rotation.x = -Math.PI / 2;
-  marker.position.y = 0.07;
+  marker.position.y = 0.08;
   g.add(marker);
 
-  // Faust, die beim Schlag nach vorn schnellt
-  const fist = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8),
-    new THREE.MeshLambertMaterial({ color }));
-  fist.position.set(0.45, 1.65, 0.5);
-  fist.visible = false;
-  g.add(fist);
+  // Schlagwelle statt schwebender Faust
+  const arc = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.5, 20, 1, -0.9, 1.8),
+    new THREE.MeshBasicMaterial({ color: 0xFFF3C4, transparent: true, opacity: 0,
+      side: THREE.DoubleSide }));
+  arc.rotation.x = -Math.PI / 2;
+  arc.position.y = 1.25;
+  g.add(arc);
 
   scene.add(g);
   return {
-    group: g, body, marker, fist, name, color, charIdx, isMe: !!isMe,
+    group: g, body, outline, shadow, marker, arc, name, color, charIdx, isMe: !!isMe,
     x: 0, z: 0, y: 0, vy: 0, yaw: 0,
     kx: 0, kz: 0,                       // Rückstoss
     hp: MAX_HP, alive: true,
@@ -505,8 +567,8 @@ function placeFighters() {
   const n = fighters.length;
   fighters.forEach((f, i) => {
     const a = (i / n) * Math.PI * 2 + Math.PI / 2;
-    f.x = Math.cos(a) * 10.5;
-    f.z = Math.sin(a) * 10.5;
+    f.x = Math.cos(a) * ARENA_R * 0.72;
+    f.z = Math.sin(a) * ARENA_R * 0.72;
     f.yaw = Math.atan2(-f.x, -f.z);
     f.netX = f.x; f.netZ = f.z; f.netYaw = f.yaw;
     f.hp = MAX_HP; f.alive = true;
@@ -520,6 +582,17 @@ function placeFighters() {
 }
 
 /* ---------------- Bewegung und Kollision ---------------- */
+
+/** Nächster lebender Gegner. Er bestimmt Blickrichtung, Laufachsen und Kamera. */
+function targetOf(f) {
+  let best = null, bd = 1e9;
+  fighters.forEach(o => {
+    if (o === f || !o.alive) return;
+    const d = Math.hypot(o.x - f.x, o.z - f.z);
+    if (d < bd) { bd = d; best = o; }
+  });
+  return best;
+}
 
 function slideOut(f) {
   // Kreisrand
@@ -562,13 +635,19 @@ function stepLocal(f, dt, mx, mz) {
   if (len > 0.01) {
     f.x += (mx / len) * speed * dt;
     f.z += (mz / len) * speed * dt;
-    const want = Math.atan2(mx, mz);
-    let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-    f.yaw += diff * Math.min(1, dt * TURN_SNAP);
     f.walk += dt * 9;
   } else {
     f.walk += dt * 2.2;
   }
+
+  /* Ausrichtung: Solange ein Gegner lebt, schaut man IHN an — nicht in die
+     Laufrichtung. Erst dadurch funktioniert Umkreisen, und der Schlag geht
+     immer dorthin, wo man ihn haben will. Ohne Gegner zählt die Laufrichtung. */
+  const tgt = targetOf(f);
+  const want = tgt ? Math.atan2(tgt.x - f.x, tgt.z - f.z)
+                   : (len > 0.01 ? Math.atan2(mx, mz) : f.yaw);
+  let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  f.yaw += diff * Math.min(1, dt * TURN_SNAP);
 
   // Rückstoss klingt ab
   f.x += f.kx * dt; f.z += f.kz * dt;
@@ -682,55 +761,105 @@ function updateFighterVisual(f, dt) {
     g.rotation.x = Math.min(Math.PI / 2 - 0.1, g.rotation.x + dt * 4);
     g.position.y = Math.max(0.1, g.position.y - dt * 1.2);
     f.marker.visible = false;
-    f.fist.visible = false;
+    f.arc.material.opacity = 0;
+    f.shadow.material.opacity = 0.2;
     return;
   }
   g.rotation.x = 0;
 
   const t = clock.elapsedTime - f.punchT;
-  const punching = t >= 0 && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.16;
+  const punching = t >= 0 && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.18;
 
+  /* Der ganze Körper schlägt: erst zurücklehnen und stauchen, dann nach vorn
+     schnellen. Ein einzelner Faustball ohne Arm daran sah nach Fehler aus. */
+  let reach = 0, squash = 0;
   if (punching) {
-    // Ausholen, zuschlagen, zurück
-    let reach;
-    if (t < PUNCH_WINDUP) reach = -(t / PUNCH_WINDUP) * 0.35;
-    else if (t < PUNCH_WINDUP + PUNCH_ACTIVE) reach = ((t - PUNCH_WINDUP) / PUNCH_ACTIVE) * 1.5;
-    else reach = 1.5 * (1 - (t - PUNCH_WINDUP - PUNCH_ACTIVE) / 0.16);
-    f.fist.visible = reach > 0.1;
-    f.fist.position.set(0.42, 1.65, 0.5 + reach);
-    f.body.rotation.y = -reach * 0.30;
-    f.body.position.z = reach * 0.16;
-  } else {
-    f.fist.visible = false;
-    f.body.rotation.y += (0 - f.body.rotation.y) * Math.min(1, dt * 10);
-    f.body.position.z += (0 - f.body.position.z) * Math.min(1, dt * 10);
+    if (t < PUNCH_WINDUP) { reach = -(t / PUNCH_WINDUP) * 0.30; squash = -reach * 0.5; }
+    else if (t < PUNCH_WINDUP + PUNCH_ACTIVE) {
+      const u = (t - PUNCH_WINDUP) / PUNCH_ACTIVE;
+      reach = u * 0.85; squash = -u * 0.12;
+    } else {
+      const u = (t - PUNCH_WINDUP - PUNCH_ACTIVE) / 0.18;
+      reach = 0.85 * (1 - u); squash = 0;
+    }
   }
+  const k = Math.min(1, dt * 14);
+  f.body.position.z += (reach - f.body.position.z) * k;
+  f.body.rotation.x += ((-reach * 0.42) - f.body.rotation.x) * k;
+  f.body.scale.y += ((1 + squash) - f.body.scale.y) * k;
+  f.body.scale.x = f.body.scale.z = 1 + (1 - f.body.scale.y) * 0.5;
+
+  // Schlagwelle im Trefferfenster
+  const inSwing = t >= PUNCH_WINDUP && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.14;
+  if (inSwing) {
+    const u = Math.min(1, (t - PUNCH_WINDUP) / (PUNCH_ACTIVE + 0.14));
+    f.arc.position.z = 1.0 + u * 0.9;
+    f.arc.scale.setScalar(0.7 + u * 0.9);
+    f.arc.material.opacity = 0.75 * (1 - u);
+  } else f.arc.material.opacity = 0;
 
   // Laufwippen, weil das Modell kein Skelett hat
-  const bob = Math.sin(f.walk) * 0.055;
-  f.body.position.y = Math.abs(bob);
-  f.body.rotation.z = Math.sin(f.walk * 0.5) * 0.045;
+  const bob = Math.abs(Math.sin(f.walk)) * 0.075;
+  f.body.position.y = bob;
+  f.body.rotation.z = Math.sin(f.walk * 0.5) * 0.05;
 
-  // Treffer blinkt rot
+  // Kontur und Schatten folgen dem Körper
+  f.outline.position.copy(f.body.position);
+  f.outline.rotation.copy(f.body.rotation);
+  f.outline.scale.copy(f.body.scale);
+  f.shadow.position.set(f.body.position.x, 0.06, f.body.position.z * 0.4);
+  f.shadow.scale.setScalar(1 - bob * 1.6);
+
+  // Treffer blinkt
   if (f.hitFlash > 0) {
     f.hitFlash = Math.max(0, f.hitFlash - dt);
     const on = Math.floor(f.hitFlash * 24) % 2 === 0;
     f.body.visible = !on;
-  } else f.body.visible = true;
+    f.outline.visible = true;
+    f.outline.children.forEach(o => o.material.color.setHex(on ? 0xFFFFFF : f.color));
+  } else {
+    f.body.visible = true;
+    f.outline.visible = true;
+  }
 
   f.marker.visible = f.isMe;
   f.marker.material.opacity = 0.55 + 0.3 * Math.sin(clock.elapsedTime * 4);
 }
 
+/* Die Kamera steht hinter dir auf der Linie zum Gegner und schaut an dir
+   vorbei auf ihn. Je weiter ihr auseinander seid, desto weiter rückt sie
+   zurück, damit beide im Bild bleiben. */
 function updateCamera(dt) {
   if (!me) return;
-  const tx = me.x - Math.sin(camYaw) * camDist * Math.cos(camPitch);
-  const tz = me.z - Math.cos(camYaw) * camDist * Math.cos(camPitch);
-  const ty = 2.6 + Math.sin(camPitch) * camDist;
-  camera.position.x += (tx - camera.position.x) * Math.min(1, dt * 9);
-  camera.position.y += (ty - camera.position.y) * Math.min(1, dt * 9);
-  camera.position.z += (tz - camera.position.z) * Math.min(1, dt * 9);
-  camera.lookAt(me.x, 1.7, me.z);
+  const tgt = targetOf(me);
+  let bx, bz;                                   // Blickachse
+  if (tgt) {
+    bx = tgt.x - me.x; bz = tgt.z - me.z;
+    const d = Math.hypot(bx, bz) || 1;
+    bx /= d; bz /= d;
+    camYaw += (((Math.atan2(bx, bz) - camYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
+              * Math.min(1, dt * 6);
+  } else {
+    bx = Math.sin(camYaw); bz = Math.cos(camYaw);
+  }
+
+  const gap = tgt ? Math.hypot(tgt.x - me.x, tgt.z - me.z) : 6;
+  const back = camDist + Math.min(4.2, gap * 0.34);
+  const high = 3.1 + Math.min(2.2, gap * 0.16);
+
+  let tx = me.x - bx * back, tz = me.z - bz * back;
+  // Nicht durch die Arenawand fallen
+  const dd = Math.hypot(tx, tz);
+  if (dd > WALL_R - 0.6) { tx = tx / dd * (WALL_R - 0.6); tz = tz / dd * (WALL_R - 0.6); }
+
+  const k = Math.min(1, dt * 7);
+  camera.position.x += (tx - camera.position.x) * k;
+  camera.position.y += (high - camera.position.y) * k;
+  camera.position.z += (tz - camera.position.z) * k;
+
+  // Blickpunkt liegt zwischen beiden, aber näher an dir
+  const lx = me.x + bx * gap * 0.34, lz = me.z + bz * gap * 0.34;
+  camera.lookAt(lx, 1.55, lz);
 }
 
 /* ---------------- HUD ---------------- */
@@ -1172,27 +1301,18 @@ function bindInput() {
   });
   addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
 
-  // Maus: ziehen dreht die Kamera, Klick schlägt
+  /* Linke Maustaste schlägt — sofort beim Drücken, nicht erst beim Loslassen.
+     Vorher teilten sich Schlag und Kameradrehen dieselbe Geste, das war der
+     Hauptgrund, warum sich die Steuerung zäh anfühlte. Die Kamera folgt jetzt
+     von selbst; das Rad regelt nur noch den Abstand. */
   const app = $('app');
-  let dragging = false, lx = 0, ly = 0, moved = 0;
   app.addEventListener('pointerdown', e => {
     if (e.pointerType === 'touch') return;
-    dragging = true; lx = e.clientX; ly = e.clientY; moved = 0;
+    if (state === 'fight') { tryPunch(me); e.preventDefault(); }
   });
-  addEventListener('pointermove', e => {
-    if (!dragging) return;
-    const dx = e.clientX - lx, dy = e.clientY - ly;
-    lx = e.clientX; ly = e.clientY;
-    moved += Math.abs(dx) + Math.abs(dy);
-    camYaw -= dx * 0.005;
-    camPitch = Math.max(0.05, Math.min(0.85, camPitch + dy * 0.003));
-  });
-  addEventListener('pointerup', e => {
-    if (dragging && moved < 6 && state === 'fight') tryPunch(me);
-    dragging = false;
-  });
+  app.addEventListener('contextmenu', e => e.preventDefault());
   addEventListener('wheel', e => {
-    camDist = Math.max(5.5, Math.min(15, camDist + Math.sign(e.deltaY) * 0.7));
+    camDist = Math.max(4.5, Math.min(12, camDist + Math.sign(e.deltaY) * 0.6));
   }, { passive: true });
 
   // Touch: linker Stick läuft, rechter Knopf schlägt
@@ -1220,18 +1340,13 @@ function bindInput() {
     e.preventDefault();
     if (state === 'fight') tryPunch(me);
   });
-  // Auf dem Handy dreht Wischen auf der freien Fläche die Kamera
-  app.addEventListener('touchmove', e => {
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    if (app._lt) { camYaw -= (t.clientX - app._lt.x) * 0.006;
-      camPitch = Math.max(0.05, Math.min(0.85, camPitch + (t.clientY - app._lt.y) * 0.004)); }
-    app._lt = { x: t.clientX, y: t.clientY };
-  }, { passive: true });
-  app.addEventListener('touchend', () => { app._lt = null; });
+  // Auf dem Handy braucht es nichts weiter: Stick läuft, Knopf schlägt,
+  // die Kamera hält den Gegner von allein im Bild.
 }
 
-/** Laufrichtung aus Tasten oder Stick, immer relativ zur Kamera. */
+/* Laufachsen liegen auf dem Gegner: W geht auf ihn zu, S weg, A und D
+   umkreisen ihn. Das ist die Steuerung, die man aus Arena-Duellen kennt —
+   sie braucht keine Maus, und die Kamera muss man nie selbst nachziehen. */
 function moveInput() {
   let ix = 0, iz = 0;
   if (keys['KeyW'] || keys['ArrowUp']) iz += 1;
@@ -1240,8 +1355,18 @@ function moveInput() {
   if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
   if (touch.dx || touch.dy) { ix += touch.dx; iz -= touch.dy; }
   if (!ix && !iz) return [0, 0];
-  const s = Math.sin(camYaw), c = Math.cos(camYaw);
-  return [ix * c + iz * s, -ix * s + iz * c];
+
+  const tgt = me ? targetOf(me) : null;
+  let fx, fz;
+  if (tgt) {
+    fx = tgt.x - me.x; fz = tgt.z - me.z;
+    const d = Math.hypot(fx, fz) || 1;
+    fx /= d; fz /= d;
+  } else {                              // ohne Gegner: relativ zur Kamera
+    fx = Math.sin(camYaw); fz = Math.cos(camYaw);
+  }
+  // Rechts steht senkrecht auf Vorwärts
+  return [iz * fx + ix * fz, iz * fz - ix * fx];
 }
 
 /* ---------------- Bildschleife ---------------- */
