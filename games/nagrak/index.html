@@ -340,6 +340,11 @@ const PUNCH_DRAG = 0.42;       // stärkste Bremsung — 58 % Tempo im Treffermo
 const PUNCH_RANGE = 2.5;
 const PUNCH_ARC = Math.cos(50 * Math.PI / 180);   // halber Öffnungswinkel
 const HIT_INVULN = 0.65;       // danach ist man kurz unverwundbar
+/* Ohne dieses Fenster gewinnt bei einem beidseitigen Schlagabtausch immer der
+   Host: sein Treffer wird ohne Umweg angewandt, der des Gegners kommt eine
+   halbe Netzlaufzeit später und läuft in die Unverwundbarkeit. Innerhalb des
+   Fensters zählt ein Treffer eines ANDEREN Angreifers trotzdem. */
+const TRADE_WINDOW = 0.28;
 const KNOCKBACK = 9.5;
 const MAX_HP = 3;
 const MAX_PLAYERS = 4;         // Host plus drei Gäste, jeder gegen jeden
@@ -732,7 +737,7 @@ function makeFighter(name, color, charIdx, isMe) {
     sprint: false, crouch: false, wantJump: false, jumpedAt: -9,
     vx: 0, vz: 0,
     casting: false, castT: 0, laserCd: 0, fireT: -9, fireDir: null,
-    netCast: 0, netCastT: 0,
+    netCast: 0, netCastT: 0, lastHitBy: -1, lastHitAt: -9,
     punchT: -9, cooldown: 0, invuln: 0, hitFlash: 0,
     netX: 0, netZ: 0, netYaw: 0, bot: false
   };
@@ -751,6 +756,7 @@ function placeFighters() {
     f.punchT = -9; f.cooldown = 0; f.invuln = 0;
     f.sprint = false; f.crouch = false; f.wantJump = false; f.jumpedAt = -9;
     f.vx = 0; f.vz = 0;
+    f.lastHitBy = -1; f.lastHitAt = -9;
     f.casting = false; f.castT = 0; f.laserCd = 0; f.fireT = -9;
     f.netCast = 0; f.netCastT = 0;
     f.orb.visible = false; f.beam.visible = false;
@@ -839,10 +845,18 @@ function slideOut(f) {
   });
 }
 
-function stepLocal(f, dt, mx, mz) {
-  if (!f.alive) return;
+/* Diese Uhren müssen für JEDEN Kämpfer laufen — auch für Mitspieler, die nur
+   nachgezogen werden. Standen sie in stepLocal, blieb die Unverwundbarkeit
+   eines Gegners auf dem Host für immer stehen: nach dem ersten Treffer prallte
+   dort jeder weitere Schlag auf denselben Spieler ab. Das ist der Grund für
+   das einseitige Spielgefühl. */
+function tickTimers(f, dt) {
   f.cooldown = Math.max(0, f.cooldown - dt);
   f.invuln = Math.max(0, f.invuln - dt);
+}
+
+function stepLocal(f, dt, mx, mz) {
+  if (!f.alive) return;
 
   const grounded = f.y <= 0.001;
 
@@ -954,17 +968,33 @@ function resolvePunch(f) {
 /** Treffer anwenden. Im Netz entscheidet ausschliesslich der Host. */
 function landHit(from, target, nx, nz, amount) {
   const a = amount || 1;
+  const fi = fighters.indexOf(from), ti = fighters.indexOf(target);
+  /* Wer selbst trifft, sieht das SOFORT — auch als Gast, dessen Treffer erst
+     zum Host und zurück muss. Ohne diese Rückmeldung fühlt sich jeder Schlag
+     als Gast an, als wäre er ins Leere gegangen. */
+  if (from.isMe) {
+    const c = $('cross');
+    c.classList.add('hit');
+    setTimeout(() => c.classList.remove('hit'), 160);
+  }
   if (isNet) {
-    if (Net.isHost()) applyDamage(fighters.indexOf(target), nx, nz, a);
-    else if (from.isMe) Net.sendHit(fighters.indexOf(target), nx, nz, a);
+    if (Net.isHost()) applyDamage(ti, nx, nz, a, fi);
+    else if (from.isMe) Net.sendHit(ti, nx, nz, a);
     return;
   }
-  applyDamage(fighters.indexOf(target), nx, nz, a);
+  applyDamage(ti, nx, nz, a, fi);
 }
 
-function applyDamage(idx, nx, nz, amount) {
+function applyDamage(idx, nx, nz, amount, fromIdx) {
   const t = fighters[idx];
-  if (!t || !t.alive || t.invuln > 0) return;
+  if (!t || !t.alive) return;
+  if (t.invuln > 0) {
+    const trade = fromIdx !== undefined && fromIdx !== t.lastHitBy &&
+                  (clock.elapsedTime - t.lastHitAt) < TRADE_WINDOW;
+    if (!trade) return;
+  }
+  t.lastHitBy = fromIdx;
+  t.lastHitAt = clock.elapsedTime;
   const a = amount || 1;
   t.hp = Math.max(0, t.hp - a);
   t.invuln = HIT_INVULN;
@@ -974,16 +1004,17 @@ function applyDamage(idx, nx, nz, amount) {
   // Ein Treffer bricht das Aufladen ab — sonst wäre der Laser risikolos
   if (t.casting) { t.casting = false; t.castT = 0; if (t.isMe) showToast('INTERRUPTED'); }
   sfx.hit();
-  // Getroffen zu HABEN muss man sehen: das Fadenkreuz färbt sich kurz rot
-  if (fighters.some(f => f.isMe && f !== t && f.alive)) {
-    const c = $('cross');
-    c.classList.add('hit');
-    setTimeout(() => c.classList.remove('hit'), 160);
-  }
   if (t.isMe) { hitflashUntil = performance.now() + 140; showToast('HIT  -' + a); }
   if (t.hp <= 0) knockOut(idx);
   updateHud();
-  if (isNet && Net.isHost()) Net.pushHealth();
+  if (isNet && Net.isHost()) {
+    Net.pushHealth();
+    /* Der Rückstoss wurde bisher nur auf der Host-Kopie des Getroffenen
+       gesetzt. Der Gast selbst rechnet seine Position aber lokal — er wurde
+       also gar nicht zurückgeworfen, während der Host ihn fliegen sah. Beide
+       liefen dadurch auseinander, und dem Gast fehlte die Wucht. */
+    Net.broadcast({ t: 'kb', i: idx, kx: +t.kx.toFixed(2), kz: +t.kz.toFixed(2) });
+  }
 }
 
 function knockOut(idx) {
@@ -1392,7 +1423,7 @@ const Net = {
             // Der Laser reicht weiter als die Faust, deshalb zwei Grenzen
             const a = Math.max(1, Math.min(LASER_DMG, d.a | 0));
             const max = a > 1 ? LASER_RANGE + 4 : PUNCH_RANGE + CAM_SHOULDER + 2;
-            if (dd <= max) applyDamage(d.i, d.nx, d.nz, a);
+            if (dd <= max) applyDamage(d.i, d.nx, d.nz, a, fighters.indexOf(src));
           }
         }
       });
@@ -1445,6 +1476,9 @@ const Net = {
         else if (d.t === 'go') { beginRound(); }
         else if (d.t === 'w') { applyRemote(d.p || []); }
         else if (d.t === 'hp') { applyHealth(d.h || []); }
+        else if (d.t === 'kb') {
+          if (me && d.i === myIndex) { me.kx = d.kx; me.kz = d.kz; }
+        }
         else if (d.t === 'end') { endRound(d.w); }
         else if (d.t === 'full') {
           note('That room is full (' + MAX_PLAYERS + ' max) or already fighting');
@@ -1884,6 +1918,7 @@ function frame() {
   if (state === 'fight' || state === 'countdown') {
     const canMove = state === 'fight';
     fighters.forEach(f => {
+      tickTimers(f, dt);
       updateCast(f, dt);
       if (f.isMe) {
         const [mx, mz] = canMove ? moveInput() : [0, 0];
