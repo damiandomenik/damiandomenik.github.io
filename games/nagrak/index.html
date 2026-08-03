@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B1420">
+<title>RING OF NAGRAK</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0B1420; --cream:#F2F7FB; --cyan:#37E0F5; --red:#FF5B45;
+  --amber:#FFC53D; --green:#4BD08A; --violet:#B05BFF;
+  --f:"Baloo 2","Trebuchet MS",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden;background:#05090F;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--f);color:var(--cream);font-weight:600}
+::-webkit-scrollbar{display:none}
+#app{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+.hidden{display:none !important}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;top:0;left:0;right:0;z-index:8;pointer-events:none;
+  padding:max(12px,env(safe-area-inset-top)) 14px 0}
+.hbar{max-width:560px;margin:0 auto;display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.side{background:rgba(11,20,32,.6);border:3px solid rgba(242,247,251,.85);border-radius:18px;
+  padding:7px 12px;min-width:150px}
+.side .nm{font-size:.85rem;letter-spacing:.06em;display:flex;align-items:center;gap:7px}
+.side .dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink);flex:0 0 auto}
+.hearts{display:flex;gap:5px;margin-top:5px}
+.heart{width:22px;height:10px;border-radius:5px;background:var(--green);border:2px solid var(--ink)}
+.heart.gone{background:rgba(242,247,251,.18)}
+.side.right{text-align:right}
+.side.right .nm{justify-content:flex-end}
+.side.right .hearts{justify-content:flex-end}
+#roster{max-width:560px;margin:8px auto 0;display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+.rchip{display:flex;align-items:center;gap:6px;font-size:.76rem;background:rgba(11,20,32,.55);
+  border:2px solid rgba(242,247,251,.6);border-radius:12px;padding:3px 8px}
+.rchip.out{opacity:.32}
+.rchip .dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink)}
+
+#big{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;pointer-events:none}
+#big span{font-weight:800;font-size:clamp(3rem,15vw,7rem);color:var(--cream);
+  -webkit-text-stroke:6px var(--ink);paint-order:stroke fill;animation:pop .45s ease-out}
+@keyframes pop{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
+#toast{position:fixed;left:50%;top:34%;transform:translateX(-50%);z-index:9;pointer-events:none;
+  font-weight:800;font-size:1.4rem;color:var(--amber);-webkit-text-stroke:4px var(--ink);
+  paint-order:stroke fill;animation:up .9s ease-out}
+@keyframes up{0%{opacity:0;transform:translate(-50%,14px)}20%{opacity:1;transform:translate(-50%,-4px)}
+  100%{opacity:0;transform:translate(-50%,-40px)}}
+#hitflash{position:fixed;inset:0;z-index:7;pointer-events:none;background:var(--red);opacity:0;
+  transition:opacity .12s}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(23,60,90,.55),rgba(5,9,15,.94))}
+.card{width:100%;max-width:400px;max-height:100%;overflow-y:auto;text-align:center;
+  background:#101B29;color:var(--cream);border:4px solid var(--cyan);border-radius:24px;
+  box-shadow:0 0 0 4px rgba(11,20,32,.9),0 14px 0 rgba(5,9,15,.5);
+  padding:clamp(18px,4vh,28px) clamp(16px,5vw,24px)}
+h1{font-weight:800;font-size:clamp(1.7rem,7.5vw,2.4rem);line-height:1;letter-spacing:.02em}
+h1 span{color:var(--cyan)}
+.sub{color:#8FA6BC;font-size:.9rem;margin:8px 0 4px;font-weight:600}
+label{display:block;text-align:left;font-size:.64rem;letter-spacing:.2em;text-transform:uppercase;
+  color:#6F87A0;margin:14px 0 5px}
+input{width:100%;background:#08111C;border:3px solid var(--cyan);border-radius:13px;color:var(--cream);
+  font-family:var(--f);font-weight:700;font-size:1rem;letter-spacing:.14em;padding:9px;
+  text-align:center;text-transform:uppercase}
+input:focus{outline:none;border-color:var(--amber)}
+.btn{display:block;width:100%;margin-top:10px;padding:12px;cursor:pointer;font-family:var(--f);
+  font-weight:800;font-size:.95rem;letter-spacing:.06em;color:var(--ink);
+  background:var(--cyan);border:3px solid var(--ink);border-radius:15px;box-shadow:0 5px 0 rgba(5,9,15,.7)}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(5,9,15,.7)}
+.btn.red{background:var(--red);color:#fff}
+.btn.plain{background:#22344A;color:var(--cream)}
+.row{display:flex;gap:8px}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0 2px;color:#6F87A0;
+  font-size:.64rem;letter-spacing:.18em;text-transform:uppercase}
+.divider::before,.divider::after{content:"";flex:1;height:2px;background:#22344A}
+.bigcode{font-weight:800;font-size:2.5rem;letter-spacing:.34em;color:var(--ink);
+  background:var(--cyan);border:3px solid var(--ink);border-radius:15px;padding:6px 0 6px 16px;margin:4px 0}
+.note{margin-top:10px;font-size:.72rem;color:#6F87A0;font-weight:600;min-height:1.1em}
+.board{list-style:none;margin:10px 0 2px;padding:0;text-align:left}
+.board li{display:flex;justify-content:space-between;gap:10px;align-items:center;
+  padding:8px 11px;margin-bottom:6px;border:3px solid #22344A;border-radius:13px;
+  background:#08111C;font-size:.9rem;font-weight:700}
+.board li.me{background:#1B3550;border-color:var(--cyan)}
+.board .who{display:flex;align-items:center;gap:8px}
+.board .dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink);flex:0 0 auto}
+.swatches{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:6px 0 2px}
+.sw{width:31px;height:31px;border-radius:50%;border:3px solid var(--ink);cursor:pointer;
+  position:relative;box-shadow:0 3px 0 rgba(5,9,15,.6)}
+.sw.sel{box-shadow:0 0 0 3px #101B29,0 0 0 6px var(--cyan);transform:scale(1.12)}
+.sw.taken{opacity:.26;cursor:not-allowed;box-shadow:none}
+.picks{display:flex;gap:8px;justify-content:center;margin-top:6px}
+.pick{flex:1;padding:9px 6px;border:3px solid #22344A;border-radius:13px;background:#08111C;
+  cursor:pointer;font-weight:800;font-size:.82rem;letter-spacing:.05em}
+.pick.sel{border-color:var(--cyan);background:#1B3550}
+.hint{display:flex;flex-wrap:wrap;gap:5px 14px;justify-content:center;margin-top:14px;
+  font-size:.72rem;color:#6F87A0}
+.hint b{color:var(--cream)}
+#loading{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+  background:#05090F;flex-direction:column;gap:14px}
+#loading .bar{width:min(280px,70vw);height:12px;border:3px solid var(--cyan);border-radius:8px;overflow:hidden}
+#loading .bar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+
+/* ---------- Touch ---------- */
+#touch{position:fixed;inset:auto 0 0 0;z-index:12;display:none;
+  padding:0 20px max(22px,env(safe-area-inset-bottom));justify-content:space-between;align-items:flex-end}
+#touch.on{display:flex}
+#stick{width:118px;height:118px;border-radius:50%;border:3px solid rgba(242,247,251,.4);
+  position:relative;background:rgba(11,20,32,.35)}
+#stick i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
+  border-radius:50%;background:rgba(55,224,245,.65);border:3px solid var(--ink)}
+#hitbtn{width:96px;height:96px;border-radius:50%;background:var(--red);border:4px solid var(--ink);
+  display:grid;place-items:center;font-weight:800;font-size:1rem;color:#fff;
+  box-shadow:0 5px 0 rgba(5,9,15,.7)}
+#hitbtn:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(5,9,15,.7)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="loading">
+  <h1>RING OF <span>NAGRAK</span></h1>
+  <p class="sub" id="load-note">Loading arena …</p>
+  <div class="bar"><i id="load-bar"></i></div>
+</div>
+
+<div id="hud" class="hidden">
+  <div class="hbar">
+    <div class="side" id="me-side">
+      <div class="nm"><span class="dot" id="me-dot"></span><span id="me-name">YOU</span></div>
+      <div class="hearts" id="me-hearts"></div>
+    </div>
+    <div class="side right" id="foe-side">
+      <div class="nm"><span id="foe-name">OPPONENT</span><span class="dot" id="foe-dot"></span></div>
+      <div class="hearts" id="foe-hearts"></div>
+    </div>
+  </div>
+  <div id="roster"></div>
+</div>
+
+<div id="hitflash"></div>
+<div id="big" class="hidden"><span>3</span></div>
+<div id="toast" class="hidden"></div>
+
+<div id="touch">
+  <div id="stick"><i></i></div>
+  <div id="hitbtn">HIT</div>
+</div>
+
+<!-- Menu -->
+<div class="overlay hidden" id="menu">
+  <div class="card">
+    <h1>RING OF <span>NAGRAK</span></h1>
+    <p class="sub">A duel pit on a rock in deep space. Three clean hits and your opponent is done.</p>
+
+    <label for="nm">Your name</label>
+    <input id="nm" maxlength="10" placeholder="FIGHTER" autocomplete="off" spellcheck="false">
+
+    <label>Your fighter</label>
+    <div class="picks">
+      <div class="pick sel" data-ch="0">SCOUT</div>
+      <div class="pick" data-ch="1">TROOPER</div>
+    </div>
+
+    <label for="code">Room code</label>
+    <input id="code" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button class="btn plain" id="btn-host">Create room</button>
+      <button class="btn red" id="btn-join">Join</button>
+    </div>
+
+    <div class="divider"><span>or train</span></div>
+    <button class="btn" id="btn-solo">Fight a dummy</button>
+
+    <p class="note" id="net-note"></p>
+    <div class="hint">
+      <span><b>W A S D</b> move</span><span><b>Mouse</b> look</span>
+      <span><b>Space</b> / <b>Click</b> punch</span>
+    </div>
+  </div>
+</div>
+
+<!-- Lobby -->
+<div class="overlay hidden" id="lobby">
+  <div class="card">
+    <p class="sub" style="margin-bottom:2px">Share this code</p>
+    <div class="bigcode" id="lobby-code">----</div>
+    <label>Fighter</label>
+    <div class="picks" id="lobby-picks">
+      <div class="pick sel" data-ch="0">SCOUT</div>
+      <div class="pick" data-ch="1">TROOPER</div>
+    </div>
+    <label>Colour</label>
+    <div class="swatches" id="swatches"></div>
+    <ul class="board" id="lobby-list"></ul>
+    <button class="btn red" id="btn-start">Start duel</button>
+    <button class="btn plain" id="btn-leave">Leave room</button>
+    <p class="note" id="lobby-note">—</p>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="overlay hidden" id="results">
+  <div class="card">
+    <h1 id="res-title">K.O.</h1>
+    <p class="sub" id="res-sub">—</p>
+    <ul class="board" id="board"></ul>
+    <button class="btn red" id="btn-again">Fight again</button>
+    <button class="btn plain" id="btn-menu">Back to menu</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   RING OF NAGRAK — Arena-Duell
+   Modelle: Quaternius (CC0), gebündelt in arena.glb
+   Netzwerk: PeerJS mit Raumcode, Host ist die Instanz, die über
+   Treffer und Leben entscheidet.
+   ============================================================ */
+
+/* ---------------- Konstanten ---------------- */
+
+const ARENA_R = 15.2;          // begehbarer Radius
+const WALL_R = 17.4;           // dahinter steht die Mauer
+const MOVE_SPEED = 7.4;
+const TURN_SNAP = 12;          // wie schnell sich die Figur zur Laufrichtung dreht
+const GRAVITY = 26;
+
+const PUNCH_WINDUP = 0.12;     // Ausholen
+const PUNCH_ACTIVE = 0.14;     // in diesem Fenster trifft es
+const PUNCH_COOLDOWN = 0.55;
+const PUNCH_RANGE = 2.5;
+const PUNCH_ARC = Math.cos(50 * Math.PI / 180);   // halber Öffnungswinkel
+const HIT_INVULN = 0.65;       // danach ist man kurz unverwundbar
+const KNOCKBACK = 9.5;
+const MAX_HP = 3;
+
+const COLORS = [
+  0x37E0F5, 0xFF5B45, 0xFFC53D, 0x4BD08A, 0xB05BFF, 0xFF5FA8,
+  0x9BE02F, 0xFF8C1A, 0x2F7FF0, 0xF2F7FB, 0x8B5E3C, 0x2B3038
+];
+const CHARS = ['Alien', 'AlienHelmet'];
+
+const $ = id => document.getElementById(id);
+
+/* ---------------- Zustand ---------------- */
+
+let scene, camera, renderer, clock;
+let MODELS = {};                       // Name -> Object3D aus der GLB
+let fighters = [], me = null;
+let state = 'load';                    // load | menu | lobby | countdown | fight | over
+let camYaw = 0, camPitch = 0.30, camDist = 9.5;
+let colliders = [];                    // {x, z, r} für Deckung
+let isNet = false, myIndex = 0;
+let soloColor = 0, soloChar = 0;
+let lastSend = 0, roundStartMs = 0;
+let hitflashUntil = 0;
+
+const keys = {};
+const touch = { active: false, id: -1, x: 0, y: 0, dx: 0, dy: 0 };
+
+/* ---------------- Ton ---------------- */
+
+let actx = null;
+function beep(type, freq, dur, vol) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, n);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, freq * 0.5), n + dur);
+    g.gain.setValueAtTime(vol, n);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(n + dur + 0.02);
+  } catch (e) {}
+}
+const sfx = {
+  swing: () => beep('triangle', 300, 0.09, 0.03),
+  hit:   () => { beep('square', 150, 0.16, 0.07); beep('sawtooth', 90, 0.22, 0.05); },
+  ko:    () => beep('sawtooth', 200, 0.5, 0.08),
+  win:   () => [523, 659, 784, 1047].forEach((f, i) =>
+                 setTimeout(() => beep('triangle', f, 0.26, 0.06), i * 110)),
+  count: n => beep('triangle', 460 + n * 70, 0.13, 0.06),
+  go:    () => [660, 880, 1320].forEach((f, i) =>
+                 setTimeout(() => beep('square', f, 0.15, 0.06), i * 70))
+};
+
+/* ---------------- Szene ---------------- */
+
+function initScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x060A12);
+  scene.fog = new THREE.Fog(0x0A1220, 34, 96);
+
+  camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 400);
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  $('app').appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0x9FD8FF, 0x1A2436, 0.85));
+  const key = new THREE.DirectionalLight(0xFFF0D8, 1.05);
+  key.position.set(14, 26, 10);
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x37E0F5, 0.45);
+  rim.position.set(-16, 10, -14);
+  scene.add(rim);
+
+  clock = new THREE.Clock();
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+/* ---------------- Modelle ---------------- */
+
+/** Jede Kopie bekommt eigene Materialien, sonst färbt ein Spieler alle um. */
+function cloneModel(name, tint) {
+  const src = MODELS[name];
+  if (!src) return new THREE.Group();
+  const g = src.clone(true);
+  g.traverse(m => {
+    if (!m.isMesh) return;
+    m.material = m.material.clone();
+    // Nur die Hauptfarbe des Körpers wird ersetzt, Augen und Nägel bleiben
+    if (tint !== undefined && m.material.name === 'Main') m.material.color.setHex(tint);
+  });
+  return g;
+}
+
+/** Viele gleiche Bauteile als InstancedMesh — sonst bricht die Bildrate ein. */
+function placeInstanced(name, transforms) {
+  const src = MODELS[name];
+  if (!src || !transforms.length) return;
+  const parts = [];
+  src.traverse(m => { if (m.isMesh) parts.push(m); });
+  parts.forEach(part => {
+    const inst = new THREE.InstancedMesh(part.geometry, part.material, transforms.length);
+    const mtx = new THREE.Matrix4(), local = part.matrixWorld.clone();
+    transforms.forEach((t, i) => {
+      mtx.compose(
+        new THREE.Vector3(t.x, t.y || 0, t.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, t.ry || 0, 0)),
+        new THREE.Vector3(t.s || 1, t.s || 1, t.s || 1));
+      mtx.multiply(local);
+      inst.setMatrixAt(i, mtx);
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    scene.add(inst);
+  });
+}
+
+function addProp(name, x, z, ry, s) {
+  const g = cloneModel(name);
+  g.position.set(x, 0, z);
+  g.rotation.y = ry || 0;
+  if (s) g.scale.setScalar(s);
+  scene.add(g);
+  return g;
+}
+
+/* ---------------- Arena ---------------- */
+
+function buildArena() {
+  // --- Boden: 2x2-Platten auf einem Raster, alles innerhalb des Kreises ---
+  const floor = [], rim = [];
+  for (let gx = -10; gx <= 10; gx++) {
+    for (let gz = -10; gz <= 10; gz++) {
+      const x = gx * 2, z = gz * 2;
+      const d = Math.hypot(x, z);
+      if (d > ARENA_R + 1.4) continue;
+      const t = { x, z, ry: (Math.floor(Math.abs(gx * 7 + gz * 3)) % 4) * Math.PI / 2 };
+      if (d > ARENA_R - 1.6) rim.push(t); else floor.push(t);
+    }
+  }
+  placeInstanced('FloorTile_Basic', floor);
+  placeInstanced('FloorTile_Basic2', rim);
+
+  // --- Mauerring: Wände sind 4 breit, also tangential aneinanderreihen ---
+  const wallN = Math.round((2 * Math.PI * WALL_R) / 3.9);
+  const w1 = [], w2 = [], w3 = [];
+  for (let i = 0; i < wallN; i++) {
+    const a = (i / wallN) * Math.PI * 2;
+    const t = { x: Math.cos(a) * WALL_R, z: Math.sin(a) * WALL_R, ry: -a + Math.PI / 2 };
+    (i % 3 === 0 ? w1 : i % 3 === 1 ? w2 : w3).push(t);
+  }
+  placeInstanced('Wall_1', w1);
+  placeInstanced('Wall_2', w2);
+  placeInstanced('Wall_3', w3);
+
+  // --- Säulen: gleichmässig verteilt, abwechselnde Typen ---
+  const c1 = [], c2 = [], c3 = [];
+  const colN = 12;
+  for (let i = 0; i < colN; i++) {
+    const a = (i / colN) * Math.PI * 2 + 0.26;
+    const t = { x: Math.cos(a) * (ARENA_R - 0.5), z: Math.sin(a) * (ARENA_R - 0.5), ry: -a };
+    (i % 3 === 0 ? c1 : i % 3 === 1 ? c2 : c3).push(t);
+    colliders.push({ x: t.x, z: t.z, r: 0.75 });
+  }
+  placeInstanced('Column_1', c1);
+  placeInstanced('Column_2', c2);
+  placeInstanced('Column_3', c3);
+
+  // --- Mitte: Podest mit Statue, das Wahrzeichen der Arena ---
+  addProp('Props_Base', 0, 0, 0, 1.6);
+  addProp('Props_Statue', 0, 0, 0, 1.25);
+  colliders.push({ x: 0, z: 0, r: 1.5 });
+
+  // --- Deckung: punktsymmetrisch, damit kein Spieler bevorzugt ist ---
+  const cover = [
+    ['Props_Crate', 5.2, 3.4, 0.4], ['Props_Crate', 6.0, 4.3, 1.1],
+    ['Props_Crate', 5.6, 2.4, 0.8],
+    ['Props_Vessel_Tall', 8.4, -1.6, 0], ['Props_Pod', -9.0, 5.4, 0.9],
+    ['Props_Laser', 3.0, 9.2, 1.9], ['Props_Computer', 10.4, 4.0, -2.2]
+  ];
+  cover.forEach(([n, x, z, ry]) => {
+    [1, -1].forEach(sd => {
+      addProp(n, x * sd, z * sd, ry + (sd < 0 ? Math.PI : 0));
+      colliders.push({ x: x * sd, z: z * sd, r: n === 'Props_Pod' ? 1.1
+                     : n === 'Props_Laser' ? 1.3 : 0.65 });
+    });
+  });
+
+  // --- Startplattformen ---
+  [[0, -11], [0, 11]].forEach(([x, z]) => addProp('Props_Teleporter_1', x, z, 0, 1.5));
+
+  // --- Sternenhimmel und ein Planet am Rand ---
+  const starGeo = new THREE.BufferGeometry();
+  const pts = [];
+  for (let i = 0; i < 900; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1), r = 150;
+    pts.push(Math.sin(ph) * Math.cos(th) * r, Math.abs(Math.cos(ph)) * r * 0.8 - 10,
+             Math.sin(ph) * Math.sin(th) * r);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xCFE6FF, size: 0.9 })));
+
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(34, 26, 20),
+    new THREE.MeshLambertMaterial({ color: 0x2E5C8A }));
+  planet.position.set(-95, 34, -120);
+  scene.add(planet);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(52, 1.6, 8, 48),
+    new THREE.MeshBasicMaterial({ color: 0x4C7FB0 }));
+  ring.position.copy(planet.position);
+  ring.rotation.set(1.15, 0.4, 0);
+  scene.add(ring);
+
+  // Fels unter der Arena, damit die Plattform schwebend wirkt
+  const rock = new THREE.Mesh(new THREE.ConeGeometry(WALL_R + 1.5, 26, 9),
+    new THREE.MeshLambertMaterial({ color: 0x1A2130, flatShading: true }));
+  rock.position.y = -13.2;
+  rock.rotation.y = 0.4;
+  scene.add(rock);
+}
+
+/* ---------------- Kämpfer ---------------- */
+
+function makeFighter(name, color, charIdx, isMe) {
+  const g = new THREE.Group();
+  const body = cloneModel(CHARS[charIdx % CHARS.length], color);
+  g.add(body);
+
+  // Ring am Boden — im Getümmel erkennt man sonst nicht, wer man selbst ist
+  const marker = new THREE.Mesh(new THREE.RingGeometry(0.72, 0.95, 22),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85,
+      side: THREE.DoubleSide }));
+  marker.rotation.x = -Math.PI / 2;
+  marker.position.y = 0.07;
+  g.add(marker);
+
+  // Faust, die beim Schlag nach vorn schnellt
+  const fist = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8),
+    new THREE.MeshLambertMaterial({ color }));
+  fist.position.set(0.45, 1.65, 0.5);
+  fist.visible = false;
+  g.add(fist);
+
+  scene.add(g);
+  return {
+    group: g, body, marker, fist, name, color, charIdx, isMe: !!isMe,
+    x: 0, z: 0, y: 0, vy: 0, yaw: 0,
+    kx: 0, kz: 0,                       // Rückstoss
+    hp: MAX_HP, alive: true,
+    punchT: -9, cooldown: 0, invuln: 0, hitFlash: 0,
+    walk: 0, netX: 0, netZ: 0, netYaw: 0, bot: false
+  };
+}
+
+function placeFighters() {
+  const n = fighters.length;
+  fighters.forEach((f, i) => {
+    const a = (i / n) * Math.PI * 2 + Math.PI / 2;
+    f.x = Math.cos(a) * 10.5;
+    f.z = Math.sin(a) * 10.5;
+    f.yaw = Math.atan2(-f.x, -f.z);
+    f.netX = f.x; f.netZ = f.z; f.netYaw = f.yaw;
+    f.hp = MAX_HP; f.alive = true;
+    f.kx = f.kz = 0; f.y = 0; f.vy = 0;
+    f.punchT = -9; f.cooldown = 0; f.invuln = 0;
+    f.group.visible = true;
+    f.group.position.set(f.x, 0, f.z);
+    f.group.rotation.y = f.yaw;
+    f.group.scale.setScalar(1);
+  });
+}
+
+/* ---------------- Bewegung und Kollision ---------------- */
+
+function slideOut(f) {
+  // Kreisrand
+  const d = Math.hypot(f.x, f.z);
+  if (d > ARENA_R) {
+    f.x = f.x / d * ARENA_R;
+    f.z = f.z / d * ARENA_R;
+    f.kx *= 0.3; f.kz *= 0.3;
+  }
+  // Hindernisse
+  colliders.forEach(c => {
+    const dx = f.x - c.x, dz = f.z - c.z;
+    const dd = Math.hypot(dx, dz), min = c.r + 0.55;
+    if (dd < min && dd > 0.0001) {
+      f.x = c.x + dx / dd * min;
+      f.z = c.z + dz / dd * min;
+    }
+  });
+  // Kämpfer schieben sich gegenseitig weg
+  fighters.forEach(o => {
+    if (o === f || !o.alive || !f.alive) return;
+    const dx = f.x - o.x, dz = f.z - o.z;
+    const dd = Math.hypot(dx, dz);
+    if (dd < 1.1 && dd > 0.0001) {
+      const push = (1.1 - dd) * 0.5;
+      f.x += dx / dd * push; f.z += dz / dd * push;
+    }
+  });
+}
+
+function stepLocal(f, dt, mx, mz) {
+  if (!f.alive) return;
+  f.cooldown = Math.max(0, f.cooldown - dt);
+  f.invuln = Math.max(0, f.invuln - dt);
+
+  const punching = (clock.elapsedTime - f.punchT) < (PUNCH_WINDUP + PUNCH_ACTIVE);
+  const speed = punching ? MOVE_SPEED * 0.32 : MOVE_SPEED;
+
+  const len = Math.hypot(mx, mz);
+  if (len > 0.01) {
+    f.x += (mx / len) * speed * dt;
+    f.z += (mz / len) * speed * dt;
+    const want = Math.atan2(mx, mz);
+    let diff = ((want - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    f.yaw += diff * Math.min(1, dt * TURN_SNAP);
+    f.walk += dt * 9;
+  } else {
+    f.walk += dt * 2.2;
+  }
+
+  // Rückstoss klingt ab
+  f.x += f.kx * dt; f.z += f.kz * dt;
+  f.kx -= f.kx * Math.min(1, dt * 5);
+  f.kz -= f.kz * Math.min(1, dt * 5);
+
+  slideOut(f);
+}
+
+/* ---------------- Schlag ---------------- */
+
+function tryPunch(f) {
+  if (!f.alive || f.cooldown > 0) return;
+  f.punchT = clock.elapsedTime;
+  f.cooldown = PUNCH_COOLDOWN;
+  f.swungAt = false;
+  if (f.isMe) sfx.swing();
+}
+
+/** Prüft im aktiven Fenster, ob jemand vor der Faust steht. */
+function resolvePunch(f) {
+  const t = clock.elapsedTime - f.punchT;
+  if (t < PUNCH_WINDUP || t > PUNCH_WINDUP + PUNCH_ACTIVE) return;
+  if (f.swungAt) return;
+  f.swungAt = true;
+
+  const fx = Math.sin(f.yaw), fz = Math.cos(f.yaw);
+  fighters.forEach(o => {
+    if (o === f || !o.alive || o.invuln > 0) return;
+    const dx = o.x - f.x, dz = o.z - f.z;
+    const d = Math.hypot(dx, dz);
+    if (d > PUNCH_RANGE || d < 0.0001) return;
+    if ((dx / d) * fx + (dz / d) * fz < PUNCH_ARC) return;   // nicht im Blickfeld
+    landHit(f, o, dx / d, dz / d);
+  });
+}
+
+/** Treffer anwenden. Im Netz entscheidet ausschliesslich der Host. */
+function landHit(from, target, nx, nz) {
+  if (isNet) {
+    if (Net.isHost()) applyDamage(fighters.indexOf(target), nx, nz);
+    else if (from.isMe) Net.sendHit(fighters.indexOf(target), nx, nz);
+    return;
+  }
+  applyDamage(fighters.indexOf(target), nx, nz);
+}
+
+function applyDamage(idx, nx, nz) {
+  const t = fighters[idx];
+  if (!t || !t.alive || t.invuln > 0) return;
+  t.hp = Math.max(0, t.hp - 1);
+  t.invuln = HIT_INVULN;
+  t.hitFlash = 0.25;
+  t.kx = nx * KNOCKBACK;
+  t.kz = nz * KNOCKBACK;
+  sfx.hit();
+  if (t.isMe) { hitflashUntil = performance.now() + 140; showToast('HIT  -1'); }
+  if (t.hp <= 0) knockOut(idx);
+  updateHud();
+  if (isNet && Net.isHost()) Net.pushHealth();
+}
+
+function knockOut(idx) {
+  const t = fighters[idx];
+  if (!t.alive) return;
+  t.alive = false;
+  sfx.ko();
+  if (t.isMe) showToast('YOU ARE OUT');
+  else showToast(t.name + ' IS DOWN');
+  updateHud();
+  checkRoundOver();
+}
+
+function checkRoundOver() {
+  if (state !== 'fight') return;
+  if (isNet && !Net.isHost()) return;
+  const alive = fighters.filter(f => f.alive);
+  if (alive.length <= 1) {
+    const winner = alive[0] || null;
+    if (isNet) Net.endRound(winner ? fighters.indexOf(winner) : -1);
+    else endRound(winner ? fighters.indexOf(winner) : -1);
+  }
+}
+
+/* ---------------- Bot für den Übungskampf ---------------- */
+
+function botThink(f, dt) {
+  const foe = fighters.find(o => o !== f && o.alive);
+  if (!foe) return [0, 0];
+  const dx = foe.x - f.x, dz = foe.z - f.z;
+  const d = Math.hypot(dx, dz);
+  f.botT = (f.botT || 0) + dt;
+
+  if (d < PUNCH_RANGE - 0.35) {
+    if (f.cooldown <= 0 && Math.random() < dt * 2.2) tryPunch(f);
+    // etwas umkreisen statt stumpf stehen
+    return [-dz / d * 0.6, dx / d * 0.6];
+  }
+  return [dx / d, dz / d];
+}
+
+/* ---------------- Darstellung ---------------- */
+
+function updateFighterVisual(f, dt) {
+  const g = f.group;
+  g.position.set(f.x, f.y, f.z);
+  g.rotation.y = f.yaw;
+
+  if (!f.alive) {
+    // umkippen und liegen bleiben
+    g.rotation.x = Math.min(Math.PI / 2 - 0.1, g.rotation.x + dt * 4);
+    g.position.y = Math.max(0.1, g.position.y - dt * 1.2);
+    f.marker.visible = false;
+    f.fist.visible = false;
+    return;
+  }
+  g.rotation.x = 0;
+
+  const t = clock.elapsedTime - f.punchT;
+  const punching = t >= 0 && t < PUNCH_WINDUP + PUNCH_ACTIVE + 0.16;
+
+  if (punching) {
+    // Ausholen, zuschlagen, zurück
+    let reach;
+    if (t < PUNCH_WINDUP) reach = -(t / PUNCH_WINDUP) * 0.35;
+    else if (t < PUNCH_WINDUP + PUNCH_ACTIVE) reach = ((t - PUNCH_WINDUP) / PUNCH_ACTIVE) * 1.5;
+    else reach = 1.5 * (1 - (t - PUNCH_WINDUP - PUNCH_ACTIVE) / 0.16);
+    f.fist.visible = reach > 0.1;
+    f.fist.position.set(0.42, 1.65, 0.5 + reach);
+    f.body.rotation.y = -reach * 0.30;
+    f.body.position.z = reach * 0.16;
+  } else {
+    f.fist.visible = false;
+    f.body.rotation.y += (0 - f.body.rotation.y) * Math.min(1, dt * 10);
+    f.body.position.z += (0 - f.body.position.z) * Math.min(1, dt * 10);
+  }
+
+  // Laufwippen, weil das Modell kein Skelett hat
+  const bob = Math.sin(f.walk) * 0.055;
+  f.body.position.y = Math.abs(bob);
+  f.body.rotation.z = Math.sin(f.walk * 0.5) * 0.045;
+
+  // Treffer blinkt rot
+  if (f.hitFlash > 0) {
+    f.hitFlash = Math.max(0, f.hitFlash - dt);
+    const on = Math.floor(f.hitFlash * 24) % 2 === 0;
+    f.body.visible = !on;
+  } else f.body.visible = true;
+
+  f.marker.visible = f.isMe;
+  f.marker.material.opacity = 0.55 + 0.3 * Math.sin(clock.elapsedTime * 4);
+}
+
+function updateCamera(dt) {
+  if (!me) return;
+  const tx = me.x - Math.sin(camYaw) * camDist * Math.cos(camPitch);
+  const tz = me.z - Math.cos(camYaw) * camDist * Math.cos(camPitch);
+  const ty = 2.6 + Math.sin(camPitch) * camDist;
+  camera.position.x += (tx - camera.position.x) * Math.min(1, dt * 9);
+  camera.position.y += (ty - camera.position.y) * Math.min(1, dt * 9);
+  camera.position.z += (tz - camera.position.z) * Math.min(1, dt * 9);
+  camera.lookAt(me.x, 1.7, me.z);
+}
+
+/* ---------------- HUD ---------------- */
+
+function hearts(n) {
+  let h = '';
+  for (let i = 0; i < MAX_HP; i++) h += '<span class="heart' + (i < n ? '' : ' gone') + '"></span>';
+  return h;
+}
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+
+function updateHud() {
+  if (!me) return;
+  $('me-name').textContent = me.name;
+  $('me-dot').style.background = hex(me.color);
+  $('me-hearts').innerHTML = hearts(me.hp);
+
+  const foe = fighters.find(f => f !== me);
+  if (foe) {
+    $('foe-side').classList.remove('hidden');
+    $('foe-name').textContent = foe.name;
+    $('foe-dot').style.background = hex(foe.color);
+    $('foe-hearts').innerHTML = hearts(foe.hp);
+  } else $('foe-side').classList.add('hidden');
+
+  $('roster').innerHTML = fighters.length > 2 ? fighters.map(f =>
+    '<span class="rchip ' + (f.alive ? '' : 'out') + '">' +
+    '<span class="dot" style="background:' + hex(f.color) + '"></span>' +
+    f.name + ' ' + f.hp + '</span>').join('') : '';
+}
+
+function showBig(text, ms) {
+  const b = $('big');
+  b.querySelector('span').textContent = text;
+  b.classList.remove('hidden');
+  b.querySelector('span').style.animation = 'none';
+  void b.querySelector('span').offsetWidth;
+  b.querySelector('span').style.animation = '';
+  if (ms) setTimeout(() => b.classList.add('hidden'), ms);
+}
+function showToast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.remove('hidden');
+  t.style.animation = 'none';
+  void t.offsetWidth;
+  t.style.animation = '';
+  setTimeout(() => t.classList.add('hidden'), 900);
+}
+
+/* ---------------- Netzwerk ---------------- */
+
+const Net = {
+  mode: 'offline', code: null, myId: 'solo', myName: 'FIGHTER',
+  roster: [], _peer: null, _conns: new Map(), _host: null,
+  _states: new Map(), _relay: null,
+
+  isOnline() { return this.mode !== 'offline'; },
+  isHost() { return this.mode === 'host'; },
+
+  code4() {
+    let t = '';
+    for (let i = 0; i < 4; i++) t += 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)];
+    return t;
+  },
+
+  host(name) {
+    this.leave();
+    this.myName = name;
+    if (!window.Peer) { note('PeerJS could not be loaded'); return; }
+    const code = this.code4();
+    this._peer = new Peer('nagrak-' + code);
+    this.mode = 'host'; this.code = code;
+
+    this._peer.on('open', id => {
+      this.myId = id;
+      this.roster = [{ id, name: this.myName, ci: 0, ch: soloChar }];
+      openLobby(code, true);
+    });
+
+    this._peer.on('connection', conn => {
+      if (this._conns.size >= 5 || state === 'fight' || state === 'countdown') {
+        conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); });
+        return;
+      }
+      this._conns.set(conn.peer, conn);
+      conn.on('open', () => {
+        if (!this.roster.some(r => r.id === conn.peer)) {
+          this.roster.push({ id: conn.peer, name: '…', ci: this.freeColor(), ch: 0 });
+        }
+        this.pushRoster();
+      });
+      conn.on('data', d => {
+        if (!d || !d.t) return;
+        const e = this.roster.find(r => r.id === conn.peer);
+        if (d.t === 'hi') {
+          if (e) { e.name = String(d.name || '…').slice(0, 10).toUpperCase(); e.ch = d.ch | 0; }
+          this.pushRoster();
+        } else if (d.t === 'pick') {
+          if (e) e.ch = Math.max(0, Math.min(CHARS.length - 1, d.ch | 0));
+          this.pushRoster();
+        } else if (d.t === 'color') {
+          this.setColor(conn.peer, d.ci);
+        } else if (d.t === 's') {
+          this._states.set(conn.peer, d);
+        } else if (d.t === 'hit') {
+          // Der Host prüft nach: nur was räumlich plausibel ist, zählt.
+          const src = fighters[this.roster.findIndex(r => r.id === conn.peer)];
+          const tgt = fighters[d.i];
+          if (src && tgt && src.alive && tgt.alive) {
+            const dd = Math.hypot(tgt.x - src.x, tgt.z - src.z);
+            if (dd <= PUNCH_RANGE + 1.2) applyDamage(d.i, d.nx, d.nz);
+          }
+        }
+      });
+      conn.on('close', () => {
+        this._conns.delete(conn.peer);
+        this._states.delete(conn.peer);
+        if (state === 'fight' || state === 'countdown') {
+          // Während des Kampfes darf sich die Reihenfolge NICHT verschieben —
+          // die Positionen werden als Roster-Index verschickt.
+          const i = this.roster.findIndex(r => r.id === conn.peer);
+          if (i >= 0 && fighters[i] && fighters[i].alive) { fighters[i].hp = 0; knockOut(i); }
+        } else {
+          this.roster = this.roster.filter(r => r.id !== conn.peer);
+          this.pushRoster();
+        }
+      });
+    });
+
+    this._peer.on('error', e => {
+      note(e.type === 'unavailable-id' ? 'That code was taken — try again' : 'Error: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  join(code, name) {
+    this.leave();
+    this.myName = name;
+    if (!window.Peer) { note('PeerJS could not be loaded'); return; }
+    this._peer = new Peer();
+    this.mode = 'client'; this.code = code;
+
+    this._peer.on('open', id => {
+      this.myId = id;
+      this._host = this._peer.connect('nagrak-' + code, { metadata: { name } });
+      const to = setTimeout(() => {
+        if (!this._host || !this._host.open) {
+          note('Room ' + code + ' is not responding'); this.leave(); backToMenu();
+        }
+      }, 9000);
+
+      this._host.on('open', () => {
+        clearTimeout(to);
+        this._host.send({ t: 'hi', name: this.myName, ch: soloChar });
+        openLobby(code, false);
+      });
+
+      this._host.on('data', d => {
+        if (!d || !d.t) return;
+        if (d.t === 'roster') { this.roster = d.r || []; renderLobby(); }
+        else if (d.t === 'go') { beginRound(); }
+        else if (d.t === 'w') { applyRemote(d.p || []); }
+        else if (d.t === 'hp') { applyHealth(d.h || []); }
+        else if (d.t === 'end') { endRound(d.w); }
+        else if (d.t === 'full') { note('That room is full or already fighting'); this.leave(); backToMenu(); }
+      });
+
+      this._host.on('close', () => { note('The host closed the room'); this.leave(); backToMenu(); });
+    });
+
+    this._peer.on('error', e => {
+      note(e.type === 'peer-unavailable' ? 'Room ' + code + ' not found' : 'Error: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  startRound() {
+    if (!this.isHost()) return;
+    this._states.clear();
+    this.broadcast({ t: 'go' });
+    this.startRelay();
+  },
+
+  pickChar(ch) {
+    soloChar = ch;
+    if (this.isHost()) {
+      const e = this.roster.find(r => r.id === this.myId);
+      if (e) e.ch = ch;
+      this.pushRoster();
+    } else if (this._host && this._host.open) {
+      try { this._host.send({ t: 'pick', ch }); } catch (e) {}
+    }
+  },
+
+  pickColor(ci) {
+    if (this.isHost()) this.setColor(this.myId, ci);
+    else if (this._host && this._host.open) {
+      try { this._host.send({ t: 'color', ci: ci | 0 }); } catch (e) {}
+    }
+  },
+
+  sendState(st) {
+    if (this.mode === 'host') this._states.set(this.myId, st);
+    else if (this._host && this._host.open) {
+      try { this._host.send(Object.assign({ t: 's' }, st)); } catch (e) {}
+    }
+  },
+
+  sendHit(i, nx, nz) {
+    if (this._host && this._host.open) {
+      try { this._host.send({ t: 'hit', i, nx: +nx.toFixed(3), nz: +nz.toFixed(3) }); } catch (e) {}
+    }
+  },
+
+  pushHealth() {
+    if (!this.isHost()) return;
+    this.broadcast({ t: 'hp', h: fighters.map(f => (f.alive ? 1 : 0) * 10 + f.hp) });
+  },
+
+  endRound(w) {
+    if (!this.isHost()) return;
+    this.stopRelay();
+    this.broadcast({ t: 'end', w });
+    endRound(w);
+  },
+
+  startRelay() {
+    if (this._relay || !this.isHost()) return;
+    this._relay = setInterval(() => {
+      const list = [];
+      this.roster.forEach((r, i) => {
+        const st = r.id === this.myId
+          ? { x: me.x, z: me.z, r: me.yaw, p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 }
+          : this._states.get(r.id);
+        if (!st) return;
+        list.push({ i, x: +st.x.toFixed(2), z: +st.z.toFixed(2),
+                    r: +st.r.toFixed(2), p: st.p ? 1 : 0 });
+      });
+      this.broadcast({ t: 'w', p: list });
+      applyRemote(list);
+    }, 50);
+  },
+
+  stopRelay() { if (this._relay) { clearInterval(this._relay); this._relay = null; } },
+
+  freeColor(except) {
+    for (let i = 0; i < COLORS.length; i++) {
+      if (!this.roster.some(r => r.id !== except && r.ci === i)) return i;
+    }
+    return 0;
+  },
+
+  setColor(id, ci) {
+    if (!this.isHost()) return;
+    ci = Math.max(0, Math.min(COLORS.length - 1, ci | 0));
+    const e = this.roster.find(r => r.id === id);
+    if (!e) return;
+    e.ci = this.roster.some(r => r.id !== id && r.ci === ci) ? this.freeColor(id) : ci;
+    this.pushRoster();
+  },
+
+  pushRoster() { this.broadcast({ t: 'roster', r: this.roster }); renderLobby(); },
+  broadcast(m) { this._conns.forEach(c => { if (c.open) { try { c.send(m); } catch (e) {} } }); },
+
+  leave() {
+    this.stopRelay();
+    this._conns.forEach(c => { try { c.close(); } catch (e) {} });
+    this._conns.clear();
+    if (this._host) { try { this._host.close(); } catch (e) {} this._host = null; }
+    if (this._peer) { try { this._peer.destroy(); } catch (e) {} this._peer = null; }
+    this.mode = 'offline'; this.code = null; this.roster = [];
+    this._states.clear();
+  }
+};
+addEventListener('beforeunload', () => Net.leave());
+
+function applyRemote(list) {
+  list.forEach(sn => {
+    const f = fighters[sn.i];
+    if (!f || f.isMe) return;
+    f.netX = sn.x; f.netZ = sn.z; f.netYaw = sn.r;
+    if (sn.p && (clock.elapsedTime - f.punchT) > 0.3) {
+      f.punchT = clock.elapsedTime;
+      f.swungAt = true;                   // Gegner lösen keine Treffer bei uns aus
+    }
+  });
+}
+
+/** Der Host ist die einzige Quelle für Leben und Tod. */
+function applyHealth(h) {
+  h.forEach((v, i) => {
+    const f = fighters[i];
+    if (!f) return;
+    const hp = v % 10, alive = v >= 10;
+    if (hp < f.hp && !f.isMe) f.hitFlash = 0.25;
+    f.hp = hp;
+    if (!alive && f.alive) { f.alive = false; if (f.isMe) showToast('YOU ARE OUT'); }
+  });
+  updateHud();
+}
+
+function note(text) { $('net-note').textContent = text || ''; }
+
+/* ---------------- Lobby ---------------- */
+
+function openLobby(code, isHost) {
+  state = 'lobby';
+  $('menu').classList.add('hidden');
+  $('lobby').classList.remove('hidden');
+  $('lobby-code').textContent = code;
+  $('btn-start').style.display = isHost ? '' : 'none';
+  renderLobby();
+}
+
+function renderSwatches() {
+  const box = $('swatches');
+  const mine = Net.roster.find(r => r.id === Net.myId);
+  const myCi = mine ? mine.ci : -1;
+  box.innerHTML = COLORS.map((c, i) => {
+    const taken = Net.roster.some(r => r.ci === i && r.id !== Net.myId);
+    return '<button class="sw' + (i === myCi ? ' sel' : '') + (taken ? ' taken' : '') +
+      '" data-ci="' + i + '" style="background:' + hex(c) + '"></button>';
+  }).join('');
+  box.querySelectorAll('.sw').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('taken')) return;
+      soloColor = parseInt(el.dataset.ci, 10);
+      Net.pickColor(soloColor);
+    });
+  });
+}
+
+function renderLobby() {
+  const list = Net.roster;
+  $('lobby-list').innerHTML = list.map((r, i) =>
+    '<li class="' + (r.id === Net.myId ? 'me' : '') + '">' +
+    '<span class="who"><span class="dot" style="background:' +
+    hex(COLORS[(r.ci || 0) % COLORS.length]) + '"></span>' + r.name +
+    (r.id === Net.myId ? ' (you)' : '') + '</span><span>' +
+    (CHARS[(r.ch || 0)] === 'AlienHelmet' ? 'TROOPER' : 'SCOUT') + '</span></li>').join('');
+  $('lobby-note').textContent = Net.isHost()
+    ? (list.length > 1 ? list.length + ' fighters ready' : 'Waiting for an opponent …')
+    : 'Waiting for the host to start';
+  $('lobby-picks').querySelectorAll('.pick').forEach(el =>
+    el.classList.toggle('sel', parseInt(el.dataset.ch, 10) === soloChar));
+  renderSwatches();
+}
+
+/* ---------------- Runde ---------------- */
+
+function beginRound() {
+  fighters.forEach(f => scene.remove(f.group));
+  fighters = [];
+  isNet = Net.isOnline();
+
+  if (isNet) {
+    myIndex = Net.roster.findIndex(r => r.id === Net.myId);
+    Net.roster.forEach((e, i) => {
+      const f = makeFighter(e.name, COLORS[(e.ci || 0) % COLORS.length], e.ch || 0,
+                            e.id === Net.myId);
+      fighters.push(f);
+      if (e.id === Net.myId) me = f;
+    });
+    if (Net.isHost()) Net.startRelay();
+  } else {
+    const nm = ($('nm').value || 'FIGHTER').trim().slice(0, 10).toUpperCase() || 'FIGHTER';
+    me = makeFighter(nm, COLORS[soloColor % COLORS.length], soloChar, true);
+    fighters.push(me);
+    const dummy = makeFighter('DUMMY', 0xFF5B45, (soloChar + 1) % CHARS.length, false);
+    dummy.bot = true;
+    fighters.push(dummy);
+  }
+
+  placeFighters();
+  camYaw = me.yaw;
+  updateHud();
+
+  $('menu').classList.add('hidden');
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  if (matchMedia('(pointer:coarse)').matches) $('touch').classList.add('on');
+
+  state = 'countdown';
+  roundStartMs = performance.now() + 3300;
+  let step = 0;
+  const steps = ['3', '2', '1', 'FIGHT!'];
+  const tick = () => {
+    showBig(steps[step], 620);
+    if (steps[step] === 'FIGHT!') sfx.go(); else sfx.count(3 - step);
+    step++;
+    if (step < steps.length) setTimeout(tick, 700);
+  };
+  tick();
+}
+
+function endRound(winnerIdx) {
+  if (state === 'over') return;
+  state = 'over';
+  Net.stopRelay();
+  $('touch').classList.remove('on');
+  const w = fighters[winnerIdx];
+  if (w && w.isMe) sfx.win();
+
+  setTimeout(() => {
+    $('hud').classList.add('hidden');
+    $('res-title').textContent = w ? (w.isMe ? 'YOU WIN!' : w.name + ' WINS') : 'DRAW';
+    $('res-sub').textContent = w && w.isMe
+      ? 'Still standing with ' + w.hp + ' of ' + MAX_HP
+      : 'Better luck next round';
+    $('board').innerHTML = fighters.slice()
+      .sort((a, b) => (b.alive - a.alive) || (b.hp - a.hp))
+      .map((f, i) => '<li class="' + (f.isMe ? 'me' : '') + '">' +
+        '<span class="who"><span class="dot" style="background:' + hex(f.color) + '"></span>' +
+        (i === 0 ? '🥇 ' : (i + 1) + '. ') + f.name + '</span><span>' +
+        (f.alive ? f.hp + ' hp' : 'K.O.') + '</span></li>').join('');
+    $('results').classList.remove('hidden');
+  }, 1200);
+}
+
+function backToMenu() {
+  state = 'menu';
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.add('hidden');
+  $('touch').classList.remove('on');
+  $('menu').classList.remove('hidden');
+}
+
+/* ---------------- Eingabe ---------------- */
+
+function bindInput() {
+  const typing = e => e.target && e.target.tagName === 'INPUT';
+  addEventListener('keydown', e => {
+    if (typing(e)) return;
+    keys[e.code] = true;
+    if (e.code === 'Space' && state === 'fight') { tryPunch(me); e.preventDefault(); }
+  });
+  addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
+
+  // Maus: ziehen dreht die Kamera, Klick schlägt
+  const app = $('app');
+  let dragging = false, lx = 0, ly = 0, moved = 0;
+  app.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch') return;
+    dragging = true; lx = e.clientX; ly = e.clientY; moved = 0;
+  });
+  addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    lx = e.clientX; ly = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    camYaw -= dx * 0.005;
+    camPitch = Math.max(0.05, Math.min(0.85, camPitch + dy * 0.003));
+  });
+  addEventListener('pointerup', e => {
+    if (dragging && moved < 6 && state === 'fight') tryPunch(me);
+    dragging = false;
+  });
+  addEventListener('wheel', e => {
+    camDist = Math.max(5.5, Math.min(15, camDist + Math.sign(e.deltaY) * 0.7));
+  }, { passive: true });
+
+  // Touch: linker Stick läuft, rechter Knopf schlägt
+  const stick = $('stick'), knob = stick.querySelector('i');
+  stick.addEventListener('pointerdown', e => {
+    touch.active = true; touch.id = e.pointerId;
+    const r = stick.getBoundingClientRect();
+    touch.x = r.left + r.width / 2; touch.y = r.top + r.height / 2;
+    stick.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  stick.addEventListener('pointermove', e => {
+    if (!touch.active || e.pointerId !== touch.id) return;
+    let dx = e.clientX - touch.x, dy = e.clientY - touch.y;
+    const d = Math.hypot(dx, dy), max = 42;
+    if (d > max) { dx = dx / d * max; dy = dy / d * max; }
+    touch.dx = dx / max; touch.dy = dy / max;
+    knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => stick.addEventListener(ev, () => {
+    touch.active = false; touch.dx = touch.dy = 0;
+    knob.style.transform = '';
+  }));
+  $('hitbtn').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (state === 'fight') tryPunch(me);
+  });
+  // Auf dem Handy dreht Wischen auf der freien Fläche die Kamera
+  app.addEventListener('touchmove', e => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (app._lt) { camYaw -= (t.clientX - app._lt.x) * 0.006;
+      camPitch = Math.max(0.05, Math.min(0.85, camPitch + (t.clientY - app._lt.y) * 0.004)); }
+    app._lt = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
+  app.addEventListener('touchend', () => { app._lt = null; });
+}
+
+/** Laufrichtung aus Tasten oder Stick, immer relativ zur Kamera. */
+function moveInput() {
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) iz += 1;
+  if (keys['KeyS'] || keys['ArrowDown']) iz -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  if (touch.dx || touch.dy) { ix += touch.dx; iz -= touch.dy; }
+  if (!ix && !iz) return [0, 0];
+  const s = Math.sin(camYaw), c = Math.cos(camYaw);
+  return [ix * c + iz * s, -ix * s + iz * c];
+}
+
+/* ---------------- Bildschleife ---------------- */
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state === 'countdown' && performance.now() >= roundStartMs) state = 'fight';
+
+  if (state === 'fight' || state === 'countdown') {
+    const canMove = state === 'fight';
+    fighters.forEach(f => {
+      if (f.isMe) {
+        const [mx, mz] = canMove ? moveInput() : [0, 0];
+        stepLocal(f, dt, mx, mz);
+        if (canMove) resolvePunch(f);
+      } else if (f.bot) {
+        const [mx, mz] = canMove ? botThink(f, dt) : [0, 0];
+        stepLocal(f, dt, mx, mz);
+        if (canMove) resolvePunch(f);
+      } else {
+        // Mitspieler weich nachziehen — die Wahrheit liegt beim Host
+        f.x += (f.netX - f.x) * Math.min(1, dt * 14);
+        f.z += (f.netZ - f.z) * Math.min(1, dt * 14);
+        let diff = ((f.netYaw - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        f.yaw += diff * Math.min(1, dt * 14);
+        f.walk += dt * 7;
+      }
+    });
+
+    if (isNet && performance.now() - lastSend > 50) {
+      lastSend = performance.now();
+      Net.sendState({ x: me.x, z: me.z, r: me.yaw,
+                      p: (clock.elapsedTime - me.punchT) < 0.05 ? 1 : 0 });
+    }
+    if (!isNet) checkRoundOver();
+  }
+
+  fighters.forEach(f => updateFighterVisual(f, dt));
+  updateCamera(dt);
+
+  $('hitflash').style.opacity = performance.now() < hitflashUntil ? 0.28 : 0;
+  renderer.render(scene, camera);
+}
+
+/* ---------------- Start ---------------- */
+
+if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
+  $('load-note').innerHTML = '<b style="color:#FF5B45">3D libraries could not be loaded.</b>' +
+    '<br>Open via GitHub Pages or a local server.';
+} else {
+  initScene();
+  bindInput();
+  frame();
+
+  new THREE.GLTFLoader().load('arena.glb', gltf => {
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.children.slice().forEach(n => { MODELS[n.name] = n; });
+    buildArena();
+    $('loading').classList.add('hidden');
+    $('menu').classList.remove('hidden');
+    state = 'menu';
+    note(window.Peer ? '' : 'PeerJS not loaded — multiplayer unavailable');
+  }, ev => {
+    if (ev.total) $('load-bar').style.width = Math.round(ev.loaded / ev.total * 100) + '%';
+  }, err => {
+    $('load-note').innerHTML = '<b style="color:#FF5B45">arena.glb not found.</b>' +
+      '<br>It has to sit next to this HTML file.';
+    console.error(err);
+  });
+}
+
+/* ---------------- Knöpfe ---------------- */
+
+const readName = () => ($('nm').value || 'FIGHTER').trim().slice(0, 10).toUpperCase() || 'FIGHTER';
+const wake = () => { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } };
+
+document.querySelectorAll('#menu .pick').forEach(el => el.addEventListener('click', () => {
+  document.querySelectorAll('#menu .pick').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+  soloChar = parseInt(el.dataset.ch, 10);
+}));
+document.querySelectorAll('#lobby-picks .pick').forEach(el => el.addEventListener('click', () => {
+  Net.pickChar(parseInt(el.dataset.ch, 10));
+  renderLobby();
+}));
+
+$('btn-solo').addEventListener('click', () => { wake(); Net.leave(); beginRound(); });
+$('btn-host').addEventListener('click', () => { wake(); note('Opening room …'); Net.host(readName()); });
+$('btn-join').addEventListener('click', () => {
+  wake();
+  const c = ($('code').value || '').trim().toUpperCase();
+  if (!/^[A-Z]{4}$/.test(c)) { note('Room codes are four letters'); return; }
+  note('Connecting to ' + c + ' …');
+  Net.join(c, readName());
+});
+$('btn-start').addEventListener('click', () => {
+  if (!Net.isHost()) return;
+  if (Net.roster.length < 2) { $('lobby-note').textContent = 'At least two fighters needed'; return; }
+  Net.startRound();
+  beginRound();
+});
+$('btn-leave').addEventListener('click', () => { Net.leave(); backToMenu(); note(''); });
+$('btn-menu').addEventListener('click', () => { Net.leave(); backToMenu(); });
+$('btn-again').addEventListener('click', () => {
+  if (Net.isOnline()) {
+    if (Net.isHost()) { Net.startRound(); beginRound(); }
+    else {
+      $('results').classList.add('hidden');
+      $('lobby').classList.remove('hidden');
+      $('lobby-note').textContent = 'Waiting for the host to start the next round';
+    }
+  } else beginRound();
+});
+['nm', 'code'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('btn-join').click(); }
+}));
+
+})();
+</script>
+</body>
+</html>
