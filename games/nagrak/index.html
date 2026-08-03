@@ -362,7 +362,10 @@ let hitflashUntil = 0;
 
 const keys = {};
 const MOUSE_BASE = 0.0026;     // Grundempfindlichkeit; der Regler skaliert sie
-const CROSS_OFF = 0.10;        // Fadenkreuz um diesen Anteil der Breite nach rechts
+/* Das Fadenkreuz sitzt in der Bildmitte. Dass die Figur links steht, kommt
+   allein vom Schulterversatz der Kamera — nicht davon, dass irgendetwas
+   verschoben wird. Genau so ist es in der Vorlage. */
+const CROSS_OFF = 0;
 let sens = 1.0;
 
 /* Einstellungen überleben den Seitenwechsel. Fehlschläge sind egal — dann
@@ -1070,9 +1073,11 @@ function updateCamera(dt) {
 function applyViewOffset() {
   const w = innerWidth, h = innerHeight;
   const d = Math.round(w * CROSS_OFF);
-  camera.setViewOffset(w, h, -d, 0, w, h);
+  // Ohne Versatz wird das Bildfenster ganz zurückgesetzt, statt einen
+  // Nullversatz zu setzen — das spart eine unnötige Sonderbehandlung.
+  if (d === 0) camera.clearViewOffset(); else camera.setViewOffset(w, h, -d, 0, w, h);
   const c = $('cross');
-  if (c) c.style.left = 'calc(50% + ' + d + 'px)';
+  if (c) c.style.left = d === 0 ? '50%' : 'calc(50% + ' + d + 'px)';
 }
 
 /* ---------------- HUD ---------------- */
