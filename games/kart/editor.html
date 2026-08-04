@@ -99,8 +99,13 @@ td:last-child{text-align:right;color:#8FA6BC}
     <div class="stat"><span>Punkte</span><b id="n-points">0</b></div>
     <div class="stat"><span>Länge</span><b id="len">0</b></div>
     <div class="stat"><span>Höhe min / max</span><b id="hrange">–</b></div>
+    <div class="stat"><span>zu steil</span><b id="steep">0</b></div>
     <button id="btn-undo" class="plain" disabled>Letzten Punkt löschen</button>
     <button id="btn-clear" class="red">Alles löschen</button>
+    <button id="btn-load" class="plain">track.json laden</button>
+    <input type="file" id="file" accept=".json" style="display:none">
+    <p class="muted">Rote Abschnitte sind steiler als 35 % — dort liegt die Linie
+      vermutlich an einer Wand statt auf der Strasse.</p>
   </div>
 
   <div class="grp">
@@ -201,6 +206,33 @@ function bindInput() {
     points = []; rebuild();
   });
   $('btn-export').addEventListener('click', exportTrack);
+
+  // Bestehende Strecke weiterbearbeiten statt neu anfangen
+  $('btn-load').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const j = JSON.parse(r.result);
+        if (!Array.isArray(j.points)) throw new Error('keine Punkte');
+        if (j.scale && Math.abs(j.scale - SCALE) > 1e-6) {
+          note('Achtung: andere Skalierung (' + j.scale + ' statt ' + SCALE + ')');
+        }
+        points = j.points.map(p => ({ x:+p.x, y:+p.y, z:+p.z, w:+(p.w||18) }));
+        rebuild();
+        // Kamera über den ersten Punkt stellen
+        if (points.length) {
+          camPos.set(points[0].x, points[0].y + 45, points[0].z + 45);
+          camPitch = 0.7;
+        }
+        note(points.length + ' Punkte geladen.');
+      } catch (err) { note('Datei nicht lesbar: ' + err.message); }
+    };
+    r.readAsText(f);
+    e.target.value = '';
+  });
 }
 
 /* ---------------- Punkte setzen ---------------- */
@@ -247,12 +279,23 @@ function rebuild() {
   });
 
   if (points.length >= 2) {
+    /* Die Linie wird eingefärbt: zu steile Abschnitte rot. Eine Fahrbahn hat
+       selten mehr als 20 % Steigung — alles darüber ist meist versehentlich
+       an einer Wand oder einem Abhang gesetzt. */
     const g = new THREE.BufferGeometry();
-    const verts = [];
-    points.forEach(p => verts.push(p.x, p.y + 0.4, p.z));
-    verts.push(points[0].x, points[0].y + 0.4, points[0].z);   // Runde schliessen
+    const verts = [], cols = [];
+    const n = points.length;
+    for (let i = 0; i <= n; i++) {
+      const a = points[i % n];
+      verts.push(a.x, a.y + 0.4, a.z);
+      const b = points[(i + 1) % n], c = points[(i - 1 + n) % n];
+      const g1 = grade(c, a), g2 = grade(a, b);
+      const bad = Math.max(Math.abs(g1), Math.abs(g2)) > 0.35;
+      cols.push(bad ? 1 : 0.21, bad ? 0.36 : 0.88, bad ? 0.27 : 0.96);
+    }
     g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-    line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x37E0F5 }));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true }));
     scene.add(line);
     buildRibbon();
   }
@@ -284,6 +327,12 @@ function buildRibbon() {
   scene.add(ribbon);
 }
 
+/** Steigung eines Abschnitts: Höhenunterschied geteilt durch waagerechte Strecke. */
+function grade(a, b) {
+  const flat = Math.hypot(b.x - a.x, b.z - a.z);
+  return flat < 0.05 ? 0 : (b.y - a.y) / flat;
+}
+
 function updateStats() {
   const n = points.length;
   $('n-points').textContent = n;
@@ -293,6 +342,13 @@ function updateStats() {
     len += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
   }
   $('len').textContent = Math.round(len);
+  let steep = 0;
+  for (let i = 0; i < n; i++) {
+    if (Math.abs(grade(points[i], points[(i + 1) % n])) > 0.35) steep++;
+  }
+  const el = $('steep');
+  el.textContent = steep;
+  el.style.color = steep ? '#FF5B45' : '#4BD08A';
   if (n) {
     const ys = points.map(p => p.y);
     $('hrange').textContent = Math.round(Math.min(...ys)) + ' / ' + Math.round(Math.max(...ys));
