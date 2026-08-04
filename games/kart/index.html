@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0B1420">
+<title>MERRY MOUNTAIN GP</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{ --ink:#0B1420; --cream:#F2F7FB; --cyan:#37E0F5; --red:#FF5B45; --amber:#FFC53D;
+       --green:#4BD08A; --violet:#B05BFF; --f:"Baloo 2","Trebuchet MS",sans-serif; }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;width:100%;overflow:hidden;background:#05090F;touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--f);color:var(--cream);font-weight:600}
+::-webkit-scrollbar{display:none}
+#app{position:fixed;inset:0}
+canvas{display:block;width:100%;height:100%}
+.hidden{display:none !important}
+
+/* ---------- HUD ---------- */
+#hud{position:fixed;inset:0;z-index:8;pointer-events:none}
+#lapbox{position:absolute;top:max(12px,env(safe-area-inset-top));left:14px;
+  background:rgba(11,20,32,.62);border:3px solid rgba(242,247,251,.85);border-radius:16px;
+  padding:6px 13px}
+#lapbox .k{font-size:.62rem;letter-spacing:.2em;color:#9FB6CC}
+#lapbox .v{font-size:1.5rem;font-weight:800;line-height:1}
+#posbox{position:absolute;top:max(12px,env(safe-area-inset-top));right:14px;
+  background:rgba(11,20,32,.62);border:3px solid rgba(242,247,251,.85);border-radius:16px;
+  padding:6px 13px;text-align:right}
+#posbox .v{font-size:1.9rem;font-weight:800;line-height:1}
+#posbox .v sup{font-size:.9rem}
+#speedbox{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));right:16px;
+  text-align:right;text-shadow:0 3px 0 rgba(5,9,15,.65)}
+#speedbox .v{font-size:2.6rem;font-weight:800;line-height:.9}
+#speedbox .k{font-size:.66rem;letter-spacing:.22em;color:#9FB6CC}
+#board{position:absolute;top:76px;right:14px;background:rgba(11,20,32,.55);
+  border:2px solid rgba(242,247,251,.5);border-radius:13px;padding:6px 10px;font-size:.78rem}
+#board div{display:flex;gap:8px;align-items:center;padding:1px 0}
+#board .dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink)}
+#board .me{color:var(--amber);font-weight:800}
+#drift{position:absolute;bottom:19%;left:50%;transform:translateX(-50%);font-weight:800;
+  font-size:1.5rem;-webkit-text-stroke:4px var(--ink);paint-order:stroke fill}
+#big{position:fixed;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+  pointer-events:none}
+#big span{font-weight:800;font-size:clamp(3rem,15vw,7rem);color:var(--cream);
+  -webkit-text-stroke:6px var(--ink);paint-order:stroke fill;animation:pop .45s ease-out}
+@keyframes pop{from{transform:scale(1.6);opacity:0}to{transform:scale(1);opacity:1}}
+#toast{position:fixed;left:50%;top:30%;transform:translateX(-50%);z-index:9;pointer-events:none;
+  font-weight:800;font-size:1.4rem;color:var(--amber);-webkit-text-stroke:4px var(--ink);
+  paint-order:stroke fill;animation:up .9s ease-out}
+@keyframes up{0%{opacity:0;transform:translate(-50%,14px)}20%{opacity:1;transform:translate(-50%,-4px)}
+  100%{opacity:0;transform:translate(-50%,-40px)}}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  padding:max(14px,env(safe-area-inset-top)) 14px max(14px,env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(40,90,130,.55),rgba(5,9,15,.94))}
+.card{width:100%;max-width:400px;max-height:100%;overflow-y:auto;text-align:center;
+  background:#101B29;border:4px solid var(--cyan);border-radius:24px;
+  box-shadow:0 0 0 4px rgba(11,20,32,.9);padding:clamp(18px,4vh,26px) clamp(16px,5vw,24px)}
+h1{font-weight:800;font-size:clamp(1.6rem,7vw,2.2rem);line-height:1}
+h1 span{color:var(--cyan)}
+.sub{color:#8FA6BC;font-size:.88rem;margin:8px 0 4px}
+label{display:block;text-align:left;font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;
+  color:#6F87A0;margin:13px 0 5px}
+input[type=text]{width:100%;background:#08111C;border:3px solid var(--cyan);border-radius:13px;
+  color:var(--cream);font-family:var(--f);font-weight:700;font-size:1rem;letter-spacing:.14em;
+  padding:9px;text-align:center;text-transform:uppercase}
+input[type=text]:focus{outline:none;border-color:var(--amber)}
+.btn{display:block;width:100%;margin-top:9px;padding:11px;cursor:pointer;font-family:var(--f);
+  font-weight:800;font-size:.92rem;letter-spacing:.05em;color:var(--ink);background:var(--cyan);
+  border:3px solid var(--ink);border-radius:15px;box-shadow:0 5px 0 rgba(5,9,15,.7)}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 rgba(5,9,15,.7)}
+.btn.red{background:var(--red);color:#fff}
+.btn.plain{background:#22344A;color:var(--cream)}
+.row{display:flex;gap:8px}
+.divider{display:flex;align-items:center;gap:10px;margin:15px 0 2px;color:#6F87A0;
+  font-size:.62rem;letter-spacing:.18em;text-transform:uppercase}
+.divider::before,.divider::after{content:"";flex:1;height:2px;background:#22344A}
+.bigcode{font-weight:800;font-size:2.4rem;letter-spacing:.34em;color:var(--ink);
+  background:var(--cyan);border:3px solid var(--ink);border-radius:15px;padding:5px 0 5px 16px;
+  margin:4px 0}
+.note{margin-top:9px;font-size:.72rem;color:#6F87A0;min-height:1.1em}
+.swatches{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:5px 0}
+.sw{width:31px;height:31px;border-radius:9px;border:3px solid var(--ink);cursor:pointer}
+.sw.sel{box-shadow:0 0 0 3px #101B29,0 0 0 6px var(--cyan);transform:scale(1.1)}
+.sw.taken{opacity:.26;cursor:not-allowed}
+.drv{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;margin:5px 0}
+.dv{width:34px;height:34px;border-radius:9px;border:3px solid #22344A;background:#08111C;
+  cursor:pointer;font-weight:800;font-size:.8rem;display:grid;place-items:center}
+.dv.sel{border-color:var(--cyan);background:#1B3550}
+.list{list-style:none;margin:9px 0 2px;padding:0;text-align:left}
+.list li{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:7px 10px;
+  margin-bottom:5px;border:3px solid #22344A;border-radius:12px;background:#08111C;font-size:.86rem;
+  font-weight:700}
+.list li.me{background:#1B3550;border-color:var(--cyan)}
+.list .who{display:flex;align-items:center;gap:8px}
+.list .dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink)}
+.hint{display:flex;flex-wrap:wrap;gap:4px 13px;justify-content:center;margin-top:13px;
+  font-size:.72rem;color:#6F87A0}
+.hint b{color:var(--cream)}
+#loading{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+  background:#05090F;flex-direction:column;gap:13px}
+#loading .bar{width:min(300px,70vw);height:12px;border:3px solid var(--cyan);border-radius:8px;
+  overflow:hidden}
+#loading .bar i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s}
+
+/* ---------- Touch ---------- */
+#touch{position:fixed;inset:auto 0 0 0;z-index:12;display:none;
+  padding:0 18px max(20px,env(safe-area-inset-bottom));justify-content:space-between;
+  align-items:flex-end}
+#touch.on{display:flex}
+.pad{display:flex;gap:10px}
+.key{width:70px;height:70px;border-radius:20px;border:3px solid var(--ink);
+  background:rgba(242,247,251,.88);color:var(--ink);display:grid;place-items:center;
+  font-size:1.15rem;font-weight:800;box-shadow:0 4px 0 rgba(5,9,15,.6)}
+.key:active{transform:translateY(3px);box-shadow:none}
+.key.gas{background:var(--green)}
+.key.dr{background:var(--amber);font-size:.78rem}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="loading">
+  <h1>MERRY MOUNTAIN <span>GP</span></h1>
+  <p class="sub" id="load-note">Strecke wird geladen …</p>
+  <div class="bar"><i id="load-bar"></i></div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="lapbox"><div class="k">RUNDE</div><div class="v"><span id="lap">1</span>/3</div></div>
+  <div id="posbox"><div class="k">PLATZ</div><div class="v" id="pos">1<sup>.</sup></div></div>
+  <div id="board"></div>
+  <div id="speedbox"><div class="v" id="spd">0</div><div class="k">KM/H</div></div>
+  <div id="drift"></div>
+</div>
+
+<div id="big" class="hidden"><span>3</span></div>
+<div id="toast" class="hidden"></div>
+
+<div id="touch">
+  <div class="pad">
+    <div class="key" data-k="left">◀</div>
+    <div class="key" data-k="right">▶</div>
+  </div>
+  <div class="pad">
+    <div class="key dr" data-k="drift">DRIFT</div>
+    <div class="key gas" data-k="gas">▲</div>
+  </div>
+</div>
+
+<!-- Menü -->
+<div class="overlay hidden" id="menu">
+  <div class="card">
+    <h1>MERRY MOUNTAIN <span>GP</span></h1>
+    <p class="sub">Drei Runden über den Berg. Driften lädt den Turbo.</p>
+
+    <label for="nm">Dein Name</label>
+    <input type="text" id="nm" maxlength="10" placeholder="FAHRER" autocomplete="off" spellcheck="false">
+
+    <label>Kartfarbe</label>
+    <div class="swatches" id="menu-col"></div>
+
+    <label for="code">Raumcode</label>
+    <input type="text" id="code" maxlength="4" placeholder="ABCD" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button class="btn plain" id="btn-host">Raum erstellen</button>
+      <button class="btn red" id="btn-join">Beitreten</button>
+    </div>
+
+    <div class="divider"><span>oder allein</span></div>
+    <button class="btn" id="btn-solo">Zeitfahren</button>
+
+    <p class="note" id="net-note"></p>
+    <div class="hint">
+      <span><b>W</b> / <b>↑</b> Gas</span><span><b>S</b> Bremse</span>
+      <span><b>A D</b> lenken</span><span><b>Shift</b> driften</span>
+      <span><b>R</b> zurücksetzen</span>
+    </div>
+  </div>
+</div>
+
+<!-- Lobby -->
+<div class="overlay hidden" id="lobby">
+  <div class="card">
+    <p class="sub" style="margin-bottom:2px">Diesen Code teilen</p>
+    <div class="bigcode" id="lobby-code">----</div>
+    <label>Kartfarbe</label>
+    <div class="swatches" id="lobby-col"></div>
+    <ul class="list" id="lobby-list"></ul>
+    <button class="btn red" id="btn-start">Rennen starten</button>
+    <button class="btn plain" id="btn-leave">Raum verlassen</button>
+    <p class="note" id="lobby-note">—</p>
+  </div>
+</div>
+
+<!-- Ergebnis -->
+<div class="overlay hidden" id="results">
+  <div class="card">
+    <h1 id="res-title">ZIEL</h1>
+    <p class="sub" id="res-sub">—</p>
+    <ul class="list" id="res-list"></ul>
+    <button class="btn red" id="btn-again">Nochmal</button>
+    <button class="btn plain" id="btn-menu">Zurück zum Menü</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.5/peerjs.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* ============================================================
+   MERRY MOUNTAIN GP
+   Die Strecke ist ein reiner Optik-Rip ohne Kollisionsdaten. Gefahren
+   wird deshalb auf einem Band, das aus der von Hand markierten
+   Ideallinie entsteht: Höhe, Richtung und Breite kommen aus track.json.
+   Das ist nicht nur ein Notbehelf — es macht die Fahrphysik auch
+   berechenbar und über das Netz reproduzierbar.
+   ============================================================ */
+
+const SCALE = 6.0;             // Massstab des Rundkurses; steht auch in track.json
+const LAPS = 3;
+
+/* ---- Fahrwerte. Kart ist 1.79 lang, damit ist 1 Einheit knapp ein halber
+   Meter. 30 Einheiten/s entsprechen also grob 55 km/h Anzeige. ---- */
+/* Die erste Fassung schob das Kart einfach entlang seiner Blickrichtung. Damit
+   gab es keine Masse, keinen Schwung und kein Untersteuern — es fühlte sich an
+   wie ein Pfeil, den man dreht, nicht wie ein Fahrzeug. Jetzt hat das Kart eine
+   echte Geschwindigkeit als Vektor: der Motor schiebt nach vorn, die Reifen
+   bauen den seitlichen Anteil ab. Genau dieser Abbau ist das Fahrgefühl. */
+const ACCEL = 30;              // Schubkraft; die Kurve unten nimmt sie oben zurück
+const TOP_SPEED = 21;          // vorher 30 — das waren fast 17 Kartlängen je Sekunde
+const TOP_REVERSE = 6;
+const BRAKE = 30;
+const DRAG = 0.024;            // Luftwiderstand, wächst mit dem Quadrat
+const ROLL = 1.2;              // Rollwiderstand
+const GRIP = 7.5;              // wie schnell seitliches Rutschen abgebaut wird
+const DRIFT_GRIP = 1.5;        // im Drift lässt der Halt bewusst nach
+const OFFROAD_TOP = 0.46;      // so viel Tempo bleibt neben der Bahn
+const OFFROAD_DRAG = 6.5;
+const OFFROAD_GRIP = 3.2;
+const TURN_RATE = 2.5;         // Radiant pro Sekunde bei niedrigem Tempo
+const TURN_HIGH = 0.42;        // davon bleibt bei Höchsttempo übrig
+const DRIFT_TURN = 1.35;
+const DRIFT_MIN_SPEED = 9;
+const MINI_TURBO = [0.85, 1.7, 2.7];   // Sekunden bis zur nächsten Stufe
+const BOOST_SPEED = [0, 5, 8, 11];     // Zusatztempo über der Grenze
+const BOOST_TIME = [0, 0.8, 1.3, 1.9];
+const GRAVITY_PULL = 9.0;      // wie stark Steigungen bremsen und Gefälle ziehen
+const RESPAWN_OFF = 9;         // so weit neben der Bahn wird zurückgesetzt
+const MIN_WIDTH = 6;           // schmaler als das wird keine Stelle gefahren
+
+const COLORS = [0xE4322F, 0x2F7FF0, 0x4BD08A, 0xFFD93D, 0xB05BFF, 0xFF5FA8,
+                0xFF8C1A, 0x22C9D8, 0xF2F7FB, 0x2B3038, 0x9BE02F, 0x8B5E3C];
+/* Die vier rötlichen Materialien sind die Karosserie — Reifen, Chrom und
+   Sitz behalten dadurch ihre Farbe. */
+const BODY_MATS = ['Material.019', 'Material.008', 'Material.010', 'Material.015'];
+
+const $ = id => document.getElementById(id);
+
+let scene, camera, renderer, clock;
+let TRACK = null, KART = null, DRIVER = null;
+let karts = [], me = null;
+let state = 'load';            // load | menu | lobby | countdown | race | over
+let raceStartMs = 0, isNet = false, myIndex = 0, lastSend = 0;
+let myColor = 0, myDriver = 0;
+let camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
+const keys = {};
+const touch = { gas: false, left: false, right: false, drift: false };
+
+/* ---------------- Ton ---------------- */
+
+let actx = null;
+function beep(type, f, dur, vol) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(f, n);
+    o.frequency.exponentialRampToValueAtTime(Math.max(40, f * 0.6), n + dur);
+    g.gain.setValueAtTime(vol, n);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(n + dur + 0.02);
+  } catch (e) {}
+}
+/* Ein durchgehender Motorton, dessen Höhe am Tempo hängt. Das trägt zum
+   Renngefühl mehr bei als jede Zahl in der Physik — ohne ihn wirkt selbst
+   gutes Fahrverhalten leblos. */
+const Engine = {
+  osc: null, gain: null, sub: null,
+  start() {
+    if (this.osc || !actx) return;
+    try {
+      this.gain = actx.createGain(); this.gain.gain.value = 0;
+      this.osc = actx.createOscillator(); this.osc.type = 'sawtooth';
+      this.sub = actx.createOscillator(); this.sub.type = 'square';
+      const g2 = actx.createGain(); g2.gain.value = 0.35;
+      const filt = actx.createBiquadFilter();
+      filt.type = 'lowpass'; filt.frequency.value = 900;
+      this.osc.connect(filt); this.sub.connect(g2); g2.connect(filt);
+      filt.connect(this.gain); this.gain.connect(actx.destination);
+      this.osc.start(); this.sub.start();
+    } catch (e) { this.osc = null; }
+  },
+  update(speed, top, boosting) {
+    if (!this.osc || !actx) return;
+    const f = Math.min(1, Math.abs(speed) / Math.max(1, top));
+    const n = actx.currentTime;
+    this.osc.frequency.setTargetAtTime(70 + f * 210 + (boosting ? 60 : 0), n, 0.06);
+    this.sub.frequency.setTargetAtTime(35 + f * 105, n, 0.06);
+    this.gain.gain.setTargetAtTime(0.028 + f * 0.045, n, 0.08);
+  },
+  stop() {
+    if (!this.gain || !actx) return;
+    this.gain.gain.setTargetAtTime(0, actx.currentTime, 0.15);
+  }
+};
+
+const sfx = {
+  count: n => beep('triangle', 440 + n * 70, 0.13, 0.06),
+  go:    () => [660, 880, 1320].forEach((f, i) => setTimeout(() => beep('square', f, 0.15, 0.06), i * 70)),
+  boost: () => { beep('sawtooth', 300, 0.3, 0.07); setTimeout(() => beep('square', 700, 0.2, 0.05), 60); },
+  lap:   () => [523, 784].forEach((f, i) => setTimeout(() => beep('triangle', f, 0.2, 0.06), i * 120)),
+  win:   () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep('triangle', f, 0.26, 0.06), i * 110)),
+  off:   () => beep('sawtooth', 90, 0.12, 0.03)
+};
+
+/* ---------------- Strecke aus der Ideallinie ---------------- */
+
+/* Aus den markierten Punkten wird eine dicht abgetastete Mittellinie. Zu jeder
+   Probe gehören Position, Fahrtrichtung, Querachse und Fahrbahnbreite. Alles
+   Weitere — Höhe, Neigung, ob man neben der Bahn ist, Rundenfortschritt —
+   folgt daraus. */
+const Track = {
+  pts: [], cum: [], total: 0, step: 0.6,
+
+  build(raw) {
+    const P = raw.map(p => ({ x: p.x, y: p.y, z: p.z, w: Math.max(MIN_WIDTH, p.w || 12) }));
+    const n = P.length;
+    const at = (i) => P[((i % n) + n) % n];
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+      const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
+      const steps = Math.max(1, Math.round(segLen / this.step));
+      for (let s = 0; s < steps; s++) {
+        const t = s / steps;
+        out.push({
+          x: cr(p0.x, p1.x, p2.x, p3.x, t),
+          y: cr(p0.y, p1.y, p2.y, p3.y, t),
+          z: cr(p0.z, p1.z, p2.z, p3.z, t),
+          w: p1.w + (p2.w - p1.w) * t
+        });
+      }
+    }
+    // Richtung und Querachse
+    const m = out.length;
+    for (let i = 0; i < m; i++) {
+      const a = out[(i - 1 + m) % m], b = out[(i + 1) % m];
+      let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+      const L = Math.hypot(dx, dy, dz) || 1;
+      out[i].fx = dx / L; out[i].fy = dy / L; out[i].fz = dz / L;
+      const fl = Math.hypot(out[i].fx, out[i].fz) || 1;
+      out[i].rx = -out[i].fz / fl; out[i].rz = out[i].fx / fl;   // rechts, waagerecht
+    }
+    this.pts = out;
+    this.cum = [0];
+    for (let i = 1; i <= m; i++) {
+      const a = out[i - 1], b = out[i % m];
+      this.cum.push(this.cum[i - 1] + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z));
+    }
+    this.total = this.cum[m];
+    return m;
+  },
+
+  /* Nächste Probe suchen. Karts bewegen sich stetig, deshalb reicht ein
+     Fenster um den letzten Treffer — sonst müsste man jedes Bild über
+     alle 400 Proben laufen. */
+  nearest(x, z, last) {
+    const m = this.pts.length;
+    let bi = 0, bd = Infinity;
+    if (last === undefined || last < 0) {
+      for (let i = 0; i < m; i++) {
+        const p = this.pts[i], d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+        if (d < bd) { bd = d; bi = i; }
+      }
+      return bi;
+    }
+    for (let k = -25; k <= 25; k++) {
+      const i = ((last + k) % m + m) % m;
+      const p = this.pts[i], d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    // Zu weit weg? Dann einmal alles absuchen statt hängenzubleiben.
+    if (bd > 900) return this.nearest(x, z, -1);
+    return bi;
+  },
+
+  /** Höhe, Querabstand und Breite an dieser Stelle. */
+  sample(x, z, idx) {
+    const p = this.pts[idx];
+    const dx = x - p.x, dz = z - p.z;
+    const lat = dx * p.rx + dz * p.rz;              // + = rechts der Mitte
+    const along = dx * p.fx + dz * p.fz;
+    return { y: p.y + along * (p.fy / Math.max(0.15, Math.hypot(p.fx, p.fz))),
+             lat, w: p.w, fx: p.fx, fy: p.fy, fz: p.fz };
+  },
+
+  progress(idx, x, z) {
+    const p = this.pts[idx];
+    const along = (x - p.x) * p.fx + (z - p.z) * p.fz;
+    return this.cum[idx] + along;
+  }
+};
+function cr(a, b, c, d, t) {   // Catmull-Rom
+  const t2 = t * t, t3 = t2 * t;
+  return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 +
+                (-a + 3 * b - 3 * c + d) * t3);
+}
+
+/* ---------------- Szene ---------------- */
+
+function initScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x9CC9EC);
+  scene.fog = new THREE.Fog(0xBEDCF2, 90, 340);
+
+  camera = new THREE.PerspectiveCamera(68, innerWidth / innerHeight, 0.1, 900);
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  $('app').appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xE8F4FF, 0x54687C, 1.15));
+  const sun = new THREE.DirectionalLight(0xFFF6E6, 1.35);
+  sun.position.set(60, 140, 40);
+  scene.add(sun);
+
+  clock = new THREE.Clock();
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+/* ---------------- Kart ---------------- */
+
+function makeKart(name, color, driverIdx, isMe) {
+  const g = new THREE.Group();
+
+  const body = KART.clone(true);
+  body.traverse(m => {
+    if (!m.isMesh) return;
+    m.material = m.material.clone();
+    if (BODY_MATS.indexOf(m.material.name) >= 0) m.material.color.setHex(color);
+  });
+  g.add(body);
+
+  /* Die Figur hat kein Skelett, lässt sich also nicht in eine Sitzhaltung
+     biegen. Stattdessen sitzt sie so tief im Chassis, dass die Beine darin
+     verschwinden — sichtbar bleiben Oberkörper und Kopf über dem Sitz.
+     Ein leichtes Vorneigen sieht aus, als griffe sie ans Lenkrad. */
+  let driver = null;
+  if (DRIVER) {
+    driver = DRIVER.clone(true);
+    driver.traverse(m => { if (m.isMesh) m.material = m.material.clone(); });
+    driver.scale.setScalar(0.62);          // 1.83 hoch -> 1.13
+    driver.position.set(0, -0.46, -0.12);
+    driver.rotation.x = 0.16;
+    g.add(driver);
+  }
+
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.95, 18),
+    new THREE.MeshBasicMaterial({ color: 0x06121E, transparent: true, opacity: 0.34 }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.03;
+  g.add(shadow);
+
+  // Funken beim Drift
+  const spark = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x9FE8FF, transparent: true, opacity: 0 }));
+  spark.position.set(0, 0.15, 0.75);
+  g.add(spark);
+
+  scene.add(g);
+  return {
+    group: g, body, driver, shadow, spark, name, color, driverIdx, isMe: !!isMe,
+    x: 0, y: 0, z: 0, yaw: 0, speed: 0, vx: 0, vz: 0, engine: null,
+    idx: 0, lat: 0, lap: 1, prog: 0, lastProg: 0, dist: 0, finished: false, finishT: 0,
+    drift: 0, driftDir: 0, driftT: 0, boost: 0, boostSpd: 0, offT: 0,
+    netX: 0, netZ: 0, netY: 0, netYaw: 0, place: 1, bot: false
+  };
+}
+
+function placeKarts() {
+  const n = karts.length;
+  karts.forEach((k, i) => {
+    // Startaufstellung versetzt hinter der Linie, zwei pro Reihe
+    const back = 2 + Math.floor(i / 2) * 3.2;
+    const side = (i % 2 === 0 ? -1 : 1) * 2.2;
+    const idx = Track.nearest(Track.pts[0].x, Track.pts[0].z, -1);
+    let s = Track.cum[idx] - back;
+    if (s < 0) s += Track.total;
+    const j = sampleAt(s);
+    const p = Track.pts[j];
+    k.x = p.x + p.rx * side;
+    k.z = p.z + p.rz * side;
+    k.y = p.y;
+    k.yaw = Math.atan2(p.fx, p.fz);
+    k.idx = j;
+    k.speed = 0; k.vx = 0; k.vz = 0; k.lap = 1; k.finished = false; k.finishT = 0;
+    k.drift = 0; k.driftT = 0; k.boost = 0; k.offT = 0; k.dist = 0;
+    k.prog = k.lastProg = Track.progress(j, k.x, k.z);
+    k.netX = k.x; k.netZ = k.z; k.netY = k.y; k.netYaw = k.yaw;
+    k.group.position.set(k.x, k.y, k.z);
+    k.group.rotation.set(0, k.yaw, 0);
+  });
+}
+function sampleAt(s) {
+  const m = Track.pts.length;
+  s = ((s % Track.total) + Track.total) % Track.total;
+  let lo = 0, hi = m;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (Track.cum[mid] < s) lo = mid + 1; else hi = mid; }
+  return Math.max(0, Math.min(m - 1, lo - 1));
+}
+
+/* ---------------- Fahrphysik ---------------- */
+
+function steerInput() {
+  let s = 0;
+  if (keys['KeyA'] || keys['ArrowLeft'] || touch.left) s -= 1;
+  if (keys['KeyD'] || keys['ArrowRight'] || touch.right) s += 1;
+  return s;
+}
+const gasInput = () => keys['KeyW'] || keys['ArrowUp'] || touch.gas;
+const brakeInput = () => keys['KeyS'] || keys['ArrowDown'];
+const driftInput = () => keys['ShiftLeft'] || keys['ShiftRight'] || touch.drift;
+
+function driveLocal(k, dt) {
+  const steer = k.isMe ? steerInput() : botSteer(k);
+  const gas = k.isMe ? gasInput() : true;
+  const brake = k.isMe ? brakeInput() : false;
+  const wantDrift = k.isMe ? driftInput() : false;
+
+  k.idx = Track.nearest(k.x, k.z, k.idx);
+  const s = Track.sample(k.x, k.z, k.idx);
+  const off = Math.abs(s.lat) > s.w / 2;
+
+  // Blickrichtung und Querachse des Karts
+  const hx = Math.sin(k.yaw), hz = Math.cos(k.yaw);
+  const sx = hz, sz = -hx;
+  // Geschwindigkeit in längs und quer zerlegen
+  let vf = k.vx * hx + k.vz * hz;
+  let vs = k.vx * sx + k.vz * sz;
+
+  const boosting = k.boost > 0;
+  const top = TOP_SPEED * (off ? OFFROAD_TOP : 1) + (boosting ? k.boostSpd : 0);
+
+  /* Schub fällt zum Höchsttempo hin ab. Eine feste Kraft würde das Kart in
+     einer Sekunde ans Limit reissen — genau das fühlte sich zu schnell an. */
+  if (gas && !brake) {
+    const room = Math.max(0, 1 - Math.max(0, vf) / top);
+    vf += ACCEL * Math.pow(room, 0.75) * dt * (boosting ? 1.6 : 1);
+  } else if (brake) {
+    vf -= BRAKE * dt;
+  }
+  // Steigung, Rollen und Luft
+  vf -= s.fy * GRAVITY_PULL * dt;
+  vf -= (off ? OFFROAD_DRAG : ROLL) * Math.sign(vf) * dt;
+  vf -= DRAG * vf * Math.abs(vf) * dt;
+  vf = Math.max(-TOP_REVERSE, Math.min(top, vf));
+  if (Math.abs(vf) < 0.04 && !gas) vf = 0;
+
+  // Drift: erst ab Tempo und nur mit Lenkeinschlag
+  if (wantDrift && !k.drift && vf > DRIFT_MIN_SPEED && steer !== 0) {
+    k.drift = 1; k.driftDir = steer; k.driftT = 0;
+    beep('square', 240, 0.14, 0.04);
+  }
+  if (k.drift && (!wantDrift || vf < DRIFT_MIN_SPEED * 0.55)) releaseDrift(k);
+  if (k.drift) k.driftT += dt;
+
+  /* Der seitliche Anteil wird abgebaut, nicht gelöscht. Wie schnell, entscheidet
+     der Grip — im Drift bewusst langsam, neben der Bahn ebenfalls. Daraus
+     entstehen Untersteuern in schnellen Kurven und das Ausbrechen im Drift. */
+  const gripNow = k.drift ? DRIFT_GRIP : (off ? OFFROAD_GRIP : GRIP);
+  vs -= vs * Math.min(1, gripNow * dt);
+
+  /* Lenkeinschlag nimmt mit dem Tempo ab und braucht Fahrt. Stehend dreht
+     sich nichts, das gehört zu einem Fahrzeug. */
+  const fast = Math.min(1, Math.abs(vf) / TOP_SPEED);
+  const rate = TURN_RATE * (1 - (1 - TURN_HIGH) * fast);
+  const roll = Math.min(1, Math.abs(vf) / 3.5);
+  let turn = steer * rate;
+  if (k.drift) turn = k.driftDir * DRIFT_TURN + steer * rate * 0.5;
+  /* MINUS, nicht PLUS. Vorwärts ist (sin yaw, cos yaw); die rechte Bildschirm-
+     seite liegt aber auf (-cos yaw, sin yaw). Ein wachsendes yaw dreht das Kart
+     deshalb nach LINKS. */
+  k.yaw -= turn * dt * Math.sign(vf || 1) * roll;
+
+  // Zurück in Weltkoordinaten und fahren
+  const nhx = Math.sin(k.yaw), nhz = Math.cos(k.yaw);
+  k.vx = nhx * vf + nhz * vs;
+  k.vz = nhz * vf - nhx * vs;
+  k.x += k.vx * dt;
+  k.z += k.vz * dt;
+  k.speed = vf;
+  k.slipNow = vs;
+
+  // Turbo abbauen
+  if (k.boost > 0) k.boost = Math.max(0, k.boost - dt);
+
+  // Zu weit neben der Bahn: zurücksetzen
+  k.idx = Track.nearest(k.x, k.z, k.idx);
+  const s2 = Track.sample(k.x, k.z, k.idx);
+  k.lat = s2.lat;
+  if (Math.abs(s2.lat) > s2.w / 2 + RESPAWN_OFF) {
+    k.offT += dt;
+    if (k.offT > 1.2) respawn(k);
+  } else k.offT = 0;
+  if (off && k.isMe && Math.random() < dt * 6) sfx.off();
+
+  // Höhe folgt der Fahrbahn
+  k.y = s2.y;
+
+  updateProgress(k);
+}
+
+function releaseDrift(k) {
+  if (!k.drift) return;
+  let lvl = 0;
+  for (let i = 0; i < MINI_TURBO.length; i++) if (k.driftT >= MINI_TURBO[i]) lvl = i + 1;
+  if (lvl > 0) {
+    k.boost = BOOST_TIME[lvl];
+    k.boostSpd = BOOST_SPEED[lvl];
+    const h = Math.sin(k.yaw), z2 = Math.cos(k.yaw);
+    k.vx += h * BOOST_SPEED[lvl] * 0.55;
+    k.vz += z2 * BOOST_SPEED[lvl] * 0.55;
+    if (k.isMe) { sfx.boost(); showToast('TURBO ' + lvl); }
+  }
+  k.drift = 0; k.driftT = 0;
+}
+
+function respawn(k) {
+  const p = Track.pts[k.idx];
+  k.x = p.x; k.z = p.z; k.y = p.y;
+  k.yaw = Math.atan2(p.fx, p.fz);
+  k.speed = Math.min(k.speed, 5); k.vx = Math.sin(k.yaw) * k.speed; k.vz = Math.cos(k.yaw) * k.speed;
+  k.drift = 0; k.driftT = 0; k.boost = 0; k.offT = 0;
+  if (k.isMe) showToast('ZURÜCK AUF DIE BAHN');
+}
+
+/* Rundenzählung über den Fortschritt entlang der Linie. Ein Sprung um mehr als
+   die halbe Runde bedeutet, dass die Start-Ziel-Linie überfahren wurde —
+   vorwärts zählt eine Runde, rückwärts eine ab. */
+function updateProgress(k) {
+  const p = Track.progress(k.idx, k.x, k.z);
+  const half = Track.total / 2;
+  let d = p - k.lastProg;
+  if (d < -half) { k.lap++; if (k.isMe && k.lap <= LAPS) sfx.lap(); }
+  else if (d > half) k.lap--;
+  k.lastProg = p;
+  k.prog = p;
+  k.dist = (k.lap - 1) * Track.total + p;
+
+  if (!k.finished && k.lap > LAPS) {
+    k.finished = true;
+    k.finishT = clock.elapsedTime - (raceStartMs / 1000);
+    if (k.isMe) { sfx.win(); showToast('ZIEL'); }
+    checkRaceOver();
+  }
+}
+
+/* ---------------- Bot fürs Zeitfahren ---------------- */
+
+function botSteer(k) {
+  // Zielt auf einen Punkt weiter vorn auf der Linie. Das Vorzeichen ist
+  // gedreht, weil der Lenkwert unten abgezogen statt addiert wird.
+  const ahead = Track.pts[(k.idx + 14) % Track.pts.length];
+  const want = Math.atan2(ahead.x - k.x, ahead.z - k.z);
+  let d = ((want - k.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  return Math.max(-1, Math.min(1, -d * 2.2));
+}
+
+/* ---------------- Darstellung ---------------- */
+
+function updateKartVisual(k, dt) {
+  const g = k.group;
+  g.position.set(k.x, k.y, k.z);
+
+  // Im Drift steht das Kart schräg zur Fahrtrichtung
+  const slip = k.drift ? k.driftDir * 0.42 : 0;
+  g.rotation.y += (((k.yaw + slip) - g.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI)
+                  * Math.min(1, dt * 18);
+
+  // Neigung an die Steigung anlegen
+  const p = Track.pts[k.idx];
+  const pitch = -Math.asin(Math.max(-1, Math.min(1, p.fy)));
+  g.rotation.x += (pitch - g.rotation.x) * Math.min(1, dt * 6);
+  g.rotation.z += ((k.drift ? k.driftDir * 0.14 : 0) - g.rotation.z) * Math.min(1, dt * 8);
+
+  // Funken färben sich mit der Turbostufe
+  let lvl = 0;
+  for (let i = 0; i < MINI_TURBO.length; i++) if (k.driftT >= MINI_TURBO[i]) lvl = i + 1;
+  k.spark.material.opacity = k.drift && lvl ? 0.55 + 0.45 * Math.sin(clock.elapsedTime * 30) : 0;
+  k.spark.material.color.setHex([0, 0x37E0F5, 0xFFC53D, 0xB05BFF][lvl]);
+  k.spark.scale.setScalar(0.7 + lvl * 0.25);
+  k.shadow.position.y = 0.03;
+
+  if (k.isMe) {
+    const el = $('drift');
+    el.textContent = k.drift && lvl ? ['', 'TURBO 1', 'TURBO 2', 'TURBO 3'][lvl] : '';
+    el.style.color = ['#fff', '#37E0F5', '#FFC53D', '#B05BFF'][lvl];
+  }
+}
+
+function updateCamera(dt) {
+  if (!me) return;
+  /* Weiter hinten und höher als vorher. Aus der Nähe wirkt jedes Tempo
+     hektisch — Abstand ist das, was ein Rennspiel ruhig aussehen lässt. */
+  const back = 9.6 + Math.abs(me.speed) * 0.16;
+  const high = 4.2 + Math.abs(me.speed) * 0.045;
+  const tx = me.x - Math.sin(me.yaw) * back;
+  const tz = me.z - Math.cos(me.yaw) * back;
+  const ty = me.y + high;
+  const k = Math.min(1, dt * 7);
+  camPos.set(camPos.x + (tx - camPos.x) * k, camPos.y + (ty - camPos.y) * k,
+             camPos.z + (tz - camPos.z) * k);
+  camera.position.copy(camPos);
+  camLook.set(camLook.x + (me.x - camLook.x) * k * 1.6,
+              camLook.y + ((me.y + 1.2) - camLook.y) * k * 1.6,
+              camLook.z + (me.z - camLook.z) * k * 1.6);
+  camera.lookAt(camLook);
+  camera.fov = 66 + Math.min(10, Math.max(0, me.speed - TOP_SPEED * 0.55) * 1.15);
+  camera.updateProjectionMatrix();
+}
+
+/* ---------------- HUD ---------------- */
+
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+
+function updateHud() {
+  if (!me) return;
+  $('lap').textContent = Math.min(LAPS, Math.max(1, me.lap));
+  $('spd').textContent = Math.round(Math.abs(me.speed) * 9.5);
+  const sorted = karts.slice().sort(rank);
+  const pl = sorted.indexOf(me) + 1;
+  $('pos').innerHTML = pl + '<sup>' + (pl === 1 ? '.' : '.') + '</sup>';
+  $('board').innerHTML = karts.length > 1 ? sorted.map((k, i) =>
+    '<div class="' + (k.isMe ? 'me' : '') + '"><span class="dot" style="background:' +
+    hex(k.color) + '"></span>' + (i + 1) + '. ' + k.name + '</div>').join('') : '';
+}
+function rank(a, b) {
+  if (a.finished !== b.finished) return a.finished ? -1 : 1;
+  if (a.finished && b.finished) return a.finishT - b.finishT;
+  return b.dist - a.dist;
+}
+
+function showBig(t, ms) {
+  const b = $('big');
+  b.querySelector('span').textContent = t;
+  b.classList.remove('hidden');
+  b.querySelector('span').style.animation = 'none';
+  void b.querySelector('span').offsetWidth;
+  b.querySelector('span').style.animation = '';
+  if (ms) setTimeout(() => b.classList.add('hidden'), ms);
+}
+function showToast(t) {
+  const e = $('toast');
+  e.textContent = t;
+  e.classList.remove('hidden');
+  e.style.animation = 'none'; void e.offsetWidth; e.style.animation = '';
+  setTimeout(() => e.classList.add('hidden'), 900);
+}
+function note(t) { $('net-note').textContent = t || ''; }
+
+/* ---------------- Netzwerk ---------------- */
+
+const Net = {
+  mode: 'offline', code: null, myId: 'solo', myName: 'FAHRER',
+  roster: [], _peer: null, _conns: new Map(), _host: null, _states: new Map(), _relay: null,
+
+  isOnline() { return this.mode !== 'offline'; },
+  isHost() { return this.mode === 'host'; },
+  code4() { let t = ''; for (let i = 0; i < 4; i++) t += 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]; return t; },
+
+  host(name) {
+    this.leave(); this.myName = name;
+    if (!window.Peer) { note('PeerJS nicht geladen'); return; }
+    const code = this.code4();
+    this._peer = new Peer('mmgp-' + code);
+    this.mode = 'host'; this.code = code;
+    this._peer.on('open', id => {
+      this.myId = id;
+      this.roster = [{ id, name: this.myName, ci: myColor, dv: myDriver }];
+      openLobby(code, true);
+    });
+    this._peer.on('connection', conn => {
+      if (this._conns.size >= 5 || state === 'race' || state === 'countdown') {
+        conn.on('open', () => { conn.send({ t: 'full' }); setTimeout(() => conn.close(), 400); });
+        return;
+      }
+      this._conns.set(conn.peer, conn);
+      conn.on('open', () => {
+        if (this.roster.length >= 6) { try { conn.send({ t: 'full' }); } catch (e) {} return; }
+        if (!this.roster.some(r => r.id === conn.peer))
+          this.roster.push({ id: conn.peer, name: '…', ci: this.freeColor(), dv: 0 });
+        this.pushRoster();
+      });
+      conn.on('data', d => {
+        if (!d || !d.t) return;
+        const e = this.roster.find(r => r.id === conn.peer);
+        if (d.t === 'hi') { if (e) { e.name = String(d.name || '…').slice(0, 10).toUpperCase();
+                                     e.dv = d.dv | 0; } this.pushRoster(); }
+        else if (d.t === 'pick') { if (e) e.dv = d.dv | 0; this.pushRoster(); }
+        else if (d.t === 'color') this.setColor(conn.peer, d.ci);
+        else if (d.t === 's') this._states.set(conn.peer, d);
+      });
+      conn.on('close', () => {
+        this._conns.delete(conn.peer); this._states.delete(conn.peer);
+        // Während des Rennens bleibt der Eintrag stehen: die Positionen
+        // werden als Roster-Index verschickt, ein Loch verschiebt alles.
+        if (state !== 'race' && state !== 'countdown') {
+          this.roster = this.roster.filter(r => r.id !== conn.peer);
+          this.pushRoster();
+        }
+      });
+    });
+    this._peer.on('error', e => {
+      note(e.type === 'unavailable-id' ? 'Code schon vergeben — nochmal' : 'Fehler: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  join(code, name) {
+    this.leave(); this.myName = name;
+    if (!window.Peer) { note('PeerJS nicht geladen'); return; }
+    this._peer = new Peer(); this.mode = 'client'; this.code = code;
+    this._peer.on('open', () => {
+      this.myId = this._peer.id;
+      this._host = this._peer.connect('mmgp-' + code);
+      const to = setTimeout(() => {
+        if (!this._host || !this._host.open) { note('Raum ' + code + ' antwortet nicht');
+          this.leave(); backToMenu(); }
+      }, 9000);
+      this._host.on('open', () => {
+        clearTimeout(to);
+        this._host.send({ t: 'hi', name: this.myName, dv: myDriver });
+        openLobby(code, false);
+      });
+      this._host.on('data', d => {
+        if (!d || !d.t) return;
+        if (d.t === 'roster') { this.roster = d.r || []; renderLobby(); }
+        else if (d.t === 'go') beginRace();
+        else if (d.t === 'w') applyRemote(d.p || []);
+        else if (d.t === 'end') showResults(d.rows || []);
+        else if (d.t === 'full') { note('Raum voll oder Rennen läuft'); this.leave(); backToMenu(); }
+      });
+      this._host.on('close', () => { note('Host hat den Raum geschlossen'); this.leave(); backToMenu(); });
+    });
+    this._peer.on('error', e => {
+      note(e.type === 'peer-unavailable' ? 'Raum ' + code + ' nicht gefunden' : 'Fehler: ' + e.type);
+      this.leave(); backToMenu();
+    });
+  },
+
+  startRound() { if (!this.isHost()) return; this._states.clear();
+                 this.broadcast({ t: 'go' }); this.startRelay(); },
+  pickDriver(dv) {
+    myDriver = dv;
+    if (this.isHost()) { const e = this.roster.find(r => r.id === this.myId); if (e) e.dv = dv;
+                         this.pushRoster(); }
+    else if (this._host && this._host.open) { try { this._host.send({ t: 'pick', dv }); } catch (e) {} }
+  },
+  pickColor(ci) {
+    if (this.isHost()) this.setColor(this.myId, ci);
+    else if (this._host && this._host.open) { try { this._host.send({ t: 'color', ci }); } catch (e) {} }
+  },
+  sendState(st) {
+    if (this.mode === 'host') this._states.set(this.myId, st);
+    else if (this._host && this._host.open) { try { this._host.send(Object.assign({ t: 's' }, st)); } catch (e) {} }
+  },
+  startRelay() {
+    if (this._relay || !this.isHost()) return;
+    this._relay = setInterval(() => {
+      const list = [];
+      this.roster.forEach((r, i) => {
+        const st = r.id === this.myId
+          ? { x: me.x, y: me.y, z: me.z, r: me.yaw, d: me.dist, l: me.lap, f: me.finished ? 1 : 0 }
+          : this._states.get(r.id);
+        if (!st) return;
+        list.push({ i, x: +st.x.toFixed(2), y: +st.y.toFixed(2), z: +st.z.toFixed(2),
+                    r: +st.r.toFixed(2), d: +(st.d || 0).toFixed(1), l: st.l | 0, f: st.f ? 1 : 0 });
+      });
+      this.broadcast({ t: 'w', p: list });
+      applyRemote(list);
+      this.checkOver();
+    }, 60);
+  },
+  stopRelay() { if (this._relay) { clearInterval(this._relay); this._relay = null; } },
+  checkOver() {
+    if (!this.isHost() || state !== 'race') return;
+    if (!karts.every(k => k.finished)) return;
+    const rows = karts.slice().sort(rank).map(k => ({ n: k.name, t: +k.finishT.toFixed(2), l: k.lap }));
+    this.stopRelay();
+    this.broadcast({ t: 'end', rows });
+    showResults(rows);
+  },
+  freeColor(except) {
+    for (let i = 0; i < COLORS.length; i++)
+      if (!this.roster.some(r => r.id !== except && r.ci === i)) return i;
+    return 0;
+  },
+  setColor(id, ci) {
+    if (!this.isHost()) return;
+    ci = Math.max(0, Math.min(COLORS.length - 1, ci | 0));
+    const e = this.roster.find(r => r.id === id);
+    if (!e) return;
+    e.ci = this.roster.some(r => r.id !== id && r.ci === ci) ? this.freeColor(id) : ci;
+    this.pushRoster();
+  },
+  pushRoster() { this.broadcast({ t: 'roster', r: this.roster }); renderLobby(); },
+  broadcast(m) { this._conns.forEach(c => { if (c.open) { try { c.send(m); } catch (e) {} } }); },
+  leave() {
+    this.stopRelay();
+    this._conns.forEach(c => { try { c.close(); } catch (e) {} });
+    this._conns.clear();
+    if (this._host) { try { this._host.close(); } catch (e) {} this._host = null; }
+    if (this._peer) { try { this._peer.destroy(); } catch (e) {} this._peer = null; }
+    this.mode = 'offline'; this.code = null; this.roster = []; this._states.clear();
+  }
+};
+addEventListener('beforeunload', () => Net.leave());
+
+function applyRemote(list) {
+  list.forEach(sn => {
+    const k = karts[sn.i];
+    if (!k || k.isMe) return;
+    k.netX = sn.x; k.netY = sn.y; k.netZ = sn.z; k.netYaw = sn.r;
+    k.dist = sn.d; k.lap = sn.l || 1;
+    if (sn.f && !k.finished) { k.finished = true; k.finishT = clock.elapsedTime; }
+  });
+}
+
+/* ---------------- Lobby ---------------- */
+
+function openLobby(code, isHost) {
+  state = 'lobby';
+  $('menu').classList.add('hidden');
+  $('lobby').classList.remove('hidden');
+  $('lobby-code').textContent = code;
+  $('btn-start').style.display = isHost ? '' : 'none';
+  renderLobby();
+}
+
+function swatchHTML(box, sel, taken) {
+  box.innerHTML = COLORS.map((c, i) =>
+    '<button class="sw' + (i === sel ? ' sel' : '') + (taken(i) ? ' taken' : '') +
+    '" data-ci="' + i + '" style="background:' + hex(c) + '"></button>').join('');
+}
+function renderMenuPickers() {
+  swatchHTML($('menu-col'), myColor, () => false);
+  $('menu-col').querySelectorAll('.sw').forEach(el => el.addEventListener('click', () => {
+    myColor = +el.dataset.ci; renderMenuPickers();
+  }));
+}
+
+function renderLobby() {
+  const list = Net.roster;
+  const mine = list.find(r => r.id === Net.myId);
+  swatchHTML($('lobby-col'), mine ? mine.ci : myColor,
+             i => list.some(r => r.ci === i && r.id !== Net.myId));
+  $('lobby-col').querySelectorAll('.sw').forEach(el => el.addEventListener('click', () => {
+    if (el.classList.contains('taken')) return;
+    myColor = +el.dataset.ci; Net.pickColor(myColor);
+  }));
+  $('lobby-list').innerHTML = list.map(r =>
+    '<li class="' + (r.id === Net.myId ? 'me' : '') + '"><span class="who">' +
+    '<span class="dot" style="background:' + hex(COLORS[(r.ci || 0) % COLORS.length]) + '"></span>' +
+    r.name + (r.id === Net.myId ? ' (du)' : '') + '</span><span>bereit</span></li>').join('');
+  $('lobby-note').textContent = Net.isHost()
+    ? (list.length > 1 ? list.length + ' / 6 am Start' : 'Warte auf Mitfahrer …')
+    : 'Warte auf den Host';
+}
+
+/* ---------------- Rennen ---------------- */
+
+function beginRace() {
+  karts.forEach(k => scene.remove(k.group));
+  karts = [];
+  isNet = Net.isOnline();
+
+  if (isNet) {
+    myIndex = Net.roster.findIndex(r => r.id === Net.myId);
+    Net.roster.forEach(e => {
+      const k = makeKart(e.name, COLORS[(e.ci || 0) % COLORS.length], e.dv || 0, e.id === Net.myId);
+      karts.push(k);
+      if (e.id === Net.myId) me = k;
+    });
+    if (Net.isHost()) Net.startRelay();
+  } else {
+    const nm = ($('nm').value || 'FAHRER').trim().slice(0, 10).toUpperCase() || 'FAHRER';
+    me = makeKart(nm, COLORS[myColor], myDriver, true);
+    karts.push(me);
+    const bot = makeKart('GEIST', COLORS[(myColor + 4) % COLORS.length], 0, false);
+    bot.bot = true;
+    karts.push(bot);
+  }
+
+  placeKarts();
+  Engine.start();
+  camPos.set(me.x, me.y + 4, me.z - 8);
+  camLook.set(me.x, me.y + 1, me.z);
+  updateHud();
+
+  $('menu').classList.add('hidden');
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  if (matchMedia('(pointer:coarse)').matches) $('touch').classList.add('on');
+
+  state = 'countdown';
+  raceStartMs = performance.now() + 3300;
+  let step = 0;
+  const steps = ['3', '2', '1', 'LOS!'];
+  const tick = () => {
+    showBig(steps[step], 620);
+    if (steps[step] === 'LOS!') sfx.go(); else sfx.count(3 - step);
+    step++;
+    if (step < steps.length) setTimeout(tick, 700);
+  };
+  tick();
+}
+
+function checkRaceOver() {
+  if (state !== 'race') return;
+  if (isNet) { if (Net.isHost()) Net.checkOver(); return; }
+  if (karts.every(k => k.finished) || me.finished) {
+    const rows = karts.slice().sort(rank).map(k => ({ n: k.name, t: +k.finishT.toFixed(2), l: k.lap }));
+    showResults(rows);
+  }
+}
+
+function showResults(rows) {
+  if (state === 'over') return;
+  state = 'over';
+  Net.stopRelay();
+  $('touch').classList.remove('on');
+  setTimeout(() => {
+    $('hud').classList.add('hidden');
+    const mineRow = rows.findIndex(r => r.n === (isNet ? Net.myName : me.name));
+    $('res-title').textContent = mineRow === 0 ? 'GEWONNEN!' : 'ZIEL';
+    $('res-sub').textContent = mineRow >= 0 && rows[mineRow].t
+      ? 'Deine Zeit: ' + rows[mineRow].t.toFixed(2) + ' s' : '—';
+    $('res-list').innerHTML = rows.map((r, i) =>
+      '<li class="' + (i === mineRow ? 'me' : '') + '"><span class="who">' +
+      (['🥇', '🥈', '🥉'][i] || (i + 1) + '.') + ' ' + r.n + '</span><span>' +
+      (r.t ? r.t.toFixed(2) + ' s' : 'DNF') + '</span></li>').join('');
+    $('results').classList.remove('hidden');
+  }, 1400);
+}
+
+function backToMenu() {
+  state = 'menu';
+  $('lobby').classList.add('hidden');
+  $('results').classList.add('hidden');
+  $('hud').classList.add('hidden');
+  $('touch').classList.remove('on');
+  $('menu').classList.remove('hidden');
+}
+
+/* ---------------- Eingabe ---------------- */
+
+function bindInput() {
+  const typing = e => e.target && e.target.tagName === 'INPUT';
+  addEventListener('keydown', e => {
+    if (typing(e)) return;
+    keys[e.code] = true;
+    if (e.code === 'KeyR' && state === 'race') respawn(me);
+    if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown',
+         'ArrowLeft', 'ArrowRight'].indexOf(e.code) >= 0) e.preventDefault();
+  });
+  addEventListener('keyup', e => { if (!typing(e)) keys[e.code] = false; });
+
+  document.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    const on = ev => { ev.preventDefault(); touch[k] = true; };
+    const off = ev => { ev.preventDefault(); touch[k] = false; };
+    el.addEventListener('pointerdown', on);
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => el.addEventListener(t, off));
+  });
+}
+
+/* ---------------- Bildschleife ---------------- */
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  if (state === 'countdown' && performance.now() >= raceStartMs) state = 'race';
+
+  if (state === 'race' || state === 'countdown') {
+    const go = state === 'race';
+    karts.forEach(k => {
+      if (k.isMe || k.bot) {
+        if (go && !k.finished) driveLocal(k, dt);
+      } else {
+        // Mitfahrer weich nachziehen — die Wahrheit liegt beim Host
+        k.x += (k.netX - k.x) * Math.min(1, dt * 12);
+        k.y += (k.netY - k.y) * Math.min(1, dt * 12);
+        k.z += (k.netZ - k.z) * Math.min(1, dt * 12);
+        const d = ((k.netYaw - k.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        k.yaw += d * Math.min(1, dt * 12);
+        k.idx = Track.nearest(k.x, k.z, k.idx);
+      }
+    });
+    if (isNet && performance.now() - lastSend > 60) {
+      lastSend = performance.now();
+      Net.sendState({ x: me.x, y: me.y, z: me.z, r: me.yaw, d: me.dist,
+                      l: me.lap, f: me.finished ? 1 : 0 });
+    }
+    Engine.update(me.speed, TOP_SPEED, me.boost > 0);
+    updateHud();
+  } else Engine.stop();
+
+  karts.forEach(k => updateKartVisual(k, dt));
+  updateCamera(dt);
+  renderer.render(scene, camera);
+}
+
+/* ---------------- Laden ---------------- */
+
+if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
+  $('load-note').innerHTML = '<b style="color:#FF5B45">3D-Bibliotheken fehlen.</b>' +
+    '<br>Über einen Server öffnen, nicht per Doppelklick.';
+} else {
+  initScene();
+  bindInput();
+  frame();
+
+  let done = 0;
+  const TOTAL = 4;
+  const step = t => { done++; $('load-bar').style.width = Math.round(done / TOTAL * 100) + '%';
+                      $('load-note').textContent = t; };
+  const fail = w => e => {
+    $('load-note').innerHTML = '<b style="color:#FF5B45">' + w + ' fehlt.</b>' +
+      '<br>Alle vier Dateien müssen im selben Ordner liegen.';
+    console.error(e);
+  };
+  const L = new THREE.GLTFLoader();
+
+  fetch('track.json').then(r => r.json()).then(j => {
+    const n = Track.build(j.points);
+    step('Strecke: ' + n + ' Proben');
+    L.load('track.glb', g => {
+      TRACK = g.scene;
+      TRACK.scale.setScalar(SCALE);
+      scene.add(TRACK);
+      step('Kart wird geladen …');
+      L.load('kart.glb', g2 => {
+        KART = g2.scene;
+        step('Fahrerin wird geladen …');
+        L.load('driver.glb', g3 => {
+          DRIVER = g3.scene;
+          step('Bereit');
+          renderMenuPickers();
+          $('loading').classList.add('hidden');
+          $('menu').classList.remove('hidden');
+          state = 'menu';
+          note(window.Peer ? '' : 'PeerJS nicht geladen — nur Zeitfahren');
+        }, undefined, fail('driver.glb'));
+      }, undefined, fail('kart.glb'));
+    }, ev => {
+      if (ev.total) $('load-bar').style.width = Math.round(25 + ev.loaded / ev.total * 25) + '%';
+    }, fail('track.glb'));
+  }).catch(fail('track.json'));
+}
+
+/* ---------------- Knöpfe ---------------- */
+
+const readName = () => ($('nm').value || 'FAHRER').trim().slice(0, 10).toUpperCase() || 'FAHRER';
+const wake = () => { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } };
+
+$('btn-solo').addEventListener('click', () => { wake(); Net.leave(); beginRace(); });
+$('btn-host').addEventListener('click', () => { wake(); note('Raum wird geöffnet …'); Net.host(readName()); });
+$('btn-join').addEventListener('click', () => {
+  wake();
+  const c = ($('code').value || '').trim().toUpperCase();
+  if (!/^[A-Z]{4}$/.test(c)) { note('Raumcodes haben vier Buchstaben'); return; }
+  note('Verbinde mit ' + c + ' …');
+  Net.join(c, readName());
+});
+$('btn-start').addEventListener('click', () => {
+  if (!Net.isHost()) return;
+  if (Net.roster.length < 2) { $('lobby-note').textContent = 'Mindestens zwei Fahrer nötig'; return; }
+  Net.startRound(); beginRace();
+});
+$('btn-leave').addEventListener('click', () => { Net.leave(); backToMenu(); note(''); });
+$('btn-menu').addEventListener('click', () => { Net.leave(); backToMenu(); });
+$('btn-again').addEventListener('click', () => {
+  if (Net.isOnline()) {
+    if (Net.isHost()) { Net.startRound(); beginRace(); }
+    else { $('results').classList.add('hidden'); $('lobby').classList.remove('hidden');
+           $('lobby-note').textContent = 'Warte auf den Host'; }
+  } else beginRace();
+});
+['nm', 'code'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); $('btn-join').click(); }
+}));
+
+})();
+</script>
+</body>
+</html>
