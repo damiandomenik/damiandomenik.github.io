@@ -88,8 +88,8 @@ td:last-child{text-align:right;color:#8FA6BC}
   <div class="grp">
     <div class="lbl">Fahrbahnbreite an diesem Punkt</div>
     <div class="row">
-      <input type="range" id="width" min="4" max="120" step="1" value="30">
-      <span id="width-val" style="min-width:52px;text-align:right"><b>30</b></span>
+      <input type="range" id="width" min="2" max="80" step="1" value="18">
+      <span id="width-val" style="min-width:52px;text-align:right"><b>18</b></span>
     </div>
     <p class="muted">Gilt für jeden neuen Punkt. Enge Stellen schmaler setzen.</p>
   </div>
@@ -232,24 +232,25 @@ function rebuild() {
   if (line) { scene.remove(line); line = null; }
   if (ribbon) { scene.remove(ribbon); ribbon = null; }
 
+  /* Die Kugeln haben Radius 1 und werden pro Bild nach Kameraabstand skaliert,
+     bleiben also immer gleich gross auf dem Bildschirm. Feste Weltgrösse war
+     unbrauchbar: aus der Ferne unsichtbar, aus der Nähe halb so breit wie die
+     Fahrbahn. Die Pfeiler zum Boden sind ganz raus, sie haben nur zugedeckt. */
   points.forEach((p, i) => {
     const c = i === 0 ? 0x4BD08A : 0xFFC53D;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(i === 0 ? 3.2 : 2.2, 12, 9),
-      new THREE.MeshBasicMaterial({ color: c }));
-    m.position.set(p.x, p.y + 1.5, p.z);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8),
+      new THREE.MeshBasicMaterial({ color: c, depthTest: false }));
+    m.renderOrder = 2;
+    m.position.set(p.x, p.y + 0.4, p.z);
+    m.userData.big = i === 0 ? 1.6 : 1;
     scene.add(m); markers.push(m);
-    // Pfeiler zum Boden, damit die Höhe ablesbar ist
-    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 12, 6),
-      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.5 }));
-    st.position.set(p.x, p.y - 4.5, p.z);
-    scene.add(st); markers.push(st);
   });
 
   if (points.length >= 2) {
     const g = new THREE.BufferGeometry();
     const verts = [];
-    points.forEach(p => verts.push(p.x, p.y + 1.5, p.z));
-    verts.push(points[0].x, points[0].y + 1.5, points[0].z);   // Runde schliessen
+    points.forEach(p => verts.push(p.x, p.y + 0.4, p.z));
+    verts.push(points[0].x, points[0].y + 0.4, points[0].z);   // Runde schliessen
     g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x37E0F5 }));
     scene.add(line);
@@ -268,8 +269,8 @@ function buildRibbon() {
     let dx = b.x - a.x, dz = b.z - a.z;
     const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
     const rx = -dz, rz = dx, h = p.w / 2;
-    verts.push(p.x + rx * h, p.y + 0.6, p.z + rz * h);
-    verts.push(p.x - rx * h, p.y + 0.6, p.z - rz * h);
+    verts.push(p.x + rx * h, p.y + 0.2, p.z + rz * h);
+    verts.push(p.x - rx * h, p.y + 0.2, p.z - rz * h);
   }
   for (let i = 0; i < n; i++) {
     const a = i * 2, b = ((i + 1) % n) * 2;
@@ -345,6 +346,12 @@ function frame() {
 
   camera.position.copy(camPos);
   camera.lookAt(camPos.x + fx * 50, camPos.y + fy * 50, camPos.z + fz * 50);
+
+  // Punkte auf gleichbleibende Bildschirmgrösse ziehen
+  markers.forEach(m => {
+    const d = m.position.distanceTo(camera.position);
+    m.scale.setScalar(Math.max(0.12, d * 0.005) * m.userData.big);
+  });
   renderer.render(scene, camera);
 }
 
