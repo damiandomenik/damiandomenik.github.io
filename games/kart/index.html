@@ -443,7 +443,15 @@ const Road = {
     if (i < 0 || j < 0 || i >= this.w || j >= this.h) return 0;
     return this.data[j * this.w + i];
   },
-  on(x, z) { return this.cellAt(x, z) > 0; },
+  /* Nachbarzellen zählen mit. Eine einzelne Lücke im Raster — etwa an einer
+     Fahrbahnmarkierung — hätte sonst sofort auf Geländetempo geschaltet und
+     als Ruckeln durchgeschlagen. */
+  on(x, z) {
+    if (this.cellAt(x, z) > 0) return true;
+    const c = this.cell;
+    return this.cellAt(x + c, z) > 0 || this.cellAt(x - c, z) > 0 ||
+           this.cellAt(x, z + c) > 0 || this.cellAt(x, z - c) > 0;
+  },
   heightAt(x, z) {
     const b = this.cellAt(x, z);
     return b > 0 ? this.ymin + (b - 1) / 254 * this.yrange : null;
