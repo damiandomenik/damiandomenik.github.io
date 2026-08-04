@@ -251,7 +251,12 @@ const DRIFT_MIN_SPEED = 9;
 const MINI_TURBO = [0.85, 1.7, 2.7];   // Sekunden bis zur nächsten Stufe
 const BOOST_SPEED = [0, 5, 8, 11];     // Zusatztempo über der Grenze
 const BOOST_TIME = [0, 0.8, 1.3, 1.9];
-const GRAVITY_PULL = 9.0;      // wie stark Steigungen bremsen und Gefälle ziehen
+/* Der Wert war zu hoch UND wurde mit verrauschten Steigungen gefüttert. Beides
+   zusammen ergab plötzliches Bremsen an Stellen, wo optisch nichts war. Die
+   Höhen sind jetzt geglättet, der Einfluss ist kleiner, und zur Sicherheit
+   wird die Steigung noch gekappt. */
+const GRAVITY_PULL = 4.0;
+const MAX_SLOPE = 0.30;
 const RESPAWN_OFF = 9;         // so weit neben der Bahn wird zurückgesetzt
 const MIN_WIDTH = 6;           // schmaler als das wird keine Stelle gefahren
 
@@ -517,11 +522,6 @@ function makeKart(name, color, driverIdx, isMe) {
     g.add(driver);
   }
 
-  const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.95, 18),
-    new THREE.MeshBasicMaterial({ color: 0x06121E, transparent: true, opacity: 0.34 }));
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.03;
-  g.add(shadow);
 
   // Funken beim Drift
   const spark = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6),
@@ -531,7 +531,7 @@ function makeKart(name, color, driverIdx, isMe) {
 
   scene.add(g);
   return {
-    group: g, body, driver, shadow, spark, name, color, driverIdx, isMe: !!isMe,
+    group: g, body, driver, spark, name, color, driverIdx, isMe: !!isMe,
     x: 0, y: 0, z: 0, yaw: 0, speed: 0, vx: 0, vz: 0, groundY: undefined,
     idx: 0, lat: 0, lap: 1, prog: 0, lastProg: 0, dist: 0, finished: false, finishT: 0,
     drift: 0, driftDir: 0, driftT: 0, boost: 0, boostSpd: 0, offT: 0,
@@ -614,11 +614,11 @@ function driveLocal(k, dt) {
     vf -= BRAKE * dt;
   }
   // Steigung, Rollen und Luft
-  vf -= s.fy * GRAVITY_PULL * dt;
+  vf -= Math.max(-MAX_SLOPE, Math.min(MAX_SLOPE, s.fy)) * GRAVITY_PULL * dt;
   vf -= (off ? OFFROAD_DRAG : ROLL) * Math.sign(vf) * dt;
   vf -= DRAG * vf * Math.abs(vf) * dt;
   vf = Math.max(-TOP_REVERSE, Math.min(top, vf));
-  if (Math.abs(vf) < 0.04 && !gas) vf = 0;
+  if (Math.abs(vf) < 0.02 && !gas && !brake) vf = 0;
 
   // Drift: erst ab Tempo und nur mit Lenkeinschlag
   if (wantDrift && !k.drift && vf > DRIFT_MIN_SPEED && steer !== 0) {
@@ -763,7 +763,6 @@ function updateKartVisual(k, dt) {
   k.spark.material.opacity = k.drift && lvl ? 0.55 + 0.45 * Math.sin(clock.elapsedTime * 30) : 0;
   k.spark.material.color.setHex([0, 0x37E0F5, 0xFFC53D, 0xB05BFF][lvl]);
   k.spark.scale.setScalar(0.7 + lvl * 0.25);
-  k.shadow.position.y = 0.03;
 
   if (k.isMe) {
     const el = $('drift');
