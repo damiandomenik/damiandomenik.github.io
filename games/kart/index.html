@@ -259,6 +259,10 @@ const GRAVITY_PULL = 4.0;
 const MAX_SLOPE = 0.30;
 const RESPAWN_OFF = 9;         // so weit neben der Bahn wird zurückgesetzt
 const MIN_WIDTH = 6;           // schmaler als das wird keine Stelle gefahren
+/* Das Kartmodell reicht 0.22 Einheiten unter seinen Nullpunkt — dort sitzen die
+   Reifen. Ohne Ausgleich versinkt genau dieser Teil im Asphalt. Dazu etwas
+   Luft, damit es auf Bodenwellen nicht durchschlägt. */
+const KART_LIFT = 0.26;
 
 const COLORS = [0xE4322F, 0x2F7FF0, 0x4BD08A, 0xFFD93D, 0xB05BFF, 0xFF5FA8,
                 0xFF8C1A, 0x22C9D8, 0xF2F7FB, 0x2B3038, 0x9BE02F, 0x8B5E3C];
@@ -752,7 +756,7 @@ function botSteer(k) {
 
 function updateKartVisual(k, dt) {
   const g = k.group;
-  g.position.set(k.x, k.y, k.z);
+  g.position.set(k.x, k.y + KART_LIFT, k.z);
 
   // Im Drift steht das Kart schräg zur Fahrtrichtung
   const slip = k.drift ? k.driftDir * 0.42 : 0;
