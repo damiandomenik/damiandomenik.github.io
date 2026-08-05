@@ -300,6 +300,8 @@ const ARENA_FILE = 'models/rayman_arena_m__timber_wood.glb';
 /* Auf diese Kantenlänge wird die GLB-Arena skaliert. Kleiner heisst engere
    Kämpfe, grösser heisst mehr Laufwege. */
 const ARENA_TARGET = 96;
+/* index.html?debug zeigt das Begehbarkeitsraster an. */
+const DEBUG = location.search.indexOf('debug') >= 0;
 
 const $ = id => document.getElementById(id);
 const clamp = (v,a,b) => v<a?a:v>b?b:v;
@@ -647,7 +649,10 @@ function rasterize(meshes, cell, maxTriArea){
       if(area < 1e-5) continue;
       if(maxTriArea && area > maxTriArea) continue;   // Kulisse und Himmel raus
       n.divideScalar(area*2);
-      if(n.y < 0.35){
+      /* Nur wirklich senkrechte Flächen sind Wände. Bei Rips aus fremden
+         Spielen ist die Wicklung oft uneinheitlich — ein Boden, dessen Normale
+         nach unten zeigt, bleibt ein Boden. */
+      if(Math.abs(n.y) < 0.35){
         // steile Fläche: Kanten abschreiten und als Hindernis eintragen
         const top = Math.max(a.y,b.y,c.y);
         const edges = [[a,b],[b,c],[c,a]];
@@ -684,6 +689,67 @@ function inTri(px,pz,a,b,c){
   const d3=(px-a.x)*(c.z-a.z)-(c.x-a.x)*(pz-a.z);
   const neg=(d1<0)||(d2<0)||(d3<0), pos=(d1>0)||(d2>0)||(d3>0);
   return !(neg&&pos);
+}
+
+/** Abstand jeder Zelle zur nächsten Wand, in Zellen (Schachbrett-Metrik).
+    Zwei Durchläufe reichen: einmal vorwärts, einmal rückwärts. */
+function openness(hf, region){
+  const N = hf.nx*hf.nz, BIG = 1e6;
+  const inR = new Uint8Array(N);
+  for(const k of region) inR[k] = 1;
+  const d = new Int32Array(N);
+  for(let i=0;i<N;i++) d[i] = inR[i] ? BIG : 0;
+  const look = (jx,jz)=> (jx<0||jz<0||jx>=hf.nx||jz>=hf.nz) ? 0 : d[jz*hf.nx+jx];
+  for(let iz=0; iz<hf.nz; iz++) for(let ix=0; ix<hf.nx; ix++){
+    const k = iz*hf.nx+ix; if(!inR[k]) continue;
+    let m = d[k];
+    for(let dx=-1;dx<=1;dx++){ const v = look(ix+dx, iz-1)+1; if(v<m) m=v; }
+    const v = look(ix-1, iz)+1; if(v<m) m=v;
+    d[k] = m;
+  }
+  for(let iz=hf.nz-1; iz>=0; iz--) for(let ix=hf.nx-1; ix>=0; ix--){
+    const k = iz*hf.nx+ix; if(!inR[k]) continue;
+    let m = d[k];
+    for(let dx=-1;dx<=1;dx++){ const v = look(ix+dx, iz+1)+1; if(v<m) m=v; }
+    const v = look(ix+1, iz)+1; if(v<m) m=v;
+    d[k] = m;
+  }
+  return d;
+}
+
+/** Der offene Kern: alles, was mindestens minOpen Zellen von jeder Wand weg
+    ist, davon das grösste zusammenhängende Stück. Hier wird gespielt und
+    gestartet — schmale Gänge bleiben begehbar, aber niemand landet mehr mit
+    dem Rücken in einer Sackgasse. */
+function openCore(hf, region, minOpen){
+  const d = openness(hf, region);
+  const N = hf.nx*hf.nz, ok = new Uint8Array(N);
+  let count = 0;
+  for(const k of region) if(d[k] >= minOpen){ ok[k] = 1; count++; }
+  if(count < 30) return region.slice();
+  const seen = new Uint8Array(N);
+  let best = [];
+  const stack = [];
+  for(let s=0;s<N;s++){
+    if(!ok[s] || seen[s]) continue;
+    const cells = [];
+    stack.length = 0; stack.push(s); seen[s] = 1;
+    while(stack.length){
+      const k = stack.pop(); cells.push(k);
+      const ix = k % hf.nx, iz = (k/hf.nx)|0, hk = hf.h[k];
+      for(let dz=-1;dz<=1;dz++) for(let dx=-1;dx<=1;dx++){
+        if(!dx && !dz) continue;
+        const jx=ix+dx, jz=iz+dz;
+        if(jx<0||jz<0||jx>=hf.nx||jz>=hf.nz) continue;
+        const j = jz*hf.nx+jx;
+        if(!ok[j] || seen[j]) continue;
+        if(Math.abs(hf.h[j]-hk) > STEP) continue;
+        seen[j] = 1; stack.push(j);
+      }
+    }
+    if(cells.length > best.length) best = cells;
+  }
+  return best.length >= 30 ? best : region.slice();
 }
 
 /** Grösste zusammenhängende, halbwegs ebene Fläche — das ist das Spielfeld. */
@@ -741,6 +807,7 @@ function buildArena(id){
 
   makeSpawns();
   addPowerSpots();
+  if(DEBUG) debugField();
   return arena;
 }
 
@@ -762,20 +829,24 @@ function buildFromGLB(group, def){
   // 1. Rohes Höhenfeld, um überhaupt zu sehen, wo man laufen kann
   let hf = rasterize(meshes, 1.2, 400);
   let region = largestRegion(hf);
+  /* Der offene Kern bestimmt Massstab, Mitte und Startpunkte. Sonst richtet
+     sich alles nach den schmalsten Ausläufern der Karte. */
+  let core = openCore(hf, region, 3);
   if(region.length < 40){ // nichts Brauchbares gefunden — lieber gebaute Arena
     console.warn('GLB liefert keine begehbare Fläche, baue Ersatzarena');
     buildProcedural(group, def); return;
   }
   // 2. Ausdehnung des Spielfelds bestimmen
   let mnx=1e9,mxx=-1e9,mnz=1e9,mxz=-1e9, sy=0;
-  region.forEach(k=>{
+  core.forEach(k=>{
     const ix=k%hf.nx, iz=(k/hf.nx)|0;
     const x=hf.x0+ix*hf.cell, z=hf.z0+iz*hf.cell;
     if(x<mnx)mnx=x; if(x>mxx)mxx=x; if(z<mnz)mnz=z; if(z>mxz)mxz=z; sy+=hf.h[k];
   });
+  const cyAvg = sy/core.length;
   const span = Math.max(mxx-mnx, mxz-mnz);
   const S = clamp(ARENA_TARGET/span, 0.02, 20);
-  const cx = (mnx+mxx)/2, cz = (mnz+mxz)/2, cy = sy/region.length;
+  const cx = (mnx+mxx)/2, cz = (mnz+mxz)/2, cy = cyAvg;
 
   // 3. Modell skalieren und so schieben, dass die Mitte im Ursprung liegt
   src.scale.multiplyScalar(S);
@@ -789,7 +860,7 @@ function buildFromGLB(group, def){
     if(hf.h[i] > -900) hf.h[i] = hf.h[i]*S - cy*S;
     if(hf.b[i] > -900) hf.b[i] = hf.b[i]*S - cy*S;
   }
-  arena.hf = hf; arena.region = region;
+  arena.hf = hf; arena.region = region; arena.core = core;
   arena.radius = ARENA_TARGET/2;
   arena.center.set(0, hf.ground(0,0,1)+0.1, 0);
   if(arena.center.y < -900) arena.center.y = 0;
@@ -798,11 +869,11 @@ function buildFromGLB(group, def){
   const skirt = new THREE.Mesh(new THREE.CylinderGeometry(200,200,4,32),
     new THREE.MeshLambertMaterial({color:def.ground}));
   skirt.position.y = -14; group.add(skirt);
-  addTrees(group, def, hf, region);
+  addTrees(group, def, hf, region, core);
 }
 
 /** Ein paar Bäume auf freien Feldern — die Karte selbst bringt kaum welche mit. */
-function addTrees(group, def, hf, region){
+function addTrees(group, def, hf, region, core){
   const trunkG = new THREE.CylinderGeometry(.3,.42,3.4,7);
   const leafG  = new THREE.ConeGeometry(2.3,5.2,8);
   const tm = new THREE.MeshLambertMaterial({color:0x4A3524});
@@ -984,13 +1055,50 @@ function buildProcedural(group, def){
 
   arena.hf = rasterize(collide, 0.7, 0);
   arena.region = largestRegion(arena.hf);
+  arena.core = openCore(arena.hf, arena.region, 2);
   arena.center.set(0, 1.6, 0);
   arena.radius = R;
 }
 
+/* ---------- Debug-Ansicht ----------
+   index.html?debug aufrufen: grün ist offener Kampfraum, orange ist begehbar
+   aber eng. Wo nichts liegt, ist eine Wand. Damit siehst du bei einer neuen
+   GLB sofort, ob sie als Arena taugt. */
+function debugField(){
+  const hf = arena.hf; if(!hf) return;
+  const core = new Set(arena.core||[]);
+  const tile = new THREE.PlaneGeometry(hf.cell*0.9, hf.cell*0.9);
+  tile.rotateX(-Math.PI/2);
+  const mk = (cells, col)=>{
+    if(!cells.length) return;
+    const m = new THREE.InstancedMesh(tile,
+      new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.4, depthWrite:false}),
+      cells.length);
+    const mtx = new THREE.Matrix4();
+    cells.forEach((k,i)=>{
+      const ix = k%hf.nx, iz = (k/hf.nx)|0;
+      mtx.setPosition(hf.x0+ix*hf.cell, hf.h[k]+0.08, hf.z0+iz*hf.cell);
+      m.setMatrixAt(i, mtx);
+    });
+    m.instanceMatrix.needsUpdate = true;
+    m.renderOrder = 3;
+    arena.group.add(m);
+  };
+  mk((arena.region||[]).filter(k=>!core.has(k)), 0xFF8C1A);
+  mk(arena.core||[], 0x4BD08A);
+  // Startpunkte als Säulen
+  arena.spawns.forEach(p=>{
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,6,6),
+      new THREE.MeshBasicMaterial({color:0x37E0F5}));
+    c.position.set(p.x, p.y+3, p.z); arena.group.add(c);
+  });
+  console.log('Debug: begehbar', (arena.region||[]).length, 'Zellen, davon offener Kern',
+              (arena.core||[]).length, '| Zellgrösse', hf.cell.toFixed(2));
+}
+
 /* ---------- Startpunkte ---------- */
 function makeSpawns(){
-  const hf = arena.hf, region = arena.region || [];
+  const hf = arena.hf, region = (arena.core && arena.core.length ? arena.core : arena.region) || [];
   const pts = [];
   if(region.length){
     // Farthest-Point-Sampling: acht Punkte, die möglichst weit auseinanderliegen
@@ -1844,7 +1952,10 @@ function slash(f, dir, range){
     new THREE.MeshBasicMaterial({color:0xF6EFE4, transparent:true, opacity:.6, side:THREE.DoubleSide, depthWrite:false}));
   m.rotation.x = -Math.PI/2;
   m.position.set(f.pos.x, f.pos.y+1.05, f.pos.z);
-  m.rotation.z = -Math.atan2(dir.x, dir.z) + Math.PI/2;
+  /* Der Ring liegt in der XY-Ebene und wird mit rotation.x flach gelegt.
+     Dabei wird lokal +Y zu Welt -Z — der Bogen muss deshalb um
+     atan2(-dz, dx) gedreht werden, nicht um atan2(dx, dz). */
+  m.rotation.z = Math.atan2(-dir.z, dir.x);
   addFx(m, .18, (o,t)=>{ o.material.opacity = .6*(1-t); });
 }
 function ringFx(p, r, col, life){
