@@ -625,13 +625,17 @@ Heightfield.prototype.at = function(x,z){
   if(ix<0||iz<0||ix>=this.nx||iz>=this.nz) return -999;
   return this.h[this.idx(ix,iz)];
 };
-/** Höchster Punkt im Umkreis des Spielerradius — verhindert Zappeln an Kanten. */
-Heightfield.prototype.ground = function(x,z,r){
+/** Höchster Punkt im Umkreis des Spielerradius — verhindert Zappeln an Kanten.
+    maxY begrenzt nach oben: Flächen, die weiter als eine Stufe über der Figur
+    liegen, sind kein Boden. Ohne diese Grenze steht man an einer Säule
+    plötzlich oben drauf, weil eine der Proben deren Deckel erwischt. */
+Heightfield.prototype.ground = function(x,z,r,maxY){
   let m = -999;
   const s = r||0.5;
+  const lim = (maxY === undefined) ? Infinity : maxY;
   for(let dx=-1;dx<=1;dx++) for(let dz=-1;dz<=1;dz++){
     const v = this.at(x+dx*s, z+dz*s);
-    if(v>m) m=v;
+    if(v>m && v<=lim) m=v;
   }
   return m;
 };
@@ -1156,7 +1160,7 @@ function makeSpawns(){
 
 /* ---------- Bodenabfrage ---------- */
 function groundY(x,z,curY){
-  let g = arena.hf ? arena.hf.ground(x,z,PLR_R) : 0;
+  let g = arena.hf ? arena.hf.ground(x, z, PLR_R, curY + STEP) : 0;
   if(g < -900) g = -60;
   let plat = null;
   for(const p of arena.platforms){
