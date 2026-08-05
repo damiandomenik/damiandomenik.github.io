@@ -122,6 +122,25 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 #cross:after{top:50%;left:0;height:2px;width:100%;margin-top:-1px}
 #cross.hit{background:var(--blood);border-radius:50%}
 
+/* Trefferkreuz: vier Striche, die kurz aufblitzen */
+#hitmark{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0}
+#hitmark i{position:absolute;width:3px;height:11px;background:var(--cream);
+  border-radius:2px;box-shadow:0 0 0 1.5px rgba(0,0,0,.55);transform-origin:50% 50%}
+#hitmark i:nth-child(1){transform:translate(-9px,-16px) rotate(45deg)}
+#hitmark i:nth-child(2){transform:translate(6px,-16px) rotate(-45deg)}
+#hitmark i:nth-child(3){transform:translate(-9px,5px) rotate(-45deg)}
+#hitmark i:nth-child(4){transform:translate(6px,5px) rotate(45deg)}
+#hitmark.go{animation:hm .26s ease-out}
+#hitmark.kill i{background:var(--blood);width:4px;height:14px}
+#hitmark.kill{animation:hm .42s ease-out}
+@keyframes hm{0%{opacity:1;transform:scale(.55)}55%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.35)}}
+
+/* Summe des Schadens der letzten Sekunden, direkt unterm Fadenkreuz */
+#dmgtally{position:absolute;left:50%;top:calc(50% + 40px);transform:translateX(-50%);
+  font-weight:800;font-size:1.05rem;color:var(--gold);-webkit-text-stroke:4px var(--ink);
+  paint-order:stroke fill;opacity:0;transition:opacity .25s}
+
 #chargewrap{position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);width:90px;height:7px;
   border:2px solid var(--ink);border-radius:5px;background:rgba(18,12,24,.7)}
 #chargebar{height:100%;width:0;background:var(--gold);border-radius:3px}
@@ -249,6 +268,8 @@ body.touch .ab{width:48px;height:48px}
   </div>
   <div id="abils"></div>
   <div id="cross"></div>
+  <div id="hitmark"><i></i><i></i><i></i><i></i></div>
+  <div id="dmgtally"></div>
   <div id="chargewrap" class="hidden"><div id="chargebar"></div></div>
   <div id="big"></div>
   <div id="toast"></div>
@@ -1260,14 +1281,18 @@ function damage(target, amount, src, opts){
   if(!target.alive || target.st.inv>0) return 0;
   if(src && src!==target && MODES[cfg.mode].teams && src.team===target.team) return 0;
   let dmg = amount;
-  if(src && src.st && src.st.dmg2>0) dmg *= 2;
+  let crit = false;
+  if(src && src.st && src.st.dmg2>0){ dmg *= 2; crit = true; }
   if(target.st.block>0) dmg *= 0.3;
   // Rückenangriff des Assassinen
   if(opts.back && src){
     const back = _v1.subVectors(target.pos, src.pos).normalize();
     const face = _v2.set(Math.sin(target.yaw),0,Math.cos(target.yaw));
-    if(back.dot(face) > 0.35) dmg *= opts.back;
+    if(back.dot(face) > 0.35){ dmg *= opts.back; crit = true; }
   }
+  /* Was der Angreifer angezeigt bekommt, ist der volle Wert — auch der Teil,
+     den ein Schild geschluckt hat. Sonst wirkt ein Treffer wie ein Fehlschlag. */
+  const dealt = dmg;
   if(target.shield>0){
     const eat = Math.min(target.shield, dmg);
     target.shield -= eat; dmg -= eat;
@@ -1283,11 +1308,23 @@ function damage(target, amount, src, opts){
     target.vel.y += opts.kb*0.28;
     target.onGround = false;
   }
-  if(target===me){ flashDmg(); camShake = Math.max(camShake, Math.min(.5, dmg/60)); }
+  if(target===me){ flashDmg(); sfx.hit(); camShake = Math.max(camShake, Math.min(.5, dmg/60)); }
   hitSpark(target.pos, dmg>25);
-  if(target.hp <= 0) kill(target, src);
+  const killed = target.hp <= 0;
+  if(killed) kill(target, src);
   else if(!target.animLock) play(target,'hit',true,1.4);
-  return dmg;
+  reportHit(src, target, dealt, crit, killed);
+  return dealt;
+}
+
+/** Trefferrückmeldung an den, der geschlagen hat — lokal oder übers Netz. */
+function reportHit(src, target, dealt, crit, killed){
+  if(!src || src===target || dealt <= 0) return;
+  if(src === me) showHit(dealt, target.pos, crit, killed);
+  else if(src.conn){
+    try{ src.conn.send({t:'hit', d:+dealt.toFixed(1), crit, k:killed,
+      x:+target.pos.x.toFixed(1), y:+target.pos.y.toFixed(1), z:+target.pos.z.toFixed(1)}); }catch(e){}
+  }
 }
 
 function kill(target, src){
@@ -1530,6 +1567,7 @@ function basicAttack(f){
   }
 }
 
+function slashSound(f){ if(f!==me) sfx.hit(); }
 function meleeArc(f, range, deg, dmg, kb, opts){
   const dir = aimDir(f); dir.y=0; dir.normalize();
   const cosA = Math.cos(deg*Math.PI/180);
@@ -1543,7 +1581,7 @@ function meleeArc(f, range, deg, dmg, kb, opts){
     damage(o, dmg, f, Object.assign({kb:kb}, opts||{}));
     hitAny = true;
   });
-  if(hitAny){ sfx.hit(); if(f===me) crossHit(); }
+  if(hitAny) slashSound(f);
   slash(f, dir, range);
   return hitAny;
 }
@@ -1765,9 +1803,8 @@ function updateProjectiles(dt){
     } else if(p.kind==='meteor'){ p.mesh.rotation.x += dt*4; p.mesh.rotation.z += dt*3; }
 
     if(hit || hitWorld || p.life<=0){
-      if(hit && !p.splash) { damage(hit, p.dmg, p.owner, {kb: p.kind==='arrow'?3:5}); sfx.hit(); }
+      if(hit && !p.splash) damage(hit, p.dmg, p.owner, {kb: p.kind==='arrow'?3:5});
       if(p.splash) explode(p, hit);
-      else if(hit && p.owner===me) crossHit();
       kill_(i); continue;
     }
   }
@@ -1943,7 +1980,12 @@ function addFx(mesh, life, fn){ scene.add(mesh); fx.push({mesh, t:0, life, fn});
 function updateFx(dt){
   for(let i=fx.length-1;i>=0;i--){
     const e = fx[i]; e.t += dt;
-    if(e.t >= e.life){ scene.remove(e.mesh); if(e.mesh.geometry) e.mesh.geometry.dispose(); fx.splice(i,1); continue; }
+    if(e.t >= e.life){
+      scene.remove(e.mesh);
+      if(e.mesh.isSprite){ e.mesh.material.dispose(); }
+      else if(e.mesh.geometry) e.mesh.geometry.dispose();
+      fx.splice(i,1); continue;
+    }
     e.fn(e.mesh, e.t/e.life, dt);
   }
 }
@@ -2450,9 +2492,54 @@ function flashDmg(){
   const d = $('dmgflash'); d.style.opacity = .9;
   setTimeout(()=>{ d.style.opacity = 0; }, 120);
 }
-function crossHit(){
-  const c = $('cross'); c.classList.add('hit');
-  setTimeout(()=>c.classList.remove('hit'), 110);
+/* ---------- Trefferrückmeldung ----------
+   Drei Dinge auf einmal: das Kreuz blitzt, die Zahl steigt am Gegner auf, und
+   unter dem Fadenkreuz läuft die Summe der letzten Treffer mit. */
+let tally = 0, tallyT = 0;
+function showHit(dmg, pos, crit, killed){
+  const hm = $('hitmark');
+  hm.classList.remove('go','kill');
+  void hm.offsetWidth;                       // Neustart der Animation erzwingen
+  hm.classList.add(killed ? 'kill' : 'go');
+  if(killed) hm.classList.add('go');
+  damageNumber(pos, dmg, crit, killed);
+  killed ? sfx.crit() : sfx.hit();
+  tally += dmg; tallyT = 1.4;
+  const t = $('dmgtally');
+  t.textContent = Math.round(tally);
+  t.style.opacity = 1;
+}
+function crossHit(){ }
+
+/* Schadenszahlen als Sprite. Die Textur wird je Zahl einmal gebaut und
+   danach wiederverwendet — sonst kostet jeder Treffer ein neues Canvas. */
+const numCache = new Map();
+function numTexture(txt, col){
+  const key = txt+'|'+col;
+  if(numCache.has(key)) return numCache.get(key);
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 64;
+  const c = cv.getContext('2d');
+  c.font = '800 46px "Baloo 2", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.lineWidth = 9; c.strokeStyle = '#120C18';
+  c.strokeText(txt, 64, 34); c.fillStyle = col; c.fillText(txt, 64, 34);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding;
+  if(numCache.size > 260) numCache.clear();
+  numCache.set(key, t);
+  return t;
+}
+function damageNumber(pos, dmg, crit, killed){
+  const col = killed ? '#FF5B45' : crit ? '#FFC53D' : '#F6EFE4';
+  const tex = numTexture(String(Math.round(dmg)), col);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
+  const s = killed ? 2.6 : crit ? 2.2 : 1.7;
+  sp.scale.set(s, s*0.5, 1);
+  sp.position.set(pos.x + rnd(-.4,.4), pos.y + 1.9, pos.z + rnd(-.4,.4));
+  sp.renderOrder = 8;
+  const y0 = sp.position.y;
+  addFx(sp, killed ? 1.5 : 1.0, (o,t)=>{
+    o.position.y = y0 + t*1.5;
+    o.material.opacity = t < .65 ? 1 : 1-(t-.65)/.35;
+  });
 }
 let toastT = 0;
 function toast(t){ $('toast').textContent = t; toastT = 2.0; }
@@ -2538,6 +2625,7 @@ function loop(){
   updateFx(dt);
   updateHUD();
   if(toastT>0){ toastT -= dt; if(toastT<=0) $('toast').textContent=''; }
+  if(tallyT>0){ tallyT -= dt; if(tallyT<=0){ tally = 0; $('dmgtally').style.opacity = 0; } }
   renderer.render(scene, camera);
 }
 function updateFxLocal(dt){}
@@ -2697,6 +2785,7 @@ function onClientData(d){
     if(me) cfg.cls = me.cls;
     startMatch();
   }
+  else if(d.t==='hit') showHit(d.d, new THREE.Vector3(d.x,d.y,d.z), d.crit, d.k);
   else if(d.t==='snap') applySnap(d);
   else if(d.t==='over') finish(d.w);
 }
