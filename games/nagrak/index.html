@@ -2241,7 +2241,9 @@ function renderFighters(dt){
   fighters.forEach(f=>{
     if(!f.obj) return;
     f.obj.position.copy(f.pos);
-    if(f.ultKind!=='wirbel') f.obj.rotation.y = f.yaw + Math.PI;
+    /* Quaternius-Figuren schauen nach +Z, genau wie unsere Blickrichtung
+       (sin yaw, cos yaw) — deshalb ohne Versatz. */
+    if(f.ultKind!=='wirbel') f.obj.rotation.y = f.yaw;
     if(f.mixer) f.mixer.update(dt);
     // Unsichtbarkeit: für einen selbst blass, für Gegner ganz weg
     const friend = (f===me) || (MODES[cfg.mode].teams && me && f.team===me.team);
