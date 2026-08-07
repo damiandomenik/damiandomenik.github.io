@@ -21,6 +21,7 @@
   --sun:#FFC53D;       /* Farbe von LAST RUNNER */
   --snow:#BFE9FF;      /* Farbe von MERRY MOUNTAIN GP */
   --cyan:#37E0F5;      /* Farbe von RING OF NAGRAK */
+  --zone:#7B5CFF;      /* Farbe von HOLDOUT */
   --mint:#3FEFC0;
   --sign:"Bungee",Impact,sans-serif;
   --body:"Outfit","Helvetica Neue",sans-serif;
@@ -159,6 +160,18 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
 .spin{transform-origin:100px 96px;animation:spin 9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* HOLDOUT-Bildschirm */
+.zone{transform-origin:100px 80px;animation:closein 4.6s ease-in-out infinite}
+@keyframes closein{0%{transform:scale(1);opacity:.22}
+  10%{opacity:.95}86%{transform:scale(.26);opacity:.95}
+  100%{transform:scale(.26);opacity:0}}
+.foe{animation:elim 4.6s ease-in infinite}
+.foe.b{animation-delay:1s}
+.foe.c{animation-delay:2.1s}
+@keyframes elim{0%,50%{opacity:1}60%,100%{opacity:0}}
+.lastman{animation:steady 4.6s ease-in-out infinite}
+@keyframes steady{0%,70%{opacity:1}80%{opacity:.45}90%,100%{opacity:1}}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
@@ -170,7 +183,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
   <header class="marquee">
     <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <h1>SPIELHALLE</h1>
-    <p class="sub">Sechs Automaten stehen bereit. Einwurf ist nicht nötig.</p>
+    <p class="sub">Sieben Automaten stehen bereit. Einwurf ist nicht nötig.</p>
   </header>
 
   <main class="hall">
@@ -498,6 +511,75 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
           <g class="run3">
             <circle cx="100" cy="124" r="5" fill="#B07CFF"/>
             <rect x="96" y="129" width="8" height="12" rx="3" fill="#B07CFF"/>
+          </g>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
+      </div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">SPIELEN <em>Raumcode</em></div>
+    </a>
+
+
+    <!-- HOLDOUT -->
+    <a class="cab" href="/games/holdout/" style="--tint:var(--zone)">
+      <div class="top"><b>HOLDOUT</b><span>bis 12 Spieler</span></div>
+      <div class="screen">
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <defs>
+            <radialGradient id="sea" cx="50%" cy="52%" r="72%">
+              <stop offset="0" stop-color="#12262B"/><stop offset="1" stop-color="#050C0F"/>
+            </radialGradient>
+            <radialGradient id="land" cx="42%" cy="34%" r="76%">
+              <stop offset="0" stop-color="#3C4A34"/><stop offset="1" stop-color="#232E23"/>
+            </radialGradient>
+          </defs>
+          <rect width="200" height="150" fill="url(#sea)"/>
+
+          <!-- Insel von oben -->
+          <circle cx="100" cy="80" r="60" fill="url(#land)" stroke="#111A14" stroke-width="2.5"/>
+
+          <!-- Dschungel unten -->
+          <path d="M74 118 q14 -12 30 -6 q18 6 24 20 q-30 12 -54 -14 Z" fill="#2C4A2E"/>
+          <circle cx="86" cy="118" r="5" fill="#356038"/><circle cx="100" cy="124" r="6" fill="#2F5432"/>
+          <circle cx="114" cy="119" r="4.5" fill="#356038"/>
+
+          <!-- Westernviertel links: Strasse mit Hütten -->
+          <rect x="48" y="66" width="26" height="6" fill="#6B563A" transform="rotate(-14 61 69)"/>
+          <g fill="#8A6E48" stroke="#191F17" stroke-width="1.2">
+            <rect x="48" y="56" width="9" height="8"/><rect x="60" y="53" width="8" height="8"/>
+            <rect x="50" y="74" width="8" height="8"/><rect x="62" y="76" width="9" height="8"/>
+          </g>
+
+          <!-- Innenstadt Mitte: Blocks und Strassenkreuz -->
+          <rect x="76" y="58" width="48" height="4" fill="#3A4247"/>
+          <rect x="98" y="44" width="4" height="42" fill="#3A4247"/>
+          <g fill="#59636B" stroke="#191F17" stroke-width="1.2">
+            <rect x="80" y="44" width="14" height="12"/><rect x="106" y="44" width="12" height="12"/>
+            <rect x="80" y="66" width="12" height="14"/><rect x="106" y="66" width="15" height="11"/>
+          </g>
+
+          <!-- Werk rechts: Halle mit Schornstein -->
+          <g fill="#4B4F55" stroke="#191F17" stroke-width="1.2">
+            <rect x="128" y="60" width="24" height="16"/><rect x="146" y="52" width="5" height="10"/>
+          </g>
+
+          <!-- Zone, die sich zuzieht -->
+          <g class="zone">
+            <circle cx="100" cy="80" r="56" fill="none" stroke="#7B5CFF" stroke-width="3"/>
+            <circle cx="100" cy="80" r="56" fill="#7B5CFF" opacity=".12"/>
+          </g>
+
+          <!-- Ausgeschaltete Gegner -->
+          <g fill="#FF4D3D" stroke="#0B1114" stroke-width="1.2">
+            <circle class="foe"   cx="66" cy="98" r="3.4"/>
+            <circle class="foe b" cx="132" cy="44" r="3.4"/>
+            <circle class="foe c" cx="122" cy="102" r="3.4"/>
+          </g>
+
+          <!-- Der Letzte, der steht -->
+          <g class="lastman">
+            <circle cx="100" cy="80" r="4.6" fill="#FFB020" stroke="#0B1114" stroke-width="1.4"/>
+            <path d="M100 71.5 l3.6 6.4 h-7.2 Z" fill="#FFB020" stroke="#0B1114" stroke-width="1"/>
           </g>
         </svg>
         <div class="scanlines"></div><div class="glare"></div>
