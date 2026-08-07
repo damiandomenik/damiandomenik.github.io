@@ -149,6 +149,24 @@ input:focus{outline:none;border-color:var(--amber)}
   max-height:92vh;overflow:auto;pointer-events:none}
 #dbg b{color:var(--amber);font-weight:600}
 
+/* ---------- Punktestand ---------- */
+#board{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(6,12,13,.6);pointer-events:none}
+#board .bd{width:min(640px,100%);max-height:82vh;overflow:auto;padding:24px 26px;
+  border:1px solid var(--line);background:rgba(10,18,20,.97);box-shadow:0 30px 70px rgba(0,0,0,.6)}
+#board h3{font-size:22px;text-transform:uppercase;letter-spacing:.06em}
+#board table{width:100%;border-collapse:collapse;font-size:12.5px}
+#board th{text-align:left;font-size:10px;letter-spacing:.2em;color:var(--dim);
+  text-transform:uppercase;font-weight:600;padding-bottom:9px}
+#board td{padding:7px 0;border-top:1px solid rgba(37,57,61,.7)}
+#board td.p{color:var(--dim);font-family:'IBM Plex Mono',monospace}
+#board td.f{color:var(--dim)}
+#board td.k{text-align:right;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:16px}
+#board tr.me td{color:var(--amber)}
+#board tr.me td.f,#board tr.me td.p{color:rgba(255,176,32,.6)}
+#board tr.out td{color:#556065}
+#board tr.out td.k{color:#556065}
+
 /* ---------- Ergebnis ---------- */
 #result .wrap{width:min(680px,100%);padding:40px;text-align:center}
 #resTitle{font-size:clamp(34px,7vw,68px);font-weight:700;text-transform:uppercase;line-height:1}
@@ -185,6 +203,21 @@ input:focus{outline:none;border-color:var(--amber)}
 </div>
 <div id="dbg" class="hidden"></div>
 
+<!-- Punktestand, solange Tab gehalten wird -->
+<div id="board" class="hidden">
+  <div class="bd">
+    <div class="row" style="justify-content:space-between;align-items:baseline;margin-bottom:16px">
+      <div><div class="eyebrow">Punktestand</div><h3 id="bdTitle">—</h3></div>
+      <div id="bdZone" class="eyebrow"></div>
+    </div>
+    <table>
+      <thead><tr><th style="width:44px">Platz</th><th>Name</th><th>Figur</th>
+        <th style="text-align:right;width:80px">Kills</th></tr></thead>
+      <tbody id="bdBody"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ================= Screens ================= -->
 <div id="screens">
 
@@ -211,7 +244,9 @@ input:focus{outline:none;border-color:var(--amber)}
         <div id="bar"><i></i></div>
         <div id="loadTxt">Bereit.</div>
       </div>
-      <p class="sub" style="font-size:11.5px"><span id="buildTag" style="color:var(--amber)"></span> · F3 Statistik · F4 Collider sichtbar · F5 Capsule &amp; Bodenstrahl · F6 Kartenbericht</p>
+      <p class="sub" style="font-size:11.5px">WASD laufen · Shift sprinten · Strg ducken · Leertaste springen ·
+        Linksklick schießen · R nachladen · <b style="color:var(--amber)">Tab Punktestand</b> ·
+        <span id="buildTag" style="color:var(--dim)"></span></p>
     </div>
   </section>
 
@@ -401,7 +436,7 @@ const WEAPONS = {
 };
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 7';
+const BUILD = '2026-08-08 · 8';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -1887,6 +1922,16 @@ function toggleCollisionDebug(force){
 }
 window.toggleCollisionDebug = toggleCollisionDebug;
 window.collisionDebug = false;
+/* Die Debug-Ansichten liegen nicht mehr auf Funktionstasten — die kollidieren
+   mit dem Browser und stehen im Weg. Über die Konsole bleiben sie erreichbar. */
+window.debug = {
+  stats(on){ DEBUG_FLAGS.stats = (on === undefined) ? !DEBUG_FLAGS.stats : !!on;
+             $('dbg').classList.toggle('hidden', !DEBUG_FLAGS.stats); return DEBUG_FLAGS.stats; },
+  colliders(on){ return toggleCollisionDebug(on); },
+  hitboxes(on){ DEBUG_FLAGS.capsule = (on === undefined) ? !DEBUG_FLAGS.capsule : !!on;
+                return DEBUG_FLAGS.capsule; },
+  report(){ console.log(mapReportText()); }
+};
 
 function updateDebugHelpers(){
   if (!capsuleHelper) buildCapsuleHelper();
@@ -2404,21 +2449,17 @@ let mouseSens = 0.0022;
 
 addEventListener('keydown', e=>{
   keys[e.code] = true;
-  /* Debug-Tasten nur ohne Zusatztaste abfangen. Sonst frisst F5 auch
-     Strg+F5 und Shift+F5 — und die Seite laesst sich nicht mehr neu laden. */
-  const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
-  if (plain && e.code === 'F3'){ e.preventDefault(); DEBUG_FLAGS.stats = !DEBUG_FLAGS.stats; $('dbg').classList.toggle('hidden', !DEBUG_FLAGS.stats); }
-  if (plain && e.code === 'F4'){ e.preventDefault(); toggleCollisionDebug(); }
-  if (plain && e.code === 'F5'){ e.preventDefault(); DEBUG_FLAGS.capsule = !DEBUG_FLAGS.capsule;
-    toast(DEBUG_FLAGS.capsule ? 'Capsule, Bodenstrahl & Trefferzonen an' : 'Capsule aus'); }
-  if (plain && e.code === 'F6'){ e.preventDefault(); console.log(mapReportText()); toast('Kartenbericht in der Konsole'); }
+  if (e.code === 'Tab'){ e.preventDefault(); showBoard(true); }
   if (e.code === 'KeyR') input.reload = true;
   if (e.code === 'Digit1' && G.me){ G.me.weapon = 'smg';    G.me.reloading = false; }
   if (e.code === 'Digit2' && G.me){ G.me.weapon = 'pistol'; G.me.reloading = false; }
   if (e.code === 'Escape' && pointerLocked) document.exitPointerLock();
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
-addEventListener('keyup', e=>{ keys[e.code] = false; });
+addEventListener('keyup', e=>{
+  keys[e.code] = false;
+  if (e.code === 'Tab'){ e.preventDefault(); showBoard(false); }
+});
 
 canvas.addEventListener('mousedown', e=>{
   if (G.phase !== 'play') return;
@@ -2825,9 +2866,10 @@ function updateHUD(dt){
     $('stormT').textContent = String(Math.floor(tt/60)).padStart(2,'0') + ':' + String(Math.floor(tt%60)).padStart(2,'0');
   } else {
     $('stormPhase').textContent = 'Testkammer';
-    $('stormT').textContent = 'F4 / F5';
+    $('stormT').textContent = '—';
   }
   if (toastT > 0){ toastT -= dt; if (toastT <= 0) $('toast').textContent = ''; }
+  if (boardOn) renderBoard();
   drawMinimap();
 }
 function drawMinimap(){
@@ -2866,6 +2908,39 @@ function drawMinimap(){
   mm.restore();
 }
 
+let boardOn = false;
+function showBoard(on){
+  if (G.phase !== 'play') on = false;
+  if (on === boardOn) return;
+  boardOn = on;
+  $('board').classList.toggle('hidden', !on);
+  if (on) renderBoard();
+}
+function renderBoard(){
+  const me = G.me;
+  /* Lebende zuerst nach Ausschaltungen, danach die Ausgeschiedenen in der
+     Reihenfolge, in der sie rausgeflogen sind — wer länger durchhielt, steht
+     weiter oben. */
+  const rows = G.actors.slice().sort((a,b)=>{
+    if (a.alive !== b.alive) return a.alive ? -1 : 1;
+    if (a.alive) return b.kills - a.kills || a.name.localeCompare(b.name);
+    return (a.placement||99) - (b.placement||99);
+  });
+  const alive = G.actors.filter(a=>a.alive).length;
+  $('bdTitle').textContent = alive + ' von ' + G.actors.length + ' am Leben';
+  const st = G.storm;
+  $('bdZone').textContent = G.mode === 'br'
+    ? (st.state === 'hold' ? 'Zone hält · Phase ' + (st.phase+1) : 'Zone schrumpft')
+    : 'Testkammer';
+  $('bdBody').innerHTML = rows.map((a,i)=>{
+    const cls = [a === me ? 'me' : '', a.alive ? '' : 'out'].filter(Boolean).join(' ');
+    return '<tr class="' + cls + '"><td class="p">' + (a.alive ? (i+1) : '–') + '</td>' +
+           '<td>' + esc(a.name) + (a.alive ? '' : ' · ausgeschieden') + '</td>' +
+           '<td class="f">' + esc(a.charName.replace(/_/g,' ')) + '</td>' +
+           '<td class="k">' + a.kills + '</td></tr>';
+  }).join('');
+}
+
 let fpsSmooth = 60;
 function updateDebugPanel(dt){
   if (!DEBUG_FLAGS.stats) return;
@@ -2900,7 +2975,7 @@ function updateDebugPanel(dt){
   L.push('<b>Draw calls</b>   ' + renderer.info.render.calls);
   L.push('<b>Build</b>         ' + BUILD);
   L.push('');
-  L.push('F4 Collider · F5 Capsule · F6 Bericht');
+  L.push('Konsole: debug.stats() · debug.colliders() · debug.hitboxes() · debug.report()');
   $('dbg').innerHTML = L.join('\n');
 }
 
@@ -3203,7 +3278,7 @@ async function beginMatch(){
   canvas.requestPointerLock();
   setTimeout(()=>{
     if (!pointerLocked) toast('Ins Bild klicken, um die Maus zu übernehmen');
-    else toast(flow === 'test' ? 'Testkammer — F4 zeigt die Collider' : 'Zone hält. Viel Erfolg.');
+    else toast(flow === 'test' ? 'Testkammer' : 'Zone hält. Viel Erfolg.');
   }, 350);
 }
 
@@ -3238,6 +3313,7 @@ function onLocalDeath(){
 
 function endMatch(winner, place){
   G.phase = 'over';
+  showBoard(false);
   document.exitPointerLock();
   $('hud').classList.remove('on');
   const won = winner && winner === G.me;
@@ -3298,8 +3374,8 @@ loop();
 
 console.log('%cHOLDOUT', 'font:700 16px monospace;color:#FFB020');
 console.log('Build ' + BUILD + ' — steht auch unten auf dem Startbildschirm.');
-console.log('Debug: F3 Statistik · F4 Collider · F5 Capsule · F6 Kartenbericht\n' +
-            'Konsole: toggleCollisionDebug(), analyzeGLBMap()');
+console.log('Punktestand: Tab halten.\n' +
+            'Debug über die Konsole: debug.stats() · debug.colliders() · debug.hitboxes() · debug.report()');
 </script>
 </body>
 </html>
