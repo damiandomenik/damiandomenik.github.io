@@ -235,9 +235,8 @@ body.touch .ab{width:48px;height:48px}
   </div>
 
   <div class="panel">
-    <div class="lbl">ARENA</div><div class="row" id="arenas"></div>
-    <div class="lbl" style="margin-top:14px">MODUS</div><div class="row" id="modes"></div>
-    <div id="modeInfo" style="font-size:.74rem;opacity:.72;margin-top:8px"></div>
+    <div class="lbl">🪂 BATTLE ROYALE · KOLONIE</div>
+    <div id="modeInfo" style="font-size:.8rem;opacity:.8;line-height:1.5"></div>
   </div>
 
   <div class="panel">
@@ -263,13 +262,13 @@ body.touch .ab{width:48px;height:48px}
   </div>
   <div style="font-size:.72rem;opacity:.55;text-align:center;max-width:640px">
     WASD laufen · Maus zielen · Linksklick angreifen · Q / E Fähigkeiten · R Ultimate ·
-    Leertaste springen · Shift sprinten · Tab Punkte
+    Leertaste springen · Shift sprinten · Tab Rangliste
   </div>
 </div>
 
 <!-- ============ LOBBY ============ -->
 <div id="scLobby" class="screen hidden">
-  <div class="brand"><b>LOBBY</b><i id="lobbyMode">JEDER GEGEN JEDEN</i></div>
+  <div class="brand"><b>LOBBY</b><i id="lobbyMode">BATTLE ROYALE</i></div>
   <div class="panel" style="max-width:520px;text-align:center">
     <div class="lbl">RAUMCODE</div>
     <div id="code" style="font-size:2.6rem;font-weight:800;letter-spacing:.3em;color:var(--gold)">----</div>
@@ -287,7 +286,7 @@ body.touch .ab{width:48px;height:48px}
 <div id="hud" class="hidden">
   <div id="topbar">
     <div class="tb" id="teamA"><b>0</b><i>TEAM BLAU</i></div>
-    <div class="tb" id="clock"><b>5:00</b><i id="modeName">JEDER GEGEN JEDEN</i></div>
+    <div class="tb" id="clock"><b>10:00</b><i id="modeName">BATTLE ROYALE</i></div>
     <div class="tb" id="teamB"><b>0</b><i>TEAM ROT</i></div>
   </div>
   <div id="feed"></div>
@@ -466,25 +465,16 @@ const ARENAS = {
 };
 const ARENA_IDS = Object.keys(ARENAS);
 
-/* ---------------- Modi ---------------- */
+/* ---------------- Modus ----------------
+   Das Spiel ist auf Battle Royale zugeschnitten. Die alten Arena-Modi sind
+   raus; was von ihnen bleibt, sind die gebauten Arenen als Notfallkarte,
+   falls der Bausatz nicht geladen werden kann. */
 const MODES = {
-  ffa:  {name:'Jeder gegen jeden', em:'⚔️', teams:0, time:300, target:20, respawn:5,
-         info:'Jeder für sich. Wer zuerst 20 Punkte hat oder nach fünf Minuten führt, gewinnt.'},
-  t2v2: {name:'2 gegen 2', em:'👥', teams:2, size:2, time:300, target:25, respawn:5,
-         info:'Zwei Teams. Abschüsse zählen für die Mannschaft.'},
-  t3v3: {name:'3 gegen 3', em:'👨‍👩‍👦', teams:2, size:3, time:300, target:30, respawn:5,
-         info:'Wie 2 gegen 2, nur größer. Ab sechs Kämpfern sinnvoll.'},
-  koth: {name:'King of the Hill', em:'👑', teams:2, time:300, target:100, respawn:6,
-         info:'Haltet den Kreis in der Mitte. Punkte laufen, solange nur euer Team drinsteht.'},
-  ctf:  {name:'Capture the Flag', em:'🚩', teams:2, time:420, target:3, respawn:7,
-         info:'Fahne des Gegners holen, zur eigenen Basis bringen. Die eigene muss dabei zu Hause sein.'},
-  lms:  {name:'Last Man Standing', em:'💀', teams:0, time:300, target:1, respawn:-1, lives:3,
-         info:'Drei Leben, kein Wiedereinstieg danach. Der Letzte gewinnt.'},
-  br:   {name:'Battle Royale', em:'🪂', teams:0, time:600, target:1, respawn:-1, lives:1, br:true,
-         arena:'kolonie',
-         info:'Absprung über der Kolonie, ein Leben. Waffen und Rüstung liegen in Kisten. '+
-              'Deine Klassenfähigkeiten hast du von Anfang an — und nach jedem überlebten Kreis '+
-              'darfst du eine davon verbessern. Der Letzte gewinnt.'}
+  br: {name:'Battle Royale', em:'🪂', teams:0, time:600, target:1, respawn:-1, lives:1, br:true,
+       arena:'kolonie',
+       info:'Absprung über der Kolonie, ein Leben. Waffen und Rüstung liegen in Kisten. '+
+            'Deine Klassenfähigkeiten hast du von Anfang an — und nach jedem überlebten Kreis '+
+            'darfst du eine davon verbessern. Der Letzte gewinnt.'}
 };
 const MODE_IDS = Object.keys(MODES);
 
@@ -543,7 +533,7 @@ let scene, camera, renderer, clock, sun;
 let fighters = [], projectiles = [], gadgets = [], powerups = [], fx = [];
 let arena = null, me = null, myId = 0, nextEnt = 1;
 let phase = 'menu';                       // menu | lobby | countdown | fight | over
-let cfg = { cls:'ritter', arena:'wald', mode:'ffa', bots:5, name:'Kämpfer', sens:1.0 };
+let cfg = { cls:'ritter', arena:'kolonie', mode:'br', bots:7, name:'Kämpfer', sens:1.0, seed:1 };
 let matchT = 0, countT = 0, scoreT = [0,0], koth = 0, over = null;
 let isNet = false, isHost = true, peer = null, conns = [], netPlayers = [];
 let camYaw = 0, camPitch = 0.16, locked = false, camShake = 0;
@@ -867,6 +857,12 @@ function rasterize(meshes, cell, maxTriArea){
         }
         continue;
       }
+      /* Deckel: gilt nur für waagrechte Flächen. Ein Dach über einem Boden
+         würde die Zelle sonst dichtmachen, denn das Höhenfeld kennt je Zelle
+         nur eine Höhe. Auf Wände darf der Deckel nicht wirken — sie sind oft
+         waagrecht unterteilt, und ein abgeschnittener Wandstummel liesse sich
+         einfach übersteigen. */
+      if(mesh.maxY !== undefined && Math.min(a.y,b.y,c.y) > mesh.maxY) continue;
       const minX=Math.min(a.x,b.x,c.x), maxX=Math.max(a.x,b.x,c.x);
       const minZ=Math.min(a.z,b.z,c.z), maxZ=Math.max(a.z,b.z,c.z);
       const ix0=Math.max(0,Math.floor((minX-hf.x0)/cell)), ix1=Math.min(hf.nx-1,Math.ceil((maxX-hf.x0)/cell));
@@ -989,6 +985,10 @@ function largestRegion(hf){
      'mesh'          echte Geometrie rastern (Rampen, Felsen, begehbare Bauten)
      'none'          reine Deko, blockt nichts
      [b,h,t,yOff]    Quader in Breite/Höhe/Tiefe, billig und exakt genug
+   ceil sagt, ab welcher Höhe die Geometrie eines Teils ignoriert wird. Das
+   Höhenfeld kennt je Zelle nur eine Höhe — ohne Deckel versperrt das Dach den
+   Raum darunter und kein Haus wäre betretbar. Wände blocken weiter, weil sie
+   unterhalb des Deckels beginnen.
    ========================================================================== */
 const KIT = {
   // --- Böden und Wege ---
@@ -1003,15 +1003,15 @@ const KIT = {
   MetalSupport:        {c:'none'},
   Fence:               {c:[0.70,1.26,0.30,0.63]},
   // --- Bauten ---
-  House_Single:        {c:[4.00,4.10,3.90,2.25]},
-  House_Long:          {c:[4.00,4.30,7.80,2.20]},
-  House_Cylinder:      {c:[5.20,4.30,5.20,2.15]},
-  House_Open:          {c:'mesh'},
-  House_OpenBack:      {c:'mesh'},
+  House_Single:        {c:'mesh', ceil:1.5},
+  House_Long:          {c:'mesh', ceil:1.5},
+  House_Cylinder:      {c:'mesh', ceil:1.5},
+  House_Open:          {c:'mesh', ceil:1.5},
+  House_OpenBack:      {c:'mesh', ceil:1.5},
   House_Single_Support:{c:[3.58,0.90,3.58,0.44]},
-  Building_L:          {c:'mesh'},
-  Base_Large:          {c:'mesh'},
-  GeodesicDome:        {c:'mesh'},
+  Building_L:          {c:'mesh', ceil:1.5},
+  Base_Large:          {c:'mesh', ceil:1.6},
+  GeodesicDome:        {c:'mesh', ceil:1.6},
   Connector:           {c:'none'},
   // --- Aufbauten und Kleinkram ---
   Roof_Antenna:        {c:'none'},
@@ -1117,10 +1117,17 @@ Builder.prototype.finish = function(){
     // Kollision
     if(pf.col === 'none') continue;
     if(pf.col === 'mesh'){
+      const ceil = KIT[name].ceil;
       pf.parts.forEach(part=>{
         list.forEach(M=>{
-          this.colliders.push({geometry:part.geo, matrixWorld:new THREE.Matrix4().multiplyMatrices(M, part.mtx),
-                               updateWorldMatrix(){}, });
+          const c = {geometry:part.geo, matrixWorld:new THREE.Matrix4().multiplyMatrices(M, part.mtx),
+                     updateWorldMatrix(){}};
+          if(ceil !== undefined){
+            const p = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+            M.decompose(p, q, sc);
+            c.maxY = p.y + ceil*sc.y;      // Dach ab hier ignorieren
+          }
+          this.colliders.push(c);
         });
       });
     } else {
@@ -1471,6 +1478,7 @@ function buildKolonie(group, def, seed){
   const ri = (a,b)=> Math.floor(rr(a,b+1));
   const pk = arr => arr[Math.floor(rng()*arr.length)];
   arena.loot = [];
+  arena.houses = [];
   const loot = (x,y,z,w)=> arena.loot.push({x, y, z, w:w||1});
 
   /* --- Grund und Rand --- */
@@ -1523,10 +1531,15 @@ function buildKolonie(group, def, seed){
         const lx = k*8.5, lz = row*9;
         const x = d.x + Math.cos(rot)*lx - Math.sin(rot)*lz;
         const z = d.z + Math.sin(rot)*lx + Math.cos(rot)*lz;
-        const type = pk(['House_Single','House_Open','House_OpenBack','House_Long','House_Cylinder']);
+        /* House_Open und House_Long haben Türöffnungen und sind betretbar,
+           die übrigen sind dicht und dienen als Deckung. Gemessen am Umriss:
+           17 % des Randes offen gegenüber 0 % bei den anderen. */
+        const type = pk(['House_Open','House_Open','House_Long','House_Long',
+                         'House_Single','House_OpenBack','House_Cylinder']);
         const ry = rot + (row<0 ? 0 : Math.PI);
         B.put('House_Single_Support', x, 0, z, ry);
         B.put(type, x, 0.6, z, ry);
+        arena.houses.push({x, z, type, ry});
         if(rng()<0.6) B.put(pk(['Roof_Antenna','Roof_Radar','Roof_VentL','SolarPanel_Roof']), x, 4.7, z, rr(0,TAU));
         // Beute vor der Tür
         const fx = x + Math.cos(ry+Math.PI/2)*(row<0?3.2:-3.2);
@@ -1648,7 +1661,7 @@ function buildKolonie(group, def, seed){
       B.put(pk(['Tree_Spiral_1','Tree_Swirl_2','Tree_Spikes_2']), x, 0, z, rr(0,TAU), rr(0.8,1.4));
       if(rng() < 0.25) loot(x + rr(-3,3), 0.2, z + rr(-3,3), 1);
     } else if(roll < 0.62){
-      B.put('House_Single', x, 0, z, rr(0,TAU));
+      B.put(pk(['House_Open','House_Long','House_Single']), x, 0, z, rr(0,TAU));
       loot(x + rr(-4,4), 0.2, z + rr(-4,4), rng() < 0.3 ? 2 : 1);
     } else if(roll < 0.72){
       B.put('Rock_Large_1', x, 0, z, rr(0,TAU), rr(1,1.8));
@@ -2890,103 +2903,17 @@ function setupMode(){
   $('teamA').classList.toggle('hidden', !M.teams);
   $('teamB').classList.toggle('hidden', !M.teams);
 
-  if(MODES[cfg.mode].br){ setupBR(); return; }
-  $('brbar').classList.add('hidden'); $('gear').classList.add('hidden');
-  if(zone){ scene.remove(zone.mesh); zone = null; }
-  crates.forEach(c=>scene.remove(c.obj)); crates = [];
-  if(cfg.mode==='koth'){
-    const hill = new THREE.Mesh(new THREE.CylinderGeometry(9,9,.2,32),
-      new THREE.MeshBasicMaterial({color:0xFFC53D, transparent:true, opacity:.22, depthWrite:false}));
-    hill.position.copy(arena.center); hill.position.y += .1;
-    arena.group.add(hill); arena.hill = hill;
-  }
-  if(cfg.mode==='ctf'){
-    for(let t=0;t<2;t++){
-      const base = arena.bases[t];
-      const grp = new THREE.Group();
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.4,6),
-        new THREE.MeshLambertMaterial({color:0xE8E0D0}));
-      pole.position.y=1.7; grp.add(pole);
-      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.0),
-        new THREE.MeshBasicMaterial({color:TEAM_COL[t], side:THREE.DoubleSide}));
-      cloth.position.set(.8,2.9,0); grp.add(cloth);
-      const pad = new THREE.Mesh(new THREE.RingGeometry(2.2,2.8,24),
-        new THREE.MeshBasicMaterial({color:TEAM_COL[t], side:THREE.DoubleSide, transparent:true, opacity:.5, depthWrite:false}));
-      pad.rotation.x=-Math.PI/2; pad.position.y=.08; grp.add(pad);
-      grp.position.copy(base); scene.add(grp);
-      flags.push({team:t, home:base.clone(), pos:base.clone(), obj:grp, carrier:-1, dropT:0});
-    }
-  }
+  setupBR();
 }
 
 function updateMode(dt){
   const M = MODES[cfg.mode];
-  if(M.br){ updateBR(dt); if(matchT >= M.time && !over) finish('Zeit abgelaufen'); return; }
-  if(cfg.mode==='koth' && arena.hill){
-    const inside = fighters.filter(f=>f.alive && f.pos.distanceTo(arena.center)<9 && Math.abs(f.pos.y-arena.center.y)<4);
-    const t0 = inside.filter(f=>f.team===0).length, t1 = inside.filter(f=>f.team===1).length;
-    let col = 0xFFC53D;
-    if(t0>0 && t1===0){ scoreT[0] += dt*8; col = TEAM_COL[0]; }
-    else if(t1>0 && t0===0){ scoreT[1] += dt*8; col = TEAM_COL[1]; }
-    arena.hill.material.color.setHex(col);
-    arena.hill.material.opacity = .18 + Math.sin(matchT*3)*.06;
-  }
-  if(cfg.mode==='ctf'){
-    flags.forEach(fl=>{
-      const carrier = fl.carrier>=0 ? fighterById(fl.carrier) : null;
-      if(carrier && carrier.alive){
-        fl.pos.set(carrier.pos.x, carrier.pos.y+0.2, carrier.pos.z);
-      } else if(carrier){ dropFlag(carrier); }
-      fl.obj.position.copy(fl.pos);
-      fl.obj.rotation.y += dt*(fl.carrier>=0?3:.6);
-      if(fl.carrier<0){
-        fl.dropT += dt;
-        if(fl.dropT>18 && fl.pos.distanceTo(fl.home)>1){ fl.pos.copy(fl.home); fl.dropT=0; feed('🚩 Fahne zurückgesetzt'); }
-      }
-      fighters.forEach(f=>{
-        if(!f.alive) return;
-        const d = f.pos.distanceTo(fl.pos);
-        if(fl.team !== f.team){
-          if(fl.carrier<0 && d<1.8){ fl.carrier = f.id; f.flag = fl.team; fl.dropT=0;
-            feed('🚩 '+f.name+' hat die Fahne'); sfx.pick(); }
-        } else {
-          // eigene Fahne berühren: zurückholen, oder Punkt bringen
-          if(fl.carrier<0 && d<1.8 && fl.pos.distanceTo(fl.home)>1.5){ fl.pos.copy(fl.home); feed('🚩 zurückgeholt'); }
-          if(f.flag>=0 && d<2.6 && fl.pos.distanceTo(fl.home)<1.5){
-            scoreT[f.team]++; feed('🏆 '+f.name+' punktet!');
-            const other = flags[f.flag]; other.pos.copy(other.home); other.carrier=-1;
-            f.flag=-1; sfx.win();
-          }
-        }
-      });
-    });
-  }
-  // Endbedingungen
-  if(over) return;
-  if(M.teams){
-    if(scoreT[0] >= M.target) finish('Team Blau');
-    else if(scoreT[1] >= M.target) finish('Team Rot');
-  } else if(cfg.mode==='lms'){
-    const alive = fighters.filter(f=>f.lives>0);
-    if(alive.length<=1) finish(alive.length?alive[0].name:'Niemand');
-  } else {
-    const lead = fighters.slice().sort((a,b)=>b.score-a.score)[0];
-    if(lead && lead.score >= M.target) finish(lead.name);
-  }
-  if(matchT >= M.time){
-    if(M.teams) finish(scoreT[0]===scoreT[1]?'Unentschieden':(scoreT[0]>scoreT[1]?'Team Blau':'Team Rot'));
-    else { const l = fighters.slice().sort((a,b)=>b.score-a.score)[0]; finish(l?l.name:'Niemand'); }
-  }
+  updateBR(dt);
+  if(matchT >= M.time && !over) finish('Zeit abgelaufen');
 }
 
-function dropFlag(f){
-  if(f.flag<0) return;
-  const fl = flags[f.flag];
-  fl.carrier = -1; fl.dropT = 0;
-  fl.pos.set(f.pos.x, groundY(f.pos.x,f.pos.z,f.pos.y+1).y, f.pos.z);
-  f.flag = -1;
-  feed('🚩 Fahne fallen gelassen');
-}
+function dropFlag(f){ f.flag = -1; }
+
 
 /* ==========================================================================
    BOTS
@@ -3032,11 +2959,6 @@ function botThink(f, dt){
       }
       if(best) goal = _v3.set(best.pos.x, best.pos.y, best.pos.z);
     }
-  }
-  if(cfg.mode==='koth') goal = arena.center;
-  if(cfg.mode==='ctf'){
-    if(f.flag>=0) goal = flags[f.team].home;
-    else if(flags.length) goal = flags[1-f.team].pos;
   }
   // Power-Up in der Nähe mitnehmen
   let pu = null, pd = 22;
@@ -3452,12 +3374,10 @@ function loop(){
         fighters.forEach(f=>{ handleAbilities(f, dt); });
       }
       fighters.forEach(f=>moveFighter(f, dt));
-      updateProjectiles(dt); updateGadgets(dt); updatePowers(dt);
+      updateProjectiles(dt); updateGadgets(dt);
       updateArena(dt);
       if(phase==='fight'){
         updateMode(dt);
-        powerAcc += dt;
-        if(powerAcc > 9 && !MODES[cfg.mode].br){ powerAcc = 0; if(powerups.length < 4) spawnPower(); }
       }
       if(isNet){ netAcc += dt; if(netAcc > 1/NET_HZ){ netAcc = 0; broadcast(snapshot()); } }
     } else {
@@ -3531,7 +3451,6 @@ function startMatch(){
     const s = arena.spawns[i % arena.spawns.length];
     f.pos.set(s.x, s.y+0.6, s.z);
   });
-  spawnPower(); spawnPower();
   $('scMenu').classList.add('hidden'); $('scLobby').classList.add('hidden');
   $('scEnd').classList.add('hidden'); $('hud').classList.remove('hidden');
   buildAbilBar();
@@ -3683,7 +3602,6 @@ function snapshot(){
     p: projectiles.map(p=>({k:p.kind, x:+p.pos.x.toFixed(1), y:+p.pos.y.toFixed(1), z:+p.pos.z.toFixed(1), c:p.col})),
     g: gadgets.map(g=>({k:g.t, x:+g.pos.x.toFixed(1), y:+g.pos.y.toFixed(1), z:+g.pos.z.toFixed(1), t:g.team})),
     pu: powerups.map(p=>({i:p.id, x:+p.pos.x.toFixed(1), y:+p.pos.y.toFixed(1), z:+p.pos.z.toFixed(1)})),
-    fg: flags.map(f=>({t:f.team, x:+f.pos.x.toFixed(1), y:+f.pos.y.toFixed(1), z:+f.pos.z.toFixed(1), c:f.carrier}))
   };
 }
 
@@ -3751,7 +3669,7 @@ function syncGhosts(s){
     const m = new THREE.Mesh(new THREE.OctahedronGeometry(.65,0), new THREE.MeshLambertMaterial({color:0xffffff}));
     return {obj:m};
   }, (o,d)=>{ o.obj.position.set(d.x,d.y+1.1,d.z); o.obj.material.color.setHex(POWERS[d.i].c); o.obj.rotation.y+=.05; });
-  fit(ghostFlag, s.fg||[], ()=>{
+  fit(ghostFlag, [], ()=>{
     const g = new THREE.Group();
     const p = new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,3.4,6), new THREE.MeshLambertMaterial({color:0xE8E0D0}));
     p.position.y=1.7; g.add(p);
@@ -3791,22 +3709,8 @@ function buildMenu(){
     cfg.cls = b.dataset.cls; markClass();
     if(isNet && !isHost && conns[0]) conns[0].send({t:'pick', cls:cfg.cls});
   };
-  // Arenen
-  $('arenas').innerHTML = ARENA_IDS.map(id=>
-    `<button class="chip" data-a="${id}">${ARENAS[id].em} ${ARENAS[id].name}</button>`).join('');
-  $('arenas').onclick = e=>{ const b=e.target.closest('.chip'); if(!b) return;
-    cfg.arena = b.dataset.a; mark('#arenas','[data-a]',cfg.arena,'a'); };
-  // Modi
-  $('modes').innerHTML = MODE_IDS.map(id=>
-    `<button class="chip" data-m="${id}">${MODES[id].em} ${MODES[id].name}</button>`).join('');
-  $('modes').onclick = e=>{ const b=e.target.closest('.chip'); if(!b) return;
-    cfg.mode = b.dataset.m; mark('#modes','[data-m]',cfg.mode,'m');
-    if(MODES[cfg.mode].arena){ cfg.arena = MODES[cfg.mode].arena; mark('#arenas','[data-a]',cfg.arena,'a'); }
-    $('arenas').style.opacity = MODES[cfg.mode].arena ? .35 : 1;
-    $('modeInfo').textContent = MODES[cfg.mode].info; };
-
-  markClass(); mark('#arenas','[data-a]',cfg.arena,'a'); mark('#modes','[data-m]',cfg.mode,'m');
-  $('modeInfo').textContent = MODES[cfg.mode].info;
+  markClass();
+  $('modeInfo').textContent = MODES.br.info;
 
   $('pname').value = cfg.name;
   $('pname').oninput = e=>{ cfg.name = (e.target.value||'Kämpfer').slice(0,12); save(); };
@@ -3852,9 +3756,6 @@ function buildMenu(){
     $('scEnd').classList.add('hidden'); $('hud').classList.add('hidden');
     $('scMenu').classList.remove('hidden');
   };
-}
-function mark(sel, attr, val, key){
-  document.querySelectorAll(sel+' .chip').forEach(b=>b.classList.toggle('on', b.dataset[key]===val));
 }
 function markClass(){
   document.querySelectorAll('.cls').forEach(b=>b.classList.toggle('on', b.dataset.cls===cfg.cls));
@@ -3904,8 +3805,7 @@ function load(){
   try{ const v = JSON.parse(localStorage.getItem('nagrak2')||'{}');
     Object.assign(cfg, v);
     if(!CLASSES[cfg.cls]) cfg.cls='ritter';
-    if(!ARENAS[cfg.arena]) cfg.arena='wald';
-    if(!MODES[cfg.mode]) cfg.mode='ffa';
+    cfg.arena = 'kolonie'; cfg.mode = 'br';
   }catch(e){}
 }
 
