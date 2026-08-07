@@ -137,6 +137,37 @@ input[type=range]{width:100%;accent-color:var(--gold)}
   100%{opacity:0;transform:scale(1.35)}}
 
 /* Summe des Schadens der letzten Sekunden, direkt unterm Fadenkreuz */
+/* --- Battle Royale --- */
+#brbar{position:absolute;top:max(64px,calc(env(safe-area-inset-top) + 54px));left:50%;
+  transform:translateX(-50%);display:flex;gap:8px;align-items:center}
+.brchip{background:rgba(18,12,24,.75);border:3px solid rgba(246,239,228,.5);border-radius:12px;
+  padding:3px 12px;font-size:.8rem;white-space:nowrap}
+.brchip b{color:var(--gold)}
+#zonechip.warn{border-color:var(--blood);color:var(--blood);animation:pulse .6s infinite alternate}
+#gear{position:absolute;left:max(14px,env(safe-area-inset-left));
+  bottom:max(112px,calc(env(safe-area-inset-bottom) + 96px));display:flex;gap:6px}
+.gchip{background:rgba(18,12,24,.8);border:2px solid rgba(246,239,228,.4);border-radius:10px;
+  padding:3px 9px;font-size:.78rem}
+.gchip.t1{border-color:#9AA6B2}.gchip.t2{border-color:#4BD08A}.gchip.t3{border-color:#FFC53D}
+#zonewarn{position:absolute;inset:0;box-shadow:inset 0 0 150px 40px rgba(176,91,255,.55);opacity:0;
+  transition:opacity .3s;pointer-events:none}
+
+/* Verbesserung nach jedem Kreis */
+#levelup{position:absolute;inset:0;background:rgba(8,5,12,.82);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;pointer-events:auto;padding:20px}
+#levelup h3{font-size:1.6rem;letter-spacing:.08em;color:var(--gold);
+  -webkit-text-stroke:5px var(--ink);paint-order:stroke fill}
+#levelup .sub{font-size:.8rem;opacity:.7}
+#upopts{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.upo{width:180px;background:rgba(29,20,37,.95);border:3px solid rgba(246,239,228,.4);border-radius:16px;
+  padding:14px 12px;text-align:center;transition:.13s}
+.upo:hover{transform:translateY(-4px);border-color:var(--gold)}
+.upo .em{font-size:2rem}
+.upo h5{font-size:1rem;margin:4px 0 5px;letter-spacing:.04em}
+.upo p{font-size:.74rem;opacity:.78;font-weight:600}
+.upo .lvl{font-size:.66rem;color:var(--gold);margin-top:6px}
+#uptimer{font-size:.8rem;opacity:.6}
+
 #dmgtally{position:absolute;left:50%;top:calc(50% + 40px);transform:translateX(-50%);
   font-weight:800;font-size:1.05rem;color:var(--gold);-webkit-text-stroke:4px var(--ink);
   paint-order:stroke fill;opacity:0;transition:opacity .25s}
@@ -274,6 +305,18 @@ body.touch .ab{width:48px;height:48px}
   <div id="big"></div>
   <div id="toast"></div>
   <div id="dmgflash"></div>
+  <div id="brbar" class="hidden">
+    <span class="brchip" id="alivechip">👤 <b>8</b> übrig</span>
+    <span class="brchip" id="zonechip">🌀 Kreis <b>1</b> · 0:35</span>
+  </div>
+  <div id="gear" class="hidden"></div>
+  <div id="zonewarn"></div>
+  <div id="levelup" class="hidden">
+    <h3>KREIS ÜBERLEBT</h3>
+    <div class="sub">Wähle eine Verbesserung</div>
+    <div id="upopts"></div>
+    <div id="uptimer"></div>
+  </div>
   <div id="dead" class="hidden"><b>GEFALLEN</b><span id="respTxt">Zurück in 5</span></div>
   <div id="board" class="hidden"></div>
 </div>
@@ -318,6 +361,7 @@ body.touch .ab{width:48px;height:48px}
    einen Unterordner legt, ändert nur MODEL_DIR bzw. ARENA_FILE. */
 const MODEL_DIR = 'models/';
 const ARENA_FILE = 'models/rayman_arena_m__timber_wood.glb';
+const FIREBALL_FILE = 'models/fireball_vfx.glb';
 /* Auf diese Kantenlänge wird die GLB-Arena skaliert. Kleiner heisst engere
    Kämpfe, grösser heisst mehr Laufwege. */
 const ARENA_TARGET = 96;
@@ -416,7 +460,9 @@ const ARENAS = {
   tempel: {name:'Tempel', em:'🛕', sky:0x2A1E36, fog:[0x3A2A48,50,220], ground:0x9A8A70, rock:0x7A6A54,
            accent:0xB05BFF, light:0xFFE8C0, feat:['plattform','falle','teleport'], r:48},
   ruinen: {name:'Ruinen', em:'🗿', sky:0x3A3630, fog:[0x4A463E,50,230], ground:0x6A6458, rock:0x585044,
-           accent:0x9BE02F, light:0xFFF2D8, feat:['falle','teleport','katapult'], r:52}
+           accent:0x9BE02F, light:0xFFF2D8, feat:['falle','teleport','katapult'], r:52},
+  kolonie:{name:'Kolonie', em:'🛰️', sky:0x1A2436, fog:[0x243248,90,420], ground:0x6B7A6A, rock:0x5A6472,
+           accent:0xFF9A2E, light:0xFFF0D8, kit:true, br:true, r:100}
 };
 const ARENA_IDS = Object.keys(ARENAS);
 
@@ -433,9 +479,48 @@ const MODES = {
   ctf:  {name:'Capture the Flag', em:'🚩', teams:2, time:420, target:3, respawn:7,
          info:'Fahne des Gegners holen, zur eigenen Basis bringen. Die eigene muss dabei zu Hause sein.'},
   lms:  {name:'Last Man Standing', em:'💀', teams:0, time:300, target:1, respawn:-1, lives:3,
-         info:'Drei Leben, kein Wiedereinstieg danach. Der Letzte gewinnt.'}
+         info:'Drei Leben, kein Wiedereinstieg danach. Der Letzte gewinnt.'},
+  br:   {name:'Battle Royale', em:'🪂', teams:0, time:600, target:1, respawn:-1, lives:1, br:true,
+         arena:'kolonie',
+         info:'Absprung über der Kolonie, ein Leben. Waffen und Rüstung liegen in Kisten. '+
+              'Deine Klassenfähigkeiten hast du von Anfang an — und nach jedem überlebten Kreis '+
+              'darfst du eine davon verbessern. Der Letzte gewinnt.'}
 };
 const MODE_IDS = Object.keys(MODES);
+
+/* ---------------- Battle Royale ----------------
+   Der Kreis läuft in Abschnitten: erst stehen lassen, dann schrumpfen.
+   Wer draussen steht, verliert dps Leben je Sekunde. */
+const ZONE = [
+  {wait:38, shrink:32, to:64,  dps:1.5},
+  {wait:32, shrink:28, to:40,  dps:3},
+  {wait:28, shrink:24, to:24,  dps:5},
+  {wait:24, shrink:20, to:13,  dps:8},
+  {wait:20, shrink:18, to:6,   dps:12},
+  {wait:16, shrink:16, to:2.0, dps:18}
+];
+/* Beute. tier sagt, wie gut die Kiste ist — 1 einfach, 3 selten. */
+const GEAR = {
+  w1:{n:'Waffe I',    em:'🗡️', k:'w', v:1, tier:1},
+  w2:{n:'Waffe II',   em:'⚔️', k:'w', v:2, tier:2},
+  w3:{n:'Waffe III',  em:'🔱', k:'w', v:3, tier:3},
+  a1:{n:'Rüstung I',  em:'🦺', k:'a', v:1, tier:1},
+  a2:{n:'Rüstung II', em:'🛡️', k:'a', v:2, tier:2},
+  a3:{n:'Rüstung III',em:'💠', k:'a', v:3, tier:3},
+  med:{n:'Heiltrank',   em:'🧪', k:'heal',  v:50, tier:1},
+  cell:{n:'Schildzelle',em:'🔋', k:'cell',  v:45, tier:1},
+  mod:{n:'Modul',       em:'🔧', k:'point', v:1,  tier:3}
+};
+const WEAPON_MUL = [1.0, 1.28, 1.6, 2.0];
+const ARMOR_SH   = [0, 30, 58, 90];
+const UPGRADES = [
+  {id:'cd',  n:'Schnelle Hände', em:'⏱️', d:'Alle Abklingzeiten −18 %'},
+  {id:'dmg', n:'Scharfe Klinge', em:'⚔️', d:'Schaden +15 %'},
+  {id:'ult', n:'Zorn',           em:'🌋', d:'Ultimate lädt 30 % schneller'},
+  {id:'hp',  n:'Zäh',            em:'❤️', d:'Maximales Leben +25'},
+  {id:'spd', n:'Leichtfuss',     em:'👟', d:'Tempo +8 %'},
+  {id:'rng', n:'Weitblick',      em:'🎯', d:'Reichweite +15 %'}
+];
 
 /* ---------------- Power-Ups ---------------- */
 const POWERS = {
@@ -538,12 +623,13 @@ function initScene(){
    Spiel trotzdem — für die Klasse gibt es dann eine Ersatzfigur aus Kisten,
    für den Wald eine gebaute Arena.
    ========================================================================== */
-let arenaGLB = null;
+let arenaGLB = null, fireballTPL = null;
 
 function loadAll(done){
   const loader = new THREE.GLTFLoader();
   const jobs = CLS_IDS.map(id=>({id, url:MODEL_DIR+CLASSES[id].model+'.gltf'}));
   jobs.push({id:'__arena', url:ARENA_FILE});
+  jobs.push({id:'__fire', url:FIREBALL_FILE});
   let doneN = 0;
   const step = (txt)=>{
     doneN++;
@@ -555,12 +641,13 @@ function loadAll(done){
     loader.load(j.url,
       g=>{
         if(j.id==='__arena'){ arenaGLB = g; step('Arena steht'); }
+        else if(j.id==='__fire'){ prepFireball(g); step('Feuer brennt'); }
         else { prepModel(j.id, g); step(CLASSES[j.id].name+' bereit'); }
       },
       undefined,
       ()=>{
         console.warn('nicht gefunden:', j.url);
-        step((j.id==='__arena'?'Arena':'Modell')+' fehlt — Ersatz wird gebaut');
+        step((j.id==='__arena'?'Arena':j.id==='__fire'?'Feuerball':'Modell')+' fehlt — Ersatz wird gebaut');
       });
   });
 }
@@ -582,6 +669,87 @@ function prepModel(id, gltf){
   TPL[id] = wrap;
   CLIPS[id] = {};
   gltf.animations.forEach(a=>{ CLIPS[id][a.name] = a; });
+}
+
+/* ---------- Bausatz nachladen ----------
+   Die 50 Kit-Teile wiegen zusammen ein paar Megabyte. Wer nur Arena spielt,
+   soll die nicht mitschleppen — sie kommen erst, wenn Battle Royale startet. */
+let kitLoading = false;
+function kitReady(){ return KIT_NAMES.every(n=>PREFAB[n]); }
+function ensureKit(done){
+  if(kitReady()){ done(); return; }
+  if(kitLoading) return;
+  kitLoading = true;
+  $('scLoad').classList.remove('hidden');
+  $('bar').firstElementChild.style.width = '0%';
+  const loader = new THREE.GLTFLoader();
+  let n = 0;
+  const step = ()=>{
+    n++;
+    $('bar').firstElementChild.style.width = (n/KIT_NAMES.length*100)+'%';
+    $('loadTxt').textContent = 'Kolonie wird angeliefert… '+n+' / '+KIT_NAMES.length;
+    if(n === KIT_NAMES.length){
+      kitLoading = false;
+      $('scLoad').classList.add('hidden');
+      done();
+    }
+  };
+  KIT_NAMES.forEach(name=>{
+    if(PREFAB[name]){ step(); return; }
+    loader.load(MODEL_DIR+name+'.gltf',
+      g=>{ prepKit(name, g); step(); },
+      undefined,
+      ()=>{ console.warn('Kit-Teil fehlt:', name); PREFAB[name] = {parts:[], col:'none'}; step(); });
+  });
+}
+
+/** Feuerball-Modell vorbereiten: zwei Schalen, die aber nicht im Ursprung
+    sitzen. Wird auf die Mitte geschoben und auf Radius 1 normiert, damit
+    spawnProj nur noch mit der gewünschten Größe skalieren muss. */
+function prepFireball(gltf){
+  const root = gltf.scene;
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const c = box.getCenter(new THREE.Vector3());
+
+  const meshes = [];
+  root.traverse(m=>{ if(m.isMesh){ m.geometry.computeBoundingSphere(); meshes.push(m); } });
+  /* Echter größter Scheitelabstand von der Mitte. Über die Kantenlänge der
+     Bounding Box gerechnet käme ein zu großer Ball heraus. */
+  let r = 0;
+  const v = new THREE.Vector3();
+  meshes.forEach(m=>{
+    const pos = m.geometry.attributes.position;
+    for(let i=0;i<pos.count;i++){
+      v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).sub(c);
+      const d = v.length(); if(d > r) r = d;
+    }
+  });
+  if(!(r > 0)) r = 1;
+  meshes.sort((a,b)=> b.geometry.boundingSphere.radius - a.geometry.boundingSphere.radius);
+  meshes.forEach((m,i)=>{
+    const src = Array.isArray(m.material) ? m.material[0] : m.material;
+    const em = (src && src.emissive) ? src.emissive.clone() : new THREE.Color(0xFF7A2F);
+    if(i === 0){
+      // äußere Schale: additiv, damit sie wirklich leuchtet statt nur hell zu sein
+      m.material = new THREE.MeshBasicMaterial({color:em, transparent:true, opacity:.6,
+        blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide});
+      m.renderOrder = 2;
+    } else {
+      m.material = new THREE.MeshBasicMaterial({color:0xFFE07A});
+    }
+    m.frustumCulled = false;
+    m.castShadow = false;
+  });
+
+  const inner = new THREE.Group();
+  root.position.sub(c);
+  inner.add(root);
+  inner.scale.setScalar(1/r);
+  const wrap = new THREE.Group();
+  wrap.add(inner);
+  wrap.userData.shells = meshes;
+  fireballTPL = wrap;
 }
 
 /** Ersatzfigur, falls ein GLTF fehlt. */
@@ -645,8 +813,16 @@ Heightfield.prototype.ground = function(x,z,r,maxY){
     Eine Zelle ist begehbar, wenn h existiert und b nicht deutlich darüber liegt. */
 function rasterize(meshes, cell, maxTriArea){
   const hf = new Heightfield(cell);
-  const bb = new THREE.Box3();
-  meshes.forEach(m=>{ m.updateWorldMatrix(true,false); bb.expandByObject(m); });
+  /* Ausdehnung direkt aus Geometrie und Matrix — expandByObject setzt echte
+     Object3D voraus, die Kollisionsobjekte des Bausatzes sind aber nur
+     Geometrie plus Lage. */
+  const bb = new THREE.Box3(), tb = new THREE.Box3();
+  meshes.forEach(m=>{
+    m.updateWorldMatrix(true, false);
+    if(!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    tb.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+    bb.union(tb);
+  });
   hf.x0 = Math.floor(bb.min.x/cell)*cell; hf.z0 = Math.floor(bb.min.z/cell)*cell;
   hf.nx = Math.ceil((bb.max.x-hf.x0)/cell)+2; hf.nz = Math.ceil((bb.max.z-hf.z0)/cell)+2;
   if(hf.nx*hf.nz > 600000) return rasterize(meshes, cell*2, maxTriArea);
@@ -804,6 +980,164 @@ function largestRegion(hf){
   return best || [];
 }
 
+
+/* ==========================================================================
+   BAUSATZ "KOLONIE"
+   Die Teile kommen aus einem modularen Kit. Weil ich jedes Stück selbst
+   setze, muss die Kollision nicht mehr aus der Geometrie geraten werden —
+   sie steht hier dran:
+     'mesh'          echte Geometrie rastern (Rampen, Felsen, begehbare Bauten)
+     'none'          reine Deko, blockt nichts
+     [b,h,t,yOff]    Quader in Breite/Höhe/Tiefe, billig und exakt genug
+   ========================================================================== */
+const KIT = {
+  // --- Böden und Wege ---
+  Platform_4x4_Empty:  {c:[3.86,0.24,3.90,0]},
+  Platform_2x2_Empty:  {c:[1.89,0.24,1.85,0]},
+  Platform_4x1_Empty:  {c:[3.86,0.24,0.98,0]},
+  Ramp:                {c:'mesh'},
+  Stairs:              {c:'mesh'},
+  Rail_Long:           {c:[2.29,1.10,0.30,0.55]},
+  Rail_Short:          {c:[1.25,1.10,0.30,0.55]},
+  Rail_Corner:         {c:[0.60,1.10,0.70,0.55]},
+  MetalSupport:        {c:'none'},
+  Fence:               {c:[0.70,1.26,0.30,0.63]},
+  // --- Bauten ---
+  House_Single:        {c:[4.00,4.10,3.90,2.25]},
+  House_Long:          {c:[4.00,4.30,7.80,2.20]},
+  House_Cylinder:      {c:[5.20,4.30,5.20,2.15]},
+  House_Open:          {c:'mesh'},
+  House_OpenBack:      {c:'mesh'},
+  House_Single_Support:{c:[3.58,0.90,3.58,0.44]},
+  Building_L:          {c:'mesh'},
+  Base_Large:          {c:'mesh'},
+  GeodesicDome:        {c:'mesh'},
+  Connector:           {c:'none'},
+  // --- Aufbauten und Kleinkram ---
+  Roof_Antenna:        {c:'none'},
+  Roof_Radar:          {c:'none'},
+  Roof_VentL:          {c:'none'},
+  Roof_Opening:        {c:'none'},
+  SolarPanel_Roof:     {c:'none'},
+  SolarPanel_Ground:   {c:[1.30,1.10,1.70,0.55]},
+  SolarPanel_Structure:{c:[3.20,2.60,3.20,1.30]},
+  Computer:            {c:'none'},
+  Computer_Large:      {c:[1.30,2.40,0.70,1.20]},
+  AC:                  {c:'none'},
+  AC_Stacked:          {c:'none'},
+  Pipe_2:              {c:'none'},
+  Cable_Thick:         {c:'none'},
+  Light_Street_1:      {c:'none'},
+  Light_Square:        {c:'none'},
+  Sign_1:              {c:'none'},
+  Sign_Corner_Hazard:  {c:'none'},
+  // --- Natur ---
+  Rock_1:              {c:'mesh'},
+  Rock_3:              {c:'mesh'},
+  Rock_Large_1:        {c:'mesh'},
+  Rock_Large_2:        {c:'mesh'},
+  Tree_Spiral_1:       {c:[0.9,3.5,0.9,1.75]},
+  Tree_Swirl_2:        {c:[0.9,3.5,0.9,1.75]},
+  Tree_Lava_2:         {c:[0.9,3.0,0.9,1.5]},
+  Tree_Light_2:        {c:[0.9,3.0,0.9,1.5]},
+  Tree_Spikes_2:       {c:[1.1,3.5,1.1,1.75]},
+  Bush_2:              {c:'none'},
+  Bush_3:              {c:'none'},
+  Grass_1:             {c:'none'},
+  Grass_2:             {c:'none'},
+  Plant_1:             {c:'none'},
+  // --- Himmelsdeko ---
+  Planet_4:            {c:'none'},
+  Planet_7:            {c:'none'}
+};
+const KIT_NAMES = Object.keys(KIT);
+const PREFAB = {};          // name -> {parts:[{geo,mat,mtx}]}
+
+/** Ein geladenes Kit-Teil in flache Teile zerlegen: Geometrie, Material und
+    die Lage innerhalb des Teils. Damit lässt es sich später hundertfach als
+    InstancedMesh setzen, ohne pro Stück einen eigenen Zeichenaufruf. */
+function prepKit(name, gltf){
+  const root = gltf.scene;
+  root.updateMatrixWorld(true);
+  const parts = [];
+  root.traverse(m=>{
+    if(!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    mats.forEach(mm=>{
+      if(mm.map){ mm.map.encoding = THREE.sRGBEncoding; mm.map.flipY = false; }
+      mm.side = THREE.FrontSide;
+    });
+    parts.push({geo:m.geometry, mat:m.material, mtx:m.matrixWorld.clone()});
+  });
+  PREFAB[name] = {parts, col:KIT[name].c};
+}
+
+/* Gesteuerter Zufall: Host und Gäste bauen aus demselben Startwert exakt
+   dieselbe Karte, sonst stehen die Häuser bei jedem woanders. */
+function srand(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Sammelt Platzierungen und macht daraus am Ende Instanzen plus Kollision. */
+function Builder(group){
+  this.group = group;
+  this.items = {};            // name -> [Matrix4]
+  this.colliders = [];
+}
+Builder.prototype.put = function(name, x, y, z, ry, s){
+  if(!PREFAB[name]) return null;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), ry||0);
+  const sc = s || 1;
+  m.compose(new THREE.Vector3(x,y,z), q, new THREE.Vector3(sc,sc,sc));
+  (this.items[name] = this.items[name] || []).push(m);
+  return m;
+};
+const BOX1 = new THREE.BoxGeometry(1,1,1);
+Builder.prototype.finish = function(){
+  const tmp = new THREE.Matrix4();
+  for(const name in this.items){
+    const list = this.items[name], pf = PREFAB[name];
+    // Darstellung
+    pf.parts.forEach(part=>{
+      const im = new THREE.InstancedMesh(part.geo, part.mat, list.length);
+      list.forEach((M,i)=>{ tmp.multiplyMatrices(M, part.mtx); im.setMatrixAt(i, tmp); });
+      im.instanceMatrix.needsUpdate = true;
+      im.castShadow = pf.col !== 'none';
+      im.receiveShadow = true;
+      im.frustumCulled = false;
+      this.group.add(im);
+    });
+    // Kollision
+    if(pf.col === 'none') continue;
+    if(pf.col === 'mesh'){
+      pf.parts.forEach(part=>{
+        list.forEach(M=>{
+          this.colliders.push({geometry:part.geo, matrixWorld:new THREE.Matrix4().multiplyMatrices(M, part.mtx),
+                               updateWorldMatrix(){}, });
+        });
+      });
+    } else {
+      const [w,h,d,yo] = pf.col;
+      list.forEach(M=>{
+        const pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
+        M.decompose(pos, q, sc);
+        const bm = new THREE.Matrix4().compose(
+          new THREE.Vector3(pos.x, pos.y + yo*sc.y, pos.z), q,
+          new THREE.Vector3(w*sc.x, h*sc.y, d*sc.z));
+        this.colliders.push({geometry:BOX1, matrixWorld:bm, updateWorldMatrix(){}});
+      });
+    }
+  }
+  return this.colliders;
+};
+
 /* ==========================================================================
    ARENA
    Jede Arena liefert dasselbe nach aussen: Bodenhöhe, Begehbarkeit,
@@ -827,7 +1161,8 @@ function buildArena(id){
   arena = { id, def, group, hazards:[], teleports:[], platforms:[], spawns:[], center:new THREE.Vector3(),
             radius:def.r, hf:null, bases:[] };
 
-  if(def.glb && arenaGLB) buildFromGLB(group, def);
+  if(def.kit && kitReady()) buildKolonie(group, def, cfg.seed);
+  else if(def.glb && arenaGLB) buildFromGLB(group, def);
   else buildProcedural(group, def);
 
   makeSpawns();
@@ -1121,6 +1456,224 @@ function debugField(){
               (arena.core||[]).length, '| Zellgrösse', hf.cell.toFixed(2));
 }
 
+
+/* ==========================================================================
+   KARTE "KOLONIE" — die Battle-Royale-Karte aus dem Bausatz
+   Rund 200 Einheiten im Durchmesser, sieben Bezirke plus Streugut.
+   Alles läuft über einen Startwert, damit Host und Gäste dieselbe Karte
+   bauen — sonst stehen die Häuser bei jedem woanders.
+   ========================================================================== */
+function buildKolonie(group, def, seed){
+  const R = 100;
+  const B = new Builder(group);
+  const rng = srand(seed || 1234);
+  const rr = (a,b)=> a + rng()*(b-a);
+  const ri = (a,b)=> Math.floor(rr(a,b+1));
+  const pk = arr => arr[Math.floor(rng()*arr.length)];
+  arena.loot = [];
+  const loot = (x,y,z,w)=> arena.loot.push({x, y, z, w:w||1});
+
+  /* --- Grund und Rand --- */
+  const ground = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 3, 64),
+    new THREE.MeshLambertMaterial({color:def.ground}));
+  ground.position.y = -1.5; ground.receiveShadow = true;
+  group.add(ground);
+  B.colliders.push({geometry:ground.geometry, matrixWorld:ground.matrixWorld.clone(), updateWorldMatrix(){}});
+  ground.updateMatrixWorld(true);
+  B.colliders[B.colliders.length-1].matrixWorld.copy(ground.matrixWorld);
+
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(R+2, R+2, 16, 64, 1, true),
+    new THREE.MeshLambertMaterial({color:def.rock, side:THREE.DoubleSide}));
+  rim.position.y = 8; group.add(rim);
+  rim.updateMatrixWorld(true);
+  B.colliders.push({geometry:rim.geometry, matrixWorld:rim.matrixWorld.clone(), updateWorldMatrix(){}});
+
+  /* --- Bezirk 1: Kuppel in der Mitte, das dichteste Beutegebiet --- */
+  (function centre(){
+    B.put('Base_Large', 0, 0, 0, 0, 1.6);
+    B.put('GeodesicDome', 0, 0, 0, 0, 2.2);
+    loot(0, 5.0, 0, 3);
+    for(let i=0;i<8;i++){
+      const a = i*TAU/8;
+      const d = 17;
+      B.put('Platform_4x4_Empty', Math.cos(a)*d, 1.4, Math.sin(a)*d, a);
+      B.put('Rail_Long', Math.cos(a)*(d+1.9), 1.5, Math.sin(a)*(d+1.9), a+Math.PI/2);
+      if(i%2===0){
+        B.put('Ramp', Math.cos(a)*(d+3.4), 0, Math.sin(a)*(d+3.4), a+Math.PI/2);
+        loot(Math.cos(a)*d, 1.6, Math.sin(a)*d, 2);
+      } else {
+        B.put('Computer_Large', Math.cos(a)*d, 1.5, Math.sin(a)*d, a+Math.PI);
+      }
+      B.put('Light_Street_1', Math.cos(a)*(d+6), 0, Math.sin(a)*(d+6), a);
+    }
+  })();
+
+  /* --- Bezirke rundherum --- */
+  const dist = [];
+  for(let i=0;i<6;i++){
+    const a = i*TAU/6 + 0.25;
+    dist.push({a, x:Math.cos(a)*58, z:Math.sin(a)*58});
+  }
+
+  /* Wohnsiedlung: Häuserzeilen an einer Strasse */
+  (function siedlung(d){
+    const rot = d.a + Math.PI/2;
+    for(let row=-1; row<=1; row+=2){
+      for(let k=-2; k<=2; k++){
+        const lx = k*8.5, lz = row*9;
+        const x = d.x + Math.cos(rot)*lx - Math.sin(rot)*lz;
+        const z = d.z + Math.sin(rot)*lx + Math.cos(rot)*lz;
+        const type = pk(['House_Single','House_Open','House_OpenBack','House_Long','House_Cylinder']);
+        const ry = rot + (row<0 ? 0 : Math.PI);
+        B.put('House_Single_Support', x, 0, z, ry);
+        B.put(type, x, 0.6, z, ry);
+        if(rng()<0.6) B.put(pk(['Roof_Antenna','Roof_Radar','Roof_VentL','SolarPanel_Roof']), x, 4.7, z, rr(0,TAU));
+        // Beute vor der Tür
+        const fx = x + Math.cos(ry+Math.PI/2)*(row<0?3.2:-3.2);
+        const fz = z + Math.sin(ry+Math.PI/2)*(row<0?3.2:-3.2);
+        loot(fx, 0.2, fz, 2);
+        if(rng()<0.4) B.put(pk(['AC','AC_Stacked','Computer','Pipe_2']), x+rr(-2,2), 0.6, z+rr(-2,2), rr(0,TAU));
+      }
+    }
+    for(let k=-3;k<=3;k++){
+      const x = d.x + Math.cos(rot)*k*8, z = d.z + Math.sin(rot)*k*8;
+      B.put('Light_Street_1', x, 0, z, rot);
+      if(k%2===0) B.put(pk(['Sign_1','Sign_Corner_Hazard']), x+rr(-1,1), 0, z+rr(-1,1), rr(0,TAU));
+    }
+  })(dist[0]);
+
+  /* Solarfeld: offen, wenig Deckung, viel Beute als Ausgleich */
+  (function solar(d){
+    for(let gx=-3; gx<=3; gx++) for(let gz=-3; gz<=3; gz++){
+      const x = d.x + gx*5.5, z = d.z + gz*5.5;
+      if(Math.hypot(gx,gz) > 3.4) continue;
+      if(rng()<0.22){ B.put('SolarPanel_Structure', x, 0, z, d.a); loot(x, 0.2, z, 2); }
+      else if(rng()<0.18) loot(x, 0.2, z, 1);
+      else B.put('SolarPanel_Ground', x, 0, z, d.a + rr(-0.15,0.15));
+    }
+    B.put('Computer_Large', d.x, 0, d.z, d.a);
+    B.put('Cable_Thick', d.x+2, 1.6, d.z, 0);
+    loot(d.x, 0.2, d.z, 3);
+  })(dist[1]);
+
+  /* Felsental: natürliche Deckung */
+  (function felsen(d){
+    for(let i=0;i<16;i++){
+      const a = rr(0,TAU), r = rr(2,22);
+      const x = d.x+Math.cos(a)*r, z = d.z+Math.sin(a)*r;
+      B.put(pk(['Rock_1','Rock_3','Rock_Large_1','Rock_Large_2']), x, 0, z, rr(0,TAU), rr(0.8,1.7));
+      if(i%2===0) loot(x+rr(-3,3), 0.2, z+rr(-3,3), rng()<0.3?2:1);
+    }
+    for(let i=0;i<10;i++){
+      const a = rr(0,TAU), r = rr(4,24);
+      B.put(pk(['Tree_Spikes_2','Tree_Lava_2']), d.x+Math.cos(a)*r, 0, d.z+Math.sin(a)*r, rr(0,TAU), rr(0.9,1.5));
+    }
+  })(dist[2]);
+
+  /* Hochlager: Plattformen auf zwei Ebenen, Rampen dazwischen */
+  (function lager(d){
+    const rot = d.a;
+    const P = (lx,lz,y,ry)=>{
+      const x = d.x + Math.cos(rot)*lx - Math.sin(rot)*lz;
+      const z = d.z + Math.sin(rot)*lx + Math.cos(rot)*lz;
+      return B.put('Platform_4x4_Empty', x, y, z, rot+(ry||0)), [x,z];
+    };
+    for(let gx=-2; gx<=2; gx++) for(let gz=-1; gz<=1; gz++){
+      const [x,z] = P(gx*3.9, gz*3.9, 1.4);
+      if(gx===0 && gz===0) loot(x, 1.6, z, 2);
+      if(Math.abs(gz)===1) {
+        const ex = x + Math.cos(rot+Math.PI/2)*gz*1.95, ez = z + Math.sin(rot+Math.PI/2)*gz*1.95;
+        B.put('Rail_Long', ex, 1.5, ez, rot);
+      }
+      B.put('MetalSupport', x, 0, z, rot);
+    }
+    for(let gx=-1; gx<=1; gx++){
+      const [x,z] = P(gx*3.9, -7.8, 2.8);
+      if(gx===0) loot(x, 3.0, z, 3);
+    }
+    // Zugänge
+    B.put('Ramp', d.x+Math.cos(rot)*10.5, 0, d.z+Math.sin(rot)*10.5, rot+Math.PI/2);
+    B.put('Stairs', d.x-Math.cos(rot)*10.5, 0, d.z-Math.sin(rot)*10.5, rot-Math.PI/2);
+    B.put('Ramp', d.x-Math.sin(rot)*3.9, 1.4, d.z+Math.cos(rot)*3.9, rot+Math.PI);
+    B.put('Building_L', d.x+Math.cos(rot)*16, 0, d.z+Math.sin(rot)*16, rot);
+    loot(d.x+Math.cos(rot)*16, 0.2, d.z+Math.sin(rot)*16, 2);
+  })(dist[3]);
+
+  /* Werkstatt: lange Halle, Rohre, Kabel */
+  (function werk(d){
+    const rot = d.a;
+    B.put('House_Long', d.x, 0, d.z, rot);
+    B.put('House_Long', d.x+Math.cos(rot+Math.PI/2)*9, 0, d.z+Math.sin(rot+Math.PI/2)*9, rot+Math.PI);
+    B.put('Building_L', d.x+Math.cos(rot)*12, 0, d.z+Math.sin(rot)*12, rot+Math.PI/2);
+    for(let i=0;i<7;i++){
+      const a = rr(0,TAU), r = rr(4,16);
+      const x = d.x+Math.cos(a)*r, z = d.z+Math.sin(a)*r;
+      B.put(pk(['Pipe_2','Cable_Thick','AC_Stacked','Computer','Fence']), x, 0, z, rr(0,TAU));
+      loot(x, 0.2, z, i%2===0 ? 2 : 1);
+    }
+    loot(d.x, 0.2, d.z, 3);
+    B.put('Light_Square', d.x, 4.4, d.z, 0);
+  })(dist[4]);
+
+  /* Hain: Bäume und Büsche, leichte Deckung */
+  (function hain(d){
+    for(let i=0;i<26;i++){
+      const a = rr(0,TAU), r = rr(1,22);
+      const x = d.x+Math.cos(a)*r, z = d.z+Math.sin(a)*r;
+      B.put(pk(['Tree_Spiral_1','Tree_Swirl_2','Tree_Light_2']), x, 0, z, rr(0,TAU), rr(0.85,1.6));
+      if(i%3===0) loot(x+rr(-2,2), 0.2, z+rr(-2,2), 1);
+    }
+    for(let i=0;i<22;i++){
+      const a = rr(0,TAU), r = rr(1,24);
+      B.put(pk(['Bush_2','Bush_3','Grass_1','Grass_2','Plant_1']),
+            d.x+Math.cos(a)*r, 0, d.z+Math.sin(a)*r, rr(0,TAU), rr(0.9,1.6));
+    }
+    B.put('House_Cylinder', d.x, 0, d.z, rr(0,TAU));
+    loot(d.x, 0.2, d.z+4, 2);
+  })(dist[5]);
+
+  /* --- Streugut über die ganze Karte, damit nichts leer wirkt --- */
+  for(let i=0;i<150;i++){
+    const a = rr(0,TAU), r = Math.sqrt(rng())*(R-8);
+    const x = Math.cos(a)*r, z = Math.sin(a)*r;
+    let near = false;
+    for(const d of dist) if(Math.hypot(x-d.x, z-d.z) < 26) near = true;
+    if(Math.hypot(x,z) < 30) near = true;
+    if(near) continue;
+    const roll = rng();
+    if(roll < 0.28){
+      B.put(pk(['Rock_1','Rock_3']), x, 0, z, rr(0,TAU), rr(0.7,1.5));
+      if(rng() < 0.35) loot(x + rr(-3,3), 0.2, z + rr(-3,3), 1);
+    } else if(roll < 0.48){
+      B.put(pk(['Tree_Spiral_1','Tree_Swirl_2','Tree_Spikes_2']), x, 0, z, rr(0,TAU), rr(0.8,1.4));
+      if(rng() < 0.25) loot(x + rr(-3,3), 0.2, z + rr(-3,3), 1);
+    } else if(roll < 0.62){
+      B.put('House_Single', x, 0, z, rr(0,TAU));
+      loot(x + rr(-4,4), 0.2, z + rr(-4,4), rng() < 0.3 ? 2 : 1);
+    } else if(roll < 0.72){
+      B.put('Rock_Large_1', x, 0, z, rr(0,TAU), rr(1,1.8));
+      if(rng() < 0.4) loot(x + rr(-4,4), 0.2, z + rr(-4,4), 1);
+    } else {
+      B.put(pk(['Bush_2','Grass_1','Grass_2','Plant_1']), x, 0, z, rr(0,TAU), rr(0.9,1.7));
+      if(rng() < 0.18) loot(x, 0.2, z, 1);
+    }
+  }
+
+  /* --- Planeten am Himmel, reine Deko --- */
+  for(let i=0;i<5;i++){
+    const a = i*TAU/5 + 0.4;
+    B.put(pk(['Planet_4','Planet_7']), Math.cos(a)*rr(70,110), rr(45,70), Math.sin(a)*rr(70,110), rr(0,TAU), rr(2,4.5));
+  }
+
+  const colliders = B.finish();
+  arena.hf = rasterize(colliders, 0.85, 0);
+  arena.region = largestRegion(arena.hf);
+  arena.core = openCore(arena.hf, arena.region, 2);
+  arena.center.set(0, 5.2, 0);
+  arena.radius = R;
+  arena.districts = dist;
+}
+
 /* ---------- Startpunkte ---------- */
 function makeSpawns(){
   const hf = arena.hf, region = (arena.core && arena.core.length ? arena.core : arena.region) || [];
@@ -1196,6 +1749,8 @@ function makeFighter(o){
     charge:0, charging:false, onGround:true, plat:null,
     st:{block:0,sprint:0,invis:0,slow:0,dmg2:0,spd:0,cdr:0,stun:0,ultT:0,inv:0,root:0},
     ultKind:'', ultTick:0, flag:-1, lastHitBy:-1, lastHitT:0, tpCool:0,
+    gear:{w:0,a:0}, up:{cd:0,dmg:0,ult:0,hp:0,spd:0,rng:0}, pts:0, glide:false,
+    outside:false, place:0,
     anim:'', animLock:0, mixer:null, act:{}, obj:null,
     ai:{tgt:-1, think:0, strafe:1, wander:new THREE.Vector3(), jump:0},
     in:{mx:0,mz:0,yaw:0,pitch:0,jump:false,atk:false,q:false,e:false,r:false,sprint:false},
@@ -1304,7 +1859,7 @@ function damage(target, amount, src, opts){
   target.hp -= dmg;
   target.st.invis = 0;                       // Treffer enttarnt
   target.lastHitBy = src?src.id:-1; target.lastHitT = matchT;
-  if(src && src!==target && src.st){ src.ult = Math.min(100, src.ult + dmg*0.55); }
+  if(src && src!==target && src.st){ src.ult = Math.min(100, src.ult + dmg*0.55*(1 + 0.3*src.up.ult)); }
   target.ult = Math.min(100, target.ult + dmg*0.28);
   if(opts.kb && src){
     const d = _v1.subVectors(target.pos, src.pos); d.y=0; d.normalize();
@@ -1312,12 +1867,17 @@ function damage(target, amount, src, opts){
     target.vel.y += opts.kb*0.28;
     target.onGround = false;
   }
-  if(target===me){ flashDmg(); sfx.hit(); camShake = Math.max(camShake, Math.min(.5, dmg/60)); }
-  hitSpark(target.pos, dmg>25);
+  /* Dauerschaden aus der Umgebung (Kreis, Lava) trifft jeden Frame. Der
+     bekommt keine Funken, keine Trefferanimation und kein Aufblitzen —
+     sonst entstehen sechzig Effekte je Sekunde und je Spieler. */
+  if(!opts.env){
+    if(target===me){ flashDmg(); sfx.hit(); camShake = Math.max(camShake, Math.min(.5, dmg/60)); }
+    hitSpark(target.pos, dmg>25);
+  }
   const killed = target.hp <= 0;
   if(killed) kill(target, src);
-  else if(!target.animLock) play(target,'hit',true,1.4);
-  reportHit(src, target, dealt, crit, killed);
+  else if(!target.animLock && !opts.env) play(target,'hit',true,1.4);
+  if(!opts.env) reportHit(src, target, dealt, crit, killed);
   return dealt;
 }
 
@@ -1336,6 +1896,10 @@ function kill(target, src){
   target.st.invis = 0; target.charging = false;
   const M = MODES[cfg.mode];
   target.respawnAt = matchT + (M.respawn>0?M.respawn:1e9);
+  if(M.br){
+    target.place = fighters.filter(f=>f.alive).length + 1;
+    if(target === me) toast('Platz '+target.place+' von '+fighters.length);
+  }
   if(M.lives){ target.lives--; }
   if(target.flag>=0) dropFlag(target);
   play(target,'die',true);
@@ -1358,7 +1922,8 @@ function respawn(f){
   if(M.lives && f.lives<=0) return;
   const p = safeSpawn(f);
   f.pos.copy(p); f.vel.set(0,0,0);
-  f.hp = f.maxHp; f.shield = 0; f.alive = true;
+  f.maxHp = CLASSES[f.cls].hp + 25*f.up.hp;
+  f.hp = f.maxHp; f.shield = ARMOR_SH[f.gear.a]; f.alive = true;
   f.st = {block:0,sprint:0,invis:0,slow:0,dmg2:0,spd:0,cdr:0,stun:0,ultT:0,inv:2.0,root:0};
   f.cds = {a:0,q:0,e:0,r:0}; f.charging=false; f.charge=0; f.animLock=0;
   play(f,'idle');
@@ -1392,10 +1957,10 @@ function moveFighter(f, dt){
   const s = f.st;
   // Zeiten runterzählen
   for(const k in s) if(s[k]>0) s[k] = Math.max(0, s[k]-dt);
-  const cdMul = s.cdr>0 ? 0.5 : 1;
+  const cdMul = (s.cdr>0 ? 0.5 : 1) * Math.pow(0.82, f.up.cd);
   for(const k in f.cds) if(f.cds[k]>0) f.cds[k] = Math.max(0, f.cds[k]-dt/cdMul*1);
   if(f.animLock>0) f.animLock = Math.max(0, f.animLock-dt);
-  f.ult = Math.min(100, f.ult + dt*2.2);      // langsam von selbst
+  f.ult = Math.min(100, f.ult + dt*2.2*(1 + 0.3*f.up.ult));   // langsam von selbst
 
   if(!f.alive){
     f.vel.set(0,0,0);
@@ -1410,6 +1975,7 @@ function moveFighter(f, dt){
   if(s.sprint>0) sp *= SPRINT;
   else if(f.in.sprint && !f.charging) sp *= 1.18;
   if(s.spd>0) sp *= 1.35;
+  sp *= 1 + 0.08*f.up.spd;
   if(s.slow>0) sp *= 0.45;
   if(s.block>0) sp *= 0.5;
   if(f.charging) sp *= 0.55;
@@ -1441,8 +2007,15 @@ function moveFighter(f, dt){
   if(f.in.jump && f.onGround && s.stun<=0 && s.root<=0){
     f.vel.y = JUMP_V; f.onGround = false;
   }
-  f.vel.y -= GRAV*dt;
-  if(f.vel.y < -55) f.vel.y = -55;
+  if(f.glide){
+    /* Absprung: langsamer Sinkflug, dafür viel Bewegung in der Waagrechten */
+    f.vel.y = -15;
+    f.vel.x *= 2.1; f.vel.z *= 2.1;
+    if(f.onGround){ f.glide = false; f.vel.set(0,0,0); }
+  } else {
+    f.vel.y -= GRAV*dt;
+    if(f.vel.y < -55) f.vel.y = -55;
+  }
 
   // Waagrecht bewegen, an Kanten abgleiten
   const nx = f.pos.x + f.vel.x*dt, nz = f.pos.z + f.vel.z*dt;
@@ -1465,7 +2038,7 @@ function moveFighter(f, dt){
   f.pos.y += f.vel.y*dt;
   const g = groundY(f.pos.x, f.pos.z, f.pos.y);
   if(f.pos.y <= g.y + 0.02){
-    if(!f.onGround && f.vel.y < -22) damage(f, (-f.vel.y-22)*1.4, null, {});  // harter Aufprall
+    if(!f.onGround && f.vel.y < -22 && !f.glide) damage(f, (-f.vel.y-22)*1.4, null, {});
     f.pos.y = g.y; f.vel.y = 0; f.onGround = true;
     // auf beweglicher Plattform mitfahren
     if(g.plat && f.plat === g.plat && g.plat.last){
@@ -1494,7 +2067,7 @@ function arenaEffects(f, dt){
   for(const h of arena.hazards){
     const d = Math.hypot(f.pos.x-h.x, f.pos.z-h.z);
     if(d > h.r) continue;
-    if(h.t==='lava' && f.pos.y < h.y0+1.4){ damage(f, h.dps*dt, null, {}); }
+    if(h.t==='lava' && f.pos.y < h.y0+1.4){ damage(f, h.dps*dt, null, {env:true}); }
     else if(h.t==='spike' && h.up && f.onGround && !h.hitIds.has(f.id)){
       h.hitIds.add(f.id); damage(f, h.dmg, null, {kb:4});
     }
@@ -1539,7 +2112,7 @@ function handleAbilities(f, dt){
       if(!f.charging){ f.charging = true; f.charge = 0; play(f,'cast',true,1.2); }
       f.charge = Math.min(1, f.charge + dt/C.atk.charge);
     } else if(f.charging){
-      shootArrow(f, lerp(C.atk.dmg, C.atk.dmgMax, f.charge), 34+f.charge*36);
+      shootArrow(f, atkDmg(f, lerp(C.atk.dmg, C.atk.dmgMax, f.charge)), (34+f.charge*36)*rangeMul(f));
       f.charging = false; f.cds.a = C.atk.cd;
     }
   } else if(f.in.atk && f.cds.a<=0){
@@ -1552,20 +2125,20 @@ function basicAttack(f){
   play(f, Math.random()<.5?'atk':'atk2', true, 1.25);
   switch(f.cls){
     case 'ritter':
-      sfx.swing(); meleeArc(f, 2.9, 62, C.atk.dmg, 6.5); break;
+      sfx.swing(); meleeArc(f, 2.9*rangeMul(f), 62, atkDmg(f, C.atk.dmg), 6.5); break;
     case 'assassine':
-      sfx.swing(); meleeArc(f, 2.3, 55, C.atk.dmg, 2.0, {back:C.atk.back});
+      sfx.swing(); meleeArc(f, 2.3*rangeMul(f), 55, atkDmg(f, C.atk.dmg), 2.0, {back:C.atk.back});
       if(f.st.invis>0) f.st.invis = 0;
       break;
     case 'magier':
       sfx.fire();
-      spawnProj({owner:f, kind:'fire', pos:eyePos(f), dir:aimDir(f), sp:30, dmg:C.atk.dmg,
-                 r:.42, col:0xFF7A2F, life:2.6, splash:3.4});
+      spawnProj({owner:f, kind:'fire', pos:eyePos(f), dir:aimDir(f), sp:30, dmg:atkDmg(f, C.atk.dmg),
+                 r:.42, col:0xFF7A2F, life:2.6*rangeMul(f), splash:3.4});
       break;
     case 'ingenieur':
       sfx.shoot();
       const d = aimDir(f); d.y += 0.22;
-      spawnProj({owner:f, kind:'bomb', pos:eyePos(f), dir:d, sp:22, dmg:C.atk.dmg,
+      spawnProj({owner:f, kind:'bomb', pos:eyePos(f), dir:d, sp:22, dmg:atkDmg(f, C.atk.dmg),
                  r:.32, col:0x555A60, life:3.2, splash:4.2, grav:true, fuse:1.5});
       break;
   }
@@ -1614,7 +2187,7 @@ function useQ(f){
         const d=_v1.subVectors(o.pos,f.pos); const dist=d.length();
         if(dist>11) return; d.y=0; d.normalize();
         if(d.dot(dir) < Math.cos(38*Math.PI/180)) return;
-        damage(o, C.q.dmg, f, {}); o.st.slow = Math.max(o.st.slow, C.q.dur);
+        damage(o, abilDmg(f, C.q.dmg), f, {}); o.st.slow = Math.max(o.st.slow, C.q.dur);
       });
       break; }
     case 'assassine': f.st.invis = C.q.dur; sfx.blink(); break;
@@ -1632,7 +2205,7 @@ function useE(f){
       for(let i=-2;i<=2;i++){
         const d = aimDir(f);
         d.applyAxisAngle(new THREE.Vector3(0,1,0), i*0.13);
-        spawnProj({owner:f, kind:'arrow', pos:eyePos(f), dir:d, sp:38, dmg:C.e.dmg,
+        spawnProj({owner:f, kind:'arrow', pos:eyePos(f), dir:d, sp:38, dmg:abilDmg(f, C.e.dmg),
                    r:.16, col:0x4BD08A, life:2.2, grav:true, gravK:0.25});
       }
       play(f,'atk',true,1.6); break; }
@@ -1698,7 +2271,7 @@ function tickUlt(f, dt){
         f.ultTick = 0;
         enemies(f).forEach(o=>{
           if(o.pos.distanceTo(f.pos) < 4.2 && Math.abs(o.pos.y-f.pos.y)<2.5)
-            damage(o, C.r.dmg*0.25, f, {kb:11});
+            damage(o, abilDmg(f, C.r.dmg*0.25), f, {kb:11});
         });
         ringFx(f.pos, 4.2, 0x4A90D9);
       }
@@ -1710,7 +2283,7 @@ function tickUlt(f, dt){
           const a = Math.random()*TAU, r = Math.random()*8;
           const p = new THREE.Vector3(f.ultAt.x+Math.cos(a)*r, f.ultAt.y+26, f.ultAt.z+Math.sin(a)*r);
           spawnProj({owner:f, kind:'arrow', pos:p, dir:new THREE.Vector3(0,-1,0), sp:40,
-                     dmg:C.r.dmg, r:.16, col:0x4BD08A, life:2.0});
+                     dmg:abilDmg(f, C.r.dmg), r:.16, col:0x4BD08A, life:2.0});
         }
         ringFx(f.ultAt, 8, 0x4BD08A, .3);
       }
@@ -1721,7 +2294,7 @@ function tickUlt(f, dt){
         const a = Math.random()*TAU, r = Math.random()*9;
         const p = new THREE.Vector3(f.ultAt.x+Math.cos(a)*r, f.ultAt.y+30, f.ultAt.z+Math.sin(a)*r);
         spawnProj({owner:f, kind:'meteor', pos:p, dir:new THREE.Vector3(0,-1,0), sp:26,
-                   dmg:C.r.dmg, r:1.1, col:0xFF5B20, life:2.4, splash:6.5});
+                   dmg:abilDmg(f, C.r.dmg), r:1.1, col:0xFF5B20, life:2.4, splash:6.5});
       }
       break;
     case 'kombo':
@@ -1734,7 +2307,7 @@ function tickUlt(f, dt){
           f.pos.x = tgt.pos.x - d.x*1.4; f.pos.z = tgt.pos.z - d.z*1.4;
           f.pos.y = groundY(f.pos.x,f.pos.z,f.pos.y+2).y;
           f.yaw = Math.atan2(d.x, d.z);
-          damage(tgt, C.r.dmg, f, {kb:2});
+          damage(tgt, abilDmg(f, C.r.dmg), f, {kb:2});
           slash(f, d, 2.2); sfx.crit();
         }
       }
@@ -1761,21 +2334,35 @@ const projGeo = {
   bomb:  new THREE.SphereGeometry(.3,8,6),
   rock:  new THREE.DodecahedronGeometry(1.05,0)
 };
+function makeFireMesh(radius){
+  const m = THREE.SkeletonUtils.clone(fireballTPL);
+  m.scale.setScalar(radius);
+  m.userData.fire = radius;
+  m.userData.parts = [];
+  m.traverse(c=>{ if(c.isMesh) m.userData.parts.push(c); });
+  return m;
+}
 function spawnProj(o){
-  const geo = o.kind==='arrow'?projGeo.arrow : o.kind==='bomb'?projGeo.bomb :
-              o.kind==='meteor'?projGeo.rock : projGeo.ball;
-  const mat = new THREE.MeshBasicMaterial({color:o.col});
-  const m = new THREE.Mesh(geo, mat);
+  const useFire = fireballTPL && (o.kind==='fire' || o.kind==='meteor');
+  let m;
+  if(useFire){
+    m = makeFireMesh(o.kind==='meteor' ? 1.6 : 0.62);
+  } else {
+    const geo = o.kind==='arrow'?projGeo.arrow : o.kind==='bomb'?projGeo.bomb :
+                o.kind==='meteor'?projGeo.rock : projGeo.ball;
+    m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:o.col}));
+  }
   m.position.copy(o.pos); scene.add(m);
   const p = {
     owner:o.owner, ownerId:o.owner?o.owner.id:-1, kind:o.kind,
     pos:o.pos.clone(), vel:o.dir.clone().normalize().multiplyScalar(o.sp),
     dmg:o.dmg, r:o.r, life:o.life, splash:o.splash||0, grav:!!o.grav||o.kind==='meteor',
-    gravK:o.gravK||1, fuse:o.fuse||0, mesh:m, col:o.col
+    gravK:o.gravK||1, fuse:o.fuse||0, mesh:m, col:o.col, seed:Math.random()*20
   };
   if(o.kind==='meteor'){ p.grav=false; }
   if(o.kind==='fire'||o.kind==='meteor'){
-    const l = new THREE.PointLight(o.col, 1.6, 12); m.add(l);
+    const l = new THREE.PointLight(o.col, o.kind==='meteor'?2.6:1.8, o.kind==='meteor'?22:14);
+    m.add(l);
   }
   projectiles.push(p);
   return p;
@@ -1804,6 +2391,8 @@ function updateProjectiles(dt){
     p.pos.set(nx,ny,nz); p.mesh.position.copy(p.pos);
     if(p.kind==='arrow'){
       p.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), p.vel.clone().normalize());
+    } else if(p.mesh.userData.fire !== undefined){
+      spinFire(p.mesh, dt, p.seed);
     } else if(p.kind==='meteor'){ p.mesh.rotation.x += dt*4; p.mesh.rotation.z += dt*3; }
 
     if(hit || hitWorld || p.life<=0){
@@ -1814,9 +2403,25 @@ function updateProjectiles(dt){
   }
   function kill_(i){
     const p = projectiles[i];
-    scene.remove(p.mesh); p.mesh.material.dispose();
+    scene.remove(p.mesh);
+    /* Feuerbälle teilen sich die Materialien der Vorlage — nur die selbst
+       gebauten Einzelmeshes werden entsorgt. */
+    if(p.mesh.material) p.mesh.material.dispose();
     projectiles.splice(i,1);
   }
+}
+
+/* Das Modell bringt keine Animation mit, also wird sie hier gemacht: die
+   beiden Schalen drehen gegeneinander und der Ball pulsiert leicht. */
+function spinFire(mesh, dt, seed){
+  mesh.rotation.y += dt*3.2;
+  mesh.rotation.x += dt*1.3;
+  const parts = mesh.userData.parts || [];
+  if(parts[0]) parts[0].rotation.y -= dt*5.5;
+  if(parts[1]) parts[1].rotation.z += dt*4.0;
+  const base = mesh.userData.fire;
+  const k = 1 + Math.sin(matchT*17 + seed)*0.09;
+  mesh.scale.setScalar(base*k);
 }
 
 function explode(p, direct){
@@ -1890,7 +2495,7 @@ function updateGadgets(dt){
           fighters.forEach(o=>{
             if(!o.alive || (MODES[cfg.mode].teams && o.team===g.team)) return;
             const d = o.pos.distanceTo(g.pos);
-            if(d<5) damage(o, CLASSES.ingenieur.e.dmg*(1-d/5*.5), owner, {kb:11});
+            if(d<5) damage(o, abilDmg(owner||{}, CLASSES.ingenieur.e.dmg)*(1-d/5*.5), owner, {kb:11});
           });
           g.life = 0; break;
         }
@@ -1976,6 +2581,211 @@ function grabPower(f, id){
   }
   if(f===me) toast(P.em+' '+P.n);
 }
+
+
+/* ==========================================================================
+   BATTLE ROYALE
+   ========================================================================== */
+let zone = null, crates = [];
+
+function setupBR(){
+  // --- Kreis ---
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1,1,90,60,1,true),
+    new THREE.MeshBasicMaterial({color:0xB05BFF, transparent:true, opacity:.20,
+      side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending}));
+  mesh.position.y = 40; scene.add(mesh);
+  zone = {phase:0, t:ZONE[0].wait, state:'wait', r:arena.radius, from:arena.radius, to:ZONE[0].to,
+          x:0, z:0, fx:0, fz:0, tx:0, tz:0, mesh, dps:ZONE[0].dps};
+  pickNextCentre();
+
+  // --- Kisten aus den beim Kartenbau gemerkten Plätzen ---
+  crates.forEach(c=>scene.remove(c.obj)); crates = [];
+  const rng = srand((cfg.seed||1234) ^ 0x5EED);
+  (arena.loot||[]).forEach((L,i)=>{
+    const tier = L.w;
+    const pool = Object.keys(GEAR).filter(k=>{
+      const g = GEAR[k];
+      if(tier >= 3) return true;
+      if(tier === 2) return g.tier <= 2;
+      return g.tier === 1;
+    });
+    const id = pool[Math.floor(rng()*pool.length)];
+    const col = tier>=3 ? 0xFFC53D : tier===2 ? 0x4BD08A : 0x9AA6B2;
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(.7,.55,.7),
+      new THREE.MeshLambertMaterial({color:0x2E3742}));
+    b.position.y = .28; b.castShadow = true; g.add(b);
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(.76,.12,.76),
+      new THREE.MeshBasicMaterial({color:col}));
+    lid.position.y = .6; g.add(lid);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,7,8,1,true),
+      new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.22,
+        side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending}));
+    beam.position.y = 3.6; g.add(beam);
+    const gy = groundY(L.x, L.z, L.y+3).y;
+    g.position.set(L.x, gy>-900?gy:L.y, L.z);
+    scene.add(g);
+    crates.push({i, id, obj:g, lid, pos:g.position.clone(), taken:false});
+  });
+
+  // --- Absprung ---
+  fighters.forEach((f,i)=>{
+    const a = i*TAU/Math.max(1,fighters.length) + 0.3;
+    const r = arena.radius*0.55;
+    f.pos.set(Math.cos(a)*r, 62, Math.sin(a)*r);
+    f.vel.set(0,0,0); f.glide = true; f.onGround = false;
+  });
+  $('brbar').classList.remove('hidden');
+  $('gear').classList.remove('hidden');
+  toast('🪂 Absprung! Sucht Ausrüstung.');
+}
+
+/** Nächste Kreismitte: irgendwo im aktuellen Kreis, aber nicht ganz am Rand. */
+function pickNextCentre(){
+  const rng = srand(((cfg.seed||1)*7919 + zone.phase*104729) >>> 0);
+  const drift = Math.max(0, zone.r - zone.to);
+  const a = rng()*TAU, d = rng()*drift*0.6;
+  zone.fx = zone.x; zone.fz = zone.z;
+  zone.tx = zone.x + Math.cos(a)*d;
+  zone.tz = zone.z + Math.sin(a)*d;
+}
+
+function updateBR(dt){
+  if(!zone) return;
+  // --- Kreis fortschreiten ---
+  zone.t -= dt;
+  const Z = ZONE[zone.phase];
+  if(zone.state === 'wait'){
+    if(zone.t <= 0){
+      zone.state = 'shrink'; zone.t = Z.shrink;
+      zone.from = zone.r;
+      toast('🌀 Der Kreis zieht sich zusammen');
+    }
+  } else {
+    const k = 1 - Math.max(0, zone.t) / Z.shrink;
+    zone.r = lerp(zone.from, Z.to, k);
+    zone.x = lerp(zone.fx, zone.tx, k);
+    zone.z = lerp(zone.fz, zone.tz, k);
+    if(zone.t <= 0){
+      zone.r = Z.to; zone.x = zone.tx; zone.z = zone.tz;
+      // Überlebt: alle noch lebenden bekommen einen Punkt
+      fighters.forEach(f=>{ if(f.alive) grantPoint(f); });
+      zone.phase++;
+      if(zone.phase < ZONE.length){
+        const N = ZONE[zone.phase];
+        zone.state = 'wait'; zone.t = N.wait; zone.to = N.to; zone.dps = N.dps;
+        pickNextCentre();
+      } else { zone.state = 'final'; zone.t = 999; zone.dps = 24; }
+    }
+  }
+  zone.mesh.position.set(zone.x, 40, zone.z);
+  zone.mesh.scale.set(zone.r, 1, zone.r);
+  zone.mesh.material.opacity = .14 + Math.sin(matchT*3)*.05;
+
+  // --- Schaden ausserhalb ---
+  fighters.forEach(f=>{
+    if(!f.alive) return;
+    const d = Math.hypot(f.pos.x - zone.x, f.pos.z - zone.z);
+    f.outside = d > zone.r;
+    if(f.outside) damage(f, zone.dps*dt, null, {env:true});
+  });
+  if(me) $('zonewarn').style.opacity = (me.alive && me.outside) ? 1 : 0;
+
+  // --- Kisten einsammeln ---
+  for(const c of crates){
+    if(c.taken) continue;
+    c.lid.rotation.y += dt*1.2;
+    for(const f of fighters){
+      if(!f.alive) continue;
+      if(f.pos.distanceTo(c.pos) < 1.7 && Math.abs(f.pos.y - c.pos.y) < 2.4){
+        takeCrate(c, f);
+        break;
+      }
+    }
+  }
+
+  // --- Sieger? ---
+  const living = fighters.filter(f=>f.alive);
+  if(!over && living.length <= 1 && fighters.length > 1){
+    finish(living.length ? living[0].name : 'Niemand');
+  }
+}
+
+function takeCrate(c, f){
+  c.taken = true;
+  scene.remove(c.obj);
+  grabGear(f, c.id);
+  if(isNet && isHost) broadcast({t:'loot', i:c.i});
+}
+
+function grabGear(f, id){
+  const g = GEAR[id];
+  if(!g) return;
+  sfx.pick();
+  let txt = g.em+' '+g.n;
+  switch(g.k){
+    case 'w':
+      if(g.v > f.gear.w){ f.gear.w = g.v; }
+      else txt = '↔ ' + g.n + ' (hast du schon besser)';
+      break;
+    case 'a':
+      if(g.v > f.gear.a){ f.gear.a = g.v; f.shield = ARMOR_SH[g.v]; }
+      else { f.shield = Math.min(ARMOR_SH[f.gear.a], f.shield + 20); txt = '🔋 Schild aufgefüllt'; }
+      break;
+    case 'heal':  f.hp = Math.min(f.maxHp, f.hp + g.v); break;
+    case 'cell':  f.shield = Math.min(ARMOR_SH[f.gear.a], f.shield + g.v);
+                  if(ARMOR_SH[f.gear.a] === 0) txt = '🔋 Zelle (ohne Rüstung nutzlos)';
+                  break;
+    case 'point': grantPoint(f); return;
+  }
+  if(f === me) toast(txt);
+}
+
+/* ---------- Verbesserungen ---------- */
+function grantPoint(f){
+  f.pts = (f.pts||0) + 1;
+  if(f.bot){ applyUpgrade(f, pick(UPGRADES).id); return; }
+  const opts = shuffle(UPGRADES.slice()).slice(0,3).map(u=>u.id);
+  if(f === me) showLevelUp(opts);
+  else if(f.conn){ try{ f.conn.send({t:'levelup', opts}); }catch(e){} f.upWait = matchT + 12; f.upOpts = opts; }
+  else applyUpgrade(f, opts[0]);
+}
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; }
+  return a;
+}
+function applyUpgrade(f, id){
+  if(!f.up || !(id in f.up)) return;
+  f.up[id]++;
+  if(id === 'hp'){ f.maxHp = CLASSES[f.cls].hp + 25*f.up.hp; f.hp += 25; }
+  if(f === me){ toast('▲ '+(UPGRADES.find(u=>u.id===id)||{}).n); sfx.ult(); }
+}
+let upPending = null, upTimer = 0;
+function showLevelUp(opts){
+  upPending = opts; upTimer = 12;
+  const box = $('upopts');
+  box.innerHTML = opts.map(id=>{
+    const u = UPGRADES.find(x=>x.id===id);
+    const lvl = me && me.up ? me.up[id] : 0;
+    return `<button class="upo" data-up="${id}"><div class="em">${u.em}</div>
+      <h5>${u.n}</h5><p>${u.d}</p><div class="lvl">${lvl>0?('Stufe '+lvl+' → '+(lvl+1)):'neu'}</div></button>`;
+  }).join('');
+  $('levelup').classList.remove('hidden');
+  if(locked) document.exitPointerLock();
+}
+function chooseUpgrade(id){
+  if(!upPending) return;
+  upPending = null;
+  $('levelup').classList.add('hidden');
+  if(isNet && !isHost){ try{ conns[0].send({t:'upPick', id}); }catch(e){} }
+  else if(me) applyUpgrade(me, id);
+  if(!('ontouchstart' in window) && phase==='fight') renderer.domElement.requestPointerLock();
+}
+
+/* ---------- Werte, die von Beute und Verbesserungen abhängen ---------- */
+function atkDmg(f, base){ return base * WEAPON_MUL[f.gear ? f.gear.w : 0] * (1 + 0.15*(f.up?f.up.dmg:0)); }
+function abilDmg(f, base){ return base * (1 + 0.15*(f.up?f.up.dmg:0)); }
+function rangeMul(f){ return 1 + 0.15*(f.up?f.up.rng:0); }
 
 /* ==========================================================================
    EFFEKTE — kurzlebige Meshes, die sich selbst aufräumen
@@ -2080,6 +2890,10 @@ function setupMode(){
   $('teamA').classList.toggle('hidden', !M.teams);
   $('teamB').classList.toggle('hidden', !M.teams);
 
+  if(MODES[cfg.mode].br){ setupBR(); return; }
+  $('brbar').classList.add('hidden'); $('gear').classList.add('hidden');
+  if(zone){ scene.remove(zone.mesh); zone = null; }
+  crates.forEach(c=>scene.remove(c.obj)); crates = [];
   if(cfg.mode==='koth'){
     const hill = new THREE.Mesh(new THREE.CylinderGeometry(9,9,.2,32),
       new THREE.MeshBasicMaterial({color:0xFFC53D, transparent:true, opacity:.22, depthWrite:false}));
@@ -2107,6 +2921,7 @@ function setupMode(){
 
 function updateMode(dt){
   const M = MODES[cfg.mode];
+  if(M.br){ updateBR(dt); if(matchT >= M.time && !over) finish('Zeit abgelaufen'); return; }
   if(cfg.mode==='koth' && arena.hill){
     const inside = fighters.filter(f=>f.alive && f.pos.distanceTo(arena.center)<9 && Math.abs(f.pos.y-arena.center.y)<4);
     const t0 = inside.filter(f=>f.team===0).length, t1 = inside.filter(f=>f.team===1).length;
@@ -2198,6 +3013,26 @@ function botThink(f, dt){
 
   // Modus-Ziele haben Vorrang
   let goal = null;
+  if(MODES[cfg.mode].br && zone){
+    const dz = Math.hypot(f.pos.x-zone.x, f.pos.z-zone.z);
+    // Draussen oder knapp am Rand: rein in den Kreis, alles andere ist egal
+    if(dz > zone.r*0.82){
+      const gx = zone.x + (f.pos.x-zone.x)/(dz||1) * zone.r*0.45;
+      const gz = zone.z + (f.pos.z-zone.z)/(dz||1) * zone.r*0.45;
+      f.in.sprint = true;
+      goal = _v3.set(gx, f.pos.y, gz);
+      if(f.outside){ tgt = null; ai.tgt = -1; }
+    } else if(f.gear.w < 2 || f.hp < f.maxHp*0.5){
+      // Noch schlecht ausgerüstet: nächste Kiste im Kreis holen
+      let best = null, bd = 45;
+      for(const c of crates){
+        if(c.taken) continue;
+        const d = Math.hypot(c.pos.x-f.pos.x, c.pos.z-f.pos.z);
+        if(d < bd && Math.hypot(c.pos.x-zone.x, c.pos.z-zone.z) < zone.r*0.9){ bd = d; best = c; }
+      }
+      if(best) goal = _v3.set(best.pos.x, best.pos.y, best.pos.z);
+    }
+  }
   if(cfg.mode==='koth') goal = arena.center;
   if(cfg.mode==='ctf'){
     if(f.flag>=0) goal = flags[f.team].home;
@@ -2211,7 +3046,8 @@ function botThink(f, dt){
   let want = null, dist = 999;
   if(tgt){ dist = tgt.pos.distanceTo(f.pos); }
 
-  if(pu && (!tgt || dist>7)) want = pu.pos;
+  if(goal && MODES[cfg.mode].br && (f.outside || !tgt || dist > ideal*1.8)) want = goal;
+  else if(pu && (!tgt || dist>7)) want = pu.pos;
   else if(goal && (!tgt || dist>ideal*1.6)) want = goal;
   else if(tgt) want = tgt.pos;
 
@@ -2485,6 +3321,21 @@ function updateHUD(){
     $('teamA').firstElementChild.textContent = Math.floor(scoreT[0]);
     $('teamB').firstElementChild.textContent = Math.floor(scoreT[1]);
   }
+  if(M.br && zone){
+    const living = fighters.filter(f=>f.alive).length;
+    $('alivechip').innerHTML = '👤 <b>'+living+'</b> übrig';
+    const ph = Math.min(zone.phase+1, ZONE.length);
+    const t = Math.max(0, zone.t);
+    $('zonechip').innerHTML = (zone.state==='shrink' ? '🌀 <b>zieht sich zusammen</b> ' :
+      zone.state==='final' ? '🌀 <b>letzter Kreis</b>' : '🌀 Kreis <b>'+ph+'</b> · ') +
+      (zone.state==='final' ? '' : Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0'));
+    $('zonechip').classList.toggle('warn', zone.state==='shrink' || (me.alive && me.outside));
+    const gw = me.gear.w, ga = me.gear.a;
+    $('gear').innerHTML =
+      `<span class="gchip t${gw}">${gw?'⚔️ Waffe '+'I'.repeat(gw):'✊ keine Waffe'}</span>`+
+      `<span class="gchip t${ga}">${ga?'🛡️ Rüstung '+'I'.repeat(ga):'🎽 keine Rüstung'}</span>`+
+      (me.glide?'<span class="gchip">🪂 Absprung</span>':'');
+  }
   if(!me.alive && M.respawn>0){
     $('respTxt').textContent = 'Zurück in '+Math.max(0,Math.ceil(me.respawnAt-matchT));
   } else if(!me.alive){
@@ -2551,19 +3402,23 @@ function big(t){ $('big').innerHTML = '<span>'+t+'</span>'; setTimeout(()=>{ $('
 function feed(t){
   const d = document.createElement('div'); d.className='fe'; d.textContent = t;
   $('feed').prepend(d);
-  while($('feed').children.length>5) $('feed').lastChild.remove();
+  /* lastElementChild statt lastChild: sonst kann ein Textknoten die Schleife
+     drehen lassen, ohne dass children.length sinkt. */
+  const fd = $('feed');
+  while(fd.children.length > 5 && fd.lastElementChild) fd.removeChild(fd.lastElementChild);
   setTimeout(()=>d.remove(), 5200);
 }
 function boardHTML(){
   const M = MODES[cfg.mode];
-  const rows = fighters.slice().sort((a,b)=> M.teams ? (a.team-b.team||b.kills-a.kills) : b.score-a.score)
+  const rows = fighters.slice().sort((a,b)=> M.br ? ((b.alive?1:0)-(a.alive?1:0) || a.place-b.place || b.kills-a.kills)
+                                         : M.teams ? (a.team-b.team||b.kills-a.kills) : b.score-a.score)
     .map(f=>{
       const col = M.teams?TEAM_COL[f.team]:CLASSES[f.cls].color;
       return `<tr class="${f===me?'me':''}"><td><span class="tdot" style="background:#${col.toString(16).padStart(6,'0')}"></span>${f.name}</td>
         <td>${CLASSES[f.cls].em} ${CLASSES[f.cls].name}</td><td>${f.kills}</td><td>${f.deaths}</td>
-        <td>${M.lives?f.lives+' ♥':Math.floor(f.score)}</td></tr>`;
+        <td>${M.br ? (f.alive?'am Leben':'#'+(f.place||'-')) : M.lives?f.lives+' ♥':Math.floor(f.score)}</td></tr>`;
     }).join('');
-  return `<table><tr><th>KÄMPFER</th><th>KLASSE</th><th>SIEGE</th><th>TODE</th><th>${M.lives?'LEBEN':'PUNKTE'}</th></tr>${rows}</table>`;
+  return `<table><tr><th>KÄMPFER</th><th>KLASSE</th><th>SIEGE</th><th>TODE</th><th>${M.br?'PLATZ':M.lives?'LEBEN':'PUNKTE'}</th></tr>${rows}</table>`;
 }
 function showBoard(on){
   const b = $('board');
@@ -2592,6 +3447,7 @@ function loop(){
     if(isHost){
       if(phase==='fight'){
         matchT += dt;
+        fighters.forEach(f=>{ if(f.upOpts && matchT > f.upWait){ applyUpgrade(f, f.upOpts[0]); f.upOpts = null; } });
         fighters.forEach(f=>{ if(f.bot) botThink(f, dt); });
         fighters.forEach(f=>{ handleAbilities(f, dt); });
       }
@@ -2601,7 +3457,7 @@ function loop(){
       if(phase==='fight'){
         updateMode(dt);
         powerAcc += dt;
-        if(powerAcc > 9){ powerAcc = 0; if(powerups.length < 4) spawnPower(); }
+        if(powerAcc > 9 && !MODES[cfg.mode].br){ powerAcc = 0; if(powerups.length < 4) spawnPower(); }
       }
       if(isNet){ netAcc += dt; if(netAcc > 1/NET_HZ){ netAcc = 0; broadcast(snapshot()); } }
     } else {
@@ -2628,6 +3484,11 @@ function loop(){
   renderFighters(dt);
   updateFx(dt);
   updateHUD();
+  if(upPending){
+    upTimer -= dt;
+    $('uptimer').textContent = 'Automatische Wahl in '+Math.max(0,Math.ceil(upTimer));
+    if(upTimer <= 0) chooseUpgrade(upPending[0]);
+  }
   if(toastT>0){ toastT -= dt; if(toastT<=0) $('toast').textContent=''; }
   if(tallyT>0){ tallyT -= dt; if(tallyT<=0){ tally = 0; $('dmgtally').style.opacity = 0; } }
   renderer.render(scene, camera);
@@ -2655,13 +3516,16 @@ function handleAbilitiesLocalFx(f, dt){
    ========================================================================== */
 function startMatch(){
   phase = 'countdown'; countT = 3.9; matchT = 0; lastCount = -1;
+  upPending = null; $('levelup').classList.add('hidden');
   projectiles.forEach(p=>scene.remove(p.mesh)); projectiles = [];
   gadgets.forEach(g=>scene.remove(g.obj)); gadgets = [];
   powerups.forEach(p=>scene.remove(p.obj)); powerups = [];
   fx.forEach(e=>scene.remove(e.mesh)); fx = [];
   setupMode();
   fighters.forEach((f,i)=>{
-    f.kills=0; f.deaths=0; f.score=0; f.ult=0; f.flag=-1;
+    f.kills=0; f.deaths=0; f.score=0; f.ult=0; f.flag=-1; f.place=0;
+    f.gear={w:0,a:0}; f.up={cd:0,dmg:0,ult:0,hp:0,spd:0,rng:0}; f.pts=0;
+    f.glide=false; f.outside=false; f.upOpts=null;
     f.lives = MODES[cfg.mode].lives||99;
     f.alive = true; respawn(f);
     const s = arena.spawns[i % arena.spawns.length];
@@ -2681,7 +3545,10 @@ function finish(winner){
   const won = M.teams ? (me && winner==='Team '+(me.team?'Rot':'Blau'))
                       : (me && winner===me.name);
   $('endTitle').textContent = won ? 'SIEG' : (winner==='Unentschieden'?'UNENTSCHIEDEN':'NIEDERLAGE');
-  $('endSub').textContent = winner.toUpperCase();
+  $('endSub').textContent = M.br && me && !won
+    ? ('PLATZ '+(me.place||fighters.length)+' VON '+fighters.length)
+    : winner.toUpperCase();
+  if(M.br) $('endTitle').textContent = won ? '#1 SIEG' : 'AUSGESCHIEDEN';
   $('endBoard').innerHTML = boardHTML();
   $('hud').classList.add('hidden');
   $('scEnd').classList.remove('hidden');
@@ -2754,6 +3621,12 @@ function onHostData(c, d){
   } else if(d.t==='input'){
     const f = fighters.find(x=>x.id===c.pid);
     if(f){ Object.assign(f.in, d.i); }
+  } else if(d.t==='upPick'){
+    const f = fighters.find(x=>x.id===c.pid);
+    if(f && f.upOpts && f.upOpts.indexOf(d.id) >= 0){
+      applyUpgrade(f, d.id); f.upOpts = null;
+      try{ c.send({t:'upok', id:d.id}); }catch(e){}
+    }
   }
 }
 function pushLobby(){
@@ -2783,12 +3656,16 @@ function onClientData(d){
   else if(d.t==='full'){ $('lobbyHint').textContent='Raum ist voll.'; }
   else if(d.t==='lobby'){ netPlayers = d.players; cfg.mode = d.mode; cfg.arena = d.arena; renderLobby(); }
   else if(d.t==='start'){
-    cfg.mode = d.mode; cfg.arena = d.arena;
-    buildArena(cfg.arena);
-    setupFighters(d.players.map(p=>({...p, bot:false})));
-    if(me) cfg.cls = me.cls;
-    startMatch();
+    cfg.mode = d.mode; cfg.arena = d.arena; cfg.seed = d.seed;
+    const list = d.players.map(p=>({...p, bot:false}));
+    launch(list);
   }
+  else if(d.t==='loot'){
+    const c = crates.find(x=>x.i === d.i);
+    if(c && !c.taken){ c.taken = true; scene.remove(c.obj); }
+  }
+  else if(d.t==='levelup') showLevelUp(d.opts);
+  else if(d.t==='upok' && me) applyUpgrade(me, d.id);
   else if(d.t==='hit') showHit(d.d, new THREE.Vector3(d.x,d.y,d.z), d.crit, d.k);
   else if(d.t==='snap') applySnap(d);
   else if(d.t==='over') finish(d.w);
@@ -2796,10 +3673,13 @@ function onClientData(d){
 
 function snapshot(){
   return {t:'snap', m:matchT, sc:scoreT, ph:phase,
+    z: zone ? {r:+zone.r.toFixed(1), x:+zone.x.toFixed(1), y:+zone.z.toFixed(1),
+               p:zone.phase, t:+Math.max(0,zone.t).toFixed(1), s:zone.state} : null,
     f: fighters.map(f=>({i:f.id, x:+f.pos.x.toFixed(2), y:+f.pos.y.toFixed(2), z:+f.pos.z.toFixed(2),
         w:+f.yaw.toFixed(2), h:Math.round(f.hp), s:Math.round(f.shield), a:f.alive?1:0,
         k:f.kills, d:f.deaths, p:Math.floor(f.score), u:Math.round(f.ult), v:f.st.invis>0?1:0,
-        l:f.lives, fl:f.flag})),
+        l:f.lives, fl:f.flag, gw:f.gear.w, ga:f.gear.a, pl:f.place, og:f.outside?1:0,
+        gl:f.glide?1:0})),
     p: projectiles.map(p=>({k:p.kind, x:+p.pos.x.toFixed(1), y:+p.pos.y.toFixed(1), z:+p.pos.z.toFixed(1), c:p.col})),
     g: gadgets.map(g=>({k:g.t, x:+g.pos.x.toFixed(1), y:+g.pos.y.toFixed(1), z:+g.pos.z.toFixed(1), t:g.team})),
     pu: powerups.map(p=>({i:p.id, x:+p.pos.x.toFixed(1), y:+p.pos.y.toFixed(1), z:+p.pos.z.toFixed(1)})),
@@ -2827,7 +3707,14 @@ function applySnap(s){
     }
     f.alive = !!d.a; f.kills=d.k; f.deaths=d.d; f.score=d.p; f.lives=d.l; f.flag=d.fl;
     f.st.invis = d.v?1:0;
+    if(d.gw!==undefined){ f.gear.w=d.gw; f.gear.a=d.ga; f.place=d.pl; f.outside=!!d.og; f.glide=!!d.gl; }
   });
+  if(s.z && zone){
+    zone.r = s.z.r; zone.x = s.z.x; zone.z = s.z.y;
+    zone.phase = s.z.p; zone.t = s.z.t; zone.state = s.z.s;
+    zone.mesh.position.set(zone.x, 40, zone.z);
+    zone.mesh.scale.set(zone.r, 1, zone.r);
+  }
   syncGhosts(s);
 }
 /** Geschosse, Türme, Power-Ups und Fahnen beim Gast nachbilden. */
@@ -2838,10 +3725,21 @@ function syncGhosts(s){
     data.forEach((d,i)=>upd(arr[i], d));
   };
   fit(ghostProj, s.p, ()=>{
-    const m = new THREE.Mesh(projGeo.ball, new THREE.MeshBasicMaterial({color:0xffffff}));
-    return {obj:m};
-  }, (o,d)=>{ o.obj.position.set(d.x,d.y,d.z); o.obj.material.color.setHex(d.c);
-              o.obj.scale.setScalar(d.k==='meteor'?2.4:d.k==='arrow'?.5:1); });
+    const g = new THREE.Group();
+    const plain = new THREE.Mesh(projGeo.ball, new THREE.MeshBasicMaterial({color:0xffffff}));
+    g.add(plain);
+    const fire = fireballTPL ? makeFireMesh(1) : null;
+    if(fire) g.add(fire);
+    return {obj:g, plain, fire};
+  }, (o,d)=>{
+    o.obj.position.set(d.x,d.y,d.z);
+    const isFire = o.fire && (d.k==='fire' || d.k==='meteor');
+    o.plain.visible = !isFire;
+    if(o.fire) o.fire.visible = !!isFire;
+    if(isFire){ o.fire.userData.fire = d.k==='meteor'?1.6:0.62; spinFire(o.fire, 1/NET_HZ, d.x); }
+    else { o.plain.material.color.setHex(d.c);
+           o.plain.scale.setScalar(d.k==='meteor'?2.4:d.k==='arrow'?.5:1); }
+  });
   fit(ghostGad, s.g, ()=>{
     const g = new THREE.Group();
     g.add(new THREE.Mesh(new THREE.CylinderGeometry(.9,1.1,.7,10), new THREE.MeshLambertMaterial({color:0x4A4A52})));
@@ -2903,6 +3801,8 @@ function buildMenu(){
     `<button class="chip" data-m="${id}">${MODES[id].em} ${MODES[id].name}</button>`).join('');
   $('modes').onclick = e=>{ const b=e.target.closest('.chip'); if(!b) return;
     cfg.mode = b.dataset.m; mark('#modes','[data-m]',cfg.mode,'m');
+    if(MODES[cfg.mode].arena){ cfg.arena = MODES[cfg.mode].arena; mark('#arenas','[data-a]',cfg.arena,'a'); }
+    $('arenas').style.opacity = MODES[cfg.mode].arena ? .35 : 1;
     $('modeInfo').textContent = MODES[cfg.mode].info; };
 
   markClass(); mark('#arenas','[data-a]',cfg.arena,'a'); mark('#modes','[data-m]',cfg.mode,'m');
@@ -2915,6 +3815,9 @@ function buildMenu(){
   $('bots').value = cfg.bots; $('botN').textContent = cfg.bots;
   $('sens').value = Math.round(cfg.sens*100); $('sensN').textContent = cfg.sens.toFixed(1);
 
+  $('upopts').onclick = e=>{
+    const b = e.target.closest('.upo'); if(b) chooseUpgrade(b.dataset.up);
+  };
   $('bSolo').onclick = startSolo;
   $('bHost').onclick = ()=>{ hostGame(); };
   $('bJoin').onclick = ()=>{
@@ -2923,12 +3826,12 @@ function buildMenu(){
   };
   $('bStart').onclick = ()=>{
     if(!isHost) return;
+    if(MODES[cfg.mode].arena) cfg.arena = MODES[cfg.mode].arena;
+    cfg.seed = (Math.random()*1e9)|0;
     const list = assignTeams(netPlayers.map(p=>({...p})));
-    broadcast({t:'start', mode:cfg.mode, arena:cfg.arena,
+    broadcast({t:'start', mode:cfg.mode, arena:cfg.arena, seed:cfg.seed,
                players:list.map(p=>({id:p.id,name:p.name,cls:p.cls,team:p.team}))});
-    buildArena(cfg.arena);
-    setupFighters(list);
-    startMatch();
+    launch(list);
   };
   $('bLeave').onclick = ()=>{
     if(peer){ try{peer.destroy();}catch(e){} peer=null; }
@@ -2975,17 +3878,24 @@ function renderLobby(){
 function startSolo(){
   isNet = false; isHost = true; myId = 0; conns = [];
   const M = MODES[cfg.mode];
+  if(M.arena) cfg.arena = M.arena;
+  cfg.seed = (Math.random()*1e9)|0;
   let n = cfg.bots;
   if(M.teams && M.size) n = M.size*2-1;
+  if(M.br) n = Math.max(n, 5);
   n = clamp(n, 1, 7);
   const names = ['Gorm','Sela','Brack','Nyx','Ilva','Torv','Ruka','Vend','Mira','Kael'];
   const list = [{id:0, name:cfg.name, cls:cfg.cls, team:0, bot:false}];
   for(let i=0;i<n;i++)
     list.push({id:i+1, name:pick(names)+' '+(i+1), cls:pick(CLS_IDS), team:0, bot:true});
   assignTeams(list);
-  buildArena(cfg.arena);
-  setupFighters(list);
-  startMatch();
+  launch(list);
+}
+
+/** Arena bauen und starten — bei Bausatz-Arenen erst die Teile holen. */
+function launch(list){
+  const go = ()=>{ buildArena(cfg.arena); setupFighters(list); startMatch(); };
+  if(ARENAS[cfg.arena] && ARENAS[cfg.arena].kit) ensureKit(go); else go();
 }
 
 /* ---------------- Einstellungen merken ---------------- */
