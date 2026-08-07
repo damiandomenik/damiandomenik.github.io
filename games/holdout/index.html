@@ -86,12 +86,17 @@ input:focus{outline:none;border-color:var(--amber)}
 /* ---------- HUD ---------- */
 #hud{position:fixed;inset:0;pointer-events:none;z-index:20;opacity:0;transition:opacity .3s}
 #hud.on{opacity:1}
-#cross{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%)}
-#cross i{position:absolute;background:var(--bone);opacity:.85}
-#cross i:nth-child(1){left:50%;top:0;width:1.5px;height:8px;margin-left:-.75px}
-#cross i:nth-child(2){left:50%;bottom:0;width:1.5px;height:8px;margin-left:-.75px}
-#cross i:nth-child(3){top:50%;left:0;height:1.5px;width:8px;margin-top:-.75px}
-#cross i:nth-child(4){top:50%;right:0;height:1.5px;width:8px;margin-top:-.75px}
+#cross{position:absolute;left:50%;top:50%;width:2px;height:2px;--gap:5px}
+#cross i{position:absolute;left:50%;top:50%;background:var(--bone);opacity:.85;
+  box-shadow:0 0 2px rgba(0,0,0,.9)}
+#cross i:nth-child(1){width:2px;height:7px;margin:-3.5px 0 0 -1px;
+  transform:translateY(calc(-1 * var(--gap) - 3.5px))}
+#cross i:nth-child(2){width:2px;height:7px;margin:-3.5px 0 0 -1px;
+  transform:translateY(calc(var(--gap) + 3.5px))}
+#cross i:nth-child(3){width:7px;height:2px;margin:-1px 0 0 -3.5px;
+  transform:translateX(calc(-1 * var(--gap) - 3.5px))}
+#cross i:nth-child(4){width:7px;height:2px;margin:-1px 0 0 -3.5px;
+  transform:translateX(calc(var(--gap) + 3.5px))}
 #cross.hit i{background:var(--hazard);opacity:1}
 #vitals{position:absolute;left:26px;bottom:26px;width:290px}
 .meter{height:9px;background:rgba(0,0,0,.55);border:1px solid var(--line);margin-bottom:6px;position:relative}
@@ -206,7 +211,7 @@ input:focus{outline:none;border-color:var(--amber)}
         <div id="bar"><i></i></div>
         <div id="loadTxt">Bereit.</div>
       </div>
-      <p class="sub" style="font-size:11.5px">F3 Statistik · F4 Collider sichtbar · F5 Capsule &amp; Bodenstrahl · F6 Kartenbericht</p>
+      <p class="sub" style="font-size:11.5px"><span id="buildTag" style="color:var(--amber)"></span> · F3 Statistik · F4 Collider sichtbar · F5 Capsule &amp; Bodenstrahl · F6 Kartenbericht</p>
     </div>
   </section>
 
@@ -293,13 +298,13 @@ const ASSETS = {
    `at` verschoben und optional so skaliert, dass seine Grundfläche `fit`
    Meter breit wird. `scale` überschreibt `fit`. */
 const MAP_MANIFEST = [
-  { file:'shooting_game_enviornment_map_tdm.glb', at:[0,0,0],       fit:190, rotY:0,         label:'Innenstadt' },
-  { file:'western.glb',                            at:[-172,0,-28],  fit:115, rotY:Math.PI/2, label:'Westernviertel' },
-  { file:'low-poly_industrial_building.glb',       at:[158,0,-88],   fit:102, rotY:-0.4,      label:'Werk' },
+  { file:'shooting_game_enviornment_map_tdm.glb', at:[0,0,0],      fit:168, rotY:0,         label:'Innenstadt' },
+  { file:'western.glb',                            at:[-150,0,-25], fit:100, rotY:Math.PI/2, label:'Westernviertel' },
+  { file:'low-poly_industrial_building.glb',       at:[140,0,-78],  fit:90,  rotY:-0.4,      label:'Werk' },
   /* Der Dschungel ist im Original nur 18 x 20 m groß — ein Diorama, keine
      Karte. `fit` würde ihn auf achtfache Größe ziehen (80 m hohe Bäume),
      deshalb hier eine feste, maßvolle Skalierung. */
-  { file:'low_poly_environment_jungle_scene.glb',  at:[12,0,178],    scale:3.8, rotY:0.25,    label:'Dschungel' }
+  { file:'low_poly_environment_jungle_scene.glb',  at:[10,0,158],   scale:3.3, rotY:0.25,    label:'Dschungel' }
   /* Eigene Karte? Einfach eine Zeile ergänzen:
      { file:'meine_map.glb', at:[0,0,-260], fit:120, rotY:0, label:'Neu' } */
 ];
@@ -334,6 +339,21 @@ const JUMP_SPEED = 7.6;
 const SPEED_WALK = 4.7, SPEED_SPRINT = 7.9, SPEED_AIR = 0.9, SPEED_CROUCH = 2.3;
 const WORLD_MIN_Y = -80;          // darunter: zurück auf letzte sichere Position
 
+/* ---- Trefferzonen ----
+   Bewusst getrennt von der Bewegungskapsel: die ist absichtlich schlank
+   (0.34 m), damit man durch Türen passt. Die Figuren sind aber 0.84–1.08 m
+   breit. Eine Trefferabfrage mit der Bewegungskapsel deckt nur zwei Drittel
+   der sichtbaren Silhouette ab — man zielt auf die Schulter und trifft Luft.
+   Werte in Metern, gemessen an der auf 1.78 m normierten Figur. */
+const HITBOX = {
+  bodyRadius: 0.34,   // Rumpf, Arme, Beine
+  bodyLow:    0.32,   // Mitte der unteren Halbkugel
+  bodyHigh:   1.06,   // Mitte der oberen Halbkugel (Schulteransatz)
+  headY:      1.45,   // Kopfmitte
+  headRadius: 0.33,   // Der Kopf reicht real von 1.12 bis 1.78 m
+  crouchMul:  0.66
+};
+
 /* ---- Kollisionsebenen ---- */
 const LAYER = { WORLD:1, PLAYER:2, PLAYER_ONLY:4, TRIGGER:8, PROJECTILE:16 };
 
@@ -344,23 +364,44 @@ const RE_NOCOLL = /(sky|himmel|backdrop|background|hintergrund|water_surface|bil
 
 /* ---- Battle-Royale-Ablauf ---- */
 const BR = {
-  islandRadius: 285,
+  islandRadius: 250,
   botCount: 11,
   phases: [ // hold = Zone steht, shrink = Zone zieht sich zusammen
-    { hold: 25, shrink: 42, radius: 185, dps: 1 },
-    { hold: 22, shrink: 36, radius: 115, dps: 2 },
-    { hold: 20, shrink: 30, radius: 64,  dps: 4 },
-    { hold: 18, shrink: 25, radius: 30,  dps: 7 },
-    { hold: 16, shrink: 22, radius: 10,  dps: 11 },
+    { hold: 25, shrink: 42, radius: 162, dps: 1 },
+    { hold: 22, shrink: 36, radius: 100, dps: 2 },
+    { hold: 20, shrink: 30, radius: 56,  dps: 4 },
+    { hold: 18, shrink: 25, radius: 26,  dps: 7 },
+    { hold: 16, shrink: 22, radius: 9,   dps: 11 },
     { hold: 14, shrink: 20, radius: 0,   dps: 16 }
   ]
 };
 
+/* Streuung in Radiant.
+   spreadBase  Erster Schuss aus dem Stand — praktisch punktgenau.
+   bloom       Aufschlag je Schuss, klingt mit BLOOM_DECAY wieder ab.
+   moveSpread  Zuschlag bei voller Laufgeschwindigkeit.
+   airSpread   Zuschlag im Sprung.
+   Damit ist Tippfeuer treffsicher und Dauerfeuer wird bestraft — vorher
+   hatte jeder Schuss dieselbe grosse Streuung, auch der erste. */
 const WEAPONS = {
-  smg:    { name:'SMG',      dmg:13, rpm:720, mag:32, reserve:160, spread:0.022, range:120, reload:1.8, auto:true,  headMul:1.9 },
-  pistol: { name:'Pistole',  dmg:22, rpm:330, mag:12, reserve:84,  spread:0.011, range:100, reload:1.3, auto:false, headMul:2.2 }
+  smg: {
+    name:'SMG', dmg:13, rpm:720, mag:32, reserve:160, range:120, reload:1.8,
+    auto:true, headMul:1.55,
+    spreadBase:0.0016, bloom:0.0115, spreadMax:0.052,
+    moveSpread:0.011, airSpread:0.030, crouchMul:0.62,
+    recoilPitch:0.0060, recoilYaw:0.0018
+  },
+  pistol: {
+    name:'Pistole', dmg:24, rpm:330, mag:12, reserve:84, range:100, reload:1.3,
+    auto:false, headMul:1.8,
+    spreadBase:0.0011, bloom:0.0085, spreadMax:0.034,
+    moveSpread:0.009, airSpread:0.026, crouchMul:0.58,
+    recoilPitch:0.0105, recoilYaw:0.0026
+  }
 };
+const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
+const BUILD = '2026-08-08 · 7';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -1540,7 +1581,14 @@ class CharacterFactory {
     if (this.pending.has(name)) return this.pending.get(name);
     const pr = this.loader.loadAsync(ASSETS.chars + name + '.gltf').then(gltf=>{
       const root = gltf.scene;
-      // Auf Spielerhöhe normieren und Füße auf y=0 legen
+      /* Auf Spielerhöhe normieren und Füße auf y=0 legen.
+         WICHTIG: Box3.setFromObject ruft bei SkinnedMesh intern
+         computeBoundingBox() auf, und das rechnet mit den Knochenmatrizen.
+         Ohne updateMatrixWorld sind die noch leer — der Kasten kommt viel zu
+         klein heraus UND wird im Mesh zwischengespeichert. Ergebnis wären
+         zweieinhalbfach zu grosse Figuren. */
+      root.updateMatrixWorld(true);
+      root.traverse(o=>{ if (o.isSkinnedMesh){ o.boundingBox = null; o.boundingSphere = null; } });
       const box = new THREE.Box3().setFromObject(root);
       const h = Math.max(0.01, box.max.y - box.min.y);
       const s = PLAYER.height / h;
@@ -1630,6 +1678,7 @@ class WeaponModel {
     try {
       const g = await this.loader.loadAsync(ASSETS.props + WEAPON_FILE);
       const root = g.scene;
+      root.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(root);
       const c = box.getCenter(new THREE.Vector3());
       root.position.sub(c);
@@ -1692,14 +1741,21 @@ class Actor {
   eyeHeight(){ return this.crouch ? PLAYER.eyeHeight*0.62 : PLAYER.eyeHeight; }
   bodyTop(){ return this.position.y + (this.crouch ? PLAYER.height*0.66 : PLAYER.height); }
 
-  /** Trefferkapsel für Schüsse: Segment von Fuß+r bis Kopf−r. */
-  hitSegment(a, b){
-    const r = PLAYER.radius*0.95;
-    a.set(this.position.x, this.position.y + r, this.position.z);
-    b.set(this.position.x, this.bodyTop() - r*0.8, this.position.z);
-    return r;
+  /** Rumpf als Kapsel. Füllt out_a/out_b, liefert den Radius. */
+  hitBody(a, b){
+    const k = this.crouch ? HITBOX.crouchMul : 1;
+    a.set(this.position.x, this.position.y + HITBOX.bodyLow*k,  this.position.z);
+    b.set(this.position.x, this.position.y + HITBOX.bodyHigh*k, this.position.z);
+    return HITBOX.bodyRadius;
   }
-  headY(){ return this.bodyTop() - 0.16; }
+  /** Kopf als eigene Kugel — sonst ist ein Kopftreffer ein 6-cm-Band und
+      damit reiner Zufall. */
+  hitHead(c){
+    const k = this.crouch ? HITBOX.crouchMul : 1;
+    c.set(this.position.x, this.position.y + HITBOX.headY*k, this.position.z);
+    return HITBOX.headRadius;
+  }
+  headY(){ return this.position.y + HITBOX.headY*(this.crouch?HITBOX.crouchMul:1); }
 }
 const _eyeTmp = new THREE.Vector3();
 
@@ -1778,6 +1834,41 @@ let stormMesh = null, stormRing = null;
 const dbgGroup = new THREE.Group(); scene.add(dbgGroup);
 let capsuleHelper = null, rayHelper = null;
 
+/* Pool aus Drahtgittern, damit man die Trefferzonen im Spiel prüfen kann
+   statt sie zu erraten. Ein Körper und ein Kopf je Figur. */
+const hitHelpers = [];
+function updateHitboxHelpers(){
+  const on = DEBUG_FLAGS.capsule;
+  let n = 0;
+  if (on){
+    for (const a of G.actors){
+      if (!a.alive || a === G.me) continue;
+      if (G.me && a.position.distanceTo(G.me.position) > 90) continue;
+      if (n >= hitHelpers.length){
+        const mat = new THREE.MeshBasicMaterial({ color:0xff4d3d, wireframe:true,
+          transparent:true, opacity:.6, depthTest:false });
+        const body = new THREE.Mesh(new THREE.CapsuleGeometry(
+          HITBOX.bodyRadius, HITBOX.bodyHigh - HITBOX.bodyLow, 4, 12), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(HITBOX.headRadius, 10, 8),
+          new THREE.MeshBasicMaterial({ color:0xffb020, wireframe:true,
+            transparent:true, opacity:.75, depthTest:false }));
+        body.renderOrder = 997; head.renderOrder = 997;
+        dbgGroup.add(body, head);
+        hitHelpers.push({ body, head });
+      }
+      const h = hitHelpers[n++];
+      const k = a.crouch ? HITBOX.crouchMul : 1;
+      h.body.visible = h.head.visible = true;
+      h.body.scale.setScalar(k);
+      h.head.scale.setScalar(k);
+      h.body.position.set(a.position.x, a.position.y + (HITBOX.bodyLow+HITBOX.bodyHigh)/2*k, a.position.z);
+      h.head.position.set(a.position.x, a.position.y + HITBOX.headY*k, a.position.z);
+    }
+  }
+  for (let i = n; i < hitHelpers.length; i++)
+    hitHelpers[i].body.visible = hitHelpers[i].head.visible = false;
+}
+
 function buildCapsuleHelper(){
   const g = new THREE.CapsuleGeometry(PLAYER.radius, PLAYER.height - PLAYER.radius*2, 6, 16);
   capsuleHelper = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
@@ -1801,6 +1892,7 @@ function updateDebugHelpers(){
   if (!capsuleHelper) buildCapsuleHelper();
   const on = DEBUG_FLAGS.capsule && G.me && G.me.ctrl;
   capsuleHelper.visible = on; rayHelper.visible = on;
+  updateHitboxHelpers();
   if (!on) return;
   const p = G.me.ctrl.position;
   capsuleHelper.position.set(p.x, p.y + PLAYER.height/2, p.z);
@@ -1988,7 +2080,79 @@ function aimDir(yaw, pitch, out){
   return out.set(-Math.sin(yaw)*cp, Math.sin(pitch), -Math.cos(yaw)*cp);
 }
 const _ca = new THREE.Vector3(), _cb = new THREE.Vector3();
+const _trA = new THREE.Vector3(), _trB = new THREE.Vector3(), _trC = new THREE.Vector3();
+const _ch = new THREE.Vector3(), _hp = new THREE.Vector3();
+
+/* Wo die Kugel den Lauf verlässt. Bisher startete die Leuchtspur im
+   Kameramittelpunkt — beim Geradeausschauen unsichtbar (man sieht die Linie
+   von hinten), beim Seitwärtslaufen aber plötzlich von der Seite. Dann
+   scheint der Schuss aus dem Nichts neben einem zu kommen. Der Punkt hier
+   liegt dort, wo die Waffe im Bild steht. */
+function muzzlePoint(out){
+  const me = G.me;
+  if (!me) return out.set(0,0,0);
+  aimDir(camYaw, camPitch, _trC);
+  out.set(me.position.x, me.position.y + me.eyeHeight(), me.position.z);
+  out.addScaledVector(_trC, 0.55);
+  out.x += Math.cos(camYaw)*0.16;
+  out.z += -Math.sin(camYaw)*0.16;
+  out.y -= 0.13;
+  return out;
+}
+/** Dasselbe für Bots und Mitspieler — grob auf Höhe ihrer Waffenhand. */
+function actorMuzzle(a, out){
+  aimDir(a.yaw, a.pitch, _trC);
+  out.set(a.position.x, a.position.y + a.eyeHeight() - 0.16, a.position.z);
+  out.addScaledVector(_trC, 0.45);
+  out.x += Math.cos(a.yaw)*0.18;
+  out.z += -Math.sin(a.yaw)*0.18;
+  return out;
+}
 const _o1 = new THREE.Vector3(), _o2 = new THREE.Vector3();
+
+function raySphere(origin, dir, c, r, maxDist){
+  const ox=c.x-origin.x, oy=c.y-origin.y, oz=c.z-origin.z;
+  const tca = ox*dir.x + oy*dir.y + oz*dir.z;
+  const d2 = ox*ox+oy*oy+oz*oz - tca*tca;
+  if (d2 > r*r) return null;
+  const thc = Math.sqrt(r*r - d2);
+  let t = tca - thc;
+  if (t < 0) t = tca + thc;
+  if (t < 0 || t > maxDist) return null;
+  return t;
+}
+
+const _sxA = new THREE.Vector3(), _suA = new THREE.Vector3(), _svA = new THREE.Vector3();
+/** Zufällige Abweichung gleichmässig über eine Kreisscheibe senkrecht zur
+    Blickrichtung. Vorher wurde auf x, y und z je ein Wert addiert — das ergibt
+    einen Würfel statt eines Kegels, und wie stark die Waffe streut, hing davon
+    ab, in welche Himmelsrichtung man gerade schaute. */
+function spreadDir(dir, ang, out){
+  if (ang <= 1e-6) return out.copy(dir).normalize();
+  _sxA.set(0,1,0);
+  if (Math.abs(dir.y) > 0.95) _sxA.set(1,0,0);
+  _suA.crossVectors(dir, _sxA).normalize();
+  _svA.crossVectors(dir, _suA).normalize();
+  const a = Math.random()*Math.PI*2;
+  const r = Math.sqrt(Math.random()) * ang;
+  return out.copy(dir)
+    .addScaledVector(_suA, Math.cos(a)*r)
+    .addScaledVector(_svA, Math.sin(a)*r)
+    .normalize();
+}
+
+/** Streuung in diesem Moment — Grundwert plus Aufblühen plus Bewegung. */
+function currentSpread(a){
+  const W = WEAPONS[a.weapon];
+  let sp = W.spreadBase + (a.bloom || 0);
+  const v = a.ctrl ? Math.hypot(a.ctrl.velocity.x, a.ctrl.velocity.z) : 0;
+  sp += Math.min(1, v/SPEED_SPRINT) * W.moveSpread;
+  if (a.ctrl && !a.ctrl.grounded) sp += W.airSpread;
+  if (a.crouch) sp *= W.crouchMul;
+  // Bots bekommen keinen Bonus für Tippfeuer — sonst wären sie sofort tödlich
+  if (a.kind === 'bot') sp = 0.024 + (a.bloom || 0)*1.1;
+  return sp;
+}
 
 function rayCapsule(origin, dir, a, b, r, maxDist){
   _tmp.copy(origin); _tmp2.copy(origin).addScaledVector(dir, maxDist);
@@ -2007,10 +2171,9 @@ function fire(actor){
   actor.lastShotAt = G.time;
 
   _ro.copy(actor.eye);
-  const spread = W.spread * (actor.kind === 'bot' ? 2.4 : (actor.crouch ? 0.6 : 1));
   aimDir(actor.yaw, actor.pitch, _rd);
-  _rd.x += rnd(-spread,spread); _rd.y += rnd(-spread,spread); _rd.z += rnd(-spread,spread);
-  _rd.normalize();
+  spreadDir(_rd, currentSpread(actor), _rd);
+  actor.bloom = Math.min((actor.bloom||0) + W.bloom, W.spreadMax);
 
   let bestT = W.range, hitActor = null, head = false, hitPoint = null;
   const wallHit = G.world ? G.world.raycast(_ro, _rd, W.range, {}) : null;
@@ -2018,14 +2181,24 @@ function fire(actor){
 
   for (const o of G.actors){
     if (o === actor || !o.alive) continue;
-    const r = o.hitSegment(_ca, _cb);
-    const h = rayCapsule(_ro, _rd, _ca, _cb, r, W.range);
-    if (h && h.t < bestT){ bestT = h.t; hitActor = o; hitPoint = h.point;
-      head = h.point.y > o.headY() - 0.16; }
+    // Kopf zuerst — bei Überschneidung soll der Kopftreffer gewinnen
+    const hr = o.hitHead(_ch);
+    const th = raySphere(_ro, _rd, _ch, hr, W.range);
+    if (th !== null && th < bestT){
+      bestT = th; hitActor = o; head = true;
+      hitPoint = _hp.copy(_ro).addScaledVector(_rd, th).clone();
+    }
+    const br = o.hitBody(_ca, _cb);
+    const hb = rayCapsule(_ro, _rd, _ca, _cb, br, W.range);
+    if (hb && hb.t < bestT){
+      bestT = hb.t; hitActor = o; head = false; hitPoint = hb.point;
+    }
   }
 
+  const end = _trB.copy(_ro).addScaledVector(_rd, bestT);
   if (actor === G.me){
-    tracer(_ro, _rd, bestT);
+    tracer(muzzlePoint(_trA), end);
+    vmState.flash = 0.05;
     recoil(W);
     sfx.shot();
     if (hitActor){
@@ -2035,7 +2208,11 @@ function fire(actor){
     else if (hitPoint) impact(hitPoint);
   } else if (actor.kind === 'bot' && G.isHost){
     if (hitActor) applyDamage(hitActor, W.dmg*(head?W.headMul:1)*0.75, actor);
-    if (G.me && actor.position.distanceTo(G.me.position) < 55) sfx.shotFar();
+    if (G.me){
+      const d = actor.position.distanceTo(G.me.position);
+      if (d < 200){ tracer(actorMuzzle(actor, _trA), end); muzzleSpark(actor); }
+      if (d < 55) sfx.shotFar();
+    }
   }
   if (actor.view) actor.view.play('shoot', { once:true, fade:0.05 });
   if (actor.ammo[actor.weapon] <= 0) reload(actor);
@@ -2053,7 +2230,7 @@ function reload(actor){
   actor.reloadStart = G.time;
   actor.reloadUntil = G.time + W.reload;
   actor.reloadStage = 0;
-  if (actor === G.me) sfx.magOut();
+  if (actor === G.me){ sfx.magOut(); vmState.flash = 0; }
   if (actor.view) actor.view.play('reload', { fade:0.12 });
 }
 
@@ -2221,17 +2398,20 @@ const sfx = {
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
-const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, reload:false };
+const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, fireEdge:false, reload:false };
 let camYaw = 0, camPitch = 0, pointerLocked = false;
 let mouseSens = 0.0022;
 
 addEventListener('keydown', e=>{
   keys[e.code] = true;
-  if (e.code === 'F3'){ e.preventDefault(); DEBUG_FLAGS.stats = !DEBUG_FLAGS.stats; $('dbg').classList.toggle('hidden', !DEBUG_FLAGS.stats); }
-  if (e.code === 'F4'){ e.preventDefault(); toggleCollisionDebug(); }
-  if (e.code === 'F5'){ e.preventDefault(); DEBUG_FLAGS.capsule = !DEBUG_FLAGS.capsule;
-    toast(DEBUG_FLAGS.capsule ? 'Capsule & Bodenstrahl an' : 'Capsule aus'); }
-  if (e.code === 'F6'){ e.preventDefault(); console.log(mapReportText()); toast('Kartenbericht in der Konsole'); }
+  /* Debug-Tasten nur ohne Zusatztaste abfangen. Sonst frisst F5 auch
+     Strg+F5 und Shift+F5 — und die Seite laesst sich nicht mehr neu laden. */
+  const plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+  if (plain && e.code === 'F3'){ e.preventDefault(); DEBUG_FLAGS.stats = !DEBUG_FLAGS.stats; $('dbg').classList.toggle('hidden', !DEBUG_FLAGS.stats); }
+  if (plain && e.code === 'F4'){ e.preventDefault(); toggleCollisionDebug(); }
+  if (plain && e.code === 'F5'){ e.preventDefault(); DEBUG_FLAGS.capsule = !DEBUG_FLAGS.capsule;
+    toast(DEBUG_FLAGS.capsule ? 'Capsule, Bodenstrahl & Trefferzonen an' : 'Capsule aus'); }
+  if (plain && e.code === 'F6'){ e.preventDefault(); console.log(mapReportText()); toast('Kartenbericht in der Konsole'); }
   if (e.code === 'KeyR') input.reload = true;
   if (e.code === 'Digit1' && G.me){ G.me.weapon = 'smg';    G.me.reloading = false; }
   if (e.code === 'Digit2' && G.me){ G.me.weapon = 'pistol'; G.me.reloading = false; }
@@ -2243,7 +2423,7 @@ addEventListener('keyup', e=>{ keys[e.code] = false; });
 canvas.addEventListener('mousedown', e=>{
   if (G.phase !== 'play') return;
   if (!pointerLocked){ canvas.requestPointerLock(); return; }
-  if (e.button === 0) input.fire = true;
+  if (e.button === 0){ input.fire = true; input.fireEdge = true; }
 });
 addEventListener('mouseup', e=>{ if (e.button === 0) input.fire = false; });
 document.addEventListener('pointerlockchange', ()=>{
@@ -2274,7 +2454,8 @@ vmScene.add(new THREE.HemisphereLight(0xffffff, 0x556066, 2.4));
 const vmKey = new THREE.DirectionalLight(0xffffff, 1.6); vmKey.position.set(1,2,2); vmScene.add(vmKey);
 const vmRoot = new THREE.Group(); vmScene.add(vmRoot);
 let viewWeapon = null;
-const vmState = { bob:0, recoil:0, recoilV:0, rl:0, sway:new THREE.Vector2() };
+const vmState = { bob:0, recoil:0, recoilV:0, rl:0, flash:0, sway:new THREE.Vector2() };
+let muzzleFlash = null;
 
 function attachViewmodel(){
   if (viewWeapon) vmRoot.remove(viewWeapon);
@@ -2282,11 +2463,25 @@ function attachViewmodel(){
   viewWeapon.position.set(0.17, -0.15, -0.36);
   viewWeapon.rotation.set(0, Math.PI*0.5, 0);
   vmRoot.add(viewWeapon);
+
+  if (!muzzleFlash){
+    muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.032, 7, 5),
+      new THREE.MeshBasicMaterial({ color:0xffeeb8, transparent:true, opacity:.95, depthTest:false }));
+    muzzleFlash.renderOrder = 6;
+    muzzleFlash.visible = false;
+    vmRoot.add(muzzleFlash);
+  }
 }
+/* Rückstoss als eigener Versatz, der wieder abklingt. Vorher wurde camPitch
+   und camYaw direkt verschoben — nach jedem Schuss stand das Fadenkreuz
+   dauerhaft woanders, und der seitliche Anteil war reiner Zufall. Genau das
+   macht Tippfeuer unbrauchbar: jeder Schuss reisst die Waffe unwiederbringlich
+   ein Stück zur Seite. */
+const kick = { pitch:0, yaw:0 };
 function recoil(W){
   vmState.recoilV += 0.055 + W.dmg*0.0012;
-  camPitch += 0.006 + Math.random()*0.004;
-  camYaw += rnd(-0.0025, 0.0025);
+  kick.pitch += W.recoilPitch * (0.8 + Math.random()*0.4);
+  kick.yaw   += rnd(-1, 1) * W.recoilYaw;
 }
 function updateViewmodel(dt, moving){
   if (!viewWeapon) return;
@@ -2316,6 +2511,22 @@ function updateViewmodel(dt, moving){
   );
   viewWeapon.rotation.x = -vmState.recoil*1.3 - rl*0.9;
   viewWeapon.rotation.z = rl*0.55;
+
+  // Mündungsfeuer sitzt vorne am Lauf und folgt Rückstoss und Nachladen mit
+  if (muzzleFlash){
+    vmState.flash = Math.max(0, vmState.flash - dt);
+    muzzleFlash.visible = vmState.flash > 0 && rl < 0.35;
+    if (muzzleFlash.visible){
+      muzzleFlash.position.set(
+        viewWeapon.position.x + 0.015,
+        viewWeapon.position.y + 0.038,
+        viewWeapon.position.z - 0.27);
+      const k = vmState.flash / 0.05;
+      muzzleFlash.scale.setScalar(0.75 + k*1.1 + Math.random()*0.25);
+      muzzleFlash.rotation.z = Math.random()*6.28;
+      muzzleFlash.material.opacity = 0.35 + k*0.6;
+    }
+  }
 }
 
 function updateCamera(){
@@ -2325,8 +2536,8 @@ function updateCamera(){
   camera.position.set(me.position.x, eyeY, me.position.z);
   camera.rotation.set(0,0,0);
   camera.rotation.order = 'YXZ';
-  camera.rotation.y = camYaw;
-  camera.rotation.x = camPitch;
+  camera.rotation.y = camYaw + kick.yaw;
+  camera.rotation.x = clamp(camPitch + kick.pitch, -1.53, 1.53);
   sun.position.set(me.position.x + 60, me.position.y + 100, me.position.z + 45);
   sun.target.position.copy(me.position);
   sun.target.updateMatrixWorld();
@@ -2344,14 +2555,38 @@ function updateFx(dt){
     f.fn && f.fn(f.obj, f.t/f.life);
   }
 }
-function tracer(from, dir, dist){
-  const g = new THREE.BufferGeometry().setFromPoints([
-    from.clone().addScaledVector(dir, 0.6),
-    from.clone().addScaledVector(dir, Math.min(dist, 140))
-  ]);
-  const l = new THREE.Line(g, new THREE.LineBasicMaterial({ color:0xffd489, transparent:true, opacity:.7 }));
-  addFx(l, 0.07, (o,t)=>{ o.material.opacity = 0.7*(1-t); });
+/** Leuchtspur als kurzer Streifen, der die Strecke abfliegt — statt einer
+    Linie, die eine Sechzigstelsekunde lang in voller Länge dasteht. */
+function tracer(from, to){
+  const a = from.clone(), b = to.clone();
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const dist = dir.length();
+  if (dist < 0.05) return;
+  dir.divideScalar(dist);
+  const g = new THREE.BufferGeometry().setFromPoints([a.clone(), a.clone()]);
+  const l = new THREE.Line(g, new THREE.LineBasicMaterial({
+    color:0xffd489, transparent:true, opacity:.9 }));
+  const SPEED = 560, TAIL = 11;
+  const life = clamp(dist/SPEED, 0.05, 0.34);
+  addFx(l, life, (o, t)=>{
+    const head = Math.min(dist, dist*t + 2.5);
+    const back = Math.max(0, head - TAIL);
+    const p = o.geometry.attributes.position;
+    p.setXYZ(0, a.x+dir.x*back, a.y+dir.y*back, a.z+dir.z*back);
+    p.setXYZ(1, a.x+dir.x*head, a.y+dir.y*head, a.z+dir.z*head);
+    p.needsUpdate = true;
+    o.material.opacity = 0.9*(1-t*t);
+  });
 }
+/** Kurzes Mündungsfeuer an einer fremden Figur — damit man sieht, wer
+    schiesst, nicht nur dass geschossen wird. */
+function muzzleSpark(a){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5),
+    new THREE.MeshBasicMaterial({ color:0xffe6a6, transparent:true, opacity:1 }));
+  m.position.copy(actorMuzzle(a, _trA));
+  addFx(m, 0.06, (o,t)=>{ o.scale.setScalar(1 + t*1.6); o.material.opacity = 1-t; });
+}
+
 function impact(p){
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
     new THREE.MeshBasicMaterial({ color:0xffe0a8 }));
@@ -2453,14 +2688,23 @@ function simulate(dt){
     if (l > 1){ wx/=l; wz/=l; }
     if (!me.ctrl.grounded) sp *= SPEED_AIR + 0.1;
     me.wish.set(wx*sp, 0, wz*sp);
-    me.yaw = camYaw; me.pitch = camPitch;
+    me.yaw = camYaw + kick.yaw;
+    me.pitch = clamp(camPitch + kick.pitch, -1.53, 1.53);
     const res = me.ctrl.step(dt, me.wish, inp.jump);
     if (res === 'rescued') toast('Zurück auf sicheren Boden');
     me.position.copy(me.ctrl.position);
-    if (input.fire) fire(me);
+    // Halbautomatische Waffen brauchen je Schuss einen neuen Klick
+    if (input.fire){
+      if (WEAPONS[me.weapon].auto || input.fireEdge){ fire(me); input.fireEdge = false; }
+    }
     if (input.reload){ reload(me); input.reload = false; }
   }
   if (me) tickReload(me);
+  // Rückstoss federt zurück, Streuung beruhigt sich
+  kick.pitch = damp(kick.pitch, 0, 9, dt);
+  kick.yaw   = damp(kick.yaw,   0, 9, dt);
+  const bd = Math.exp(-BLOOM_DECAY*dt);
+  for (const a of G.actors) if (a.bloom) a.bloom *= bd;
 
   // --- Bots (nur beim Host) ---
   if (G.isHost){
@@ -2567,6 +2811,12 @@ function updateHUD(dt){
       rb.firstElementChild.style.width =
         clamp((G.time - me.reloadStart)/W.reload*100, 0, 100) + '%';
   }
+  if (me && me.alive){
+    // Fadenkreuz öffnet sich genau so weit, wie die Waffe gerade streut
+    const px = Math.tan(currentSpread(me)) / Math.tan(THREE.MathUtils.degToRad(camera.fov)/2)
+             * (innerHeight/2);
+    $('cross').style.setProperty('--gap', (4 + px).toFixed(1) + 'px');
+  }
   $('aliveN').textContent = G.actors.filter(a=>a.alive).length;
   if (G.mode === 'br'){
     const s = G.storm;
@@ -2639,6 +2889,8 @@ function updateDebugPanel(dt){
     L.push('<b>Grounded</b> ' + c.grounded);
     L.push('<b>Slope</b>    ' + c.slopeDeg.toFixed(1) + '°  (max ' + THREE.MathUtils.radToDeg(c.maxSlope).toFixed(0) + '°)');
     L.push('<b>Contacts</b> ' + c.contactCount);
+    L.push('<b>Hitbox</b>   Rumpf r=' + HITBOX.bodyRadius.toFixed(2) +
+           '  Kopf r=' + HITBOX.headRadius.toFixed(2));
     L.push('<b>Steps</b>    ' + c.stepsTaken);
   }
   L.push('');
@@ -2646,6 +2898,7 @@ function updateDebugPanel(dt){
   L.push('<b>BVH nodes</b>    ' + (G.world&&G.world.bvh?G.world.bvh.nodes:0) + ' / Tiefe ' + (G.world&&G.world.bvh?G.world.bvh.depth:0));
   L.push('<b>Actors</b>       ' + G.actors.length + ' (' + G.actors.filter(a=>a.alive).length + ' am Leben)');
   L.push('<b>Draw calls</b>   ' + renderer.info.render.calls);
+  L.push('<b>Build</b>         ' + BUILD);
   L.push('');
   L.push('F4 Collider · F5 Capsule · F6 Bericht');
   $('dbg').innerHTML = L.join('\n');
@@ -2751,7 +3004,10 @@ function applySnapshot(s){
     a.hp = d.h; a.shield = d.s; a.kills = d.k;
     if (!d.l && a.alive){ a.alive = false; if (a.view) a.view.play('die', { once:true }); }
     a.pitch = d.p;
-    if (d.f) a.lastShotAt = G.time;
+    if (d.f){
+      if (G.time - a.lastShotAt > 0.12) muzzleSpark(a);
+      a.lastShotAt = G.time;
+    }
     a.netBuf.push({ t: performance.now(), p: new THREE.Vector3(d.x,d.y,d.z), yaw: d.w });
     if (a.netBuf.length > 10) a.netBuf.shift();
   }
@@ -2854,14 +3110,25 @@ function initPreview(){
     breit oder hoch der Vorschaukasten gerade ist. */
 function framePreview(){
   if (!pvCam) return;
-  const H = PLAYER.height, W = 0.95;
+  /* Nicht auf PLAYER.height verlassen, sondern die tatsächlich geladene
+     Figur ausmessen — Hüte, Helme und der Mops fallen sonst aus dem Bild. */
+  let H = PLAYER.height, W = 0.95, midY = H*0.5;
+  if (pvObj){
+    pvObj.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(pvObj);
+    if (isFinite(b.min.y) && b.max.y > b.min.y){
+      H = b.max.y - b.min.y;
+      W = Math.max(b.max.x - b.min.x, b.max.z - b.min.z);
+      midY = (b.max.y + b.min.y) * 0.5;
+    }
+  }
   const vFov = THREE.MathUtils.degToRad(pvCam.fov);
-  const distV = (H*0.62) / Math.tan(vFov/2);
+  const distV = (H*0.5) / Math.tan(vFov/2);
   const hFov = 2*Math.atan(Math.tan(vFov/2)*pvCam.aspect);
-  const distH = (W*0.6) / Math.tan(hFov/2);
-  const d = Math.max(distV, distH) * 1.12;
-  pvCam.position.set(0, H*0.55, d);
-  pvCam.lookAt(0, H*0.5, 0);
+  const distH = (W*0.5) / Math.tan(hFov/2);
+  const d = Math.max(distV, distH) * 1.15;
+  pvCam.position.set(0, midY, d);
+  pvCam.lookAt(0, midY, 0);
   pvCam.updateProjectionMatrix();
 }
 
@@ -3021,6 +3288,7 @@ $('btGo').onclick = async ()=>{
 $('btStart').onclick = ()=> beginMatch();
 
 /* ---- Start ---- */
+$('buildTag').textContent = 'Build ' + BUILD;
 buildCharGrid();
 initPreview();
 previewChar(chosenChar);
@@ -3029,6 +3297,7 @@ setLoad(0, 'Bereit. Wähle eine Spielart.');
 loop();
 
 console.log('%cHOLDOUT', 'font:700 16px monospace;color:#FFB020');
+console.log('Build ' + BUILD + ' — steht auch unten auf dem Startbildschirm.');
 console.log('Debug: F3 Statistik · F4 Collider · F5 Capsule · F6 Kartenbericht\n' +
             'Konsole: toggleCollisionDebug(), analyzeGLBMap()');
 </script>
