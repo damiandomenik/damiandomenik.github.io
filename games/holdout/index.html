@@ -103,6 +103,9 @@ input:focus{outline:none;border-color:var(--amber)}
 #ammoN{font-size:52px;font-weight:700;line-height:1;color:var(--bone)}
 #ammoN.low{color:var(--hazard)}
 #ammoW{font-size:12px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+#reloadBar{width:150px;height:3px;margin-top:8px;margin-left:auto;background:rgba(0,0,0,.5);
+  border:1px solid var(--line);opacity:0;transition:opacity .12s}
+#reloadBar i{display:block;height:100%;width:0;background:var(--amber)}
 #alive{position:absolute;right:26px;top:22px;text-align:right}
 #aliveN{font-family:'Chakra Petch',sans-serif;font-size:34px;font-weight:700;line-height:1;color:var(--amber)}
 #stormInfo{position:absolute;left:50%;top:20px;transform:translateX(-50%);text-align:center;
@@ -169,7 +172,8 @@ input:focus{outline:none;border-color:var(--amber)}
     <div class="meter"><i id="hpFill" style="width:100%"></i></div>
     <div class="meter"><i id="shFill" style="width:0%"></i></div>
   </div>
-  <div id="ammo"><div id="ammoN">30</div><div id="ammoW">SMG · 90 Reserve</div></div>
+  <div id="ammo"><div id="ammoN">30</div><div id="ammoW">SMG · 90 Reserve</div>
+    <div id="reloadBar"><i></i></div></div>
   <div id="toast"></div>
   <div id="dmgFlash"></div>
   <div id="stormVig"></div>
@@ -187,8 +191,7 @@ input:focus{outline:none;border-color:var(--amber)}
         <h1 class="title">Hold<span>·</span>Out</h1>
       </div>
       <p class="sub">Vier zusammengetriebene Landstriche, ein schrumpfender Sturm, 52 Figuren zur Wahl.
-        Kollision läuft über eine BVH-Dreiecksphysik mit Capsule-Character-Controller — Türen sind offen,
-        Treppen begehbar, Deko ist Deko.</p>
+        Auf der Karte erscheint nur, wer schießt. Wer still bleibt, bleibt unsichtbar.</p>
       <div class="cols">
         <button class="card btn" id="btSolo" style="text-align:left;text-transform:none;letter-spacing:0">
           <h3>Alleine starten</h3><p>Sofort auf die Insel, Bots füllen auf.</p></button>
@@ -359,6 +362,8 @@ const WEAPONS = {
 };
 
 const NET_HZ = 20;
+const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
+const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
 const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
 
 /* Kurzhelfer */
@@ -1523,7 +1528,8 @@ const ANIM_ALIAS = {
   hit:     ['RecieveHit','Idle'],
   die:     ['Death','Defeat','Idle'],
   win:     ['Victory','Idle'],
-  carry:   ['Run_Carry','Run','Walk']
+  carry:   ['Run_Carry','Run','Walk'],
+  reload:  ['PickUp','SitDown','Idle']
 };
 
 class CharacterFactory {
@@ -1671,6 +1677,7 @@ class Actor {
     this.ammo = { smg: WEAPONS.smg.mag, pistol: WEAPONS.pistol.mag };
     this.reserve = { smg: WEAPONS.smg.reserve, pistol: WEAPONS.pistol.reserve };
     this.nextShot = 0; this.reloadUntil = 0;
+    this.reloading = false; this.reloadStart = -99; this.reloadStage = 0;
     this.view = null;                       // CharacterFactory-Instanz
     this.ctrl = null;                       // nur lokal/Bot
     this.position = new THREE.Vector3();
@@ -1993,7 +2000,7 @@ function rayCapsule(origin, dir, a, b, r, maxDist){
 
 function fire(actor){
   const W = WEAPONS[actor.weapon];
-  if (G.time < actor.nextShot || G.time < actor.reloadUntil) return;
+  if (G.time < actor.nextShot || actor.reloading) return;
   if (actor.ammo[actor.weapon] <= 0){ reload(actor); return; }
   actor.nextShot = G.time + 60/W.rpm;
   actor.ammo[actor.weapon]--;
@@ -2036,16 +2043,36 @@ function fire(actor){
 
 function reload(actor){
   const W = WEAPONS[actor.weapon];
-  if (actor.reserve[actor.weapon] <= 0) return;
+  if (actor.reloading) return;
   if (actor.ammo[actor.weapon] >= W.mag) return;
-  if (G.time < actor.reloadUntil) return;
+  if (actor.reserve[actor.weapon] <= 0){
+    if (actor === G.me) toast('Keine Reserve');
+    return;
+  }
+  actor.reloading = true;
+  actor.reloadStart = G.time;
   actor.reloadUntil = G.time + W.reload;
-  setTimeout(()=>{
-    const need = W.mag - actor.ammo[actor.weapon];
-    const take = Math.min(need, actor.reserve[actor.weapon]);
-    actor.ammo[actor.weapon] += take; actor.reserve[actor.weapon] -= take;
-  }, W.reload*1000);
-  if (actor === G.me) toast('Nachladen');
+  actor.reloadStage = 0;
+  if (actor === G.me) sfx.magOut();
+  if (actor.view) actor.view.play('reload', { fade:0.12 });
+}
+
+/** Laeuft im festen Physiktakt mit — kein setTimeout, damit Pause und
+    Bildratenschwankungen den Ablauf nicht auseinanderziehen. */
+function tickReload(a){
+  if (!a.reloading) return;
+  const W = WEAPONS[a.weapon];
+  const t = (G.time - a.reloadStart) / W.reload;
+  if (a === G.me){
+    if (a.reloadStage === 0 && t > 0.40){ a.reloadStage = 1; sfx.magIn(); }
+    if (a.reloadStage === 1 && t > 0.80){ a.reloadStage = 2; sfx.bolt(); }
+  }
+  if (G.time >= a.reloadUntil){
+    const need = W.mag - a.ammo[a.weapon];
+    const take = Math.min(need, a.reserve[a.weapon]);
+    a.ammo[a.weapon] += take; a.reserve[a.weapon] -= take;
+    a.reloading = false;
+  }
 }
 
 function reportHit(src, target, dmg, head){
@@ -2181,6 +2208,9 @@ const sfx = {
   hit(){ blip('triangle', 1400, 900, 0.05, 0.09); },
   hitHead(){ blip('triangle', 2000, 1250, 0.06, 0.11); blip('sine', 900, 700, 0.05, 0.05); },
   kill(){ blip('square', 900, 300, 0.13, 0.10); blip('triangle', 1800, 600, 0.16, 0.07); },
+  magOut(){ blip('square', 340, 150, 0.05, 0.07); },
+  magIn(){  blip('square', 170, 300, 0.07, 0.09); blip('triangle', 520, 260, 0.05, 0.05); },
+  bolt(){   blip('square', 620, 240, 0.05, 0.10); blip('sawtooth', 260, 120, 0.06, 0.05); },
   pick(){ blip('sine', 620, 1180, 0.14, 0.09); },
   hurt(){ blip('sawtooth', 300, 90, 0.16, 0.11); },
   die(){ blip('sawtooth', 220, 50, 0.6, 0.13); },
@@ -2203,8 +2233,8 @@ addEventListener('keydown', e=>{
     toast(DEBUG_FLAGS.capsule ? 'Capsule & Bodenstrahl an' : 'Capsule aus'); }
   if (e.code === 'F6'){ e.preventDefault(); console.log(mapReportText()); toast('Kartenbericht in der Konsole'); }
   if (e.code === 'KeyR') input.reload = true;
-  if (e.code === 'Digit1' && G.me) G.me.weapon = 'smg';
-  if (e.code === 'Digit2' && G.me) G.me.weapon = 'pistol';
+  if (e.code === 'Digit1' && G.me){ G.me.weapon = 'smg';    G.me.reloading = false; }
+  if (e.code === 'Digit2' && G.me){ G.me.weapon = 'pistol'; G.me.reloading = false; }
   if (e.code === 'Escape' && pointerLocked) document.exitPointerLock();
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
@@ -2244,7 +2274,7 @@ vmScene.add(new THREE.HemisphereLight(0xffffff, 0x556066, 2.4));
 const vmKey = new THREE.DirectionalLight(0xffffff, 1.6); vmKey.position.set(1,2,2); vmScene.add(vmKey);
 const vmRoot = new THREE.Group(); vmScene.add(vmRoot);
 let viewWeapon = null;
-const vmState = { bob:0, recoil:0, recoilV:0, sway:new THREE.Vector2() };
+const vmState = { bob:0, recoil:0, recoilV:0, rl:0, sway:new THREE.Vector2() };
 
 function attachViewmodel(){
   if (viewWeapon) vmRoot.remove(viewWeapon);
@@ -2264,12 +2294,28 @@ function updateViewmodel(dt, moving){
   const amp = moving ? 0.014 : 0.004;
   vmState.recoilV = damp(vmState.recoilV, 0, 9, dt);
   vmState.recoil = damp(vmState.recoil, vmState.recoilV, 22, dt);
+
+  /* Nachladen: Waffe kippt aus dem Bild, Magazin raus, Magazin rein, hoch.
+     Eine Sinuskurve über den ganzen Vorgang, dazu ein kurzer Ruck beim
+     Einrasten — reicht, damit die Bewegung gelesen wird. */
+  let want = 0, jolt = 0;
+  const me = G.me;
+  if (me && me.reloading){
+    const W = WEAPONS[me.weapon];
+    const t = clamp((G.time - me.reloadStart) / W.reload, 0, 1);
+    want = Math.sin(Math.PI * Math.min(1, t*1.06));
+    if (t > 0.40 && t < 0.52) jolt = (0.52 - t) * 1.6;
+  }
+  vmState.rl = damp(vmState.rl, want, 15, dt);
+  const rl = vmState.rl;
+
   viewWeapon.position.set(
-    0.17 + Math.cos(vmState.bob)*amp,
-    -0.15 + Math.abs(Math.sin(vmState.bob))*amp*0.9 - vmState.recoil*0.25,
-    -0.36 + vmState.recoil*0.5
+    0.17 + Math.cos(vmState.bob)*amp + rl*0.07,
+    -0.15 + Math.abs(Math.sin(vmState.bob))*amp*0.9 - vmState.recoil*0.25 - rl*0.19 - jolt*0.04,
+    -0.36 + vmState.recoil*0.5 + rl*0.06
   );
-  viewWeapon.rotation.x = -vmState.recoil*1.3;
+  viewWeapon.rotation.x = -vmState.recoil*1.3 - rl*0.9;
+  viewWeapon.rotation.z = rl*0.55;
 }
 
 function updateCamera(){
@@ -2414,6 +2460,7 @@ function simulate(dt){
     if (input.fire) fire(me);
     if (input.reload){ reload(me); input.reload = false; }
   }
+  if (me) tickReload(me);
 
   // --- Bots (nur beim Host) ---
   if (G.isHost){
@@ -2421,6 +2468,7 @@ function simulate(dt){
       if (a.kind !== 'bot' || !a.ctrl) continue;
       if (!a.alive){ a.wish.set(0,0,0); continue; }
       botThink(a, dt);
+      tickReload(a);
       a.ctrl.step(dt, a.wish, a.jump);
       a.position.copy(a.ctrl.position);
     }
@@ -2480,7 +2528,8 @@ function renderActors(dt){
       else { speed = a._prevPos ? a.position.distanceTo(a._prevPos)/Math.max(dt,1e-4) : 0; }
       if (!a._prevPos) a._prevPos = a.position.clone(); else a._prevPos.copy(a.position);
       const airborne = a.ctrl ? !a.ctrl.grounded : false;
-      if (G.time - a.lastShotAt < 0.22) a.view.play('shoot', { once:true, fade:0.05 });
+      if (a.reloading) a.view.play('reload', { fade:0.12 });
+      else if (G.time - a.lastShotAt < 0.22) a.view.play('shoot', { once:true, fade:0.05 });
       else if (airborne) a.view.play('jump', { fade:0.1 });
       else if (speed > 6.2) a.view.play('run', { speed: clamp(speed/6.5, 0.8, 1.5) });
       else if (speed > 0.5) a.view.play('walk', { speed: clamp(speed/3.2, 0.7, 1.6) });
@@ -2507,9 +2556,16 @@ function updateHUD(dt){
     $('shFill').style.width = clamp(me.shield,0,100) + '%';
     const W = WEAPONS[me.weapon];
     const n = $('ammoN');
-    n.textContent = G.time < me.reloadUntil ? '–' : me.ammo[me.weapon];
-    n.classList.toggle('low', me.ammo[me.weapon] <= W.mag*0.25);
-    $('ammoW').textContent = W.name + ' · ' + me.reserve[me.weapon] + ' Reserve';
+    n.textContent = me.reloading ? '–' : me.ammo[me.weapon];
+    n.classList.toggle('low', !me.reloading && me.ammo[me.weapon] <= W.mag*0.25);
+    $('ammoW').textContent = me.reloading
+      ? 'Nachladen'
+      : W.name + ' · ' + me.reserve[me.weapon] + ' Reserve';
+    const rb = $('reloadBar');
+    rb.style.opacity = me.reloading ? 1 : 0;
+    if (me.reloading)
+      rb.firstElementChild.style.width =
+        clamp((G.time - me.reloadStart)/W.reload*100, 0, 100) + '%';
   }
   $('aliveN').textContent = G.actors.filter(a=>a.alive).length;
   if (G.mode === 'br'){
@@ -2537,12 +2593,21 @@ function drawMinimap(){
     mm.strokeStyle = '#7B5CFF'; mm.lineWidth = 3;
     mm.beginPath(); mm.arc(sx, sz, s.r/R*0.5*W, 0, 7); mm.stroke();
   }
+  /* Gegner stehen nicht dauerhaft auf der Karte. Wer schiesst, verraet sich
+     — der Punkt erscheint mit einem auslaufenden Ring und verblasst wieder.
+     Wer still bleibt, bleibt unsichtbar. */
   for (const a of G.actors){
     if (!a.alive || a === me) continue;
-    if (a.position.distanceTo(me.position) > 85) continue;
+    const age = G.time - a.lastShotAt;
+    if (age < 0 || age > MM_PING_TIME) continue;
+    if (a.position.distanceTo(me.position) > MM_PING_RANGE) continue;
     const [x,z] = toPx(a.position.x, a.position.z);
-    mm.fillStyle = '#FF4D3D';
-    mm.beginPath(); mm.arc(x, z, 4, 0, 7); mm.fill();
+    const k = age / MM_PING_TIME, alpha = 1 - k;
+    mm.strokeStyle = 'rgba(255,77,61,' + (alpha*0.5).toFixed(2) + ')';
+    mm.lineWidth = 2;
+    mm.beginPath(); mm.arc(x, z, 5 + k*16, 0, 7); mm.stroke();
+    mm.fillStyle = 'rgba(255,77,61,' + alpha.toFixed(2) + ')';
+    mm.beginPath(); mm.arc(x, z, 4.5, 0, 7); mm.fill();
   }
   const [px,pz] = toPx(me.position.x, me.position.z);
   mm.save(); mm.translate(px,pz); mm.rotate(Math.PI - camYaw);
@@ -2622,6 +2687,7 @@ function onHostData(c, d){
     const a = G.actors.find(x=>x.id === c.peer);
     if (a && a.alive){
       a.position.set(d.x, d.y, d.z); a.yaw = d.yaw; a.pitch = d.pitch; a.crouch = !!d.cr;
+      if (d.sh) a.lastShotAt = G.time;
       a.netBuf.push({ t: performance.now(), p: a.position.clone(), yaw: a.yaw });
       if (a.netBuf.length > 8) a.netBuf.shift();
     }
@@ -2699,7 +2765,8 @@ function netTick(dt){
   if (G.isHost) broadcast(snapshot());
   else if (G.hostConn && G.me){
     send(G.hostConn, { t:'state', x:+G.me.position.x.toFixed(2), y:+G.me.position.y.toFixed(2),
-      z:+G.me.position.z.toFixed(2), yaw:+G.me.yaw.toFixed(3), pitch:+G.me.pitch.toFixed(3), cr:G.me.crouch });
+      z:+G.me.position.z.toFixed(2), yaw:+G.me.yaw.toFixed(3), pitch:+G.me.pitch.toFixed(3),
+      cr:G.me.crouch, sh:(G.time - G.me.lastShotAt < 1/NET_HZ + 0.05) ? 1 : 0 });
   }
 }
 
