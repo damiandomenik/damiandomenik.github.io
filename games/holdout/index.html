@@ -607,6 +607,19 @@ const MAP_SETS = [
       { file:'minecraft_landscape.glb', at:[0,0,0], fit:250, rotY:0, label:'Blockland' }
     ]
   }
+  ,{
+    id:'city', name:'Blockstadt', note:'Minecraft-Stadt · 294 × 261 m',
+    radius:175, spawnR:105, fogNear:110, fogFar:700,
+    sky:{ top:0x3f7fc4, horizon:0xc6dcec, ground:0x8e9c9c,
+          water:0x2b5f7d, plate:0x54585a, ridge:0x40505e },
+    pieces:[
+      /* Ein Block misst im Original 100 Einheiten. Faktor 0.01 macht daraus
+         genau 1 m — die Figur ist damit knapp zwei Blöcke gross, wie es sich
+         gehört. Die Strasse liegt im Modell bei y = 38, das richtet der Loader
+         von selbst auf null. */
+      { file:'minecraft_city.glb', at:[0,0,0], scale:0.01, rotY:0, label:'Blockstadt' }
+    ]
+  }
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
@@ -809,7 +822,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 25';
+const BUILD = '2026-08-08 · 27';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -878,6 +891,16 @@ class TriangleBVH {
     this.nodes  = 0;
     this.depth  = 0;
     if (this.count) this._build(0, this.count, 0);
+
+    /* Aufräumen nach dem Bauen. Reserviert wird grosszügig (ein Baum kann im
+       schlimmsten Fall viele Knoten brauchen), gebraucht wird meist ein
+       Bruchteil davon. Bei einer Karte mit 1,5 Mio. Dreiecken sind das über
+       100 MB Unterschied — genug, um einen Browsertab zu sprengen. */
+    this.bounds = this.bounds.slice(0, this.nodes*6);
+    this.left   = this.left.slice(0, this.nodes);
+    this.start  = this.start.slice(0, this.nodes);
+    this.num    = this.num.slice(0, this.nodes);
+    this.cent   = null;          // nur beim Aufteilen gebraucht
   }
 
   _bound(node, start, num) {
