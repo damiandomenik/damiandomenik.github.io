@@ -822,7 +822,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 29';
+const BUILD = '2026-08-08 · 30';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -1523,11 +1523,21 @@ class GLBMapLoader {
         // sonst von innen hindurchsieht. Auf die Kollision hat das keinen
         // Einfluss — die arbeitet ohnehin wicklungsunabhängig.
         mm.side = THREE.DoubleSide;
-        // Für die Analyse merken: Alpha-Material heißt fast immer Laub oder
-        // Gitter. Fürs Rendern wird das Flag danach zurückgesetzt, sonst
-        // sortiert three.js undurchsichtige Wände unnötig als transparent.
+        /* Für die Analyse merken: Alpha-Material heißt fast immer Laub oder
+           Gitter. Fürs Rendern wird daraus ein Alpha-Test.
+
+           WICHTIG ist dabei depthWrite. Bei alphaMode BLEND setzt der Lader
+           `transparent = true` UND `depthWrite = false`. Wird nur das erste
+           zurückgenommen, zeichnet sich die Karte zwar, schreibt aber keine
+           Tiefe — und alles, was danach kommt (etwa die Basisplatte), übermalt
+           sie. Minecraft-Rips mit einem einzigen Alpha-Material verschwinden
+           dadurch vollständig und hinterlassen nur ihre Schatten. */
         if (mm.transparent || mm.alphaTest > 0) mm.userData.wasTransparent = true;
-        if (mm.transparent && mm.opacity >= 0.99) { mm.transparent = false; }
+        if (mm.transparent && mm.opacity >= 0.99){
+          mm.transparent = false;
+          mm.depthWrite = true;
+          if (mm.map && !mm.alphaTest) mm.alphaTest = 0.35;   // Laub bleibt ausgeschnitten
+        }
         mm.shadowSide = THREE.FrontSide;
       });
     });
