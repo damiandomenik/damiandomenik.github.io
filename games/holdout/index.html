@@ -748,8 +748,7 @@ const WEAPONS = {
     range:180, falloff:[90,180,0.85],
     spreadBase:0.0009, bloom:0.0140, spreadMax:0.050,
     moveSpread:0.014, airSpread:0.050, crouchMul:0.50,
-    recoilPitch:0.0140, recoilYaw:0.0030,
-    scoped:true, zoom:2.8, adsMul:0.30
+    recoilPitch:0.0140, recoilYaw:0.0030
   },
   sniper: {
     name:'Scharfschützengewehr', mesh:'Object_77', len:1.20, rarity:'epic', weight:1,
@@ -768,14 +767,15 @@ const RARITY = {
 };
 /* Ohne Waffe ist man nicht wehrlos, aber deutlich im Nachteil. */
 const MELEE = { name:'Fäuste', dmg:26, range:2.3, cooldown:0.55, headMul:1.4 };
-/* Kimme und Korn für alle Waffen: leichter Zoom, ruhigere Streuung, langsamer
-   unterwegs. Nur `scoped` blendet zusätzlich das Zielfernrohr ein. */
-const ADS = { zoom:1.28, adsMul:0.42, moveMul:0.55, speed:13 };
+/* Rechtsklick wirkt ausschliesslich bei Waffen mit `scoped:true` — im ganzen
+   Spiel ist das nur das Scharfschützengewehr. Alle anderen Waffen schiesst man
+   aus der Hüfte, ohne Zoom und ohne Tempoverlust. */
+const ADS = { adsMul:0.30, moveMul:0.55, speed:13 };
 const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 18';
+const BUILD = '2026-08-08 · 20';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -2416,10 +2416,10 @@ async function setLobbyCharacter(name){
   inst.obj.rotation.y = LOBBY_FACING;
   LOBBY.scene.add(inst.obj);
   inst.play('idle');
-  if (weaponModel.template && inst.hand){
-    const w = weaponModel.spawn();
-    w.position.set(0.02, 0.02, 0.06);
-    w.rotation.set(Math.PI*0.5, 0, Math.PI*0.5);
+  if (inst.hand){
+    const w = gunLib.spawn('ar');
+    w.position.set(0.02, 0.02, 0.10);
+    w.rotation.set(0, Math.PI, 0);
     inst.hand.add(w);
   }
   $('lbChar').textContent = name.replace(/_/g,' ');
@@ -3677,11 +3677,12 @@ function updateViewmodel(dt, moving){
   }
 }
 
-/** Waffe im Anschlag? Nicht beim Absprung und nicht mit leeren Händen. */
+/** Nur Waffen mit Fernrohr reagieren auf die rechte Maustaste. */
 function adsWeapon(){
   const me = G.me;
   if (!me || !me.alive || me.dropping || pauseOpen) return null;
-  return WEAPONS[me.weapon] || null;
+  const W = WEAPONS[me.weapon];
+  return (W && W.scoped) ? W : null;
 }
 
 function updateAds(dt){
@@ -3689,12 +3690,13 @@ function updateAds(dt){
   const want = (input.ads && W) ? 1 : 0;
   adsT = damp(adsT, want, ADS.speed, dt);
   if (adsT < 0.002) adsT = 0;
-  const zoom = W ? (W.zoom || ADS.zoom) : ADS.zoom;
-  const fov = lerp(FOV_BASE, FOV_BASE/zoom, adsT);
-  if (Math.abs(fov - camera.fov) > 0.01){
-    camera.fov = fov; camera.updateProjectionMatrix();
+  if (adsT > 0){
+    const fov = lerp(FOV_BASE, FOV_BASE/(W ? W.zoom : 5), adsT);
+    if (Math.abs(fov - camera.fov) > 0.01){ camera.fov = fov; camera.updateProjectionMatrix(); }
+  } else if (camera.fov !== FOV_BASE){
+    camera.fov = FOV_BASE; camera.updateProjectionMatrix();
   }
-  const scoped = !!(W && W.scoped) && adsT > 0.6;
+  const scoped = !!W && adsT > 0.6;
   $('scope').classList.toggle('hidden', !scoped);
   $('cross').style.visibility = scoped ? 'hidden' : 'visible';
   if (G.me) G.me.ads = adsT > 0.5 && !!W;
@@ -4521,6 +4523,7 @@ function refreshLobby(){
 }
 
 async function beginMatch(){
+  resetMatchState();
   show('menu');
   setLoad(2, 'Karten werden geladen');
   G.phase = 'loading';
@@ -4568,6 +4571,7 @@ async function beginMatch(){
 
 /** Client: Aufstellung vom Host übernehmen. */
 async function startFromRoster(roster, spawns, myId){
+  resetMatchState();
   show('menu'); setLoad(4, 'Karten werden geladen');
   G.phase = 'loading';
   await weaponModel.load();
@@ -4583,6 +4587,60 @@ async function startFromRoster(roster, spawns, myId){
   await setupMatch(list, spawns);
   G.phase = 'play'; G.time = 0; clock.getDelta();
   show(null); canvas.requestPointerLock();
+}
+
+/* ---------- Zurück in die Lobby, ohne die Seite neu zu laden ----------
+   Ein location.reload() wäre einfacher, wirft aber jedes Mal aus dem Vollbild
+   und lädt Three.js, PeerJS und alle Figuren erneut. Deshalb wird der
+   Rundenzustand von Hand aufgeräumt. */
+function resetMatchState(){
+  G.phase = 'menu';
+  G.paused = false;
+  pauseOpen = false;
+  suppressPause = false;
+  $('pause').classList.add('hidden');
+  showBoard(false);
+  clearWorld();                       // Karte, Figuren, Beute, Sturm
+  G.drop = null;
+  G.time = 0; G.accumulator = 0;
+  G.killfeed.length = 0; $('feed').innerHTML = '';
+  for (let i = fx.length-1; i >= 0; i--){
+    scene.remove(fx[i].obj);
+    if (fx[i].obj.geometry) fx[i].obj.geometry.dispose();
+  }
+  fx.length = 0;
+  attachViewmodel(null);
+  adsT = 0;
+  camera.fov = FOV_BASE; camera.updateProjectionMatrix();
+  $('scope').classList.add('hidden');
+  $('cross').style.visibility = 'visible';
+  $('cross').style.opacity = 1;
+  $('ammo').style.opacity = 1;
+  $('dropHud').classList.add('hidden');
+  $('pickPrompt').classList.add('hidden');
+  $('hud').classList.remove('on');
+  $('stormVig').style.opacity = 0;
+  $('dmgFlash').style.opacity = 0;
+  toastT = 0; $('toast').textContent = '';
+  clearKeys();
+  try { document.exitPointerLock(); } catch(e){}
+}
+
+/** Verbindungen lösen — nur beim Verlassen, nicht beim bloßen Neustart. */
+function closeNet(){
+  try { for (const c of G.conns) c.close(); } catch(e){}
+  try { if (G.hostConn) G.hostConn.close(); } catch(e){}
+  try { if (G.peer) G.peer.destroy(); } catch(e){}
+  G.conns = []; G.hostConn = null; G.peer = null;
+  G.isNet = false; G.isHost = true; G.lobby = []; G.code = '';
+  $('btStart').classList.remove('hidden');
+}
+
+function returnToLobby(){
+  resetMatchState();
+  closeNet();
+  show('menu');
+  setLoad(0, '');
 }
 
 function onLocalDeath(){
@@ -4638,9 +4696,12 @@ $('btHost').onclick = ()=>{
 };
 $('btJoinS').onclick = ()=>{ flow='client'; readName(); show('join'); };
 $('btJoinBack').onclick = ()=> show('menu');
-$('btLobbyBack').onclick = ()=>{ try{ G.peer && G.peer.destroy(); }catch(e){} G.isNet=false; show('menu'); };
-$('btMenu').onclick = ()=>{ location.reload(); };
-$('btAgain').onclick = ()=>{ location.reload(); };
+$('btLobbyBack').onclick = ()=>{ closeNet(); show('menu'); };
+$('btMenu').onclick = ()=> returnToLobby();
+$('btAgain').onclick = ()=>{
+  returnToLobby();
+  launch(flow === 'test' ? 'test' : 'solo');
+};
 
 $('btJoinGo').onclick = ()=>{
   const c = ($('codeIn').value||'').toUpperCase().trim();
@@ -4663,7 +4724,7 @@ $('btStart').onclick = ()=> beginMatch();
 
 /* ---- Start ---- */
 $('btResume').onclick = ()=> closePause();
-$('btQuit').onclick = ()=> location.reload();
+$('btQuit').onclick = ()=>{ pauseOpen = false; $('pause').classList.add('hidden'); returnToLobby(); };
 $('setVol').oninput = e=>{
   SETTINGS.volume = (+e.target.value)/100;
   $('setVolV').textContent = e.target.value;
@@ -4704,7 +4765,8 @@ loop();
 
 // Lobby-Szene und Figur nachladen — das Menü steht sofort, die Szene füllt sich
 buildLobbyScene();
-weaponModel.load().then(()=> setLobbyCharacter(chosenChar));
+Promise.all([weaponModel.load(), gunLib.load()])
+  .then(()=> setLobbyCharacter(chosenChar));
 
 console.log('%cHOLDOUT', 'font:700 16px monospace;color:#FFB020');
 console.log('Build ' + BUILD + ' — steht auch unten auf dem Startbildschirm.');
