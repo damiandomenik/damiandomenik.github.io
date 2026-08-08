@@ -90,7 +90,16 @@ input:focus{outline:none;border-color:var(--amber)}
   86%{left:47%;right:47%;opacity:.35}
   100%{left:0;right:0;opacity:0}}
 .lb-line{color:var(--dim);font-size:13.5px;line-height:1.75;max-width:38ch;margin-bottom:22px}
-.lb-maps{margin-bottom:20px}
+.lb-maps{margin-bottom:16px}
+.lb-bots{margin-bottom:20px}
+.lb-bots .eyebrow{display:block;margin-bottom:8px}
+.lb-bots .brow{display:flex;align-items:center;gap:14px}
+.lb-bots input[type=range]{width:230px;accent-color:var(--amber);cursor:pointer;
+  background:transparent}
+.lb-bots b{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:17px;
+  color:var(--amber);min-width:2.4em}
+.lb-bots small{display:block;margin-top:6px;font-size:10.5px;color:var(--dim);
+  letter-spacing:.04em;min-height:1.2em}
 .lb-maps .eyebrow{display:block;margin-bottom:8px}
 #mapChips{display:flex;gap:8px;flex-wrap:wrap}
 .mchip{border:1px solid var(--line);background:rgba(8,14,16,.55);padding:9px 14px;text-align:left;
@@ -116,6 +125,12 @@ input:focus{outline:none;border-color:var(--amber)}
   box-shadow:0 18px 44px rgba(255,176,32,.36), 0 0 0 6px rgba(255,176,32,.12)}
 .play:hover .pl-arrow{transform:translateX(6px)}
 .play:active{transform:translateY(-1px)}
+/* Während des Ladens ist alles gesperrt und sichtbar ausgegraut */
+.lobby.busy .play{opacity:.62;cursor:progress;transform:none;box-shadow:none}
+.lobby.busy .play:hover{transform:none;background:var(--amber);box-shadow:none}
+.lobby.busy .lb-alt button,.lobby.busy .gear,.lobby.busy .mchip,
+.lobby.busy .lb-bots input{opacity:.35;pointer-events:none}
+button:disabled{cursor:not-allowed}
 
 .lb-alt{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;margin-top:22px}
 .lb-alt button{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
@@ -286,6 +301,7 @@ input:focus{outline:none;border-color:var(--amber)}
 .prow input[type=checkbox]{width:20px;height:20px;accent-color:var(--amber);cursor:pointer;
   justify-self:start}
 .prow label{cursor:pointer}
+.phint{font-size:10.5px;line-height:1.6;color:var(--dim);margin-top:-2px}
 
 /* ---------- Punktestand ---------- */
 #board{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
@@ -389,6 +405,8 @@ input:focus{outline:none;border-color:var(--amber)}
       <div class="eyebrow">Bild</div>
       <div class="prow"><label for="setFull">Vollbild</label>
         <input id="setFull" type="checkbox"><b></b></div>
+      <p class="phint">Esc verlässt den Vollbildmodus — das entscheidet der Browser.
+        Beim Weiterspielen wird er wiederhergestellt.</p>
     </div>
 
     <div class="pgroup">
@@ -427,7 +445,7 @@ input:focus{outline:none;border-color:var(--amber)}
     </div>
 
     <div class="lb-panel">
-      <div class="eyebrow">Battle Royale · bis 12 Figuren</div>
+      <div class="eyebrow">Battle Royale · <span id="lbCount">12 Figuren</span></div>
       <h1 class="wordmark">HOLDOUT</h1>
       <div class="wm-rule"><i></i></div>
       <p class="lb-line">Vier zusammengetriebene Landstriche. Ein Sturm, der sich zuzieht.
@@ -439,8 +457,17 @@ input:focus{outline:none;border-color:var(--amber)}
         <div id="mapChips"></div>
       </div>
 
+      <div class="lb-bots">
+        <span class="eyebrow">Gegner</span>
+        <div class="brow">
+          <input id="botCount" type="range" min="0" max="39" step="1">
+          <b id="botCountV">11</b>
+        </div>
+        <small id="botHint"></small>
+      </div>
+
       <button class="play" id="btPlay">
-        <span class="pl-main">Spielen</span>
+        <span class="pl-main" id="plMain">Spielen</span>
         <span class="pl-sub">Solo · Bots füllen auf</span>
         <span class="pl-arrow" aria-hidden="true">▸</span>
       </button>
@@ -775,7 +802,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 20';
+const BUILD = '2026-08-08 · 22';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -785,7 +812,8 @@ const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
    zulässt — in abgeschotteten Vorschauen wirft localStorage, das darf das
    Spiel nicht umbringen. */
 const BASE_SENS = 0.0022;
-const SETTINGS = { volume:0.7, muted:false, sens:1.0, invertY:false, map:'island' };
+const SETTINGS = { volume:0.7, muted:false, sens:1.0, invertY:false, map:'island',
+                   fullscreen:false, bots:11 };
 let pauseOpen = false, suppressPause = false;
 function loadSettings(){
   try {
@@ -3547,7 +3575,7 @@ addEventListener('keyup', e=>{
 
 canvas.addEventListener('mousedown', e=>{
   if (G.phase !== 'play' || pauseOpen) return;
-  if (!pointerLocked){ canvas.requestPointerLock(); return; }
+  if (!pointerLocked){ applyFullscreenWish(); canvas.requestPointerLock(); return; }
   if (e.button === 0){ input.fire = true; input.fireEdge = true; }
   if (e.button === 2) input.ads = true;
 });
@@ -3853,8 +3881,10 @@ async function setupMatch(roster, spawns){
   }
   if (G.mode === 'br'){
     initStorm();
-    scatterWeapons(LOOT.guns);
-    scatterPickups(LOOT.supplies);
+    // Mehr Figuren, mehr Beute — sonst steht die halbe Runde mit Fäusten da
+    const heads = G.actors.length;
+    scatterWeapons(clamp(Math.round(heads*4.8), 40, 115));
+    scatterPickups(clamp(Math.round(heads*3.4), 30, 80));
     await startDropPhase(pts);
   } else {
     G.drop = null;
@@ -4131,8 +4161,16 @@ function openPause(fromLobby){
   if (pointerLocked) document.exitPointerLock();
 }
 
+/** Vollbild wiederherstellen. Darf nur aus einem Klick heraus laufen — der
+    Browser verlangt für requestFullscreen eine echte Nutzeraktion. */
+function applyFullscreenWish(){
+  if (!SETTINGS.fullscreen || document.fullscreenElement) return;
+  try { document.documentElement.requestFullscreen(); } catch(e){}
+}
+
 function closePause(){
   if (!pauseOpen) return;
+  applyFullscreenWish();
   pauseOpen = false;
   G.paused = false;
   $('pause').classList.add('hidden');
@@ -4151,7 +4189,7 @@ function syncSettingsUI(){
   $('setSens').value = Math.round(SETTINGS.sens*100);
   $('setSensV').textContent = SETTINGS.sens.toFixed(2);
   $('setInv').checked = SETTINGS.invertY;
-  $('setFull').checked = !!document.fullscreenElement;
+  $('setFull').checked = SETTINGS.fullscreen;
 }
 
 let boardOn = false;
@@ -4287,8 +4325,11 @@ function joinGame(codeStr, onOk, onErr){
 async function onClientData(d){
   if (d.t === 'lobby'){ G.lobby = d.list; refreshLobby(); }
   else if (d.t === 'start'){
+    if (starting) return;
     if (d.map && MAP_SETS.some(m=>m.id === d.map)) mapSetId = d.map;   // Host gibt die Karte vor
-    await startFromRoster(d.roster, d.spawns, d.myId);
+    starting = true; setLobbyBusy(true);
+    try { await startFromRoster(d.roster, d.spawns, d.myId); }
+    finally { starting = false; setLobbyBusy(false); }
   } else if (d.t === 'snap'){
     applySnapshot(d);
   } else if (d.t === 'kill'){
@@ -4480,6 +4521,19 @@ async function previewChar(name){
   inst.play('idle');
   $('pvInfo').textContent = Object.keys(inst.actions).length + ' Animationen verfügbar · Ego-Perspektive, eigener Körper bleibt ausgeblendet.';
 }
+function syncBots(){
+  const n = SETTINGS.bots;
+  $('botCount').value = n;
+  $('botCountV').textContent = n;
+  $('botHint').textContent =
+    n === 0  ? 'Niemand ausser dir und dem Sturm.' :
+    n <= 7   ? 'Ruhige Runde, viel Platz.' :
+    n <= 15  ? 'Ausgewogen.' :
+    n <= 27  ? 'Dichtes Gedränge — es wird früh laut.' :
+               'Sehr viele Figuren. Auf schwächeren Rechnern ruckelt das.';
+  $('lbCount').textContent = (n + 1) + ' Figuren';
+}
+
 function buildMapChips(){
   const box = $('mapChips');
   box.innerHTML = '';
@@ -4522,6 +4576,31 @@ function refreshLobby(){
   $('lobbyList').innerHTML = rows.map(p=>`· ${esc(p.name)} — ${esc(String(p.char).replace(/_/g,' '))}`).join('<br>');
 }
 
+/* Solange eine Runde aufgebaut wird, darf nichts einen zweiten Aufbau
+   anstossen — sonst laufen zwei Ladevorgänge nebeneinander, der Balken springt
+   zurück und am Ende steht die Welt doppelt in der Szene. */
+let starting = false;
+const LOBBY_BTNS = ['btPlay','btHost','btJoinS','btChar','btTest','btGear','btStart'];
+function setLobbyBusy(on){
+  for (const id of LOBBY_BTNS){ const b = $(id); if (b) b.disabled = on; }
+  $('menu').classList.toggle('busy', on);
+  $('plMain').textContent = on ? 'Lädt' : 'Spielen';
+}
+
+/** Einstieg mit Sperre — jeder Weg in eine Runde läuft hier durch. */
+async function guardedStart(){
+  if (starting) return;
+  starting = true;
+  setLobbyBusy(true);
+  try { await beginMatch(); }
+  catch(e){
+    console.error(e);
+    returnToLobby();
+    toast('Laden fehlgeschlagen');
+  }
+  finally { starting = false; setLobbyBusy(false); }
+}
+
 async function beginMatch(){
   resetMatchState();
   show('menu');
@@ -4539,6 +4618,7 @@ async function beginMatch(){
     for (const p of G.lobby) roster.push({ id:p.id, name:p.name, char:p.char, kind:'remote' });
   }
   if (flow !== 'test'){
+    BR.botCount = SETTINGS.bots;
     const bots = Math.max(0, BR.botCount - (roster.length-1));
     for (let i=0;i<bots;i++){
       roster.push({ id:'bot'+i, name:BOT_NAMES[i % BOT_NAMES.length],
@@ -4680,21 +4760,29 @@ const BOT_NAMES = ['Renz','Oda','Kimura','Vasquez','Brandt','Okoro','Lind','Petr
 function readName(){ myName = ($('nameIn').value||'').trim() || 'PLAYER'; return myName; }
 /** Kurze Abblende, dann der bestehende Ablauf. */
 function launch(kind){
+  if (starting) return;
   flow = kind; readName();
+  applyFullscreenWish();
   if (AC) sfx.go();
+  setLobbyBusy(true);
   $('menu').classList.add('go');
-  setTimeout(()=>{ $('menu').classList.remove('go'); beginMatch(); }, 260);
+  setTimeout(()=>{ $('menu').classList.remove('go'); guardedStart(); }, 260);
 }
 $('btPlay').onclick = ()=> launch('solo');
 $('btTest').onclick = ()=> launch('test');
-$('btChar').onclick = ()=> show('pick');
+$('btChar').onclick = ()=>{ if (!starting) show('pick'); };
 $('btGear').onclick = ()=> openPause(true);
 $('btPlay').onmouseenter = ()=>{ if (AC) sfx.hover(); };
+$('botCount').oninput = e=>{
+  SETTINGS.bots = clamp(+e.target.value|0, 0, 39);
+  saveSettings(); syncBots();
+};
 $('btHost').onclick = ()=>{
+  if (starting) return;
   flow='host'; readName(); hostGame(); show('lobby');
   $('btStart').classList.remove('hidden');
 };
-$('btJoinS').onclick = ()=>{ flow='client'; readName(); show('join'); };
+$('btJoinS').onclick = ()=>{ if (starting) return; flow='client'; readName(); show('join'); };
 $('btJoinBack').onclick = ()=> show('menu');
 $('btLobbyBack').onclick = ()=>{ closeNet(); show('menu'); };
 $('btMenu').onclick = ()=> returnToLobby();
@@ -4720,7 +4808,7 @@ $('btGo').onclick = ()=>{
   setLobbyCharacter(chosenChar);
   show('menu');
 };
-$('btStart').onclick = ()=> beginMatch();
+$('btStart').onclick = ()=> guardedStart();
 
 /* ---- Start ---- */
 $('btResume').onclick = ()=> closePause();
@@ -4742,12 +4830,18 @@ $('setInv').onchange = e=>{ SETTINGS.invertY = e.target.checked; saveSettings();
    eine. Deshalb wird der Zustand nicht gespeichert, sondern immer vom
    Browser abgelesen. */
 $('setFull').onchange = e=>{
+  SETTINGS.fullscreen = e.target.checked;
+  saveSettings();
   try {
-    if (e.target.checked && !document.fullscreenElement) document.documentElement.requestFullscreen();
-    else if (!e.target.checked && document.fullscreenElement) document.exitFullscreen();
-  } catch(err){ e.target.checked = !!document.fullscreenElement; }
+    if (SETTINGS.fullscreen && !document.fullscreenElement) document.documentElement.requestFullscreen();
+    else if (!SETTINGS.fullscreen && document.fullscreenElement) document.exitFullscreen();
+  } catch(err){}
 };
 document.addEventListener('fullscreenchange', ()=>{
+  /* Esc wirft aus dem Vollbild — das ist Browsersache und lässt sich nicht
+     abfangen. Der Wunsch bleibt aber bestehen, das Kästchen also angehakt,
+     und beim nächsten Klick wird das Vollbild wiederhergestellt. */
+  if (!document.fullscreenElement && SETTINGS.fullscreen) return;
   $('setFull').checked = !!document.fullscreenElement;
 });
 
@@ -4755,7 +4849,10 @@ loadSettings();
 syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
 if (SETTINGS.map && MAP_SETS.some(m=>m.id === SETTINGS.map)) mapSetId = SETTINGS.map;
+if (typeof SETTINGS.bots !== 'number') SETTINGS.bots = 11;
+SETTINGS.bots = clamp(SETTINGS.bots|0, 0, 39);
 buildMapChips();
+syncBots();
 buildCharGrid();
 initPreview();
 previewChar(chosenChar);
