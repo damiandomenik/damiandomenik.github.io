@@ -775,7 +775,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 17';
+const BUILD = '2026-08-08 · 18';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -2102,13 +2102,16 @@ class WeaponModel {
    gedreht, dass die Mündung auf -Z zeigt.
    ========================================================================== */
 class WeaponLibrary {
-  constructor(loader){ this.loader = loader; this.models = {}; this.ready = false; }
+  /* Kein Loader im Konstruktor: dieser Abschnitt steht im Modul vor dem
+     Renderer, und `gltfLoader` gibt es dort noch nicht. Beim Aufruf von load()
+     ist längst alles ausgewertet. */
+  constructor(){ this.models = {}; this.ready = false; }
 
   async load(){
     if (this.ready) return this;
     let by = {};
     try {
-      const g = await this.loader.loadAsync(ASSETS.props + GUNS_FILE);
+      const g = await gltfLoader.loadAsync(ASSETS.props + GUNS_FILE);
       g.scene.updateMatrixWorld(true);
       g.scene.traverse(o=>{ if (o.isMesh) by[o.name] = o; });
     } catch(e){ console.warn('Waffensammlung fehlt', e); }
@@ -2147,7 +2150,7 @@ class WeaponLibrary {
     return weaponModel.spawn();
   }
 }
-const gunLib = new WeaponLibrary(gltfLoader);
+const gunLib = new WeaponLibrary();
 
 /** Gewichtete Zufallswahl nach Seltenheit. */
 function randomWeaponId(){
