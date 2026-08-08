@@ -822,7 +822,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 27';
+const BUILD = '2026-08-08 · 29';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -1273,6 +1273,18 @@ class MapAnalyzer {
     const wsize = world.getSize(new THREE.Vector3());
     const mapArea = Math.max(1, wsize.x * wsize.z);
 
+    /* Ist fast die ganze Karte "durchscheinend", taugt das Material nicht als
+       Unterscheidungsmerkmal. Minecraft-Rips benutzen oft eine einzige
+       Textur mit Alphakanal für alles — dann wäre sonst die komplette Welt
+       Deko und man fiele durch jede Wand. */
+    let alphaTris = 0, allTris = 0;
+    for (const m of all){
+      const t = this._triCount(m.geometry);
+      allTris += t;
+      if (this._transparentMaterial(m)) alphaTris += t;
+    }
+    const alphaUseful = allTris > 0 && (alphaTris / allTris) < 0.55;
+
     const report = {
       label, meshes: all.length, collision: 0, terrain: 0, buildings: 0,
       props: 0, deco: 0, skipped: 0, explicitCollision: 0, doors: 0,
@@ -1301,7 +1313,7 @@ class MapAnalyzer {
         tag = TAG.SKIP;                               // sichtbare Geometrie ist dann reine Optik
       } else if (m.isSkinnedMesh || RE_NOCOLL.test(name)) {
         tag = TAG.SKIP;
-      } else if (this._transparentMaterial(m)) {
+      } else if (alphaUseful && this._transparentMaterial(m)) {
         // Alpha-Blätter, Gitter, Billboards: sichtbar, aber nie ein Hindernis
         tag = TAG.DECO;
       } else if ((RE_DECO.test(name) || RE_DECO.test(matName)) &&
@@ -1350,6 +1362,23 @@ class MapAnalyzer {
       if (collides) { report.collision++; report.tris += tris; }
 
       report.entries.push({ mesh: m, tag, collides, size, tris, name });
+    }
+
+    /* Letzte Prüfung: bleibt fast nichts zum Anstossen übrig, war die
+       Aussortierung zu streng. Dann zählt nur noch die Grösse — lieber ein
+       paar Büsche zu viel als eine Welt, durch die man hindurchfällt. */
+    if (allTris > 500 && report.tris < allTris * 0.12){
+      console.warn('[MapAnalyzer] Nur ' + report.tris + ' von ' + allTris +
+        ' Dreiecken hätten Kollision — Deko-Filter wird für diese Karte verworfen.');
+      report.rescued = true;
+      report.collision = 0; report.deco = 0; report.tris = 0;
+      for (const e of report.entries){
+        const big = Math.max(e.size.x, e.size.z) >= this.decoMaxSize || e.size.y >= this.decoMaxSize;
+        e.collides = big && e.tag !== TAG.SKIP;
+        e.tag = e.collides ? TAG.BUILDING : TAG.DECO;
+        if (e.collides){ report.collision++; report.tris += e.tris; }
+        else report.deco++;
+      }
     }
     return report;
   }
@@ -1415,6 +1444,7 @@ class MapAnalyzer {
     L.push('Explicit collision:   ' + report.explicitCollision);
     L.push('Props:                ' + report.props);
     L.push('Skipped:              ' + report.skipped);
+    if (report.rescued) L.push('HINWEIS: Deko-Filter war zu streng und wurde verworfen.');
     const mn = report.bounds.min, mx = report.bounds.max;
     L.push('World bounds  min: ' + fmtV(mn) + '   max: ' + fmtV(mx));
     L.push('Map size:          ' + fmtV(report.size));
@@ -2786,6 +2816,18 @@ function buildHorizon(set){
   return { group:g, dome, ridge, water };
 }
 
+/* Der Nebel ist für Bodenkämpfe eingestellt. Beim Absprung schaut man aus
+   380 m Höhe schräg 600 bis 900 m weit — mit denselben Werten läge die ganze
+   Karte im Dunst. Also weitet sich die Sicht mit der Höhe auf. */
+function updateFogForAltitude(){
+  if (!scene.fog || !G.sky) return;
+  const set = mapSet();
+  const k = clamp((camera.position.y - 25) / 260, 0, 1);
+  scene.fog.near = lerp(set.fogNear, set.fogNear*3.2, k);
+  // Nie weiter als die Sichtweite der Kamera, sonst bricht der Horizont hart ab
+  scene.fog.far  = Math.min(lerp(set.fogFar, set.fogFar*3.3, k), camera.far*0.9);
+}
+
 /* ==========================================================================
    16 — STURM
    ========================================================================== */
@@ -2795,7 +2837,8 @@ function initStorm(){
   s.phase = 0; s.state = 'hold'; s.timer = BR.phases[0].hold; s.dps = 0;
   s.nextCx = 0; s.nextCz = 0;
 
-  const geo = new THREE.CylinderGeometry(1, 1, 260, 96, 1, true);
+  // Hoch genug, damit man die Zone schon beim Absprung aus 380 m sieht
+  const geo = new THREE.CylinderGeometry(1, 1, 900, 96, 1, true);
   const mat = new THREE.MeshBasicMaterial({
     color:0x7b5cff, transparent:true, opacity:0.16, side:THREE.BackSide, depthWrite:false });
   stormMesh = new THREE.Mesh(geo, mat);
@@ -2810,7 +2853,7 @@ function initStorm(){
 }
 function applyStormMesh(){
   const s = G.storm;
-  if (stormMesh){ stormMesh.scale.set(s.r, 1, s.r); stormMesh.position.set(s.cx, 0, s.cz); }
+  if (stormMesh){ stormMesh.scale.set(s.r, 1, s.r); stormMesh.position.set(s.cx, 320, s.cz); }
   if (stormRing){ stormRing.scale.set(s.r, s.r, 1); stormRing.position.set(s.cx, 1.2, s.cz); }
 }
 function updateStorm(dt){
@@ -3916,8 +3959,12 @@ function updateCamera(){
     camera.rotation.set(0,0,0);
     camera.rotation.order = 'YXZ';
     camera.lookAt(tx, ty, tz);
-    sun.position.set(tx + 60, ty + 100, tz + 45);
-    sun.target.position.set(tx, ty, tz);
+    /* Das Schattenfeld der Sonne ist nur 380 m tief. Hinge es an der Flughöhe,
+       läge die ganze Karte ausserhalb und bliebe unbeleuchtet — deshalb zielt
+       die Sonne auf den Boden unter der Figur, nicht auf die Figur selbst. */
+    const gy = ty - (d.agl || 0);
+    sun.position.set(tx + 60, gy + 120, tz + 45);
+    sun.target.position.set(tx, gy, tz);
     sun.target.updateMatrixWorld();
     return;
   }
@@ -4597,6 +4644,7 @@ function loop(){
     updateCamera();
     // Die Kuppel ist eine feste Grösse um den Betrachter — sie zieht mit
     if (G.sky) G.sky.dome.position.copy(camera.position);
+    updateFogForAltitude();
     renderActors(dt);
     updatePickups(dt);
     updateFx(dt);
