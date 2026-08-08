@@ -89,7 +89,18 @@ input:focus{outline:none;border-color:var(--amber)}
   72%{left:42%;right:42%;opacity:.95}
   86%{left:47%;right:47%;opacity:.35}
   100%{left:0;right:0;opacity:0}}
-.lb-line{color:var(--dim);font-size:13.5px;line-height:1.75;max-width:38ch;margin-bottom:30px}
+.lb-line{color:var(--dim);font-size:13.5px;line-height:1.75;max-width:38ch;margin-bottom:22px}
+.lb-maps{margin-bottom:20px}
+.lb-maps .eyebrow{display:block;margin-bottom:8px}
+#mapChips{display:flex;gap:8px;flex-wrap:wrap}
+.mchip{border:1px solid var(--line);background:rgba(8,14,16,.55);padding:9px 14px;text-align:left;
+  transition:.14s;min-width:150px}
+.mchip b{display:block;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:.08em;text-transform:uppercase}
+.mchip small{display:block;color:var(--dim);font-size:10px;letter-spacing:.06em;margin-top:3px}
+.mchip:hover{border-color:rgba(255,176,32,.6)}
+.mchip[aria-pressed="true"]{border-color:var(--amber);background:rgba(255,176,32,.1)}
+.mchip[aria-pressed="true"] b{color:var(--amber)}
 
 .play{position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;
   gap:4px 18px;width:100%;max-width:360px;padding:19px 22px;text-align:left;
@@ -114,8 +125,10 @@ input:focus{outline:none;border-color:var(--amber)}
 
 .lb-load{margin-top:26px;opacity:0;transition:opacity .2s;pointer-events:none}
 .lb-load.on{opacity:1}
-.lb-foot{position:absolute;left:clamp(26px,6vw,110px);bottom:22px;display:flex;gap:14px;
-  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#4d5b5f}
+.lb-foot{position:absolute;left:clamp(26px,6vw,110px);right:clamp(26px,6vw,110px);bottom:40px;
+  font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#5a6b70;line-height:1.9}
+.lb-foot2{position:absolute;left:clamp(26px,6vw,110px);bottom:20px;display:flex;gap:14px;
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#3f4d51}
 
 /* Wegblenden beim Start */
 #menu.go .lb-panel,#menu.go .lb-top,#menu.go .lb-foot{
@@ -167,6 +180,34 @@ input:focus{outline:none;border-color:var(--amber)}
 #cross i:nth-child(4){width:7px;height:2px;margin:-1px 0 0 -3.5px;
   transform:translateX(calc(var(--gap) + 3.5px))}
 #cross.hit i{background:var(--hazard);opacity:1}
+
+/* ---------- Zielfernrohr ----------
+   Der schwarze Rand entsteht durch einen riesigen box-shadow um einen runden
+   Ausschnitt — dadurch bleibt in der Mitte das echte Bild stehen, und es
+   braucht kein zweites Rendern. */
+#scope{position:absolute;inset:0;pointer-events:none}
+#scope .lens{position:absolute;left:50%;top:50%;
+  width:min(84vh,84vw);height:min(84vh,84vw);transform:translate(-50%,-50%);
+  border-radius:50%;box-shadow:0 0 0 100vmax #04070a}
+#scope .rim{position:absolute;inset:0;border-radius:50%;
+  box-shadow:inset 0 0 34px 10px rgba(186,214,232,.22),
+             inset 0 0 0 2px rgba(4,7,10,.9),
+             inset 0 0 90px 30px rgba(4,7,10,.45)}
+#scope .ln{position:absolute;background:rgba(10,15,17,.92)}
+#scope .ln.v{left:50%;top:0;bottom:0;width:1.6px;margin-left:-.8px}
+#scope .ln.h{top:50%;left:0;right:0;height:1.6px;margin-top:-.8px}
+/* Feine Teilstriche nach den vier Seiten, wie die Absehen-Skala im Vorbild */
+#scope .tk{position:absolute;left:50%;top:50%}
+#scope .tk.up,#scope .tk.dn{width:11px;margin-left:-5.5px;height:32%;
+  background:repeating-linear-gradient(to bottom,rgba(10,15,17,.92) 0 1.6px,transparent 1.6px 26px)}
+#scope .tk.lf,#scope .tk.rt{height:11px;margin-top:-5.5px;width:32%;
+  background:repeating-linear-gradient(to right,rgba(10,15,17,.92) 0 1.6px,transparent 1.6px 26px)}
+#scope .tk.up{transform:translateY(-100%) scaleY(-1)}
+#scope .tk.dn{transform:none}
+#scope .tk.lf{transform:translateX(-100%) scaleX(-1)}
+#scope .tk.rt{transform:none}
+#scope .dot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;
+  border-radius:50%;background:#e8402c;box-shadow:0 0 5px rgba(232,64,44,.8)}
 #vitals{position:absolute;left:26px;bottom:26px;width:290px}
 .meter{height:9px;background:rgba(0,0,0,.55);border:1px solid var(--line);margin-bottom:6px;position:relative}
 .meter i{display:block;height:100%;transition:width .18s}
@@ -180,6 +221,15 @@ input:focus{outline:none;border-color:var(--amber)}
 #reloadBar{width:150px;height:3px;margin-top:8px;margin-left:auto;background:rgba(0,0,0,.5);
   border:1px solid var(--line);opacity:0;transition:opacity .12s}
 #reloadBar i{display:block;height:100%;width:0;background:var(--amber)}
+#slots{display:flex;gap:8px;justify-content:flex-end;margin-top:9px}
+#slots span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+  border:1px solid var(--line);padding:4px 8px;background:rgba(0,0,0,.35)}
+#slots span.on{color:var(--amber);border-color:var(--amber);background:rgba(255,176,32,.1)}
+#pickPrompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);
+  border:1px solid var(--amber);background:rgba(10,18,20,.85);padding:8px 16px;
+  font-size:12.5px;letter-spacing:.08em;white-space:nowrap}
+#pickPrompt b{display:inline-block;background:var(--amber);color:#0A1214;
+  font-family:'Chakra Petch',sans-serif;font-weight:700;padding:1px 7px;margin-right:8px}
 #alive{position:absolute;right:26px;top:22px;text-align:right}
 #aliveN{font-family:'Chakra Petch',sans-serif;font-size:34px;font-weight:700;line-height:1;color:var(--amber)}
 #stormInfo{position:absolute;left:50%;top:20px;transform:translateX(-50%);text-align:center;
@@ -273,6 +323,14 @@ input:focus{outline:none;border-color:var(--amber)}
 <div id="hud">
   <div id="minimap"><canvas id="mmCv" width="360" height="360"></canvas></div>
   <div id="cross"><i></i><i></i><i></i><i></i></div>
+  <div id="scope" class="hidden">
+    <div class="lens">
+      <i class="ln v"></i><i class="ln h"></i>
+      <i class="tk up"></i><i class="tk dn"></i><i class="tk lf"></i><i class="tk rt"></i>
+      <b class="dot"></b>
+      <div class="rim"></div>
+    </div>
+  </div>
   <div id="hitmark"><i></i><i></i><i></i><i></i></div>
   <div id="stormInfo"><div id="stormPhase">Zone hält</div><div id="stormT">--:--</div></div>
   <div id="alive"><div class="eyebrow">am Leben</div><div id="aliveN">0</div></div>
@@ -282,8 +340,10 @@ input:focus{outline:none;border-color:var(--amber)}
     <div class="meter"><i id="hpFill" style="width:100%"></i></div>
     <div class="meter"><i id="shFill" style="width:0%"></i></div>
   </div>
-  <div id="ammo"><div id="ammoN">30</div><div id="ammoW">SMG · 90 Reserve</div>
-    <div id="reloadBar"><i></i></div></div>
+  <div id="ammo"><div id="ammoN">—</div><div id="ammoW">Unbewaffnet</div>
+    <div id="reloadBar"><i></i></div>
+    <div id="slots"><span data-s="0">1 —</span><span data-s="1">2 —</span></div></div>
+  <div id="pickPrompt" class="hidden"><b>E</b> <span id="pickName"></span></div>
   <div id="dropHud" class="hidden">
     <div id="dropAlt">—</div>
     <div id="dropHint" class="eyebrow">F drücken zum Abspringen</div>
@@ -374,6 +434,11 @@ input:focus{outline:none;border-color:var(--amber)}
         F springt aus der Maschine und öffnet den Schirm.
         Auf der Karte erscheint nur, wer schießt.</p>
 
+      <div class="lb-maps">
+        <span class="eyebrow">Karte</span>
+        <div id="mapChips"></div>
+      </div>
+
       <button class="play" id="btPlay">
         <span class="pl-main">Spielen</span>
         <span class="pl-sub">Solo · Bots füllen auf</span>
@@ -394,6 +459,11 @@ input:focus{outline:none;border-color:var(--amber)}
     </div>
 
     <div class="lb-foot">
+      <span>WASD · Shift sprinten · C ducken · Leertaste · Linksklick schießen ·
+        <b style="color:var(--amber)">E aufheben</b> · R nachladen · 1/2 Waffe ·
+        F abspringen · Tab Punktestand · Esc Menü</span>
+    </div>
+    <div class="lb-foot2">
       <span id="lbChar">—</span>
       <span id="buildTag"></span>
     </div>
@@ -464,6 +534,7 @@ input:focus{outline:none;border-color:var(--amber)}
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 /* ==========================================================================
    0 — KONFIGURATION
@@ -480,19 +551,38 @@ const ASSETS = {
    ausgerichtet: Bodenhöhe wird geschätzt, das Stück auf y=0 gesetzt, um
    `at` verschoben und optional so skaliert, dass seine Grundfläche `fit`
    Meter breit wird. `scale` überschreibt `fit`. */
-const MAP_MANIFEST = [
-  { file:'shooting_game_enviornment_map_tdm.glb', at:[0,0,0],      fit:168, rotY:0,         label:'Innenstadt' },
-  { file:'western.glb',                            at:[-150,0,-25], fit:100, rotY:Math.PI/2, label:'Westernviertel' },
-  { file:'low-poly_industrial_building.glb',       at:[140,0,-78],  fit:90,  rotY:-0.4,      label:'Werk' },
-  /* Der Dschungel ist im Original nur 18 x 20 m groß — ein Diorama, keine
-     Karte. `fit` würde ihn auf achtfache Größe ziehen (80 m hohe Bäume),
-     deshalb hier eine feste, maßvolle Skalierung. */
-  { file:'low_poly_environment_jungle_scene.glb',  at:[10,0,158],   scale:3.3, rotY:0.25,    label:'Dschungel' }
-  /* Eigene Karte? Einfach eine Zeile ergänzen:
-     { file:'meine_map.glb', at:[0,0,-260], fit:120, rotY:0, label:'Neu' } */
+/* Wählbare Karten. Jede bringt ihren eigenen Maßstab mit: `radius` ist der
+   Startradius des Sturms und bestimmt zugleich die Basisplatte, `spawnR` der
+   Kreis, in dem Startpunkte und Beute verteilt werden. */
+const MAP_SETS = [
+  {
+    id:'island', name:'Drift-Insel', note:'Vier Landstriche, zusammengetrieben · 500 m',
+    radius:250, spawnR:175, fogNear:130, fogFar:620, sky:0x8fb6c9,
+    pieces:[
+      { file:'shooting_game_enviornment_map_tdm.glb', at:[0,0,0],      fit:168, rotY:0,         label:'Innenstadt' },
+      { file:'western.glb',                            at:[-150,0,-25], fit:100, rotY:Math.PI/2, label:'Westernviertel' },
+      { file:'low-poly_industrial_building.glb',       at:[140,0,-78],  fit:90,  rotY:-0.4,      label:'Werk' },
+      /* Der Dschungel ist im Original nur 18 x 20 m groß — ein Diorama, keine
+         Karte. `fit` würde ihn auf achtfache Größe ziehen (80 m hohe Bäume),
+         deshalb hier eine feste, maßvolle Skalierung. */
+      { file:'low_poly_environment_jungle_scene.glb',  at:[10,0,158],   scale:3.3, rotY:0.25,    label:'Dschungel' }
+    ]
+  },
+  {
+    id:'block', name:'Blockland', note:'Klotzlandschaft mit Bergen · 250 × 135 m',
+    radius:140, spawnR:62, fogNear:90, fogFar:430, sky:0x9ec4dd,
+    pieces:[
+      { file:'minecraft_landscape.glb', at:[0,0,0], fit:250, rotY:0, label:'Blockland' }
+    ]
+  }
+  /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
+     eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
+let mapSetId = 'island';
+const mapSet = ()=> MAP_SETS.find(m => m.id === mapSetId) || MAP_SETS[0];
 
-const WEAPON_FILE = 'sub_machine_gun.glb';
+const WEAPON_FILE = 'sub_machine_gun.glb';   // Rückfallmodell
+const GUNS_FILE   = 'polygon_guns.glb';
 const PLANE_FILE  = 'cougar_airplane.glb';
 const CHUTE_FILE  = 'parachute_simple.glb';
 
@@ -567,17 +657,20 @@ const RE_NOCOLL = /(sky|himmel|backdrop|background|hintergrund|water_surface|bil
 
 /* ---- Battle-Royale-Ablauf ---- */
 const BR = {
-  islandRadius: 250,
+  islandRadius: 250,           // wird beim Laden aus dem Kartensatz gesetzt
   botCount: 11,
-  phases: [ // hold = Zone steht, shrink = Zone zieht sich zusammen
-    { hold: 25, shrink: 42, radius: 162, dps: 1 },
-    { hold: 22, shrink: 36, radius: 100, dps: 2 },
-    { hold: 20, shrink: 30, radius: 56,  dps: 4 },
-    { hold: 18, shrink: 25, radius: 26,  dps: 7 },
-    { hold: 16, shrink: 22, radius: 9,   dps: 11 },
-    { hold: 14, shrink: 20, radius: 0,   dps: 16 }
+  // `f` ist der Zielradius als Anteil des Kartenradius — so passt derselbe
+  // Ablauf auf jede Karte, egal wie gross sie ist.
+  phases: [
+    { hold: 25, shrink: 42, f: 0.650, dps: 1 },
+    { hold: 22, shrink: 36, f: 0.400, dps: 2 },
+    { hold: 20, shrink: 30, f: 0.224, dps: 4 },
+    { hold: 18, shrink: 25, f: 0.104, dps: 7 },
+    { hold: 16, shrink: 22, f: 0.036, dps: 11 },
+    { hold: 14, shrink: 20, f: 0,     dps: 16 }
   ]
 };
+const phaseRadius = ph => ph.f * BR.islandRadius;
 
 /* Streuung in Radiant.
    spreadBase  Erster Schuss aus dem Stand — praktisch punktgenau.
@@ -586,25 +679,103 @@ const BR = {
    airSpread   Zuschlag im Sprung.
    Damit ist Tippfeuer treffsicher und Dauerfeuer wird bestraft — vorher
    hatte jeder Schuss dieselbe grosse Streuung, auch der erste. */
+/* ---------- Waffen ----------
+   `mesh` ist der Name im Sammelmodell polygon_guns.glb, `len` die Ziellänge in
+   Metern (die Modelle sind gut doppelt so gross wie echte Waffen).
+   Streuung in Radiant, siehe spreadDir(). `falloff` ist [nah, fern, Restanteil]:
+   bis `nah` voller Schaden, ab `fern` nur noch `Restanteil` davon — das trennt
+   Nahkampf- von Fernwaffen, ohne die Reichweite hart abzuschneiden. */
 const WEAPONS = {
-  smg: {
-    name:'SMG', dmg:13, rpm:720, mag:32, reserve:160, range:120, reload:1.8,
-    auto:true, headMul:1.55,
-    spreadBase:0.0016, bloom:0.0115, spreadMax:0.052,
-    moveSpread:0.011, airSpread:0.030, crouchMul:0.62,
-    recoilPitch:0.0060, recoilYaw:0.0018
-  },
   pistol: {
-    name:'Pistole', dmg:24, rpm:330, mag:12, reserve:84, range:100, reload:1.3,
-    auto:false, headMul:1.8,
-    spreadBase:0.0011, bloom:0.0085, spreadMax:0.034,
+    name:'Pistole', mesh:'Object_70', len:0.26, rarity:'common', weight:5,
+    dmg:21, rpm:360, mag:15, reserve:90, reload:1.3, auto:false, headMul:1.9,
+    range:90, falloff:[35,80,0.65],
+    spreadBase:0.0013, bloom:0.0090, spreadMax:0.036,
     moveSpread:0.009, airSpread:0.026, crouchMul:0.58,
-    recoilPitch:0.0105, recoilYaw:0.0026
+    recoilPitch:0.0100, recoilYaw:0.0026
+  },
+  revolver: {
+    name:'Revolver', mesh:'Object_61', len:0.31, rarity:'rare', weight:3,
+    dmg:48, rpm:140, mag:6, reserve:42, reload:2.2, auto:false, headMul:2.0,
+    range:100, falloff:[45,95,0.70],
+    spreadBase:0.0011, bloom:0.0120, spreadMax:0.040,
+    moveSpread:0.011, airSpread:0.032, crouchMul:0.55,
+    recoilPitch:0.0200, recoilYaw:0.0040
+  },
+  smg: {
+    name:'MP', mesh:'Object_63', len:0.46, rarity:'common', weight:5,
+    dmg:12, rpm:900, mag:32, reserve:190, reload:1.8, auto:true, headMul:1.50,
+    range:70, falloff:[18,55,0.45],
+    spreadBase:0.0022, bloom:0.0120, spreadMax:0.058,
+    moveSpread:0.013, airSpread:0.034, crouchMul:0.62,
+    recoilPitch:0.0055, recoilYaw:0.0020
+  },
+  pdw: {
+    name:'PDW', mesh:'Object_65', len:0.56, rarity:'common', weight:4,
+    dmg:15, rpm:750, mag:25, reserve:150, reload:1.9, auto:true, headMul:1.55,
+    range:85, falloff:[24,65,0.55],
+    spreadBase:0.0019, bloom:0.0110, spreadMax:0.050,
+    moveSpread:0.012, airSpread:0.032, crouchMul:0.60,
+    recoilPitch:0.0060, recoilYaw:0.0021
+  },
+  ar: {
+    name:'Sturmgewehr', mesh:'Object_68', len:0.86, rarity:'rare', weight:3,
+    dmg:19, rpm:560, mag:30, reserve:180, reload:2.2, auto:true, headMul:1.70,
+    range:130, falloff:[55,120,0.70],
+    spreadBase:0.0014, bloom:0.0095, spreadMax:0.045,
+    moveSpread:0.010, airSpread:0.030, crouchMul:0.58,
+    recoilPitch:0.0070, recoilYaw:0.0022
+  },
+  shotgun: {
+    name:'Schrotflinte', mesh:'Object_81', len:0.82, rarity:'rare', weight:3,
+    dmg:11, pellets:8, rpm:75, mag:6, reserve:36, reload:2.8, auto:false, headMul:1.30,
+    range:45, falloff:[8,32,0.25],
+    spreadBase:0.0300, bloom:0.0040, spreadMax:0.046,
+    moveSpread:0.006, airSpread:0.014, crouchMul:0.75,
+    recoilPitch:0.0230, recoilYaw:0.0038
+  },
+  lmg: {
+    name:'MG', mesh:'Object_62', len:1.02, rarity:'epic', weight:1,
+    dmg:16, rpm:700, mag:60, reserve:240, reload:4.2, auto:true, headMul:1.50,
+    range:120, falloff:[45,110,0.65],
+    spreadBase:0.0035, bloom:0.0100, spreadMax:0.062,
+    moveSpread:0.018, airSpread:0.045, crouchMul:0.50,
+    recoilPitch:0.0075, recoilYaw:0.0030
+  },
+  dmr: {
+    name:'Marksman', mesh:'Object_72', len:1.05, rarity:'rare', weight:2,
+    dmg:40, rpm:190, mag:12, reserve:72, reload:2.4, auto:false, headMul:2.0,
+    range:180, falloff:[90,180,0.85],
+    spreadBase:0.0009, bloom:0.0140, spreadMax:0.050,
+    moveSpread:0.014, airSpread:0.050, crouchMul:0.50,
+    recoilPitch:0.0140, recoilYaw:0.0030,
+    scoped:true, zoom:2.8, adsMul:0.30
+  },
+  sniper: {
+    name:'Scharfschützengewehr', mesh:'Object_77', len:1.20, rarity:'epic', weight:1,
+    dmg:85, rpm:45, mag:5, reserve:30, reload:3.2, auto:false, headMul:2.0,
+    range:250, falloff:[140,250,0.90],
+    spreadBase:0.0006, bloom:0.0300, spreadMax:0.060,
+    moveSpread:0.022, airSpread:0.070, crouchMul:0.45,
+    recoilPitch:0.0300, recoilYaw:0.0040,
+    scoped:true, zoom:5.0, adsMul:0.22
   }
 };
+const RARITY = {
+  common: { color:0x9aa7ab, label:'gewöhnlich' },
+  rare:   { color:0x4ea8ff, label:'selten' },
+  epic:   { color:0xffb020, label:'wertvoll' }
+};
+/* Ohne Waffe ist man nicht wehrlos, aber deutlich im Nachteil. */
+const MELEE = { name:'Fäuste', dmg:26, range:2.3, cooldown:0.55, headMul:1.4 };
+/* Kimme und Korn für alle Waffen: leichter Zoom, ruhigere Streuung, langsamer
+   unterwegs. Nur `scoped` blendet zusätzlich das Zielfernrohr ein. */
+const ADS = { zoom:1.28, adsMul:0.42, moveMul:0.55, speed:13 };
+const LOOT = { guns:58, supplies:40, pickRange:2.6 };
+
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 14';
+const BUILD = '2026-08-08 · 17';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -614,7 +785,7 @@ const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
    zulässt — in abgeschotteten Vorschauen wirft localStorage, das darf das
    Spiel nicht umbringen. */
 const BASE_SENS = 0.0022;
-const SETTINGS = { volume:0.7, muted:false, sens:1.0, invertY:false };
+const SETTINGS = { volume:0.7, muted:false, sens:1.0, invertY:false, map:'island' };
 let pauseOpen = false, suppressPause = false;
 function loadSettings(){
   try {
@@ -1925,6 +2096,69 @@ class WeaponModel {
 }
 
 /* ==========================================================================
+   10b — WAFFENBIBLIOTHEK
+   Alle Waffen stecken in einer einzigen GLB als Auslage nebeneinander. Jede
+   wird an ihrem Mesh-Namen herausgelöst, auf ihre Ziellänge normiert und so
+   gedreht, dass die Mündung auf -Z zeigt.
+   ========================================================================== */
+class WeaponLibrary {
+  constructor(loader){ this.loader = loader; this.models = {}; this.ready = false; }
+
+  async load(){
+    if (this.ready) return this;
+    let by = {};
+    try {
+      const g = await this.loader.loadAsync(ASSETS.props + GUNS_FILE);
+      g.scene.updateMatrixWorld(true);
+      g.scene.traverse(o=>{ if (o.isMesh) by[o.name] = o; });
+    } catch(e){ console.warn('Waffensammlung fehlt', e); }
+
+    for (const id in WEAPONS){
+      const W = WEAPONS[id];
+      const src = by[W.mesh];
+      if (!src){ this.models[id] = null; continue; }
+      // Elterntransformationen einbacken, sonst sitzt die Waffe schief
+      const geo = src.geometry.clone();
+      geo.applyMatrix4(src.matrixWorld);
+      geo.computeBoundingBox();
+      const bb = geo.boundingBox;
+      const ctr = bb.getCenter(new THREE.Vector3());
+      geo.translate(-ctr.x, -ctr.y, -ctr.z);
+      const raw = bb.max.z - bb.min.z;
+      const k = W.len / Math.max(0.01, raw);
+      geo.scale(k, k, k);
+      // Die Modelle liegen mit der Mündung auf +Z, gebraucht wird -Z
+      geo.rotateY(Math.PI);
+      geo.computeVertexNormals();
+      const mats = Array.isArray(src.material) ? src.material : [src.material];
+      mats.forEach(mm=>{ if (mm && mm.map) mm.map.colorSpace = THREE.SRGBColorSpace; });
+      const m = new THREE.Mesh(geo, src.material);
+      m.castShadow = true; m.frustumCulled = false;
+      this.models[id] = m;
+    }
+    this.ready = true;
+    return this;
+  }
+
+  /** Neues Exemplar einer Waffe. Fällt auf das alte SMG-Modell zurück. */
+  spawn(id){
+    const m = this.models[id];
+    if (m) return m.clone();
+    return weaponModel.spawn();
+  }
+}
+const gunLib = new WeaponLibrary(gltfLoader);
+
+/** Gewichtete Zufallswahl nach Seltenheit. */
+function randomWeaponId(){
+  let total = 0;
+  for (const id in WEAPONS) total += WEAPONS[id].weight;
+  let r = Math.random()*total;
+  for (const id in WEAPONS){ r -= WEAPONS[id].weight; if (r <= 0) return id; }
+  return 'pistol';
+}
+
+/* ==========================================================================
    11 — SPIELER
    Lokal, ferngesteuert oder Bot — immer dieselbe Datenstruktur. Die Physik
    läuft nur für lokale Figuren und Bots (auf dem Host). Ferne Spieler werden
@@ -1941,9 +2175,14 @@ class Actor {
     this.kills = 0;
     this.yaw = 0; this.pitch = 0;
     this.anim = 'idle';
-    this.weapon = 'smg';
-    this.ammo = { smg: WEAPONS.smg.mag, pistol: WEAPONS.pistol.mag };
-    this.reserve = { smg: WEAPONS.smg.reserve, pistol: WEAPONS.pistol.reserve };
+    /* Man landet mit leeren Händen. Beide Plätze bleiben leer, bis man etwas
+       vom Boden aufnimmt. */
+    this.weapon = null;
+    this.slots = [null, null];
+    this.slot = 0;
+    this.ammo = {};
+    this.reserve = {};
+    this.nextMelee = 0;
     this.nextShot = 0; this.reloadUntil = 0;
     this.reloading = false; this.reloadStart = -99; this.reloadStage = 0;
     this.view = null;                       // CharacterFactory-Instanz
@@ -1995,7 +2234,10 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fb6c9);
 scene.fog = new THREE.Fog(0x8fb6c9, 130, 620);
 
-const camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.06, 1200);
+const FOV_BASE = 72;
+const camera = new THREE.PerspectiveCamera(FOV_BASE, innerWidth/innerHeight, 0.06, 1200);
+/* 0 = aus der Hüfte, 1 = im Anschlag. Gedämpft, damit der Zoom nicht springt. */
+let adsT = 0;
 const viewCam = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.02, 40);   // Viewmodel ohne Clipping
 
 const hemi = new THREE.HemisphereLight(0xbcd8ea, 0x4a4436, 1.05);
@@ -2018,6 +2260,13 @@ addEventListener('resize', ()=>{
 });
 
 const gltfLoader = new GLTFLoader();
+/* Die Karten sind mit Draco komprimiert — die Blockland-Karte schrumpft damit
+   von 51 auf 1,7 MB. Der Decoder kommt vom selben CDN wie Three.js; ohne ihn
+   liefe nur eine Fehlermeldung statt einer Karte. Texturen liegen als WebP im
+   Format EXT_texture_webp, das kann der GLTFLoader von Haus aus. */
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/draco/gltf/');
+gltfLoader.setDRACOLoader(dracoLoader);
 const charFactory = new CharacterFactory(gltfLoader);
 const weaponModel = new WeaponModel(gltfLoader);
 const mapLoader = new GLBMapLoader(gltfLoader);
@@ -2339,14 +2588,16 @@ async function loadWorld(mode){
     scene.background = new THREE.Color(0x1a2428);
     scene.fog = new THREE.Fog(0x1a2428, 60, 220);
   } else {
-    setLoad(6, 'Insel wird zusammengesetzt');
+    const set = mapSet();
+    BR.islandRadius = set.radius;
+    setLoad(6, set.name + ' wird geladen');
     let n = 0;
-    const island = await mapLoader.buildIsland(MAP_MANIFEST, scene, (t)=>{
-      n++; setLoad(6 + n/MAP_MANIFEST.length*70, t);
+    const island = await mapLoader.buildIsland(set.pieces, scene, (t)=>{
+      n++; setLoad(6 + n/set.pieces.length*70, t);
     });
     G.mapGroup = island.group; G.world = island.world; G.reports = island.reports;
-    scene.background = new THREE.Color(0x8fb6c9);
-    scene.fog = new THREE.Fog(0x8fb6c9, 130, 620);
+    scene.background = new THREE.Color(set.sky);
+    scene.fog = new THREE.Fog(set.sky, set.fogNear, set.fogFar);
   }
   setLoad(84, 'Kollisionswelt: ' + G.world.triCount.toLocaleString('de-DE') + ' Dreiecke');
   console.log(mapReportText());
@@ -2421,19 +2672,19 @@ function updateStorm(dt){
       s.state = 'shrink'; s.timer = ph.shrink;
       s.fromR = s.r; s.fromCx = s.cx; s.fromCz = s.cz;
       // Neue Mitte irgendwo innerhalb der jetzigen Zone
-      const room = Math.max(0, s.r - ph.radius);
+      const room = Math.max(0, s.r - phaseRadius(ph));
       const a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*room*0.75;
       s.nextCx = s.cx + Math.cos(a)*d; s.nextCz = s.cz + Math.sin(a)*d;
       feed('<b>Die Zone zieht sich zusammen</b>');
     }
   } else {
     const t = 1 - clamp(s.timer/ph.shrink, 0, 1);
-    s.r = lerp(s.fromR, ph.radius, t);
+    s.r = lerp(s.fromR, phaseRadius(ph), t);
     s.cx = lerp(s.fromCx, s.nextCx, t);
     s.cz = lerp(s.fromCz, s.nextCz, t);
     s.dps = ph.dps;
     if (s.timer <= 0){
-      s.r = ph.radius; s.cx = s.nextCx; s.cz = s.nextCz;
+      s.r = phaseRadius(ph); s.cx = s.nextCx; s.cz = s.nextCz;
       s.phase++; s.state = 'hold';
       s.timer = s.phase < BR.phases.length ? BR.phases[s.phase].hold : 99999;
     }
@@ -2610,6 +2861,7 @@ function updateDrop(dt){
     if (p >= 1){
       setActorChute(a, false);
       a.dropping = false;
+      if (!a.weapon) giveWeapon(a, randomWeaponId(), { reserve: 240, dropOld:false });
       a.position.copy(a.dropTarget);
       if (a.ctrl){ a.ctrl.position.copy(a.dropTarget); a.ctrl.velocity.set(0,0,0);
                    a.ctrl.lastSafe.copy(a.dropTarget); }
@@ -2695,6 +2947,46 @@ function updateDrop(dt){
 /* ==========================================================================
    17 — AUFSAMMELBARES
    ========================================================================== */
+/** Eine Waffe auf den Boden legen — als Beute oder wenn eine ersetzt wird. */
+function spawnLoot(id, at, jitter = 0){
+  const W = WEAPONS[id]; if (!W) return null;
+  const mesh = gunLib.spawn(id);
+  const holder = new THREE.Group();
+  holder.add(mesh);
+  mesh.rotation.z = 0.35;
+  const col = RARITY[W.rarity].color;
+  // Ein schmaler Lichtkegel macht Beute auch aus der Ferne sichtbar
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.16, 2.4, 10, 1, true),
+    new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.13,
+      side:THREE.DoubleSide, depthWrite:false }));
+  beam.position.y = 1.0;
+  holder.add(beam);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.018, 4, 24),
+    new THREE.MeshBasicMaterial({ color:col }));
+  ring.rotation.x = Math.PI/2; ring.position.y = -0.16;
+  holder.add(ring);
+  holder.position.copy(at);
+  holder.position.y += 0.55;
+  if (jitter){ holder.position.x += rnd(-jitter,jitter); holder.position.z += rnd(-jitter,jitter); }
+  scene.add(holder);
+  const entry = { mesh:holder, kind:'gun', id, taken:false, base:holder.position.y,
+                  label:W.name, phase:Math.random()*6.28 };
+  G.pickups.push(entry);
+  return entry;
+}
+
+function scatterWeapons(count){
+  if (!G.spawnMgr) return;
+  const R = mapSet().spawnR * 1.15;
+  for (let i = 0; i < count; i++){
+    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*R;
+    const p = G.spawnMgr.findValidSpawnPosition(
+      new THREE.Vector3(Math.cos(ang)*r, 0, Math.sin(ang)*r), { spread:20, tries:26 });
+    if (!p) continue;
+    spawnLoot(randomWeaponId(), p);
+  }
+}
+
 function scatterPickups(count){
   if (!G.spawnMgr) return;
   const kinds = [
@@ -2703,7 +2995,7 @@ function scatterPickups(count){
     { k:'ammo',  color:0xffb020, label:'Munition' }
   ];
   for (let i=0;i<count;i++){
-    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*BR.islandRadius*0.85;
+    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*mapSet().spawnR*1.12;
     const p = G.spawnMgr.findValidSpawnPosition(new THREE.Vector3(Math.cos(ang)*r, 0, Math.sin(ang)*r), { spread:18, tries:24 });
     if (!p) continue;
     const kind = kinds[i % kinds.length];
@@ -2719,18 +3011,49 @@ function updatePickups(dt){
   const me = G.me;
   for (const p of G.pickups){
     if (p.taken) continue;
-    p.mesh.rotation.y += dt*1.6;
-    p.mesh.position.y = p.base + Math.sin(G.time*2 + p.base)*0.12;
+    p.mesh.rotation.y += dt*(p.kind === 'gun' ? 0.9 : 1.6);
+    p.mesh.position.y = p.base + Math.sin(G.time*2 + (p.phase||p.base))*0.10;
     if (!me || !me.alive) continue;
+    if (p.kind === 'gun') continue;               // Waffen werden mit E genommen
     if (p.mesh.position.distanceToSquared(me.position) < 2.0){
       p.taken = true; p.mesh.visible = false;
       if (p.kind === 'hp'){ me.hp = Math.min(me.maxHp, me.hp + 35); }
       else if (p.kind === 'shield'){ me.shield = Math.min(100, me.shield + 40); }
-      else { me.reserve.smg += 90; me.reserve.pistol += 40; }
+      else {
+        // Munition füllt auf, was man dabei hat
+        let got = false;
+        for (const id of me.slots){ if (!id) continue;
+          me.reserve[id] = (me.reserve[id]||0) + Math.round(WEAPONS[id].reserve*0.5); got = true; }
+        if (!got) continue;
+      }
       toast(p.label + ' aufgenommen');
       sfx.pick();
     }
   }
+}
+
+/** Nächstliegende Waffe in Reichweite — für die Aufheben-Anzeige. */
+function nearestLoot(){
+  const me = G.me;
+  if (!me || !me.alive || me.dropping) return null;
+  let best = null, bd = LOOT.pickRange*LOOT.pickRange;
+  for (const p of G.pickups){
+    if (p.taken || p.kind !== 'gun') continue;
+    const d = p.mesh.position.distanceToSquared(me.position);
+    if (d < bd){ bd = d; best = p; }
+  }
+  return best;
+}
+
+function tryPickUp(){
+  const p = nearestLoot();
+  if (!p) return;
+  const me = G.me;
+  p.taken = true;
+  scene.remove(p.mesh);
+  giveWeapon(me, p.id);
+  sfx.pick();
+  toast(WEAPONS[p.id].name + ' aufgenommen');
 }
 
 /* ==========================================================================
@@ -2809,14 +3132,25 @@ function spreadDir(dir, ang, out){
 /** Streuung in diesem Moment — Grundwert plus Aufblühen plus Bewegung. */
 function currentSpread(a){
   const W = WEAPONS[a.weapon];
+  if (!W) return 0.004;
   let sp = W.spreadBase + (a.bloom || 0);
   const v = a.ctrl ? Math.hypot(a.ctrl.velocity.x, a.ctrl.velocity.z) : 0;
   sp += Math.min(1, v/SPEED_SPRINT) * W.moveSpread;
   if (a.ctrl && !a.ctrl.grounded) sp += W.airSpread;
   if (a.crouch) sp *= W.crouchMul;
+  if (a.ads) sp *= (W.adsMul || ADS.adsMul);
   // Bots bekommen keinen Bonus für Tippfeuer — sonst wären sie sofort tödlich
   if (a.kind === 'bot') sp = 0.024 + (a.bloom || 0)*1.1;
   return sp;
+}
+
+/** Schadensanteil auf einer bestimmten Entfernung. */
+function falloffMul(W, dist){
+  if (!W.falloff) return 1;
+  const [n, f, m] = W.falloff;
+  if (dist <= n) return 1;
+  if (dist >= f) return m;
+  return 1 + (m - 1) * (dist - n) / (f - n);
 }
 
 function rayCapsule(origin, dir, a, b, r, maxDist){
@@ -2830,6 +3164,7 @@ function rayCapsule(origin, dir, a, b, r, maxDist){
 function fire(actor){
   if (actor.dropping) return;
   const W = WEAPONS[actor.weapon];
+  if (!W){ melee(actor); return; }                 // unbewaffnet
   if (G.time < actor.nextShot || actor.reloading) return;
   if (actor.ammo[actor.weapon] <= 0){ reload(actor); return; }
   actor.nextShot = G.time + 60/W.rpm;
@@ -2841,24 +3176,39 @@ function fire(actor){
   spreadDir(_rd, currentSpread(actor), _rd);
   actor.bloom = Math.min((actor.bloom||0) + W.bloom, W.spreadMax);
 
+  /* Schrot verschiesst mehrere Kugeln auf einmal. Der Schaden je Ziel wird
+     aufaddiert, damit ein voller Treffer aus der Nähe wirklich weh tut und ein
+     Streifschuss auf Distanz kaum. */
+  const pellets = W.pellets || 1;
+  const tally = new Map();
   let bestT = W.range, hitActor = null, head = false, hitPoint = null;
-  const wallHit = G.world ? G.world.raycast(_ro, _rd, W.range, {}) : null;
-  if (wallHit){ bestT = wallHit.dist; hitPoint = wallHit.point.clone(); }
 
-  for (const o of G.actors){
-    if (o === actor || !o.alive) continue;
-    // Kopf zuerst — bei Überschneidung soll der Kopftreffer gewinnen
-    const hr = o.hitHead(_ch);
-    const th = raySphere(_ro, _rd, _ch, hr, W.range);
-    if (th !== null && th < bestT){
-      bestT = th; hitActor = o; head = true;
-      hitPoint = _hp.copy(_ro).addScaledVector(_rd, th).clone();
+  for (let s = 0; s < pellets; s++){
+    if (s > 0){ aimDir(actor.yaw, actor.pitch, _rd); spreadDir(_rd, currentSpread(actor), _rd); }
+    let t = W.range, who = null, hd = false, pt = null;
+    const wallHit = G.world ? G.world.raycast(_ro, _rd, W.range, {}) : null;
+    if (wallHit){ t = wallHit.dist; pt = wallHit.point.clone(); }
+    for (const o of G.actors){
+      if (o === actor || !o.alive || o.dropping) continue;
+      const hr = o.hitHead(_ch);
+      const th = raySphere(_ro, _rd, _ch, hr, W.range);
+      if (th !== null && th < t){
+        t = th; who = o; hd = true;
+        pt = _hp.copy(_ro).addScaledVector(_rd, th).clone();
+      }
+      const br = o.hitBody(_ca, _cb);
+      const hb = rayCapsule(_ro, _rd, _ca, _cb, br, W.range);
+      if (hb && hb.t < t){ t = hb.t; who = o; hd = false; pt = hb.point.clone(); }
     }
-    const br = o.hitBody(_ca, _cb);
-    const hb = rayCapsule(_ro, _rd, _ca, _cb, br, W.range);
-    if (hb && hb.t < bestT){
-      bestT = hb.t; hitActor = o; head = false; hitPoint = hb.point;
+    if (who){
+      const d = W.dmg * (hd ? W.headMul : 1) * falloffMul(W, t);
+      const e = tally.get(who) || { dmg:0, head:false, pt:null, t:1e9 };
+      e.dmg += d; e.head = e.head || hd;
+      if (t < e.t){ e.t = t; e.pt = pt; }
+      tally.set(who, e);
     }
+    if (s === 0 || t < bestT){ bestT = t; hitPoint = pt; }
+    if (who && (!hitActor || t < bestT + 1e-6)){ hitActor = who; head = hd; }
   }
 
   const end = _trB.copy(_ro).addScaledVector(_rd, bestT);
@@ -2867,13 +3217,18 @@ function fire(actor){
     vmState.flash = 0.05;
     recoil(W);
     sfx.shot();
-    if (hitActor){
-      reportHit(actor, hitActor, W.dmg * (head?W.headMul:1), head);
-      showHitmark(!hitActor.alive ? 'kill' : (head ? 'head' : 'body'));
+    if (tally.size){
+      let killed = false, anyHead = false;
+      for (const [o, e] of tally){
+        reportHit(actor, o, e.dmg, e.head);
+        if (!o.alive) killed = true;
+        anyHead = anyHead || e.head;
+      }
+      showHitmark(killed ? 'kill' : (anyHead ? 'head' : 'body'));
     }
     else if (hitPoint) impact(hitPoint);
   } else if (actor.kind === 'bot' && G.isHost){
-    if (hitActor) applyDamage(hitActor, W.dmg*(head?W.headMul:1)*0.75, actor);
+    for (const [o, e] of tally) applyDamage(o, e.dmg*0.75, actor, e.head);
     if (G.me){
       const d = actor.position.distanceTo(G.me.position);
       if (d < 200){ tracer(actorMuzzle(actor, _trA), end); muzzleSpark(actor); }
@@ -2884,9 +3239,72 @@ function fire(actor){
   if (actor.ammo[actor.weapon] <= 0) reload(actor);
 }
 
+/* ==========================================================================
+   18b — INVENTAR UND BODENBEUTE
+   ========================================================================== */
+function giveWeapon(a, id, opts = {}){
+  const W = WEAPONS[id]; if (!W) return;
+  let slot = a.slots.indexOf(null);
+  let dropped = null;
+  if (slot < 0){ slot = a.slot; dropped = a.slots[slot]; }
+  a.slots[slot] = id;
+  a.slot = slot;
+  a.reloading = false;
+  if (a.ammo[id] === undefined){ a.ammo[id] = W.mag; a.reserve[id] = opts.reserve ?? Math.round(W.reserve*0.45); }
+  selectSlot(a, slot);
+  if (dropped && opts.dropOld !== false) spawnLoot(dropped, a.position, 0.9);
+  return dropped;
+}
+
+function selectSlot(a, slot){
+  if (slot < 0 || slot > 1) return;
+  a.slot = slot;
+  a.weapon = a.slots[slot];
+  a.reloading = false;
+  a.nextShot = Math.max(a.nextShot, G.time + 0.25);      // kurzes Ziehen
+  if (a === G.me){ adsT = 0; a.ads = false; }
+  if (a === G.me) attachViewmodel(a.weapon);
+  setHandWeapon(a, a.weapon);
+}
+
+/** Waffe in der Hand der sichtbaren Figur austauschen. */
+function setHandWeapon(a, id){
+  if (!a.view || !a.view.hand) return;
+  if (a.handWeapon){ a.view.hand.remove(a.handWeapon); a.handWeapon = null; }
+  if (!id) return;
+  const w = gunLib.spawn(id);
+  w.position.set(0.02, 0.02, 0.10);
+  w.rotation.set(0, Math.PI, 0);
+  a.view.hand.add(w);
+  a.handWeapon = w;
+}
+
+function melee(actor){
+  if (G.time < actor.nextMelee) return;
+  actor.nextMelee = G.time + MELEE.cooldown;
+  actor.lastShotAt = G.time - 0.5;               // kein Mündungsfeuer
+  if (actor.view) actor.view.play('shoot', { once:true, fade:0.05 });
+  _ro.copy(actor.eye);
+  aimDir(actor.yaw, actor.pitch, _rd);
+  let best = MELEE.range, target = null;
+  for (const o of G.actors){
+    if (o === actor || !o.alive || o.dropping) continue;
+    const br = o.hitBody(_ca, _cb);
+    const h = rayCapsule(_ro, _rd, _ca, _cb, br + 0.25, MELEE.range);
+    if (h && h.t < best){ best = h.t; target = o; }
+  }
+  if (actor === G.me){
+    sfx.hit();
+    if (target){
+      reportHit(actor, target, MELEE.dmg, false);
+      showHitmark(!target.alive ? 'kill' : 'body');
+    }
+  } else if (target && G.isHost) applyDamage(target, MELEE.dmg*0.8, actor);
+}
+
 function reload(actor){
   const W = WEAPONS[actor.weapon];
-  if (actor.reloading) return;
+  if (!W || actor.reloading) return;
   if (actor.ammo[actor.weapon] >= W.mag) return;
   if (actor.reserve[actor.weapon] <= 0){
     if (actor === G.me) toast('Keine Reserve');
@@ -2905,6 +3323,7 @@ function reload(actor){
 function tickReload(a){
   if (!a.reloading) return;
   const W = WEAPONS[a.weapon];
+  if (!W){ a.reloading = false; return; }
   const t = (G.time - a.reloadStart) / W.reload;
   if (a === G.me){
     if (a.reloadStage === 0 && t > 0.40){ a.reloadStage = 1; sfx.magIn(); }
@@ -2937,6 +3356,11 @@ function applyDamage(target, dmg, src, head){
     target.alive = false; target.hp = 0;
     target.placement = G.actors.filter(a=>a.alive).length + 1;
     if (src && src !== target) src.kills++;
+    // Was die Figur trug, bleibt liegen — die Stelle lohnt sich also
+    for (const id of target.slots) if (id) spawnLoot(id, target.position, 0.7);
+    target.slots = [null, null]; target.weapon = null;
+    setHandWeapon(target, null);
+    if (target === G.me) attachViewmodel(null);
     if (target.view) target.view.play('die', { once:true });
     feed(`<b>${esc(src?src.name:'Die Zone')}</b> ${head?'⌖':'✕'} ${esc(target.name)}`);
     if (G.isNet && G.isHost) broadcast({ t:'kill', by:src?src.id:null, victim:target.id, head:!!head });
@@ -2963,6 +3387,7 @@ function checkVictory(){
    ========================================================================== */
 function botThink(bot, dt){
   if (!bot.alive) return;
+  if (!bot.weapon) giveWeapon(bot, randomWeaponId(), { reserve: 240, dropOld:false });
   const s = G.storm;
   bot.think = (bot.think||0) - dt;
   const distToCenter = Math.hypot(bot.position.x-s.cx, bot.position.z-s.cz);
@@ -3078,14 +3503,14 @@ const sfx = {
    ========================================================================== */
 const keys = Object.create(null);
 const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, fireEdge:false,
-                reload:false, dropAction:false };
+                reload:false, dropAction:false, pickup:false, ads:false };
 let camYaw = 0, camPitch = 0, pointerLocked = false;
 
 /** Alle gedrückten Tasten vergessen. Nötig, wenn das Fenster den Fokus
     verliert — sonst läuft die Figur nach einem Alt+Tab endlos weiter. */
 function clearKeys(){
   for (const k in keys) keys[k] = false;
-  input.fire = false; input.fireEdge = false;
+  input.fire = false; input.fireEdge = false; input.ads = false;
   showBoard(false);
 }
 addEventListener('blur', clearKeys);
@@ -3100,8 +3525,9 @@ addEventListener('keydown', e=>{
   if (e.code === 'Tab'){ e.preventDefault(); showBoard(true); }
   if (e.code === 'KeyR') input.reload = true;
   if (e.code === 'KeyF') input.dropAction = true;
-  if (e.code === 'Digit1' && G.me){ G.me.weapon = 'smg';    G.me.reloading = false; }
-  if (e.code === 'Digit2' && G.me){ G.me.weapon = 'pistol'; G.me.reloading = false; }
+  if (e.code === 'Digit1' && G.me) selectSlot(G.me, 0);
+  if (e.code === 'Digit2' && G.me) selectSlot(G.me, 1);
+  if (e.code === 'KeyE') input.pickup = true;
   if (e.code === 'Escape'){
     // Bei gefangener Maus schluckt der Browser dieses Ereignis und gibt den
     // Zeiger selbst frei — das Menü öffnet dann über pointerlockchange.
@@ -3120,8 +3546,12 @@ canvas.addEventListener('mousedown', e=>{
   if (G.phase !== 'play' || pauseOpen) return;
   if (!pointerLocked){ canvas.requestPointerLock(); return; }
   if (e.button === 0){ input.fire = true; input.fireEdge = true; }
+  if (e.button === 2) input.ads = true;
 });
-addEventListener('mouseup', e=>{ if (e.button === 0) input.fire = false; });
+addEventListener('mouseup', e=>{
+  if (e.button === 0) input.fire = false;
+  if (e.button === 2) input.ads = false;
+});
 canvas.addEventListener('contextmenu', e=> e.preventDefault());
 document.addEventListener('pointerlockchange', ()=>{
   pointerLocked = document.pointerLockElement === canvas;
@@ -3134,7 +3564,10 @@ document.addEventListener('pointerlockchange', ()=>{
 });
 addEventListener('mousemove', e=>{
   if (!pointerLocked) return;
-  const sens = BASE_SENS * SETTINGS.sens;
+  /* Beim Zoomen dieselbe Handbewegung pro Bildschirmweg: die Empfindlichkeit
+     sinkt im selben Verhältnis wie der Blickwinkel. Ohne das wäre Zielen durch
+     das Fernrohr unbrauchbar zappelig. */
+  const sens = BASE_SENS * SETTINGS.sens * (camera.fov / FOV_BASE);
   camYaw   -= e.movementX * sens;
   camPitch -= e.movementY * sens * (SETTINGS.invertY ? -1 : 1);
   camPitch = clamp(camPitch, -1.5, 1.5);
@@ -3160,11 +3593,15 @@ let viewWeapon = null;
 const vmState = { bob:0, recoil:0, recoilV:0, rl:0, flash:0, sway:new THREE.Vector2() };
 let muzzleFlash = null;
 
-function attachViewmodel(){
-  if (viewWeapon) vmRoot.remove(viewWeapon);
-  viewWeapon = weaponModel.spawn();
-  viewWeapon.position.set(0.17, -0.15, -0.36);
-  viewWeapon.rotation.set(0, Math.PI*0.5, 0);
+function attachViewmodel(id){
+  if (viewWeapon){ vmRoot.remove(viewWeapon); viewWeapon = null; }
+  if (!id){ if (muzzleFlash) muzzleFlash.visible = false; return; }
+  viewWeapon = gunLib.spawn(id);
+  // Lange Waffen weiter nach vorn, damit der Schaft nicht ins Bild ragt
+  const W = WEAPONS[id];
+  const back = clamp(0.30 + (W ? W.len*0.16 : 0.06), 0.30, 0.52);
+  viewWeapon.position.set(0.17, -0.15, -back);
+  viewWeapon.rotation.set(0, 0, 0);           // Mündung zeigt bereits auf -Z
   vmRoot.add(viewWeapon);
 
   if (!muzzleFlash){
@@ -3207,10 +3644,15 @@ function updateViewmodel(dt, moving){
   vmState.rl = damp(vmState.rl, want, 15, dt);
   const rl = vmState.rl;
 
+  const zBase = viewWeapon.userData.z0 ?? (viewWeapon.userData.z0 = viewWeapon.position.z);
+  // Im Anschlag rückt die Waffe zur Bildmitte, das Wippen fällt fast weg
+  const a2 = adsT * (rl > 0.3 ? 0 : 1);
+  const bobK = 1 - a2*0.85;
   viewWeapon.position.set(
-    0.17 + Math.cos(vmState.bob)*amp + rl*0.07,
-    -0.15 + Math.abs(Math.sin(vmState.bob))*amp*0.9 - vmState.recoil*0.25 - rl*0.19 - jolt*0.04,
-    -0.36 + vmState.recoil*0.5 + rl*0.06
+    lerp(0.17 + Math.cos(vmState.bob)*amp*bobK + rl*0.07, 0.0, a2),
+    lerp(-0.15 + Math.abs(Math.sin(vmState.bob))*amp*0.9*bobK - vmState.recoil*0.25 - rl*0.19 - jolt*0.04,
+         -0.052 - vmState.recoil*0.18, a2),
+    lerp(zBase + vmState.recoil*0.5 + rl*0.06, zBase + 0.10 + vmState.recoil*0.35, a2)
   );
   viewWeapon.rotation.x = -vmState.recoil*1.3 - rl*0.9;
   viewWeapon.rotation.z = rl*0.55;
@@ -3223,13 +3665,37 @@ function updateViewmodel(dt, moving){
       muzzleFlash.position.set(
         viewWeapon.position.x + 0.015,
         viewWeapon.position.y + 0.038,
-        viewWeapon.position.z - 0.27);
+        viewWeapon.position.z - (WEAPONS[G.me && G.me.weapon] ? WEAPONS[G.me.weapon].len*0.55 : 0.27));
       const k = vmState.flash / 0.05;
       muzzleFlash.scale.setScalar(0.75 + k*1.1 + Math.random()*0.25);
       muzzleFlash.rotation.z = Math.random()*6.28;
       muzzleFlash.material.opacity = 0.35 + k*0.6;
     }
   }
+}
+
+/** Waffe im Anschlag? Nicht beim Absprung und nicht mit leeren Händen. */
+function adsWeapon(){
+  const me = G.me;
+  if (!me || !me.alive || me.dropping || pauseOpen) return null;
+  return WEAPONS[me.weapon] || null;
+}
+
+function updateAds(dt){
+  const W = adsWeapon();
+  const want = (input.ads && W) ? 1 : 0;
+  adsT = damp(adsT, want, ADS.speed, dt);
+  if (adsT < 0.002) adsT = 0;
+  const zoom = W ? (W.zoom || ADS.zoom) : ADS.zoom;
+  const fov = lerp(FOV_BASE, FOV_BASE/zoom, adsT);
+  if (Math.abs(fov - camera.fov) > 0.01){
+    camera.fov = fov; camera.updateProjectionMatrix();
+  }
+  const scoped = !!(W && W.scoped) && adsT > 0.6;
+  $('scope').classList.toggle('hidden', !scoped);
+  $('cross').style.visibility = scoped ? 'hidden' : 'visible';
+  if (G.me) G.me.ads = adsT > 0.5 && !!W;
+  return scoped;
 }
 
 function updateCamera(){
@@ -3355,15 +3821,7 @@ async function createActor(opts){
   a.view.obj.name = 'actor:' + a.id;
   scene.add(a.view.obj);
   a.view.play('idle');
-  // Waffe in die rechte Hand — nur für Figuren, die man von außen sieht
-  if (a.view.hand){
-    const w = weaponModel.spawn();
-    w.scale.multiplyScalar(1/ (a.view.obj.scale.x || 1));
-    w.position.set(0.02, 0.02, 0.06);
-    w.rotation.set(Math.PI*0.5, 0, Math.PI*0.5);
-    a.view.hand.add(w);
-    a.handWeapon = w;
-  }
+  // Die Hand bleibt leer, bis etwas aufgenommen wird
   if (opts.kind !== 'remote'){
     a.ctrl = new CharacterController(G.world);
   }
@@ -3375,7 +3833,7 @@ async function setupMatch(roster, spawns){
   G.spawnMgr = new SpawnManager(G.world, new CharacterController(G.world));
   const pts = spawns && spawns.length
     ? spawns.map(p=>new THREE.Vector3(p[0],p[1],p[2]))
-    : G.spawnMgr.scatter(roster.length, BR.islandRadius*0.72);
+    : G.spawnMgr.scatter(roster.length, mapSet().spawnR);
 
   for (let i=0;i<roster.length;i++){
     const r = roster[i];
@@ -3385,9 +3843,13 @@ async function setupMatch(roster, spawns){
     if (a.ctrl){ a.ctrl.position.copy(p); a.ctrl.lastSafe.copy(p); }
     a.yaw = Math.atan2(-p.x, -p.z);
     if (r.kind === 'local'){ G.me = a; camYaw = a.yaw; camPitch = 0; }
+    // In der Testkammer gibt es keine Beute — dort startet man bewaffnet
+    if (G.mode === 'test') giveWeapon(a, 'ar', { reserve: WEAPONS.ar.reserve });
   }
   if (G.mode === 'br'){
-    initStorm(); scatterPickups(46);
+    initStorm();
+    scatterWeapons(LOOT.guns);
+    scatterPickups(LOOT.supplies);
     await startDropPhase(pts);
   } else {
     G.drop = null;
@@ -3410,6 +3872,7 @@ function simulate(dt){
     const inp = readInput();
     me.crouch = inp.crouch;
     let sp = inp.crouch ? SPEED_CROUCH : (inp.sprint && inp.mz > 0 ? SPEED_SPRINT : SPEED_WALK);
+    if (me.ads) sp *= ADS.moveMul;              // im Anschlag geht man langsamer
     /* Die Kamera blickt entlang ihrer lokalen -Z. Vorwaerts ist damit
        (-sin yaw, 0, -cos yaw), rechts ist (cos yaw, 0, -sin yaw). */
     const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
@@ -3429,6 +3892,7 @@ function simulate(dt){
       if (WEAPONS[me.weapon].auto || input.fireEdge){ fire(me); input.fireEdge = false; }
     }
     if (input.reload){ reload(me); input.reload = false; }
+    if (input.pickup){ tryPickUp(); input.pickup = false; }
   }
   if (me) tickReload(me);
   // Rückstoss federt zurück, Streuung beruhigt sich
@@ -3495,7 +3959,7 @@ function renderActors(dt){
     obj.rotation.set(0, a.yaw + Math.PI, 0);   // Quaternius-Figuren schauen nach +Z
     // Der eigene Körper ist unsichtbar — ausser beim Absprung, da sieht man sich
     obj.visible = (a !== G.me) || (a.dropping && G.drop && G.drop.playerState !== 'plane');
-    if (a.handWeapon) a.handWeapon.visible = a.alive;
+    if (a.handWeapon) a.handWeapon.visible = a.alive && !a.dropping;
 
     /* Im freien Fall wird die Figur nicht animiert, sondern gestellt: waagrecht
        auf den Bauch gelegt, Kopf voraus. Eine Sprunganimation sieht dabei falsch
@@ -3556,16 +4020,30 @@ function updateHUD(dt){
     $('shFill').style.width = clamp(me.shield,0,100) + '%';
     const W = WEAPONS[me.weapon];
     const n = $('ammoN');
-    n.textContent = me.reloading ? '–' : me.ammo[me.weapon];
-    n.classList.toggle('low', !me.reloading && me.ammo[me.weapon] <= W.mag*0.25);
-    $('ammoW').textContent = me.reloading
-      ? 'Nachladen'
-      : W.name + ' · ' + me.reserve[me.weapon] + ' Reserve';
+    if (!W){
+      n.textContent = '—'; n.classList.remove('low');
+      $('ammoW').textContent = 'Unbewaffnet · Fäuste';
+    } else {
+      n.textContent = me.reloading ? '–' : me.ammo[me.weapon];
+      n.classList.toggle('low', !me.reloading && me.ammo[me.weapon] <= W.mag*0.25);
+      $('ammoW').textContent = me.reloading
+        ? 'Nachladen'
+        : W.name + ' · ' + (me.reserve[me.weapon]||0) + ' Reserve';
+    }
     const rb = $('reloadBar');
-    rb.style.opacity = me.reloading ? 1 : 0;
-    if (me.reloading)
+    rb.style.opacity = me.reloading && W ? 1 : 0;
+    if (me.reloading && W)
       rb.firstElementChild.style.width =
         clamp((G.time - me.reloadStart)/W.reload*100, 0, 100) + '%';
+    // Plätze und Aufheben-Hinweis
+    for (const el of $('slots').children){
+      const i = +el.dataset.s, id = me.slots[i];
+      el.textContent = (i+1) + ' ' + (id ? WEAPONS[id].name : '—');
+      el.classList.toggle('on', me.slot === i && !!id);
+    }
+    const near = nearestLoot();
+    $('pickPrompt').classList.toggle('hidden', !near);
+    if (near) $('pickName').textContent = WEAPONS[near.id].name + ' aufnehmen';
   }
   if (me && me.alive){
     // Fadenkreuz öffnet sich genau so weit, wie die Waffe gerade streut
@@ -3779,6 +4257,7 @@ function onHostData(c, d){
     if (a && a.alive){
       a.position.set(d.x, d.y, d.z); a.yaw = d.yaw; a.pitch = d.pitch; a.crouch = !!d.cr;
       if (d.sh) a.lastShotAt = G.time;
+      if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
       a.netBuf.push({ t: performance.now(), p: a.position.clone(), yaw: a.yaw });
       if (a.netBuf.length > 8) a.netBuf.shift();
     }
@@ -3803,6 +4282,7 @@ function joinGame(codeStr, onOk, onErr){
 async function onClientData(d){
   if (d.t === 'lobby'){ G.lobby = d.list; refreshLobby(); }
   else if (d.t === 'start'){
+    if (d.map && MAP_SETS.some(m=>m.id === d.map)) mapSetId = d.map;   // Host gibt die Karte vor
     await startFromRoster(d.roster, d.spawns, d.myId);
   } else if (d.t === 'snap'){
     applySnapshot(d);
@@ -3825,7 +4305,7 @@ function snapshot(){
       i:a.id, x:+a.position.x.toFixed(2), y:+a.position.y.toFixed(2), z:+a.position.z.toFixed(2),
       w:+a.yaw.toFixed(3), p:+a.pitch.toFixed(3), h:Math.ceil(a.hp), s:Math.ceil(a.shield),
       l:a.alive?1:0, k:a.kills, f:(G.time - a.lastShotAt < 0.2)?1:0,
-      c:a.chuteOpen?1:0, dr:a.dropping?1:0
+      c:a.chuteOpen?1:0, dr:a.dropping?1:0, g:a.weapon || ''
     }))
   };
 }
@@ -3844,6 +4324,7 @@ function applySnapshot(s){
     if (!d.l && a.alive){ a.alive = false; if (a.view) a.view.play('die', { once:true }); }
     a.pitch = d.p;
     a.dropping = !!d.dr;
+    if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
     if (!!d.c !== !!a.chuteOpen) setActorChute(a, !!d.c);
     if (d.f){
       if (G.time - a.lastShotAt > 0.12) muzzleSpark(a);
@@ -3863,7 +4344,8 @@ function netTick(dt){
   else if (G.hostConn && G.me){
     send(G.hostConn, { t:'state', x:+G.me.position.x.toFixed(2), y:+G.me.position.y.toFixed(2),
       z:+G.me.position.z.toFixed(2), yaw:+G.me.yaw.toFixed(3), pitch:+G.me.pitch.toFixed(3),
-      cr:G.me.crouch, sh:(G.time - G.me.lastShotAt < 1/NET_HZ + 0.05) ? 1 : 0 });
+      cr:G.me.crouch, sh:(G.time - G.me.lastShotAt < 1/NET_HZ + 0.05) ? 1 : 0,
+      g:G.me.weapon || '' });
   }
 }
 
@@ -3888,6 +4370,7 @@ function loop(){
     if (G.physTimer >= 0.5){ G.physHz = G.physCount/G.physTimer; G.physCount = 0; G.physTimer = 0; }
 
     netTick(dt);
+    updateAds(dt);
     updateCamera();
     renderActors(dt);
     updatePickups(dt);
@@ -3906,7 +4389,9 @@ function loop(){
     return;
   }
   renderer.render(scene, camera);
-  if (G.phase === 'play' && viewWeapon && !(G.me && G.me.dropping)){
+  // Im Fernrohr wäre die Waffe im Weg — sie wird ausgeblendet
+  const scopedNow = G.me && G.me.ads && WEAPONS[G.me.weapon] && WEAPONS[G.me.weapon].scoped && adsT > 0.6;
+  if (G.phase === 'play' && viewWeapon && !(G.me && G.me.dropping) && !scopedNow){
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(vmScene, viewCam);
@@ -3990,6 +4475,25 @@ async function previewChar(name){
   inst.play('idle');
   $('pvInfo').textContent = Object.keys(inst.actions).length + ' Animationen verfügbar · Ego-Perspektive, eigener Körper bleibt ausgeblendet.';
 }
+function buildMapChips(){
+  const box = $('mapChips');
+  box.innerHTML = '';
+  for (const m of MAP_SETS){
+    const b = document.createElement('button');
+    b.className = 'mchip'; b.type = 'button';
+    b.setAttribute('aria-pressed', m.id === mapSetId ? 'true' : 'false');
+    b.innerHTML = '<b>' + esc(m.name) + '</b><small>' + esc(m.note) + '</small>';
+    b.onclick = ()=>{
+      mapSetId = m.id;
+      SETTINGS.map = m.id; saveSettings();
+      for (const el of box.children) el.setAttribute('aria-pressed','false');
+      b.setAttribute('aria-pressed','true');
+      if (AC) sfx.hover();
+    };
+    box.appendChild(b);
+  }
+}
+
 function buildCharGrid(){
   const g = $('grid');
   g.innerHTML = '';
@@ -4018,9 +4522,11 @@ async function beginMatch(){
   setLoad(2, 'Karten werden geladen');
   G.phase = 'loading';
   await weaponModel.load();
-  if (flow !== 'test'){ setLoad(4, 'Maschine wird betankt'); await loadDropAssets(); }
+  setLoad(3, 'Waffenkammer wird geöffnet');
+  await gunLib.load();
+  if (flow !== 'test'){ setLoad(5, 'Maschine wird betankt'); await loadDropAssets(); }
   await loadWorld(flow === 'test' ? 'test' : 'br');
-  attachViewmodel();
+  attachViewmodel(null);
 
   const roster = [{ id:'host', name:myName, char:chosenChar, kind:'local' }];
   if (flow === 'host'){
@@ -4037,11 +4543,12 @@ async function beginMatch(){
   G.spawnMgr = new SpawnManager(G.world, new CharacterController(G.world));
   const pts = flow === 'test'
     ? [new THREE.Vector3(0, 0.2, -2)]
-    : G.spawnMgr.scatter(roster.length, BR.islandRadius*0.7);
+    : G.spawnMgr.scatter(roster.length, mapSet().spawnR);
 
   await setupMatch(roster, pts.map(p=>[p.x,p.y,p.z]));
   if (flow === 'host' && G.isNet){
-    broadcast({ t:'start', roster: roster.map(r=>({ id:r.id, name:r.name, char:r.char, kind:'x' })),
+    broadcast({ t:'start', map: mapSetId,
+                roster: roster.map(r=>({ id:r.id, name:r.name, char:r.char, kind:'x' })),
                 spawns: pts.map(p=>[p.x,p.y,p.z]) });
   }
   setLoad(100, 'Los');
@@ -4062,7 +4569,7 @@ async function startFromRoster(roster, spawns, myId){
   G.phase = 'loading';
   await weaponModel.load();
   await loadWorld('br');
-  attachViewmodel();
+  attachViewmodel(null);
   const list = roster.map(r=>({
     id:r.id, name:r.name, char:r.char,
     kind: r.id === G.peer.id ? 'local' : (r.id.startsWith('bot') ? 'remote' : 'remote')
@@ -4183,6 +4690,8 @@ document.addEventListener('fullscreenchange', ()=>{
 loadSettings();
 syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
+if (SETTINGS.map && MAP_SETS.some(m=>m.id === SETTINGS.map)) mapSetId = SETTINGS.map;
+buildMapChips();
 buildCharGrid();
 initPreview();
 previewChar(chosenChar);
