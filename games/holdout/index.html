@@ -486,7 +486,7 @@ button:disabled{cursor:not-allowed}
     </div>
 
     <div class="lb-foot">
-      <span>WASD · Shift sprinten · C ducken · Leertaste · Linksklick schießen ·
+      <span>WASD laufen · C ducken · Leertaste springen · Linksklick schießen ·
         <b style="color:var(--amber)">E aufheben</b> · R nachladen · 1/2 Waffe ·
         F abspringen · Tab Punktestand · Esc Menü</span>
     </div>
@@ -656,7 +656,9 @@ const FIXED_DT = 1/60;
 const MAX_SUBSTEPS = 5;
 const GRAVITY = 24;
 const JUMP_SPEED = 7.6;
-const SPEED_WALK = 4.7, SPEED_SPRINT = 7.9, SPEED_AIR = 0.9, SPEED_CROUCH = 2.3;
+/* Kein Sprint. Alle Figuren laufen gleich schnell, geduckt langsamer. Das
+   hält die Bewegung ruhig und macht Entfernungen einschätzbar. */
+const SPEED_WALK = 4.7, SPEED_AIR = 0.9, SPEED_CROUCH = 2.3;
 const WORLD_MIN_Y = -80;          // darunter: zurück auf letzte sichere Position
 
 /* ---- Trefferzonen ----
@@ -802,7 +804,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 22';
+const BUILD = '2026-08-08 · 24';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -2963,6 +2965,7 @@ function updateDrop(dt){
     me.position.copy(d.pos);
     setActorChute(me, false);
     me.dropping = false;
+    attachViewmodel(me.weapon);          // Faust oder aufgehobene Waffe zeigen
     me.ctrl.position.copy(d.pos);
     me.ctrl.velocity.set(0,0,0);
     me.ctrl.lastSafe.copy(d.pos);
@@ -3166,7 +3169,7 @@ function currentSpread(a){
   if (!W) return 0.004;
   let sp = W.spreadBase + (a.bloom || 0);
   const v = a.ctrl ? Math.hypot(a.ctrl.velocity.x, a.ctrl.velocity.z) : 0;
-  sp += Math.min(1, v/SPEED_SPRINT) * W.moveSpread;
+  sp += Math.min(1, v/SPEED_WALK) * W.moveSpread;
   if (a.ctrl && !a.ctrl.grounded) sp += W.airSpread;
   if (a.crouch) sp *= W.crouchMul;
   if (a.ads) sp *= (W.adsMul || ADS.adsMul);
@@ -3325,6 +3328,7 @@ function melee(actor){
     if (h && h.t < best){ best = h.t; target = o; }
   }
   if (actor === G.me){
+    vmState.punchAt = G.time;
     sfx.hit();
     if (target){
       reportHit(actor, target, MELEE.dmg, false);
@@ -3441,7 +3445,7 @@ function botThink(bot, dt){
   if (distToCenter > s.r - 12){
     // zurück in die Zone, das hat Vorrang
     const a = Math.atan2(s.cz - bot.position.z, s.cx - bot.position.x);
-    wx = Math.cos(a); wz = Math.sin(a); speed = SPEED_SPRINT;
+    wx = Math.cos(a); wz = Math.sin(a);
     bot.yaw = Math.atan2(-wx, -wz);
   } else if (bot.target){
     const dx = bot.target.position.x - bot.position.x;
@@ -3450,7 +3454,7 @@ function botThink(bot, dt){
     bot.yaw = Math.atan2(-dx, -dz);
     bot.pitch = Math.atan2((bot.target.position.y + 1.2) - (bot.position.y + PLAYER.eyeHeight),
                            Math.max(0.5, d));
-    if (d > 16){ wx = dx/d; wz = dz/d; speed = SPEED_SPRINT; }
+    if (d > 16){ wx = dx/d; wz = dz/d; }
     else if (d < 7){ wx = -dx/d; wz = -dz/d; }
     else { wx = -dz/d*bot.strafe; wz = dx/d*bot.strafe; }
     if (G.time > bot.nextShot) fire(bot);
@@ -3533,7 +3537,7 @@ const sfx = {
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
-const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, fireEdge:false,
+const input = { mx:0, mz:0, jump:false, crouch:false, fire:false, fireEdge:false,
                 reload:false, dropAction:false, pickup:false, ads:false };
 let camYaw = 0, camPitch = 0, pointerLocked = false;
 
@@ -3608,7 +3612,6 @@ function readInput(){
   input.mz = (keys.KeyW||keys.ArrowUp ? 1:0) - (keys.KeyS||keys.ArrowDown ? 1:0);
   input.mx = (keys.KeyD||keys.ArrowRight ? 1:0) - (keys.KeyA||keys.ArrowLeft ? 1:0);
   input.jump = !!keys.Space;
-  input.sprint = !!(keys.ShiftLeft||keys.ShiftRight);
   input.crouch = !!(keys.KeyC || keys.KeyX);
   return input;
 }
@@ -3621,18 +3624,49 @@ vmScene.add(new THREE.HemisphereLight(0xffffff, 0x556066, 2.4));
 const vmKey = new THREE.DirectionalLight(0xffffff, 1.6); vmKey.position.set(1,2,2); vmScene.add(vmKey);
 const vmRoot = new THREE.Group(); vmScene.add(vmRoot);
 let viewWeapon = null;
-const vmState = { bob:0, recoil:0, recoilV:0, rl:0, flash:0, sway:new THREE.Vector2() };
-let muzzleFlash = null;
+const vmState = { bob:0, recoil:0, recoilV:0, rl:0, flash:0, punchAt:-9, sway:new THREE.Vector2() };
+let muzzleFlash = null, fistModel = null;
+
+/** Schlichte Faust für die Ego-Perspektive, wenn man nichts trägt. */
+function buildFist(){
+  const g = new THREE.Group();
+  const glove = new THREE.MeshStandardMaterial({ color:0x23282c, roughness:.9, metalness:0 });
+  const cuff  = new THREE.MeshStandardMaterial({ color:0x3b444a, roughness:.85 });
+  const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.24, 3, 10), glove);
+  arm.rotation.x = Math.PI*0.5; arm.position.set(0, -0.01, 0.16);
+  const fist = new THREE.Mesh(new THREE.BoxGeometry(0.128, 0.118, 0.140), glove);
+  fist.position.set(0, 0, -0.03);
+  const knuckles = new THREE.Mesh(new THREE.BoxGeometry(0.128, 0.030, 0.028), cuff);
+  knuckles.position.set(0, 0.046, -0.104);
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.112, 0.104, 0.030), cuff);
+  band.position.set(0, -0.005, 0.055);
+  g.add(arm, fist, knuckles, band);
+  g.traverse(m=>{ if (m.isMesh){ m.castShadow = false; m.frustumCulled = false; } });
+  return g;
+}
 
 function attachViewmodel(id){
   if (viewWeapon){ vmRoot.remove(viewWeapon); viewWeapon = null; }
-  if (!id){ if (muzzleFlash) muzzleFlash.visible = false; return; }
+  if (muzzleFlash) muzzleFlash.visible = false;
+  if (!id){
+    // Unbewaffnet: die Faust übernimmt den Platz der Waffe
+    viewWeapon = fistModel || (fistModel = buildFist());
+    viewWeapon.userData.isFist = true;
+    viewWeapon.userData.z0 = undefined;
+    viewWeapon.position.set(0.20, -0.235, -0.30);
+    viewWeapon.rotation.set(0.06, -0.18, 0);
+    vmRoot.add(viewWeapon);
+    return;
+  }
   viewWeapon = gunLib.spawn(id);
-  // Lange Waffen weiter nach vorn, damit der Schaft nicht ins Bild ragt
+  viewWeapon.userData.isFist = false;
+  /* Die Waffe wird so gesetzt, dass ihr hinteres Ende knapp hinter der Kamera
+     liegt — dann ragt der Schaft aus dem Bild und es sieht aus, als hielte man
+     sie, statt dass sie frei vor einem schwebt. */
   const W = WEAPONS[id];
-  const back = clamp(0.30 + (W ? W.len*0.16 : 0.06), 0.30, 0.52);
-  viewWeapon.position.set(0.17, -0.15, -back);
-  viewWeapon.rotation.set(0, 0, 0);           // Mündung zeigt bereits auf -Z
+  const z = clamp(0.06 - (W ? W.len : 0.5)/2, -0.42, -0.22);
+  viewWeapon.position.set(0.21, -0.19, z);
+  viewWeapon.rotation.set(0, -0.05, 0);       // Mündung zeigt bereits auf -Z
   vmRoot.add(viewWeapon);
 
   if (!muzzleFlash){
@@ -3658,6 +3692,20 @@ function updateViewmodel(dt, moving){
   if (!viewWeapon) return;
   vmState.bob += dt * (moving ? 9.5 : 1.6);
   const amp = moving ? 0.014 : 0.004;
+
+  // --- Faust: eigener Ablauf, kein Rückstoss, kein Nachladen ---
+  if (viewWeapon.userData.isFist){
+    const t = clamp((G.time - vmState.punchAt) / 0.30, 0, 1);
+    const thrust = Math.sin(Math.PI * t);          // vor und zurück
+    viewWeapon.position.set(
+      0.20 + Math.cos(vmState.bob)*amp - thrust*0.075,
+      -0.235 + Math.abs(Math.sin(vmState.bob))*amp*0.9 + thrust*0.085,
+      -0.30 - thrust*0.30
+    );
+    viewWeapon.rotation.set(0.06 - thrust*0.30, -0.18 + thrust*0.14, thrust*0.10);
+    if (muzzleFlash) muzzleFlash.visible = false;
+    return;
+  }
   vmState.recoilV = damp(vmState.recoilV, 0, 9, dt);
   vmState.recoil = damp(vmState.recoil, vmState.recoilV, 22, dt);
 
@@ -3693,10 +3741,11 @@ function updateViewmodel(dt, moving){
     vmState.flash = Math.max(0, vmState.flash - dt);
     muzzleFlash.visible = vmState.flash > 0 && rl < 0.35;
     if (muzzleFlash.visible){
+      const Wf = G.me ? WEAPONS[G.me.weapon] : null;
       muzzleFlash.position.set(
         viewWeapon.position.x + 0.015,
         viewWeapon.position.y + 0.038,
-        viewWeapon.position.z - (WEAPONS[G.me && G.me.weapon] ? WEAPONS[G.me.weapon].len*0.55 : 0.27));
+        viewWeapon.position.z - (Wf ? Wf.len*0.55 : 0.27));
       const k = vmState.flash / 0.05;
       muzzleFlash.scale.setScalar(0.75 + k*1.1 + Math.random()*0.25);
       muzzleFlash.rotation.z = Math.random()*6.28;
@@ -3906,7 +3955,7 @@ function simulate(dt){
   if (me && me.alive && me.ctrl && !me.dropping){
     const inp = readInput();
     me.crouch = inp.crouch;
-    let sp = inp.crouch ? SPEED_CROUCH : (inp.sprint && inp.mz > 0 ? SPEED_SPRINT : SPEED_WALK);
+    let sp = inp.crouch ? SPEED_CROUCH : SPEED_WALK;
     if (me.ads) sp *= ADS.moveMul;              // im Anschlag geht man langsamer
     /* Die Kamera blickt entlang ihrer lokalen -Z. Vorwaerts ist damit
        (-sin yaw, 0, -cos yaw), rechts ist (cos yaw, 0, -sin yaw). */
@@ -3924,7 +3973,10 @@ function simulate(dt){
     me.position.copy(me.ctrl.position);
     // Halbautomatische Waffen brauchen je Schuss einen neuen Klick
     if (input.fire){
-      if (WEAPONS[me.weapon].auto || input.fireEdge){ fire(me); input.fireEdge = false; }
+      // Ohne Waffe gibt es kein W — vorher stand hier WEAPONS[me.weapon].auto
+      // und das warf beim Boxen eine Ausnahme mitten im Physikschritt.
+      const Wc = WEAPONS[me.weapon];
+      if (!Wc || Wc.auto || input.fireEdge){ fire(me); input.fireEdge = false; }
     }
     if (input.reload){ reload(me); input.reload = false; }
     if (input.pickup){ tryPickUp(); input.pickup = false; }
@@ -4030,8 +4082,8 @@ function renderActors(dt){
       if (a.reloading) a.view.play('reload', { fade:0.12 });
       else if (G.time - a.lastShotAt < 0.22) a.view.play('shoot', { once:true, fade:0.05 });
       else if (airborne) a.view.play('jump', { fade:0.1 });
-      else if (speed > 6.2) a.view.play('run', { speed: clamp(speed/6.5, 0.8, 1.5) });
-      else if (speed > 0.5) a.view.play('walk', { speed: clamp(speed/3.2, 0.7, 1.6) });
+      else if (speed > 3.2) a.view.play('run',  { speed: clamp(speed/4.7, 0.8, 1.35) });
+      else if (speed > 0.4) a.view.play('walk', { speed: clamp(speed/2.3, 0.7, 1.5) });
       else a.view.play('idle');
     }
     a.view.update(dt);
@@ -4407,7 +4459,13 @@ function loop(){
     G.accumulator += dt;
     let steps = 0;
     while (G.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS){
-      simulate(FIXED_DT);
+      /* Auffangnetz: ein Fehler in der Simulation würde sonst auch Kamera und
+         Bild überspringen — das Bild bliebe stehen und niemand wüsste warum.
+         Gemeldet wird trotzdem, aber nur einmal. */
+      try { simulate(FIXED_DT); }
+      catch(err){
+        if (!loop._warned){ loop._warned = true; console.error('Fehler im Physikschritt:', err); }
+      }
       G.accumulator -= FIXED_DT;
       steps++; G.physCount++;
     }
