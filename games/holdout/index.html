@@ -20,7 +20,10 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden;background:var(--deep);color:var(--bone);
-  font-family:'IBM Plex Mono',ui-monospace,monospace;-webkit-font-smoothing:antialiased}
+  font-family:'IBM Plex Mono',ui-monospace,monospace;-webkit-font-smoothing:antialiased;
+  /* Sonst markiert Strg+A oder ein Doppelklick die halbe Oberfläche */
+  user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+input{user-select:text;-webkit-user-select:text}
 #cv{display:block;position:fixed;inset:0}
 #mmCv,#previewCv{display:block;position:absolute;inset:0;width:100%;height:100%}
 button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
@@ -43,26 +46,92 @@ input:focus{outline:none;border-color:var(--amber)}
 
 /* ---------- Overlay-Rahmen ---------- */
 #screens{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:40}
+#screens.scrim{background:rgba(6,12,15,.78)}
 .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px}
-#bgfx{position:fixed;inset:0;z-index:-1;
-  background:
-    radial-gradient(1100px 620px at 70% 12%,rgba(255,176,32,.10),transparent 62%),
-    radial-gradient(900px 700px at 12% 88%,rgba(123,92,255,.12),transparent 60%),
-    var(--deep);}
-#bgfx:after{content:'';position:absolute;inset:0;opacity:.35;
-  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
-  background-size:64px 64px;mask-image:radial-gradient(circle at 50% 45%,#000 10%,transparent 78%)}
 
-/* ---------- Startbildschirm ---------- */
-#menu .wrap{width:min(980px,100%);display:grid;gap:28px}
-.title{font-size:clamp(44px,9vw,104px);font-weight:700;line-height:.88;text-transform:uppercase}
-.title span{color:var(--amber)}
+
+/* ---------- Lobby ----------
+   Die 3D-Szene trägt das Bild. Die Oberfläche hält sich links an der Kante
+   und lässt die Figur rechts frei stehen. */
 .sub{max-width:52ch;color:var(--dim);font-size:14px;line-height:1.7}
-.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .card{padding:18px;border:1px solid var(--line);background:rgba(255,255,255,.015)}
 .card h3{font-size:15px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
 .card p{font-size:12px;color:var(--dim);line-height:1.6}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+#menu.lobby{display:block;padding:0;background:none;pointer-events:none}
+#menu.lobby button,#menu.lobby input{pointer-events:auto}
+
+.lb-top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+  align-items:center;padding:22px clamp(22px,3vw,42px)}
+.lb-id{display:flex;align-items:center;gap:12px}
+.lb-id input{width:150px;padding:7px 10px;font-size:13px;letter-spacing:.14em;
+  background:rgba(8,14,16,.6);border-color:rgba(37,57,61,.9)}
+.gear{width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);
+  background:rgba(8,14,16,.6);transition:.16s}
+.gear svg{width:19px;height:19px;fill:none;stroke:var(--bone);stroke-width:1.5;opacity:.8}
+.gear:hover{border-color:var(--amber)}
+.gear:hover svg{stroke:var(--amber);opacity:1}
+
+.lb-panel{position:absolute;left:clamp(26px,6vw,110px);top:50%;transform:translateY(-50%);
+  width:min(430px,52vw);display:grid;gap:0}
+.wordmark{font-family:'Chakra Petch',sans-serif;font-weight:700;
+  font-size:clamp(56px,7.2vw,104px);line-height:.86;letter-spacing:-.022em;
+  margin-top:10px;color:var(--bone);
+  text-shadow:0 0 44px rgba(255,176,32,.28), 0 6px 30px rgba(0,0,0,.7)}
+.wm-rule{height:2px;background:rgba(232,227,214,.14);margin:16px 0 18px;position:relative;overflow:hidden}
+/* Der Balken läuft von aussen nach innen zusammen — dieselbe Bewegung wie die
+   Zone im Spiel. Ein Element, das etwas Wahres über das Spiel erzählt. */
+.wm-rule i{position:absolute;top:0;bottom:0;background:var(--amber);
+  animation:wmclose 7s cubic-bezier(.5,0,.5,1) infinite}
+@keyframes wmclose{
+  0%{left:0;right:0;opacity:.95}
+  72%{left:42%;right:42%;opacity:.95}
+  86%{left:47%;right:47%;opacity:.35}
+  100%{left:0;right:0;opacity:0}}
+.lb-line{color:var(--dim);font-size:13.5px;line-height:1.75;max-width:38ch;margin-bottom:30px}
+
+.play{position:relative;display:grid;grid-template-columns:1fr auto;align-items:center;
+  gap:4px 18px;width:100%;max-width:360px;padding:19px 22px;text-align:left;
+  background:var(--amber);color:#0A1214;border:2px solid var(--amber);
+  transition:transform .16s cubic-bezier(.3,1.4,.5,1), box-shadow .16s, background .16s;
+  box-shadow:0 12px 34px rgba(255,176,32,.22)}
+.pl-main{grid-column:1;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:25px;
+  letter-spacing:.1em;text-transform:uppercase;line-height:1}
+.pl-sub{grid-column:1;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  opacity:.62;margin-top:5px}
+.pl-arrow{grid-column:2;grid-row:1/3;font-size:26px;line-height:1;transition:transform .18s}
+.play:hover,.play:focus-visible{transform:translateY(-3px);background:#ffc24d;
+  box-shadow:0 18px 44px rgba(255,176,32,.36), 0 0 0 6px rgba(255,176,32,.12)}
+.play:hover .pl-arrow{transform:translateX(6px)}
+.play:active{transform:translateY(-1px)}
+
+.lb-alt{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:22px}
+.lb-alt button{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);
+  transition:.14s;padding:3px 0;border-bottom:1px solid transparent}
+.lb-alt button:hover{color:var(--amber);border-bottom-color:var(--amber)}
+.lb-alt i{width:3px;height:3px;background:var(--line);border-radius:50%}
+
+.lb-load{margin-top:26px;opacity:0;transition:opacity .2s;pointer-events:none}
+.lb-load.on{opacity:1}
+.lb-foot{position:absolute;left:clamp(26px,6vw,110px);bottom:22px;display:flex;gap:14px;
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#4d5b5f}
+
+/* Wegblenden beim Start */
+#menu.go .lb-panel,#menu.go .lb-top,#menu.go .lb-foot{
+  opacity:0;transform:translateY(-50%) translateX(-26px);transition:opacity .26s, transform .26s}
+#menu.go .lb-top,#menu.go .lb-foot{transform:translateX(-26px)}
+
+@media (max-width:1080px){
+  .lb-panel{width:min(430px,86vw)}
+  .lb-line{max-width:32ch}
+}
+@media (max-height:760px){
+  .wordmark{font-size:clamp(46px,5.6vw,74px)}
+  .lb-line{margin-bottom:22px;font-size:12.5px}
+  .play{padding:15px 20px}
+  .pl-main{font-size:21px}
+}
 
 /* ---------- Ladebalken ---------- */
 #bar{height:3px;background:var(--line);width:100%;overflow:hidden}
@@ -120,6 +189,12 @@ input:focus{outline:none;border-color:var(--amber)}
 #feed{position:absolute;right:26px;top:78px;width:300px;text-align:right;font-size:11.5px;line-height:1.9}
 #feed div{opacity:.9}
 #feed b{color:var(--amber);font-weight:600}
+#dropHud{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);text-align:center;
+  pointer-events:none}
+#dropAlt{font-family:'Chakra Petch',sans-serif;font-size:44px;font-weight:700;line-height:1;
+  color:var(--bone);text-shadow:0 2px 18px rgba(0,0,0,.85)}
+#dropHint{margin-top:8px;color:var(--amber)}
+#cross,#ammo{transition:opacity .25s}
 #toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);font-size:12.5px;
   letter-spacing:.1em;color:var(--amber);text-transform:uppercase}
 #dmgFlash{position:absolute;inset:0;box-shadow:inset 0 0 190px rgba(255,77,61,.85);opacity:0;transition:opacity .28s}
@@ -148,6 +223,19 @@ input:focus{outline:none;border-color:var(--amber)}
   background:rgba(6,12,13,.9);border:1px solid var(--line);padding:12px 14px;white-space:pre;
   max-height:92vh;overflow:auto;pointer-events:none}
 #dbg b{color:var(--amber);font-weight:600}
+
+/* ---------- Pausenmenü ---------- */
+#pause{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(6,12,13,.72)}
+#pause .pbox{width:min(470px,100%);padding:28px 30px;display:grid;gap:20px}
+.pgroup{display:grid;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.prow{display:grid;grid-template-columns:1fr 150px 54px;align-items:center;gap:12px;font-size:13px}
+.prow b{font-family:'Chakra Petch',sans-serif;font-weight:700;color:var(--amber);
+  text-align:right;font-size:13px}
+.prow input[type=range]{width:100%;accent-color:var(--amber);background:transparent;cursor:pointer}
+.prow input[type=checkbox]{width:20px;height:20px;accent-color:var(--amber);cursor:pointer;
+  justify-self:start}
+.prow label{cursor:pointer}
 
 /* ---------- Punktestand ---------- */
 #board{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
@@ -179,7 +267,6 @@ input:focus{outline:none;border-color:var(--amber)}
 </style>
 </head>
 <body>
-<div id="bgfx"></div>
 <canvas id="cv"></canvas>
 
 <!-- ================= HUD ================= -->
@@ -197,6 +284,10 @@ input:focus{outline:none;border-color:var(--amber)}
   </div>
   <div id="ammo"><div id="ammoN">30</div><div id="ammoW">SMG · 90 Reserve</div>
     <div id="reloadBar"><i></i></div></div>
+  <div id="dropHud" class="hidden">
+    <div id="dropAlt">—</div>
+    <div id="dropHint" class="eyebrow">F drücken zum Abspringen</div>
+  </div>
   <div id="toast"></div>
   <div id="dmgFlash"></div>
   <div id="stormVig"></div>
@@ -218,35 +309,93 @@ input:focus{outline:none;border-color:var(--amber)}
   </div>
 </div>
 
+<!-- ================= Pause / Einstellungen ================= -->
+<div id="pause" class="hidden">
+  <div class="panel pbox">
+    <div class="row" style="justify-content:space-between;align-items:baseline">
+      <div><div class="eyebrow">Pause</div><h2 style="font-size:26px">Einstellungen</h2></div>
+      <div id="pauseState" class="eyebrow"></div>
+    </div>
+
+    <div class="pgroup">
+      <div class="eyebrow">Ton</div>
+      <div class="prow"><label for="setVol">Lautstärke</label>
+        <input id="setVol" type="range" min="0" max="100" step="1"><b id="setVolV">70</b></div>
+      <div class="prow"><label for="setMute">Stumm</label>
+        <input id="setMute" type="checkbox"><b></b></div>
+    </div>
+
+    <div class="pgroup">
+      <div class="eyebrow">Bild</div>
+      <div class="prow"><label for="setFull">Vollbild</label>
+        <input id="setFull" type="checkbox"><b></b></div>
+    </div>
+
+    <div class="pgroup">
+      <div class="eyebrow">Maus</div>
+      <div class="prow"><label for="setSens">Empfindlichkeit</label>
+        <input id="setSens" type="range" min="20" max="300" step="5"><b id="setSensV">1.00</b></div>
+      <div class="prow"><label for="setInv">Y-Achse umkehren</label>
+        <input id="setInv" type="checkbox"><b></b></div>
+    </div>
+
+    <div class="row" style="margin-top:4px">
+      <button class="btn primary" id="btResume">Weiter</button>
+      <button class="btn" id="btQuit">Runde verlassen</button>
+    </div>
+    <p class="sub" style="font-size:11px;margin-top:2px">Esc öffnet und schließt dieses Menü.</p>
+  </div>
+</div>
+
 <!-- ================= Screens ================= -->
 <div id="screens">
 
-  <!-- Start -->
-  <section class="screen" id="menu">
-    <div class="wrap">
-      <div>
-        <div class="eyebrow">Browser Battle Royale · WebRTC · Three.js</div>
-        <h1 class="title">Hold<span>·</span>Out</h1>
+  <!-- Lobby -->
+  <section class="screen lobby" id="menu">
+
+    <div class="lb-top">
+      <div class="lb-id">
+        <span class="eyebrow">Name</span>
+        <input id="nameIn" maxlength="14" value="PLAYER" spellcheck="false">
       </div>
-      <p class="sub">Vier zusammengetriebene Landstriche, ein schrumpfender Sturm, 52 Figuren zur Wahl.
-        Auf der Karte erscheint nur, wer schießt. Wer still bleibt, bleibt unsichtbar.</p>
-      <div class="cols">
-        <button class="card btn" id="btSolo" style="text-align:left;text-transform:none;letter-spacing:0">
-          <h3>Alleine starten</h3><p>Sofort auf die Insel, Bots füllen auf.</p></button>
-        <button class="card btn" id="btHost" style="text-align:left;text-transform:none;letter-spacing:0">
-          <h3>Runde hosten</h3><p>Code erzeugen, Freunde treten bei.</p></button>
-        <button class="card btn" id="btJoinS" style="text-align:left;text-transform:none;letter-spacing:0">
-          <h3>Beitreten</h3><p>Vierstelligen Code eingeben.</p></button>
-        <button class="card btn" id="btTest" style="text-align:left;text-transform:none;letter-spacing:0">
-          <h3>Testkammer</h3><p>Wand, Tür, Treppe, Rampe, Engstelle — alle Kollisionsfälle.</p></button>
-      </div>
-      <div>
+      <button class="gear" id="btGear" aria-label="Einstellungen">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+          <path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.4-2.3 1a7.6 7.6 0 0 0-1.7-1L14.9 3h-3.8l-.5 2.5a7.6 7.6 0 0 0-1.7 1l-2.3-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.4 2.3-1c.5.4 1.1.8 1.7 1l.5 2.6h3.8l.5-2.5c.6-.3 1.2-.6 1.7-1l2.3 1 2-3.4z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="lb-panel">
+      <div class="eyebrow">Battle Royale · bis 12 Figuren · nichts zu installieren</div>
+      <h1 class="wordmark">HOLDOUT</h1>
+      <div class="wm-rule"><i></i></div>
+      <p class="lb-line">Vier zusammengetriebene Landstriche. Ein Sturm, der sich zuzieht.
+        F springt aus der Maschine und öffnet den Schirm.
+        Auf der Karte erscheint nur, wer schießt.</p>
+
+      <button class="play" id="btPlay">
+        <span class="pl-main">Spielen</span>
+        <span class="pl-sub">Solo · Bots füllen auf</span>
+        <span class="pl-arrow" aria-hidden="true">▸</span>
+      </button>
+
+      <nav class="lb-alt">
+        <button id="btHost">Runde hosten</button><i></i>
+        <button id="btJoinS">Beitreten</button><i></i>
+        <button id="btChar">Figur wechseln</button><i></i>
+        <button id="btTest">Testkammer</button>
+      </nav>
+
+      <div class="lb-load" id="lbLoad">
         <div id="bar"><i></i></div>
-        <div id="loadTxt">Bereit.</div>
+        <div id="loadTxt"></div>
       </div>
-      <p class="sub" style="font-size:11.5px">WASD laufen · Shift sprinten · Strg ducken · Leertaste springen ·
-        Linksklick schießen · R nachladen · <b style="color:var(--amber)">Tab Punktestand</b> ·
-        <span id="buildTag" style="color:var(--dim)"></span></p>
+    </div>
+
+    <div class="lb-foot">
+      <span id="lbChar">—</span>
+      <span id="buildTag"></span>
     </div>
   </section>
 
@@ -277,8 +426,7 @@ input:focus{outline:none;border-color:var(--amber)}
     <div class="wrap">
       <div class="row" style="justify-content:space-between">
         <div><div class="eyebrow">Schritt 2 von 2</div><h2 style="font-size:26px">Figur wählen</h2></div>
-        <div class="row"><input id="nameIn" maxlength="14" placeholder="Name" style="width:170px">
-          <button class="btn primary" id="btGo">Abspringen</button></div>
+        <div class="row"><button class="btn primary" id="btGo">Übernehmen</button></div>
       </div>
       <div id="pickBody">
         <div id="grid"></div>
@@ -345,6 +493,26 @@ const MAP_MANIFEST = [
 ];
 
 const WEAPON_FILE = 'sub_machine_gun.glb';
+const PLANE_FILE  = 'cougar_airplane.glb';
+const CHUTE_FILE  = 'parachute_simple.glb';
+
+/* Absprung wie im Vorbild: die Maschine überfliegt die Insel, man springt mit
+   F ab, gleitet im Sturzflug, öffnet mit F den Schirm und landet.
+   Höhen in Metern, Geschwindigkeiten in m/s. */
+const DROP = {
+  altitude:      380,   // Flughöhe über dem Meeresspiegel
+  planeSpeed:     76,   // Reisegeschwindigkeit
+  pathHalf:      460,   // halbe Länge der Flugbahn
+  planeSpan:      46,   // Zielgrösse des Modells (Länge bzw. Spannweite)
+  freefallMax:    62,   // Endgeschwindigkeit im Sturz
+  freefallSteer:  36,   // waagrechte Höchstgeschwindigkeit im Sturz
+  chuteFall:     8.5,   // Sinkgeschwindigkeit am Schirm
+  chuteSteer:     15,   // waagrechte Höchstgeschwindigkeit am Schirm
+  autoChuteAGL:   75,   // darunter öffnet der Schirm von selbst
+  landAGL:      0.35,   // darunter gilt man als gelandet
+  botFall:        26    // mittlere Sinkrate der Bots, damit sie mit einem
+                        // Spieler ungefähr gleichzeitig unten sind
+};
 
 const CHARACTERS = [
  'Soldier_Male','Soldier_Female','BlueSoldier_Male','BlueSoldier_Female','Ninja_Male','Ninja_Female',
@@ -436,11 +604,27 @@ const WEAPONS = {
 };
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 8';
+const BUILD = '2026-08-08 · 12';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
 const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
+
+/* Einstellungen aus dem Pausenmenü. Werden gespeichert, wenn der Browser es
+   zulässt — in abgeschotteten Vorschauen wirft localStorage, das darf das
+   Spiel nicht umbringen. */
+const BASE_SENS = 0.0022;
+const SETTINGS = { volume:0.7, muted:false, sens:1.0, invertY:false };
+let pauseOpen = false, suppressPause = false;
+function loadSettings(){
+  try {
+    const j = localStorage.getItem('holdout.settings');
+    if (j) Object.assign(SETTINGS, JSON.parse(j));
+  } catch(e){}
+}
+function saveSettings(){
+  try { localStorage.setItem('holdout.settings', JSON.stringify(SETTINGS)); } catch(e){}
+}
 
 /* Kurzhelfer */
 const $ = id => document.getElementById(id);
@@ -1830,6 +2014,7 @@ addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   viewCam.aspect = camera.aspect; viewCam.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  layoutLobby();
 });
 
 const gltfLoader = new GLTFLoader();
@@ -1838,10 +2023,189 @@ const weaponModel = new WeaponModel(gltfLoader);
 const mapLoader = new GLBMapLoader(gltfLoader);
 
 /* ==========================================================================
+   12b — LOBBY-SZENE
+   Eine eigene, kleine Szene: Plattform, Ring aus Strukturen, Nebel, Staub.
+   Rund zwanzig Meshes und ein Partikelobjekt — sie kostet fast nichts und
+   läuft nur, solange man im Menü steht.
+   ========================================================================== */
+const LOBBY = { scene:null, cam:null, char:null, mixer:null, dust:null,
+                zone:null, ring:null, t:0, target:new THREE.Vector3() };
+
+function buildLobbyScene(){
+  if (LOBBY.scene) return;
+  const sc = new THREE.Scene();
+  sc.background = new THREE.Color(0x060d10);
+  sc.fog = new THREE.FogExp2(0x060d10, 0.030);
+
+  const cam = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 300);
+
+  // --- Plattform ---
+  const deck = new THREE.Mesh(
+    new THREE.CylinderGeometry(4.0, 4.35, 0.42, 56),
+    new THREE.MeshStandardMaterial({ color:0x1b262a, roughness:.85, metalness:.15 }));
+  deck.position.y = -0.21;
+  sc.add(deck);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(4.02, 0.028, 6, 120),
+    new THREE.MeshBasicMaterial({ color:0xffb020 }));
+  rim.rotation.x = Math.PI/2; rim.position.y = 0.012;
+  sc.add(rim);
+  for (const r of [2.5, 3.3]){
+    const t = new THREE.Mesh(new THREE.TorusGeometry(r, 0.012, 4, 96),
+      new THREE.MeshBasicMaterial({ color:0x2f4a52, transparent:true, opacity:.55 }));
+    t.rotation.x = Math.PI/2; t.position.y = 0.006; sc.add(t);
+  }
+
+  // --- Zone, die sich zuzieht: dasselbe Motiv wie im Spiel ---
+  const zone = new THREE.Mesh(new THREE.TorusGeometry(1, 0.02, 4, 96),
+    new THREE.MeshBasicMaterial({ color:0x7b5cff, transparent:true, opacity:.8 }));
+  zone.rotation.x = Math.PI/2; zone.position.y = 0.03;
+  sc.add(zone); LOBBY.zone = zone;
+
+  // --- Boden weit draussen: nur Linien, der Nebel schluckt den Rand ---
+  const grid = new THREE.GridHelper(150, 44, 0x1d3238, 0x142428);
+  grid.position.y = -0.44;
+  grid.material.transparent = true; grid.material.opacity = .5;
+  sc.add(grid);
+
+  // --- Strukturen im Hintergrund ---
+  const ring = new THREE.Group();
+  const dark = new THREE.MeshStandardMaterial({ color:0x101a1e, roughness:.95, metalness:.05 });
+  const glowA = new THREE.MeshBasicMaterial({ color:0xffb020 });
+  const glowV = new THREE.MeshBasicMaterial({ color:0x7b5cff });
+  let seed = 7;
+  const rand = ()=> (seed = (seed*16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 17; i++){
+    const a = i/17 * Math.PI*2 + rand()*0.16;
+    const dist = 20 + rand()*22;
+    const h = 7 + rand()*26;
+    const w = 3 + rand()*6;
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w*(0.6+rand()*0.8)), dark);
+    b.position.set(Math.cos(a)*dist, h/2 - 1.2, Math.sin(a)*dist);
+    b.rotation.y = rand()*1.2;
+    ring.add(b);
+    // ein paar Fensterbänder
+    if (rand() > 0.45){
+      const n = 1 + Math.floor(rand()*3);
+      for (let k = 0; k < n; k++){
+        const st = new THREE.Mesh(new THREE.PlaneGeometry(w*0.62, 0.12),
+          rand() > 0.72 ? glowV : glowA);
+        st.position.set(0, -h/2 + h*(0.25 + rand()*0.6), b.geometry.parameters.depth/2 + 0.02);
+        st.material = st.material;
+        b.add(st);
+      }
+    }
+  }
+  sc.add(ring); LOBBY.ring = ring;
+
+  // --- entfernte Lichter ---
+  const lp = new Float32Array(90);
+  for (let i = 0; i < 30; i++){
+    const a = rand()*Math.PI*2, d = 34 + rand()*46;
+    lp[i*3] = Math.cos(a)*d; lp[i*3+1] = 2 + rand()*30; lp[i*3+2] = Math.sin(a)*d;
+  }
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.BufferAttribute(lp, 3));
+  sc.add(new THREE.Points(lg, new THREE.PointsMaterial({
+    color:0x8fd0e0, size:0.4, sizeAttenuation:true, transparent:true, opacity:.55 })));
+
+  // --- Staub, der langsam aufsteigt ---
+  const N = 220;
+  const dp = new Float32Array(N*3);
+  for (let i = 0; i < N; i++){
+    const a = Math.random()*Math.PI*2, d = Math.random()*11;
+    dp[i*3] = Math.cos(a)*d; dp[i*3+1] = Math.random()*9 - 0.4; dp[i*3+2] = Math.sin(a)*d;
+  }
+  const dg = new THREE.BufferGeometry();
+  dg.setAttribute('position', new THREE.BufferAttribute(dp, 3));
+  const dust = new THREE.Points(dg, new THREE.PointsMaterial({
+    color:0xcfe4ea, size:0.045, sizeAttenuation:true, transparent:true, opacity:.5, depthWrite:false }));
+  sc.add(dust); LOBBY.dust = dust;
+
+  // --- Licht: warme Front, kalter Rand, alles gedämpft ---
+  sc.add(new THREE.HemisphereLight(0x2b4b58, 0x070d10, 0.55));
+  const key = new THREE.DirectionalLight(0xffd9a0, 2.3);
+  key.position.set(3.5, 4.4, 5.2); sc.add(key);
+  const rimL = new THREE.DirectionalLight(0x8f7bff, 1.9);
+  rimL.position.set(-4.5, 2.6, -4.2); sc.add(rimL);
+  const fill = new THREE.PointLight(0xffb020, 12, 14, 2);
+  fill.position.set(0, 0.35, 2.6); sc.add(fill);
+
+  LOBBY.scene = sc; LOBBY.cam = cam;
+  layoutLobby();
+}
+
+/** Kamera je nach Fensterform setzen: bei breiten Bildschirmen steht die
+    Figur rechts neben der Oberfläche, bei schmalen rückt sie in die Mitte. */
+function layoutLobby(){
+  if (!LOBBY.cam) return;
+  const cam = LOBBY.cam;
+  cam.aspect = innerWidth/innerHeight;
+  const wide = innerWidth / innerHeight > 1.45 && innerWidth > 1000;
+  const shift = wide ? -2.15 : -0.15;
+  cam.position.set(shift, 2.15, 8.3);
+  LOBBY.target.set(wide ? 0.45 : 0.0, 1.02, 0);
+  cam.lookAt(LOBBY.target);
+  cam.updateProjectionMatrix();
+}
+
+/** Figur der Lobby austauschen. */
+async function setLobbyCharacter(name){
+  buildLobbyScene();
+  const inst = await charFactory.instance(name);
+  if (LOBBY.char) LOBBY.scene.remove(LOBBY.char.obj);
+  LOBBY.char = inst;
+  inst.obj.position.set(0, 0, 0);
+  inst.obj.rotation.y = Math.PI + 0.28;
+  LOBBY.scene.add(inst.obj);
+  inst.play('idle');
+  if (weaponModel.template && inst.hand){
+    const w = weaponModel.spawn();
+    w.position.set(0.02, 0.02, 0.06);
+    w.rotation.set(Math.PI*0.5, 0, Math.PI*0.5);
+    inst.hand.add(w);
+  }
+  $('lbChar').textContent = name.replace(/_/g,' ');
+}
+
+function updateLobbyScene(dt){
+  if (!LOBBY.scene) return;
+  LOBBY.t += dt;
+  const t = LOBBY.t;
+  // Kamera atmet, sonst wirkt das Bild wie ein Standbild
+  const wide = innerWidth / innerHeight > 1.45 && innerWidth > 1000;
+  const base = wide ? -2.15 : -0.15;
+  LOBBY.cam.position.set(base + Math.sin(t*0.16)*0.28, 2.15 + Math.sin(t*0.23)*0.12, 8.3);
+  LOBBY.cam.lookAt(LOBBY.target);
+  if (LOBBY.ring) LOBBY.ring.rotation.y = t*0.008;
+  if (LOBBY.char){
+    LOBBY.char.obj.rotation.y = Math.PI + 0.28 + Math.sin(t*0.19)*0.16;
+    LOBBY.char.update(dt);
+  }
+  if (LOBBY.dust){
+    const p = LOBBY.dust.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++){
+      let y = p.getY(i) + dt*(0.16 + (i%7)*0.02);
+      if (y > 9) y = -0.4;
+      p.setY(i, y);
+    }
+    p.needsUpdate = true;
+    LOBBY.dust.rotation.y = t*0.012;
+  }
+  if (LOBBY.zone){
+    // 7 Sekunden Zusammenziehen, dann von vorn — wie eine Zonenphase
+    const k = (t % 7) / 7;
+    const r = lerp(3.75, 0.85, k*k*(3-2*k));
+    LOBBY.zone.scale.set(r, r, 1);
+    LOBBY.zone.material.opacity = 0.8 * (1 - k*k*k);
+  }
+}
+
+/* ==========================================================================
    13 — SPIELZUSTAND
    ========================================================================== */
 const G = {
   phase: 'menu',                 // menu | loading | play | over
+  paused: false,
   mode: 'br',                    // br | test
   world: null,                   // CollisionWorld
   mapGroup: null,
@@ -1857,6 +2221,7 @@ const G = {
   peer: null, conns: [], hostConn: null, code: '',
   lobby: [],
   accumulator: 0,
+  drop: null,
   physHz: 0, physCount: 0, physTimer: 0,
   killfeed: []
 };
@@ -1953,6 +2318,7 @@ function updateDebugHelpers(){
    15 — WELT LADEN
    ========================================================================== */
 function setLoad(pct, txt){
+  $('lbLoad').classList.toggle('on', pct > 0 && pct < 100);
   $('bar').firstElementChild.style.width = clamp(pct,0,100) + '%';
   if (txt) $('loadTxt').textContent = txt;
 }
@@ -1983,6 +2349,7 @@ async function loadWorld(mode){
 }
 
 function clearWorld(){
+  if (G.drop){ endDropPhase(); G.drop = null; }
   if (G.mapGroup){ scene.remove(G.mapGroup); disposeTree(G.mapGroup); G.mapGroup = null; }
   if (G.world && G.world.debugMesh){ scene.remove(G.world.debugMesh); }
   for (const a of G.actors) if (a.view) scene.remove(a.view.obj);
@@ -2070,6 +2437,248 @@ function updateStorm(dt){
 function outsideStorm(a){
   const s = G.storm;
   return Math.hypot(a.position.x - s.cx, a.position.z - s.cz) > s.r;
+}
+
+/* ==========================================================================
+   16b — ABSPRUNG
+   Eigene Integration statt CharacterController: in der Luft gibt es nichts
+   abzugleiten, und die Kapsel würde bei 60 m/s nur Rechenzeit kosten. Beim
+   Aufsetzen wird die Position an den Controller übergeben.
+   ========================================================================== */
+const dropAssets = { plane:null, chute:null };
+
+async function loadDropAssets(){
+  if (dropAssets.plane !== null) return;
+  try {
+    const g = await gltfLoader.loadAsync(ASSETS.props + PLANE_FILE);
+    const inner = g.scene;
+    /* Das Modell ist Z-oben, die Nase zeigt nach +X. Erst kippen, dann drehen,
+       damit die Nase auf -Z liegt — der Richtung, in die lookAt() zeigt. */
+    inner.rotation.x = -Math.PI/2;
+    const mid = new THREE.Group(); mid.add(inner);
+    mid.rotation.y = Math.PI/2;
+    mid.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(mid);
+    const size = bb.getSize(new THREE.Vector3());
+    const ctr  = bb.getCenter(new THREE.Vector3());
+    const shift = new THREE.Group(); shift.add(mid); shift.position.copy(ctr).negate();
+    const holder = new THREE.Group(); holder.add(shift);
+    holder.scale.setScalar(DROP.planeSpan / Math.max(size.x, size.z));
+    holder.traverse(m=>{
+      if (!m.isMesh) return;
+      // 128 000 Dreiecke — Schatten wären hier reine Verschwendung
+      m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false;
+      const mats = Array.isArray(m.material)?m.material:[m.material];
+      mats.forEach(mm=>{ if (mm && mm.map) mm.map.colorSpace = THREE.SRGBColorSpace; });
+    });
+    dropAssets.plane = holder;
+  } catch(e){ console.warn('Flugzeugmodell fehlt', e); dropAssets.plane = false; }
+
+  try {
+    const g = await gltfLoader.loadAsync(ASSETS.props + CHUTE_FILE);
+    const root = g.scene;
+    root.updateMatrixWorld(true);
+    const bb = new THREE.Box3().setFromObject(root);
+    root.position.y -= bb.min.y;                      // Fusspunkt auf null
+    root.traverse(m=>{ if (m.isMesh){ m.castShadow = true; m.frustumCulled = false;
+      const mats = Array.isArray(m.material)?m.material:[m.material];
+      mats.forEach(mm=>{ if (mm){ if (mm.map) mm.map.colorSpace = THREE.SRGBColorSpace;
+        mm.side = THREE.DoubleSide; } }); } });
+    const wrap = new THREE.Group(); wrap.add(root); wrap.scale.setScalar(0.82);
+    dropAssets.chute = wrap;
+  } catch(e){ console.warn('Fallschirmmodell fehlt', e); dropAssets.chute = false; }
+}
+
+/** Schirm an einer Figur an- oder abhängen. */
+function setActorChute(a, on){
+  if (on && !a.chuteObj && dropAssets.chute){
+    a.chuteObj = dropAssets.chute.clone(true);
+    a.chuteObj.position.y = 1.35;
+    if (a.view) a.view.obj.add(a.chuteObj);
+  } else if (!on && a.chuteObj){
+    if (a.view) a.view.obj.remove(a.chuteObj);
+    a.chuteObj = null;
+  }
+  a.chuteOpen = !!on;
+}
+
+async function startDropPhase(spawns){
+  await loadDropAssets();
+  const ang = Math.random()*Math.PI*2;
+  const dir  = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+  const perp = new THREE.Vector3(-dir.z, 0, dir.x);
+  const off  = rnd(-70, 70);
+  const from = perp.clone().multiplyScalar(off).addScaledVector(dir, -DROP.pathHalf);
+  const to   = perp.clone().multiplyScalar(off).addScaledVector(dir,  DROP.pathHalf);
+  from.y = to.y = DROP.altitude;
+
+  const d = G.drop = {
+    t: 0, duration: (DROP.pathHalf*2)/DROP.planeSpeed,
+    from, to, dir,
+    planeObj: null, planePos: new THREE.Vector3().copy(from),
+    playerState: 'plane',            // plane | freefall | chute | landed
+    vel: new THREE.Vector3(),
+    pos: new THREE.Vector3().copy(from),
+    agl: DROP.altitude, done: false
+  };
+
+  if (dropAssets.plane){
+    d.planeObj = dropAssets.plane.clone(true);
+    d.planeObj.position.copy(from);
+    d.planeObj.lookAt(to);
+    scene.add(d.planeObj);
+  }
+
+  // Bots sitzen mit im Flugzeug und springen zu verteilten Zeitpunkten
+  let i = 0;
+  for (const a of G.actors){
+    if (a.kind !== 'bot') continue;
+    a.dropping = true;
+    a.dropJumpAt = (0.12 + (i*0.618033988 % 1) * 0.72) * d.duration;
+    a.dropFall = 0;
+    a.dropTarget = (spawns[i % spawns.length] || new THREE.Vector3()).clone();
+    a.position.copy(from);
+    if (a.view) a.view.obj.visible = false;
+    i++;
+  }
+
+  const me = G.me;
+  if (me){
+    me.dropping = true;
+    me.position.copy(from);
+    if (me.view) me.view.obj.visible = true;    // in der Verfolgersicht sichtbar
+  }
+  $('dropHud').classList.remove('hidden');
+  $('cross').style.opacity = 0;
+  $('ammo').style.opacity = 0;
+}
+
+function endDropPhase(){
+  const d = G.drop;
+  if (!d) return;
+  if (d.planeObj){ scene.remove(d.planeObj); disposeTree(d.planeObj); d.planeObj = null; }
+  d.done = true;
+}
+
+function groundAt(x, z, fromY){
+  const hit = G.world ? G.world.groundBelow(x, fromY, z, fromY + 400) : null;
+  return hit ? hit.point.y : 0;
+}
+
+function updateDrop(dt){
+  const d = G.drop;
+  if (!d || d.done) return;
+  d.t += dt;
+
+  // --- Maschine auf ihrer Bahn ---
+  const k = Math.min(1, d.t / d.duration);
+  d.planePos.lerpVectors(d.from, d.to, k);
+  if (d.planeObj){
+    d.planeObj.position.copy(d.planePos);
+    // Am Ende der Bahn ist die Maschine draussen — 128 000 Dreiecke, die
+    // niemand mehr sieht, kommen sofort wieder weg.
+    if (k >= 1){ scene.remove(d.planeObj); disposeTree(d.planeObj); d.planeObj = null; }
+  }
+
+  // --- Bots ---
+  for (const a of G.actors){
+    if (!a.dropping || a.kind !== 'bot') continue;
+    if (d.t < a.dropJumpAt){ a.position.copy(d.planePos); continue; }
+    if (a.dropFall === 0){
+      a.dropFrom = d.planePos.clone();
+      a.dropTotal = Math.max(5, (DROP.altitude - a.dropTarget.y) / DROP.botFall);
+      if (a.view) a.view.obj.visible = true;
+    }
+    a.dropFall += dt;
+    const p = Math.min(1, a.dropFall / a.dropTotal);
+    // erst schnell fallen, dann am Schirm ausschweben
+    const fall = p < 0.45 ? (p/0.45)*(p/0.45)*0.6 : 0.6 + (p-0.45)/0.55*0.4;
+    a.position.lerpVectors(a.dropFrom, a.dropTarget, p);
+    a.position.y = lerp(a.dropFrom.y, a.dropTarget.y, fall);
+    if (p > 0.45 && !a.chuteOpen) setActorChute(a, true);
+    if (p >= 1){
+      setActorChute(a, false);
+      a.dropping = false;
+      a.position.copy(a.dropTarget);
+      if (a.ctrl){ a.ctrl.position.copy(a.dropTarget); a.ctrl.velocity.set(0,0,0);
+                   a.ctrl.lastSafe.copy(a.dropTarget); }
+    }
+  }
+
+  // --- eigene Figur ---
+  const me = G.me;
+  if (!me || !me.dropping){
+    // Die Phase endet erst, wenn auch der letzte Bot unten ist — sonst würden
+    // sie mitten in der Luft einfrieren.
+    if (!G.actors.some(a=>a.dropping)) d.done = true;
+    return;
+  }
+  const act = input.dropAction; input.dropAction = false;
+
+  if (d.playerState === 'plane'){
+    d.pos.copy(d.planePos);
+    d.agl = d.pos.y - groundAt(d.pos.x, d.pos.z, d.pos.y + 6);
+    me.position.copy(d.pos);
+    me.yaw = Math.atan2(-d.dir.x, -d.dir.z);
+    if (me.view) me.view.obj.visible = false;         // noch in der Maschine
+    // Am Ende der Bahn springt man von selbst — sonst bliebe man ewig oben
+    if (act || k >= 0.985){
+      d.playerState = 'freefall';
+      d.vel.copy(d.dir).multiplyScalar(DROP.planeSpeed*0.45).setY(-4);
+      if (me.view) me.view.obj.visible = true;
+      sfx.zone();
+      toast('Freier Fall — F öffnet den Schirm');
+    }
+    if (d.t > d.duration + 3) { d.playerState = 'freefall'; }
+    return;
+  }
+
+  const chute = d.playerState === 'chute';
+  const inp = readInput();
+  const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
+  let wx = inp.mx*cos - inp.mz*sin;
+  let wz = -inp.mx*sin - inp.mz*cos;
+  const l = Math.hypot(wx,wz); if (l > 1){ wx/=l; wz/=l; }
+
+  const maxH = chute ? DROP.chuteSteer : DROP.freefallSteer;
+  const accel = chute ? 9 : 16;
+  d.vel.x = damp(d.vel.x, wx*maxH, accel/maxH*3, dt);
+  d.vel.z = damp(d.vel.z, wz*maxH, accel/maxH*3, dt);
+  if (chute) d.vel.y = damp(d.vel.y, -DROP.chuteFall, 4, dt);
+  else       d.vel.y = Math.max(-DROP.freefallMax, d.vel.y - GRAVITY*1.15*dt);
+
+  d.pos.addScaledVector(d.vel, dt);
+  const g = groundAt(d.pos.x, d.pos.z, d.pos.y + 6);
+  d.agl = d.pos.y - g;
+
+  if (!chute && (act || d.agl < DROP.autoChuteAGL)){
+    d.playerState = 'chute';
+    setActorChute(me, true);
+    d.vel.y = Math.max(d.vel.y, -18);
+    sfx.pick();
+    toast(act ? 'Schirm offen' : 'Schirm öffnet automatisch');
+  }
+
+  me.position.copy(d.pos);
+  me.yaw = camYaw;
+
+  if (d.agl <= DROP.landAGL){
+    // --- Aufsetzen: ab hier übernimmt wieder die Kapselphysik ---
+    d.playerState = 'landed';
+    d.pos.y = g;
+    me.position.copy(d.pos);
+    setActorChute(me, false);
+    me.dropping = false;
+    me.ctrl.position.copy(d.pos);
+    me.ctrl.velocity.set(0,0,0);
+    me.ctrl.lastSafe.copy(d.pos);
+    me.ctrl.grounded = true;
+    $('dropHud').classList.add('hidden');
+    $('cross').style.opacity = 1;
+    $('ammo').style.opacity = 1;
+    sfx.hit();
+    toast('Gelandet');
+  }
 }
 
 /* ==========================================================================
@@ -2208,6 +2817,7 @@ function rayCapsule(origin, dir, a, b, r, maxDist){
 }
 
 function fire(actor){
+  if (actor.dropping) return;
   const W = WEAPONS[actor.weapon];
   if (G.time < actor.nextShot || actor.reloading) return;
   if (actor.ammo[actor.weapon] <= 0){ reload(actor); return; }
@@ -2411,8 +3021,19 @@ function hasLineOfSight(a, b){
 /* ==========================================================================
    20 — TON
    ========================================================================== */
-let AC = null;
-function ac(){ if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); return AC; }
+let AC = null, masterGain = null;
+function ac(){
+  if (!AC){
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    masterGain = AC.createGain();
+    masterGain.gain.value = SETTINGS.muted ? 0 : SETTINGS.volume;
+    masterGain.connect(AC.destination);
+  }
+  return AC;
+}
+function applyVolume(){
+  if (masterGain) masterGain.gain.value = SETTINGS.muted ? 0 : SETTINGS.volume;
+}
 function blip(type, f0, f1, dur, vol){
   try{
     const c = ac(), t = c.currentTime;
@@ -2421,7 +3042,7 @@ function blip(type, f0, f1, dur, vol){
     o.frequency.exponentialRampToValueAtTime(Math.max(1,f1), t+dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
-    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+0.02);
+    o.connect(g); g.connect(masterGain || c.destination); o.start(t); o.stop(t+dur+0.02);
   }catch(e){}
 }
 const sfx = {
@@ -2436,24 +3057,47 @@ const sfx = {
   pick(){ blip('sine', 620, 1180, 0.14, 0.09); },
   hurt(){ blip('sawtooth', 300, 90, 0.16, 0.11); },
   die(){ blip('sawtooth', 220, 50, 0.6, 0.13); },
-  zone(){ blip('sine', 180, 120, 0.5, 0.07); }
+  zone(){ blip('sine', 180, 120, 0.5, 0.07); },
+  hover(){ blip('sine', 520, 700, 0.05, 0.035); },
+  go(){ blip('sine', 340, 880, 0.16, 0.09); blip('triangle', 170, 440, 0.20, 0.05); }
 };
 
 /* ==========================================================================
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
-const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, fireEdge:false, reload:false };
+const input = { mx:0, mz:0, jump:false, sprint:false, crouch:false, fire:false, fireEdge:false,
+                reload:false, dropAction:false };
 let camYaw = 0, camPitch = 0, pointerLocked = false;
-let mouseSens = 0.0022;
+
+/** Alle gedrückten Tasten vergessen. Nötig, wenn das Fenster den Fokus
+    verliert — sonst läuft die Figur nach einem Alt+Tab endlos weiter. */
+function clearKeys(){
+  for (const k in keys) keys[k] = false;
+  input.fire = false; input.fireEdge = false;
+  showBoard(false);
+}
+addEventListener('blur', clearKeys);
 
 addEventListener('keydown', e=>{
+  /* Kombinationen mit Strg, Alt oder Cmd gehören dem Browser. Früher hat
+     Strg (Ducken) zusammen mit A die Seite markiert, mit W sogar den Tab
+     geschlossen — und Strg+W lässt sich nicht abfangen. Also fassen wir
+     solche Anschläge gar nicht erst an. */
+  if (e.ctrlKey || e.metaKey || e.altKey){ clearKeys(); return; }
   keys[e.code] = true;
   if (e.code === 'Tab'){ e.preventDefault(); showBoard(true); }
   if (e.code === 'KeyR') input.reload = true;
+  if (e.code === 'KeyF') input.dropAction = true;
   if (e.code === 'Digit1' && G.me){ G.me.weapon = 'smg';    G.me.reloading = false; }
   if (e.code === 'Digit2' && G.me){ G.me.weapon = 'pistol'; G.me.reloading = false; }
-  if (e.code === 'Escape' && pointerLocked) document.exitPointerLock();
+  if (e.code === 'Escape'){
+    // Bei gefangener Maus schluckt der Browser dieses Ereignis und gibt den
+    // Zeiger selbst frei — das Menü öffnet dann über pointerlockchange.
+    if (pauseOpen) closePause();
+    else if (G.phase === 'play') openPause();
+    else if (G.phase === 'menu') openPause(true);
+  }
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', e=>{
@@ -2462,19 +3106,26 @@ addEventListener('keyup', e=>{
 });
 
 canvas.addEventListener('mousedown', e=>{
-  if (G.phase !== 'play') return;
+  if (G.phase !== 'play' || pauseOpen) return;
   if (!pointerLocked){ canvas.requestPointerLock(); return; }
   if (e.button === 0){ input.fire = true; input.fireEdge = true; }
 });
 addEventListener('mouseup', e=>{ if (e.button === 0) input.fire = false; });
+canvas.addEventListener('contextmenu', e=> e.preventDefault());
 document.addEventListener('pointerlockchange', ()=>{
   pointerLocked = document.pointerLockElement === canvas;
-  if (!pointerLocked) input.fire = false;
+  if (!pointerLocked){
+    clearKeys();
+    // Esc gibt die Maus frei, ohne dass ein keydown ankommt — deshalb hängt
+    // das Pausenmenü hier dran und nicht allein an der Taste.
+    if (G.phase === 'play' && !pauseOpen && !suppressPause) openPause();
+  }
 });
 addEventListener('mousemove', e=>{
   if (!pointerLocked) return;
-  camYaw   -= e.movementX * mouseSens;
-  camPitch -= e.movementY * mouseSens;
+  const sens = BASE_SENS * SETTINGS.sens;
+  camYaw   -= e.movementX * sens;
+  camPitch -= e.movementY * sens * (SETTINGS.invertY ? -1 : 1);
   camPitch = clamp(camPitch, -1.5, 1.5);
 });
 
@@ -2483,7 +3134,7 @@ function readInput(){
   input.mx = (keys.KeyD||keys.ArrowRight ? 1:0) - (keys.KeyA||keys.ArrowLeft ? 1:0);
   input.jump = !!keys.Space;
   input.sprint = !!(keys.ShiftLeft||keys.ShiftRight);
-  input.crouch = !!(keys.ControlLeft||keys.KeyC);
+  input.crouch = !!(keys.KeyC || keys.KeyX);
   return input;
 }
 
@@ -2573,6 +3224,26 @@ function updateViewmodel(dt, moving){
 function updateCamera(){
   const me = G.me;
   if (!me) return;
+
+  /* Beim Absprung Verfolgersicht: man will sich fallen sehen und die Insel
+     unter sich einschätzen können. Nach der Landung wieder Ego-Perspektive. */
+  if (me.dropping && G.drop && !G.drop.done){
+    const d = G.drop;
+    const inPlane = d.playerState === 'plane';
+    const dist = inPlane ? 34 : 7.2;
+    const lift = inPlane ? 8 : 1.6;
+    aimDir(camYaw, camPitch, _camF);
+    const tx = me.position.x, ty = me.position.y + (inPlane ? 0 : 1.0), tz = me.position.z;
+    camera.position.set(tx - _camF.x*dist, ty - _camF.y*dist + lift, tz - _camF.z*dist);
+    camera.rotation.set(0,0,0);
+    camera.rotation.order = 'YXZ';
+    camera.lookAt(tx, ty, tz);
+    sun.position.set(tx + 60, ty + 100, tz + 45);
+    sun.target.position.set(tx, ty, tz);
+    sun.target.updateMatrixWorld();
+    return;
+  }
+
   const eyeY = me.position.y + (me.crouch ? PLAYER.eyeHeight*0.62 : PLAYER.eyeHeight);
   camera.position.set(me.position.x, eyeY, me.position.z);
   camera.rotation.set(0,0,0);
@@ -2704,7 +3375,12 @@ async function setupMatch(roster, spawns){
     a.yaw = Math.atan2(-p.x, -p.z);
     if (r.kind === 'local'){ G.me = a; camYaw = a.yaw; camPitch = 0; }
   }
-  if (G.mode === 'br'){ initStorm(); scatterPickups(46); }
+  if (G.mode === 'br'){
+    initStorm(); scatterPickups(46);
+    await startDropPhase(pts);
+  } else {
+    G.drop = null;
+  }
   $('hud').classList.add('on');
   $('aliveN').textContent = G.actors.length;
 }
@@ -2715,8 +3391,11 @@ async function setupMatch(roster, spawns){
 function simulate(dt){
   const me = G.me;
 
+  // --- Absprung geht der normalen Bewegung vor ---
+  if (G.drop && !G.drop.done) updateDrop(dt);
+
   // --- eigene Figur ---
-  if (me && me.alive && me.ctrl){
+  if (me && me.alive && me.ctrl && !me.dropping){
     const inp = readInput();
     me.crouch = inp.crouch;
     let sp = inp.crouch ? SPEED_CROUCH : (inp.sprint && inp.mz > 0 ? SPEED_SPRINT : SPEED_WALK);
@@ -2751,7 +3430,7 @@ function simulate(dt){
   if (G.isHost){
     for (const a of G.actors){
       if (a.kind !== 'bot' || !a.ctrl) continue;
-      if (!a.alive){ a.wish.set(0,0,0); continue; }
+      if (!a.alive || a.dropping){ a.wish.set(0,0,0); continue; }
       botThink(a, dt);
       tickReload(a);
       a.ctrl.step(dt, a.wish, a.jump);
@@ -2764,10 +3443,10 @@ function simulate(dt){
     updateStorm(dt);
     if (G.isHost){
       for (const a of G.actors){
-        if (!a.alive) continue;
+        if (!a.alive || a.dropping) continue;
         if (outsideStorm(a)) applyDamage(a, G.storm.dps*dt, null);
       }
-    } else if (me && me.alive && outsideStorm(me)){
+    } else if (me && me.alive && !me.dropping && outsideStorm(me)){
       me.hp -= G.storm.dps*dt;     // Anzeige lokal, Wahrheit kommt vom Host
       if (me.hp < 0) me.hp = 0;
     }
@@ -2781,6 +3460,7 @@ function simulate(dt){
    26 — DARSTELLUNG DER FIGUREN
    ========================================================================== */
 const _lerpV = new THREE.Vector3();
+const _camF = new THREE.Vector3();
 function renderActors(dt){
   for (const a of G.actors){
     if (!a.view) continue;
@@ -2802,7 +3482,8 @@ function renderActors(dt){
 
     obj.position.copy(a.position);
     obj.rotation.y = a.yaw + Math.PI;   // Quaternius-Figuren schauen nach +Z
-    obj.visible = a !== G.me;                    // eigener Körper bleibt unsichtbar
+    // Der eigene Körper ist unsichtbar — ausser beim Absprung, da sieht man sich
+    obj.visible = (a !== G.me) || (a.dropping && G.drop && G.drop.playerState !== 'plane');
     if (a.handWeapon) a.handWeapon.visible = a.alive;
 
     // Animation nach Bewegung wählen
@@ -2813,7 +3494,8 @@ function renderActors(dt){
       else { speed = a._prevPos ? a.position.distanceTo(a._prevPos)/Math.max(dt,1e-4) : 0; }
       if (!a._prevPos) a._prevPos = a.position.clone(); else a._prevPos.copy(a.position);
       const airborne = a.ctrl ? !a.ctrl.grounded : false;
-      if (a.reloading) a.view.play('reload', { fade:0.12 });
+      if (a.dropping) a.view.play(a.chuteOpen ? 'idle' : 'jump', { fade:0.2 });
+      else if (a.reloading) a.view.play('reload', { fade:0.12 });
       else if (G.time - a.lastShotAt < 0.22) a.view.play('shoot', { once:true, fade:0.05 });
       else if (airborne) a.view.play('jump', { fade:0.1 });
       else if (speed > 6.2) a.view.play('run', { speed: clamp(speed/6.5, 0.8, 1.5) });
@@ -2857,6 +3539,14 @@ function updateHUD(dt){
     const px = Math.tan(currentSpread(me)) / Math.tan(THREE.MathUtils.degToRad(camera.fov)/2)
              * (innerHeight/2);
     $('cross').style.setProperty('--gap', (4 + px).toFixed(1) + 'px');
+  }
+  if (me && me.dropping && G.drop && !G.drop.done){
+    const d = G.drop;
+    $('dropAlt').textContent = Math.max(0, Math.round(d.agl)) + ' m';
+    $('dropHint').textContent =
+      d.playerState === 'plane'  ? 'F drücken zum Abspringen' :
+      d.playerState === 'chute'  ? 'Schirm offen · WASD steuert' :
+                                   'F öffnet den Schirm';
   }
   $('aliveN').textContent = G.actors.filter(a=>a.alive).length;
   if (G.mode === 'br'){
@@ -2906,6 +3596,46 @@ function drawMinimap(){
   mm.fillStyle = '#FFB020';
   mm.beginPath(); mm.moveTo(0,-8); mm.lineTo(6,7); mm.lineTo(-6,7); mm.closePath(); mm.fill();
   mm.restore();
+}
+
+function openPause(fromLobby){
+  if (pauseOpen) return;
+  if (!fromLobby && G.phase !== 'play') return;
+  pauseOpen = true;
+  clearKeys();
+  syncSettingsUI();
+  // Solo wird angehalten. Im Netz läuft die Runde weiter — sonst würden alle
+  // anderen ohne einen davonlaufen.
+  G.paused = !fromLobby && !G.isNet;
+  $('pauseState').textContent = fromLobby ? 'Lobby'
+    : (G.paused ? 'Runde angehalten' : 'Runde läuft weiter');
+  $('btQuit').classList.toggle('hidden', !!fromLobby);
+  $('btResume').textContent = fromLobby ? 'Schließen' : 'Weiter';
+  $('pause').classList.remove('hidden');
+  if (pointerLocked) document.exitPointerLock();
+}
+
+function closePause(){
+  if (!pauseOpen) return;
+  pauseOpen = false;
+  G.paused = false;
+  $('pause').classList.add('hidden');
+  clock.getDelta();            // aufgelaufene Pausenzeit verwerfen
+  G.accumulator = 0;
+  if (G.phase !== 'play') return;
+  // Nach dem Freigeben per Esc sperrt der Browser das erneute Fangen kurz.
+  const grab = ()=>{ try { canvas.requestPointerLock(); } catch(e){} };
+  grab(); setTimeout(grab, 300);
+}
+
+function syncSettingsUI(){
+  $('setVol').value  = Math.round(SETTINGS.volume*100);
+  $('setVolV').textContent = Math.round(SETTINGS.volume*100);
+  $('setMute').checked = SETTINGS.muted;
+  $('setSens').value = Math.round(SETTINGS.sens*100);
+  $('setSensV').textContent = SETTINGS.sens.toFixed(2);
+  $('setInv').checked = SETTINGS.invertY;
+  $('setFull').checked = !!document.fullscreenElement;
 }
 
 let boardOn = false;
@@ -3061,7 +3791,8 @@ function snapshot(){
     a: G.actors.map(a=>({
       i:a.id, x:+a.position.x.toFixed(2), y:+a.position.y.toFixed(2), z:+a.position.z.toFixed(2),
       w:+a.yaw.toFixed(3), p:+a.pitch.toFixed(3), h:Math.ceil(a.hp), s:Math.ceil(a.shield),
-      l:a.alive?1:0, k:a.kills, f:(G.time - a.lastShotAt < 0.2)?1:0
+      l:a.alive?1:0, k:a.kills, f:(G.time - a.lastShotAt < 0.2)?1:0,
+      c:a.chuteOpen?1:0, dr:a.dropping?1:0
     }))
   };
 }
@@ -3079,6 +3810,8 @@ function applySnapshot(s){
     a.hp = d.h; a.shield = d.s; a.kills = d.k;
     if (!d.l && a.alive){ a.alive = false; if (a.view) a.view.play('die', { once:true }); }
     a.pitch = d.p;
+    a.dropping = !!d.dr;
+    if (!!d.c !== !!a.chuteOpen) setActorChute(a, !!d.c);
     if (d.f){
       if (G.time - a.lastShotAt > 0.12) muzzleSpark(a);
       a.lastShotAt = G.time;
@@ -3109,7 +3842,7 @@ function loop(){
   requestAnimationFrame(loop);
   const dt = Math.min(0.25, clock.getDelta());
 
-  if (G.phase === 'play'){
+  if (G.phase === 'play' && !G.paused){
     G.accumulator += dt;
     let steps = 0;
     while (G.accumulator >= FIXED_DT && steps < MAX_SUBSTEPS){
@@ -3134,8 +3867,13 @@ function loop(){
   }
 
   renderer.autoClear = true;
+  if ((G.phase === 'menu' || G.phase === 'loading') && LOBBY.scene){
+    updateLobbyScene(dt);
+    renderer.render(LOBBY.scene, LOBBY.cam);
+    return;
+  }
   renderer.render(scene, camera);
-  if (G.phase === 'play' && viewWeapon){
+  if (G.phase === 'play' && viewWeapon && !(G.me && G.me.dropping)){
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(vmScene, viewCam);
@@ -3154,7 +3892,8 @@ function show(id){
   for (const s of document.querySelectorAll('.screen')) s.classList.add('hidden');
   if (id) $(id).classList.remove('hidden');
   $('screens').style.display = id ? 'flex' : 'none';
-  $('bgfx').style.display = id ? 'block' : 'none';
+  // Unterseiten legen sich verdunkelnd über die Lobby, die Lobby selbst nicht
+  $('screens').classList.toggle('scrim', !!id && id !== 'menu');
 }
 
 /* ---- Figurwahl mit Vorschau ---- */
@@ -3246,6 +3985,7 @@ async function beginMatch(){
   setLoad(2, 'Karten werden geladen');
   G.phase = 'loading';
   await weaponModel.load();
+  if (flow !== 'test'){ setLoad(4, 'Maschine wird betankt'); await loadDropAssets(); }
   await loadWorld(flow === 'test' ? 'test' : 'br');
   attachViewmodel();
 
@@ -3273,6 +4013,7 @@ async function beginMatch(){
   }
   setLoad(100, 'Los');
   G.phase = 'play';
+  suppressPause = false;
   G.time = 0; clock.getDelta();
   show(null);
   canvas.requestPointerLock();
@@ -3303,6 +4044,7 @@ async function startFromRoster(roster, spawns, myId){
 
 function onLocalDeath(){
   sfx.die();
+  suppressPause = true;
   document.exitPointerLock();
   const place = G.actors.filter(a=>a.alive).length + 1;
   setTimeout(()=>{
@@ -3313,6 +4055,10 @@ function onLocalDeath(){
 
 function endMatch(winner, place){
   G.phase = 'over';
+  suppressPause = true;
+  G.paused = false;
+  pauseOpen = false;
+  $('pause').classList.add('hidden');
   showBoard(false);
   document.exitPointerLock();
   $('hud').classList.remove('on');
@@ -3330,10 +4076,24 @@ const BOT_NAMES = ['Renz','Oda','Kimura','Vasquez','Brandt','Okoro','Lind','Petr
                    'Mbeki','Saito','Ferrer','Duval','Novak','Reyes','Ahmadi'];
 
 /* ---- Knöpfe ---- */
-$('btSolo').onclick = ()=>{ flow='solo'; myName = 'Spieler'; show('pick'); };
-$('btTest').onclick = ()=>{ flow='test'; show('pick'); };
-$('btHost').onclick = ()=>{ flow='host'; show('pick'); };
-$('btJoinS').onclick = ()=>{ flow='client'; show('join'); };
+function readName(){ myName = ($('nameIn').value||'').trim() || 'PLAYER'; return myName; }
+/** Kurze Abblende, dann der bestehende Ablauf. */
+function launch(kind){
+  flow = kind; readName();
+  if (AC) sfx.go();
+  $('menu').classList.add('go');
+  setTimeout(()=>{ $('menu').classList.remove('go'); beginMatch(); }, 260);
+}
+$('btPlay').onclick = ()=> launch('solo');
+$('btTest').onclick = ()=> launch('test');
+$('btChar').onclick = ()=> show('pick');
+$('btGear').onclick = ()=> openPause(true);
+$('btPlay').onmouseenter = ()=>{ if (AC) sfx.hover(); };
+$('btHost').onclick = ()=>{
+  flow='host'; readName(); hostGame(); show('lobby');
+  $('btStart').classList.remove('hidden');
+};
+$('btJoinS').onclick = ()=>{ flow='client'; readName(); show('join'); };
 $('btJoinBack').onclick = ()=> show('menu');
 $('btLobbyBack').onclick = ()=>{ try{ G.peer && G.peer.destroy(); }catch(e){} G.isNet=false; show('menu'); };
 $('btMenu').onclick = ()=>{ location.reload(); };
@@ -3343,34 +4103,63 @@ $('btJoinGo').onclick = ()=>{
   const c = ($('codeIn').value||'').toUpperCase().trim();
   if (c.length !== 4){ $('joinMsg').textContent = 'Der Code hat vier Zeichen.'; return; }
   $('joinMsg').textContent = 'Verbinde…';
-  joinGame(c, ()=>{ show('pick'); }, (msg)=>{ $('joinMsg').textContent = msg; });
-};
-
-$('btGo').onclick = async ()=>{
-  myName = ($('nameIn').value||'').trim() || 'Spieler';
-  if (flow === 'host'){
-    hostGame();
-    show('lobby');
-  } else if (flow === 'client'){
+  joinGame(c, ()=>{
     send(G.hostConn, { t:'join', name:myName, char:chosenChar });
     show('lobby');
     $('code').textContent = G.code;
     $('btStart').classList.add('hidden');
     $('lobbyList').innerHTML = 'Warten auf den Host…';
-  } else {
-    beginMatch();
-  }
+  }, (msg)=>{ $('joinMsg').textContent = msg; });
+};
+
+$('btGo').onclick = ()=>{
+  setLobbyCharacter(chosenChar);
+  show('menu');
 };
 $('btStart').onclick = ()=> beginMatch();
 
 /* ---- Start ---- */
+$('btResume').onclick = ()=> closePause();
+$('btQuit').onclick = ()=> location.reload();
+$('setVol').oninput = e=>{
+  SETTINGS.volume = (+e.target.value)/100;
+  $('setVolV').textContent = e.target.value;
+  applyVolume(); saveSettings();
+};
+$('setMute').onchange = e=>{ SETTINGS.muted = e.target.checked; applyVolume(); saveSettings(); };
+$('setVol').onchange = ()=> sfx.pick();          // kurze Hörprobe
+$('setSens').oninput = e=>{
+  SETTINGS.sens = (+e.target.value)/100;
+  $('setSensV').textContent = SETTINGS.sens.toFixed(2);
+  saveSettings();
+};
+$('setInv').onchange = e=>{ SETTINGS.invertY = e.target.checked; saveSettings(); };
+/* Vollbild braucht eine echte Nutzeraktion — der Klick auf das Kästchen ist
+   eine. Deshalb wird der Zustand nicht gespeichert, sondern immer vom
+   Browser abgelesen. */
+$('setFull').onchange = e=>{
+  try {
+    if (e.target.checked && !document.fullscreenElement) document.documentElement.requestFullscreen();
+    else if (!e.target.checked && document.fullscreenElement) document.exitFullscreen();
+  } catch(err){ e.target.checked = !!document.fullscreenElement; }
+};
+document.addEventListener('fullscreenchange', ()=>{
+  $('setFull').checked = !!document.fullscreenElement;
+});
+
+loadSettings();
+syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
 buildCharGrid();
 initPreview();
 previewChar(chosenChar);
 show('menu');
-setLoad(0, 'Bereit. Wähle eine Spielart.');
+setLoad(0, '');
 loop();
+
+// Lobby-Szene und Figur nachladen — das Menü steht sofort, die Szene füllt sich
+buildLobbyScene();
+weaponModel.load().then(()=> setLobbyCharacter(chosenChar));
 
 console.log('%cHOLDOUT', 'font:700 16px monospace;color:#FFB020');
 console.log('Build ' + BUILD + ' — steht auch unten auf dem Startbildschirm.');
