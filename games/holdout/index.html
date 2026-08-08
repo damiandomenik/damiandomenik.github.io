@@ -585,7 +585,7 @@ const ASSETS = {
 const MAP_SETS = [
   {
     id:'island', name:'Drift-Insel', note:'Vier Landstriche, zusammengetrieben · 500 m',
-    radius:250, spawnR:175, fogNear:150, fogFar:900,
+    radius:265, spawnR:180, fogNear:150, fogFar:900,
     sky:{ top:0x2f6ea8, horizon:0xbcd6e4, ground:0x8ba0a8,
           water:0x2c5468, plate:0x4a5540, ridge:0x35434f },
     pieces:[
@@ -600,7 +600,7 @@ const MAP_SETS = [
   },
   {
     id:'block', name:'Blockland', note:'Klotzlandschaft mit Bergen · 250 × 135 m',
-    radius:140, spawnR:62, fogNear:120, fogFar:800,
+    radius:155, spawnR:66, fogNear:120, fogFar:800,
     sky:{ top:0x4a8fd0, horizon:0xcfe4f2, ground:0x9db6a8,
           water:0x2f6d8f, plate:0x4c7a34, ridge:0x3c5a4a },
     pieces:[
@@ -609,7 +609,7 @@ const MAP_SETS = [
   }
   ,{
     id:'city', name:'Blockstadt', note:'Minecraft-Stadt · 294 × 261 m',
-    radius:175, spawnR:105, fogNear:110, fogFar:700,
+    radius:205, spawnR:125, fogNear:110, fogFar:700,
     sky:{ top:0x3f7fc4, horizon:0xc6dcec, ground:0x8e9c9c,
           water:0x2b5f7d, plate:0x54585a, ridge:0x40505e },
     pieces:[
@@ -709,12 +709,12 @@ const BR = {
   // `f` ist der Zielradius als Anteil des Kartenradius — so passt derselbe
   // Ablauf auf jede Karte, egal wie gross sie ist.
   phases: [
-    { hold: 25, shrink: 42, f: 0.650, dps: 1 },
-    { hold: 22, shrink: 36, f: 0.400, dps: 2 },
-    { hold: 20, shrink: 30, f: 0.224, dps: 4 },
-    { hold: 18, shrink: 25, f: 0.104, dps: 7 },
-    { hold: 16, shrink: 22, f: 0.036, dps: 11 },
-    { hold: 14, shrink: 20, f: 0,     dps: 16 }
+    { hold: 55, shrink: 70, f: 0.720, dps: 1 },
+    { hold: 45, shrink: 60, f: 0.460, dps: 2 },
+    { hold: 38, shrink: 50, f: 0.270, dps: 4 },
+    { hold: 32, shrink: 42, f: 0.130, dps: 7 },
+    { hold: 26, shrink: 34, f: 0.045, dps: 11 },
+    { hold: 20, shrink: 28, f: 0,     dps: 16 }
   ]
 };
 const phaseRadius = ph => ph.f * BR.islandRadius;
@@ -822,7 +822,7 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 30';
+const BUILD = '2026-08-08 · 31';
 const NET_HZ = 20;
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
@@ -2826,16 +2826,35 @@ function buildHorizon(set){
   return { group:g, dome, ridge, water };
 }
 
-/* Der Nebel ist für Bodenkämpfe eingestellt. Beim Absprung schaut man aus
-   380 m Höhe schräg 600 bis 900 m weit — mit denselben Werten läge die ganze
-   Karte im Dunst. Also weitet sich die Sicht mit der Höhe auf. */
-function updateFogForAltitude(){
-  if (!scene.fog || !G.sky) return;
+/* Nebel und Tiefengenauigkeit hängen beide an der Flughöhe.
+
+   Nebel: für Bodenkämpfe eingestellt. Aus 380 m schaut man schräg 600 bis
+   900 m weit — mit denselben Werten läge die ganze Karte im Dunst.
+
+   Tiefe: die vordere Kappungsebene bestimmt, wie fein der Tiefenpuffer in der
+   Ferne auflöst. Bei near = 0.06 sind das auf 400 m schon 8 cm — bündig
+   aneinanderliegende Minecraft-Blöcke flackern dann heftig. Weit oben braucht
+   niemand eine Kappungsebene bei 6 cm, also wandert sie mit. Das Viewmodell
+   wird ohnehin von einer eigenen Kamera gezeichnet und bleibt davon unberührt. */
+function updateCameraRange(){
   const set = mapSet();
-  const k = clamp((camera.position.y - 25) / 260, 0, 1);
-  scene.fog.near = lerp(set.fogNear, set.fogNear*3.2, k);
-  // Nie weiter als die Sichtweite der Kamera, sonst bricht der Horizont hart ab
-  scene.fog.far  = Math.min(lerp(set.fogFar, set.fogFar*3.3, k), camera.far*0.9);
+  /* Nur während des Absprungs anpassen. Zu Fuss ist man nie mehr als ein paar
+     Dutzend Meter über dem Boden, und eine Kappungsebene bei einem halben
+     Meter würde bedeuten, dass man durch die Wand sieht, an der man steht —
+     die Spielerkapsel hat nur 34 cm Radius. */
+  const alt = (G.drop && !G.drop.done && G.me && G.me.dropping)
+    ? Math.max(0, G.drop.agl) : 0;
+  const k = clamp((alt - 25) / 260, 0, 1);
+
+  if (scene.fog){
+    scene.fog.near = lerp(set.fogNear, set.fogNear*3.2, k);
+    scene.fog.far  = Math.min(lerp(set.fogFar, set.fogFar*3.3, k), camera.far*0.9);
+  }
+  const near = clamp(0.12 + alt*0.012, 0.12, 4.2);
+  if (Math.abs(near - camera.near) > 0.02){
+    camera.near = near;
+    camera.updateProjectionMatrix();
+  }
 }
 
 /* ==========================================================================
@@ -4654,7 +4673,7 @@ function loop(){
     updateCamera();
     // Die Kuppel ist eine feste Grösse um den Betrachter — sie zieht mit
     if (G.sky) G.sky.dome.position.copy(camera.position);
-    updateFogForAltitude();
+    updateCameraRange();
     renderActors(dt);
     updatePickups(dt);
     updateFx(dt);
