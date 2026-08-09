@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EXIF Cleaner — see what your photos reveal, then remove it</title>
+<meta name="description" content="Read the hidden metadata in your photos — GPS location, timestamps, device serial numbers — and strip it out without re-compressing the image. Runs entirely in your browser.">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231B1815'/><circle cx='16' cy='16' r='7' fill='none' stroke='%23F0EBE3' stroke-width='2'/><circle cx='16' cy='16' r='2.5' fill='%23C2410C'/></svg>">
+
+<!-- Only used to bundle several cleaned photos into one download. If it fails
+     to load, the tool falls back to downloading them one at a time. It never
+     sees a file that has not already been cleaned in this tab. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <a class="back" href="../">← tools</a>
+    <span class="stamp">runs offline · nothing uploaded</span>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <section class="intro">
+    <p class="eyebrow">Photo metadata</p>
+    <h1>Your photos are carrying more than the picture.</h1>
+    <p class="lede">
+      Most cameras and phones write a hidden record into every file: where you were, to the metre.
+      When you took it, to the second. Which device, down to its serial number. Sometimes your name.
+      Drop a photo below to read that record — then strip it out.
+    </p>
+  </section>
+
+  <div id="dropzone-slot"></div>
+  <div id="results"></div>
+
+  <section class="colophon">
+    <h2>How this works</h2>
+    <dl>
+      <dt>Nothing is uploaded</dt>
+      <dd>Your files are read by JavaScript in this tab. There is no server to send them to, and no third-party code involved — the metadata parser was written for this page rather than pulled from a CDN.</dd>
+
+      <dt>The image is never re-compressed</dt>
+      <dd>Cleaning happens at the container level: JPEG marker segments, PNG chunks, WebP RIFF chunks. The compressed image data is copied across byte for byte, so a cleaned photo is pixel-identical to the original. Tools that redraw the image through a canvas quietly cost you quality on every pass.</dd>
+
+      <dt>The orientation flag is kept, on purpose</dt>
+      <dd>Stripping everything also strips the flag telling viewers which way up the photo goes, which is why so many cleaned phone photos end up sideways. A 36-byte block containing that single tag is written back. It identifies nobody. You can turn it off.</dd>
+
+      <dt>One button, and only that button, leaves the browser</dt>
+      <dd>Where a photo has GPS data, the coordinates are shown as plain numbers and no map is embedded — loading map tiles would send your location to a provider before you had decided anything. If you want to know what is actually at those coordinates, there is a button that asks OpenStreetMap. It sends the coordinates and nothing else: no photo, no filename. It never fires on its own, and the rest of the page never touches the network.</dd>
+    </dl>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <span>EXIF Cleaner</span>
+    <span class="dot">·</span>
+    <a href="../">more tools</a>
+  </div>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script type="module" src="./js/main.js"></script>
+<noscript><p class="wrap" style="padding:2rem 0">This tool reads your photos in the browser, which needs JavaScript. There is no server-side version — that is the point of it.</p></noscript>
+</body>
+</html>

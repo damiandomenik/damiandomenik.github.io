@@ -1,1 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tools/ — local-first browser utilities</title>
+<meta name="description" content="Small, fast, client-side browser tools. Nothing is uploaded.">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="./assets/hub.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23070b0d'/><text x='2' y='12' font-family='monospace' font-size='11' fill='%233dff8f'>%3E_</text></svg>">
+</head>
+<body>
+<div class="crt" aria-hidden="true"></div>
 
+<header class="head">
+  <pre class="banner" aria-label="tools">  _____ ___   ___  _    ___
+ |_   _/ _ \ / _ \| |  / __|
+   | || (_) | (_) | |__\__ \
+   |_| \___/ \___/|____|___/</pre>
+  <p class="tagline">
+    <span class="dim">//</span> small utilities that run entirely in your browser.
+    <span class="dim">no upload, no account, no tracking.</span>
+  </p>
+  <p class="boot" id="boot" aria-live="polite"><span id="boot-text"></span><span class="cursor">█</span></p>
+</header>
+
+<main>
+  <section class="console" aria-label="Command bar">
+    <label class="prompt" for="cmd"><span class="user">guest</span><span class="dim">@</span><span class="host">tools</span><span class="dim">:~$</span></label>
+    <input id="cmd" class="cmd" type="text" autocomplete="off" spellcheck="false"
+           placeholder="type a name to open it, or `help`" aria-describedby="cmd-out">
+    <output id="cmd-out" class="cmd-out"></output>
+  </section>
+
+  <section aria-label="Available tools">
+    <h2 class="sec-title"><span class="dim">$</span> ls ./tools <span class="count" id="count"></span></h2>
+    <ul class="grid" id="grid"></ul>
+    <p class="empty" id="empty" hidden>no match. try <code>ls</code> to reset.</p>
+  </section>
+
+  <section class="notes" aria-label="How this works">
+    <h2 class="sec-title"><span class="dim">$</span> cat README</h2>
+    <dl class="kv">
+      <dt>local-only</dt>
+      <dd>Every tool here does its work in the page itself. Files you pick are read by JavaScript and never sent anywhere.</dd>
+      <dt>no state</dt>
+      <dd>Close the tab and everything is gone. No accounts, no storage of your files, no analytics.</dd>
+      <dt>static</dt>
+      <dd>Plain HTML, CSS and JavaScript on GitHub Pages. No backend to trust.</dd>
+    </dl>
+  </section>
+</main>
+
+<footer class="foot">
+  <span class="dim">tools/</span>
+  <span class="sep">·</span>
+  <a href="../">back to site</a>
+  <span class="sep">·</span>
+  <span class="ok">■</span> local-only
+</footer>
+
+<script src="./assets/hub.js" type="module"></script>
+</body>
+</html>
