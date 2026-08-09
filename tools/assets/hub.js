@@ -20,6 +20,15 @@ const TOOLS = [
     keywords: ['metadata', 'gps', 'location', 'jpeg', 'png', 'webp', 'strip', 'exif'],
     ready: true,
   },
+  {
+    id: 'patternlab',
+    name: 'patternlab',
+    href: './patternlab/',
+    desc: 'Regex playground with plain-English explanations, plus password analysis, rule building and generation.',
+    tags: ['regex', 'passwords', 'offline'],
+    keywords: ['pattern', 'match', 'test', 'strength', 'generator', 'entropy', 'rules'],
+    ready: true,
+  },
   // Example of how a future tool is declared — remove or replace.
   // {
   //   id: 'docx',

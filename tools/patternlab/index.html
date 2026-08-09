@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PatternLab — build, test and understand patterns</title>
+<meta name="description" content="A regex playground with plain-English explanations, a password analyzer that estimates real guessing effort, a rule builder that works in both directions, and a cryptographically secure generator. Everything runs in your browser.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#15161A">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2315161A'/><text x='5' y='23' font-family='monospace' font-size='18' font-weight='bold' fill='%23FFC940'>.*</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#/">Pattern<span>Lab</span></a>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    <a class="back" href="../">← tools</a>
+  </div>
+</header>
+
+<main class="wrap view" id="view" tabindex="-1"></main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <span class="lock">🔒 Your passwords never leave your browser. All analysis happens locally.</span>
+    <span class="shortcuts">
+      <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> switch sections · <kbd>g</kbd> generate · <kbd>/</kbd> focus input
+    </span>
+  </div>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="./js/main.js"></script>
+<noscript><p class="wrap" style="padding:3rem 0">PatternLab does all of its work in the browser, which needs JavaScript. There is no server-side version — that is the point of it.</p></noscript>
+</body>
+</html>
