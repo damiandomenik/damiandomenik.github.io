@@ -14,6 +14,8 @@ Everything runs in the browser. No accounts, no uploads, no storage.
 
 **Plain-English explanation.** The pattern is parsed into a tree and rendered as a ladder — one rung per token, each with what it is and what it does. Anything the parser cannot name honestly is marked as a gap rather than guessed at.
 
+**Build a pattern from examples.** Select a piece of the test text and PatternLab proposes patterns that would match it, from strict to loose. See below for why this is trustworthy.
+
 **Test cases.** Add strings and mark whether each must match or must not. The score updates on every keystroke, which is what makes tightening a pattern safe.
 
 **Password Analyzer.** Live strength, character composition, recognisable patterns, and estimated crack times for three attacker scenarios.
@@ -33,6 +35,21 @@ Everything runs in the browser. No accounts, no uploads, no storage.
 So instead of counting satisfied rules, PatternLab scans the password left to right and greedily matches the predictable pieces — a password from the common list, a dictionary word (after undoing leet substitution), a run like `abcd`, a repeat like `aaaa`, a keyboard walk, a year. Each matched piece contributes the number of guesses it actually costs, not the number its length suggests. What is left over counts as random characters from the pools in use.
 
 This is a simplified relative of zxcvbn, written from scratch to avoid the dependency. It is an estimate, and the interface says so: no offline tool can know whether a password has appeared in a breach.
+
+### Patterns from examples are proposed, then checked
+
+Infinitely many patterns match any set of examples. `AZ-12345/2026` is matched by itself, by `AZ-\d{5}/\d{4}`, by `[A-Z]{2}-\d+/\d+`, and by `.+`. Which one you want depends on what you meant, and nothing can read that.
+
+So the tool does not claim to find *the* pattern. It splits each example into runs of digits, letters and punctuation, aligns those runs across the examples, and offers candidates at three levels of strictness plus a literal fallback. Then it runs each candidate against your whole text and reports exactly what it caught:
+
+```
+[ok]   Exact shape             [A-Z]{2}-\d{5}\/\d{4}
+       Matches your 2 examples and nothing else in the text.
+[warn] Loosest useful form     [A-Z]+-\d+\/\d+
+       In your text this also catches "AZ-123/2026".
+```
+
+A suggestion you can check beats a suggestion you have to trust. With one example the tool says so plainly — which parts were incidental is a guess until you select a second.
 
 ### The regex interpreter refuses rather than guesses
 
@@ -64,7 +81,7 @@ Then open `http://localhost:8080`. ES modules need `http://`; opening `index.htm
 Deploying is copying the folder. It is already part of the `tools/` site and reachable at `…/tools/patternlab/`.
 
 ```bash
-node test/all.js                # 137 assertions
+node test/all.js                # 153 assertions
 npm install jsdom               # optional, adds the view suite
 ```
 
@@ -86,6 +103,7 @@ patternlab/
     │   ├── parser.js        pattern → syntax tree
     │   ├── explain.js       syntax tree → plain English
     │   ├── interpret.js     pattern → password rules, with limits
+    │   ├── infer.js         examples → candidate patterns, with verification
     │   ├── match.js         running patterns safely
     │   └── cheatsheet.js    reference data and examples
     ├── password/

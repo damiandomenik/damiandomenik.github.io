@@ -420,3 +420,22 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------------- pattern from examples ---------------- */
+
+.candidate {
+  background: var(--surface-2); border: 1px solid var(--line-soft);
+  border-left-width: 2px; border-radius: var(--radius-sm);
+  padding: 11px 13px; display: grid; gap: 6px;
+}
+.candidate[data-level="ok"] { border-left-color: var(--ok); }
+.candidate[data-level="warn"] { border-left-color: var(--warn); }
+.candidate[data-level="error"] { border-left-color: var(--err); }
+.candidate-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.candidate-label { font-size: 13.5px; font-weight: 600; }
+.candidate-pattern { color: var(--accent); font-size: 13px; word-break: break-all; }
+.candidate-desc { color: var(--muted); font-size: 12.5px; }
+.candidate-verdict { font-size: 12.5px; }
+.candidate-verdict[data-level="ok"] { color: var(--ok); }
+.candidate-verdict[data-level="warn"] { color: var(--warn); }
+.candidate-verdict[data-level="error"] { color: var(--err); }

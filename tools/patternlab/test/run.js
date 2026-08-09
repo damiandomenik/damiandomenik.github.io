@@ -103,6 +103,48 @@ eq('unterminated group', friendlyRegexError('Invalid regular expression: /(/: Un
 eq('nothing to repeat', friendlyRegexError('Nothing to repeat'),
    'A quantifier (* + ? {n}) has nothing before it to repeat.');
 
+console.log('\nbuilding a pattern from examples');
+{
+  const { inferPatterns, verify, suggestsBoundaries, tokenize, escapeLiteral } = await import('../js/regex/infer.js');
+
+  eq('runs are split by character class', tokenize('AZ-12').map(t => t.kind), ['upper', 'literal', 'digit']);
+  eq('and their lengths recorded', tokenize('AZ-12').map(t => t.length), [2, 1, 2]);
+  eq('regex metacharacters are escaped', escapeLiteral('a.b+c'), 'a\\.b\\+c');
+
+  const text = 'Aktenzeichen: AZ-12345/2026\nWeitere: AZ-92831/2025\nUngültig: AZ-123/2026';
+  const examples = ['AZ-12345/2026', 'AZ-92831/2025'];
+  const { candidates, aligned, note } = inferPatterns(examples);
+
+  t('two examples of the same shape align', aligned);
+  const exact = candidates.find(c => c.id === 'exact');
+  eq('the exact shape is recovered', exact.pattern, '[A-Z]{2}-\\d{5}\\/\\d{4}');
+  t('every candidate is a valid pattern', candidates.every(c => { try { new RegExp(c.pattern); return true; } catch { return false; } }));
+
+  // The verification step is the point: a suggestion you can check.
+  const exactCheck = verify(exact, examples, findMatches(exact.pattern, 'g', text).matches);
+  t('the exact candidate hits the examples and nothing else', exactCheck.ok);
+
+  const loose = candidates.find(c => c.id === 'loose');
+  const looseCheck = verify(loose, examples, findMatches(loose.pattern, 'g', text).matches);
+  eq('the loose candidate honestly reports its extra hit', looseCheck.extra, ['AZ-123/2026']);
+
+  // One example cannot know which parts vary — and says so.
+  const single = inferPatterns(['AZ-12345/2026']);
+  t('a single example is flagged as a guess', /single example/.test(single.note));
+  t('and a literal fallback is always offered', single.candidates.some(c => c.id === 'literal'));
+
+  const varying = inferPatterns(['+41 79 123 45 67', '+49 151 234 56 78']);
+  t('differing run lengths become a range', varying.candidates[0].pattern.includes('\\d{2,3}'));
+
+  const mixed = inferPatterns(['abc', '12345678', 'x!']);
+  t('examples with no shared shape are not forced into one', !mixed.aligned);
+  t('and that is stated plainly', /do not share a common structure/.test(mixed.note));
+
+  t('word boundaries suggested where they fit', suggestsBoundaries(examples, text));
+  t('and not where the example starts with punctuation', !suggestsBoundaries(['+41 79'], 'call +41 79 now'));
+  eq('no examples means no candidates', inferPatterns([]).candidates.length, 0);
+}
+
 console.log('\nrules → regex');
 {
   const regex = rulesToRegex({ ...DEFAULT_RULES, minLength: 12 });

@@ -1,8 +1,9 @@
 /* views/regex.js — the playground: pattern, flags, live matches, explanation,
  * test cases and the cheat sheet. */
 
-import { el, section, button, toast, copyText, notice, empty, debounce } from '../ui.js';
+import { el, section, button, checkbox, toast, copyText, notice, empty, debounce } from '../ui.js';
 import { findMatches, segments, testsAgainst } from '../regex/match.js';
+import { inferPatterns, verify, suggestsBoundaries } from '../regex/infer.js';
 import { explain } from '../regex/explain.js';
 import { FLAGS } from '../regex/parser.js';
 import { CHEATSHEET, EXAMPLES } from '../regex/cheatsheet.js';
@@ -12,6 +13,8 @@ const state = {
   flags: new Set(['g']),
   text: EXAMPLES[0].text,
   cases: EXAMPLES[0].cases.map(c => ({ ...c })),
+  samples: [],          // strings selected out of the test text
+  boundaries: false,
 };
 
 export function mount(root) {
@@ -62,6 +65,99 @@ export function mount(root) {
     renderCases();
   });
 
+  /* ---- build from examples ---- */
+
+  const sampleChips = el('div', { class: 'chips' });
+  const candidateList = el('div', { class: 'stack' });
+  const boundaryRow = el('div', { class: 'rule-row', hidden: true });
+
+  const addSelection = () => {
+    const { selectionStart, selectionEnd } = textInput;
+    const picked = textInput.value.slice(selectionStart, selectionEnd).trim();
+    if (!picked) {
+      toast('Select something in the test text first', 'warn');
+      return;
+    }
+    if (state.samples.includes(picked)) {
+      toast('That example is already in the list', 'warn');
+      return;
+    }
+    state.samples.push(picked);
+    renderInference();
+    toast(`Added "${picked.length > 24 ? picked.slice(0, 24) + '…' : picked}"`, 'ok');
+  };
+
+  function renderInference() {
+    sampleChips.replaceChildren(...state.samples.map((sample, index) =>
+      el('span', { class: 'chip' },
+        el('code', { text: sample }),
+        button('×', { kind: 'ghost small', title: 'Remove this example',
+          onclick: () => { state.samples.splice(index, 1); renderInference(); } })
+      )));
+
+    if (!state.samples.length) {
+      candidateList.replaceChildren(empty('Select a piece of the test text above and press "Use selection". Two or three examples give a much sharper guess than one.'));
+      boundaryRow.hidden = true;
+      return;
+    }
+
+    const canBound = suggestsBoundaries(state.samples, state.text);
+    boundaryRow.hidden = !canBound;
+
+    const { candidates, note } = inferPatterns(state.samples);
+    const rows = [el('p', { class: 'field-hint', text: note })];
+
+    for (const candidate of candidates) {
+      const pattern = state.boundaries && canBound ? `\\b${candidate.pattern}\\b` : candidate.pattern;
+      const result = findMatches(pattern, 'g', state.text);
+
+      let verdict;
+      let level;
+      if (!result.ok) {
+        verdict = `This candidate is not a valid pattern: ${result.error}`;
+        level = 'error';
+      } else {
+        const check = verify(candidate, state.samples, result.matches);
+        if (check.ok) {
+          verdict = `Matches your ${state.samples.length} example${state.samples.length === 1 ? '' : 's'} and nothing else in the text.`;
+          level = 'ok';
+        } else {
+          const bits = [];
+          if (check.missed.length) bits.push(`misses ${check.missed.map(m => `"${m}"`).join(', ')}`);
+          if (check.extra.length) {
+            const shown = check.extra.slice(0, 3).map(m => `"${m}"`).join(', ');
+            bits.push(`also catches ${shown}${check.extra.length > 3 ? ` and ${check.extra.length - 3} more` : ''}`);
+          }
+          verdict = `In your text this ${bits.join(', and ')}.`;
+          level = check.missed.length ? 'error' : 'warn';
+        }
+      }
+
+      rows.push(el('div', { class: 'candidate', dataset: { level } },
+        el('div', { class: 'candidate-head' },
+          el('span', { class: 'candidate-label', text: candidate.label }),
+          button('Use this', { kind: 'small', onclick: () => {
+            patternInput.value = pattern;
+            run();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            toast('Loaded into the pattern field', 'ok');
+          } })),
+        el('code', { class: 'candidate-pattern', text: pattern }),
+        el('p', { class: 'candidate-desc', text: candidate.description }),
+        el('p', { class: 'candidate-verdict', dataset: { level }, text: verdict })
+      ));
+    }
+
+    candidateList.replaceChildren(...rows);
+  }
+
+  boundaryRow.append(
+    checkbox('Require word boundaries (\\b … \\b)', state.boundaries, checked => {
+      state.boundaries = checked;
+      renderInference();
+    }, 'stops the pattern matching inside a longer word').node
+  );
+
   /* ---- wiring ---- */
 
   const run = () => {
@@ -70,6 +166,7 @@ export function mount(root) {
     renderMatches();
     renderExplanation();
     renderCases();
+    renderInference();
   };
   const runSoon = debounce(run, 80);
 
@@ -258,6 +355,17 @@ export function mount(root) {
       el('div', { class: 'result-head' }, summary),
       preview,
       matchList
+    ),
+
+    section('Build a pattern from examples',
+      'Select a piece of the test text, and PatternLab proposes patterns that would match it — then checks each one against the whole text so you can see what it really catches.',
+      el('div', { class: 'btn-row' },
+        button('Use selection', { kind: 'small', onclick: addSelection }),
+        button('Clear examples', { kind: 'ghost small', onclick: () => { state.samples = []; renderInference(); } })
+      ),
+      sampleChips,
+      boundaryRow,
+      candidateList
     ),
 
     section('What this pattern does', 'Each piece of the pattern, in plain words.',
