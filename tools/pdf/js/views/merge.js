@@ -9,6 +9,7 @@ import { loadWithPassword, firstPageThumb } from '../load.js';
 export function mount(root) {
   const entries = [];            // { id, name, meta, thumb, source }
   const pool = new UrlPool();
+  const thumbs = new Set();
   let nextId = 0;
 
   const list = fileList(entries, { onChange: update });
@@ -42,6 +43,10 @@ export function mount(root) {
           if (!source) continue;
           const id = `f${++nextId}`;
           const thumb = await firstPageThumb(source, pool);
+          // Merging only needs pdf-lib from here on. Dropping the pdf.js
+          // document frees its worker-side copy of the file straight away.
+          source.pdfjsDoc?.destroy();
+          source.pdfjsDoc = null;
           entries.push({
             id,
             name: file.name,
@@ -49,6 +54,7 @@ export function mount(root) {
             thumb,
             source,
           });
+          if (thumb) thumbs.add(thumb);
         } catch (err) {
           showError(err, `Could not read ${file.name}`);
         }
@@ -62,6 +68,7 @@ export function mount(root) {
   }
 
   function update() {
+    releaseDroppedThumbs();
     list.render();
     const pages = entries.reduce((n, e) => n + e.source.pageCount, 0);
     mergeBtn.disabled = entries.length < 2;
@@ -73,9 +80,20 @@ export function mount(root) {
     zone.classList.toggle('compact', entries.length > 0);
   }
 
+  /** Rows removed from the list still held an object URL — let it go. */
+  function releaseDroppedThumbs() {
+    const alive = new Set(entries.map(e => e.thumb).filter(Boolean));
+    for (const url of [...thumbs]) {
+      if (alive.has(url)) continue;
+      pool.revoke(url);
+      thumbs.delete(url);
+    }
+  }
+
   function clearAll() {
     for (const e of entries) e.source.pdfjsDoc?.destroy();
     entries.length = 0;
+    thumbs.clear();
     pool.clear();
     update();
   }

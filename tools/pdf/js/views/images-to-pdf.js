@@ -9,6 +9,7 @@ import { buildImageOptions } from './workspace.js';
 export function mount(root) {
   const entries = [];          // { id, name, meta, thumb, file }
   const pool = new UrlPool();
+  const thumbs = new Set();
   let nextId = 0;
 
   const list = fileList(entries, { onChange: update });
@@ -42,11 +43,13 @@ export function mount(root) {
       bar.set(i / files.length, file.name);
       try {
         const { width, height } = await imageDimensions(file);
+        const thumb = pool.create(file);
+        thumbs.add(thumb);
         entries.push({
           id: `i${++nextId}`,
           name: file.name,
           meta: `${width} × ${height} px · ${formatBytes(file.size)}`,
-          thumb: pool.create(file),
+          thumb,
           file,
         });
       } catch (err) {
@@ -58,6 +61,13 @@ export function mount(root) {
   }
 
   function update() {
+    // Rows removed from the list still held an object URL — let it go.
+    const alive = new Set(entries.map(e => e.thumb));
+    for (const url of [...thumbs]) {
+      if (alive.has(url)) continue;
+      pool.revoke(url);
+      thumbs.delete(url);
+    }
     list.render();
     exportBtn.disabled = entries.length === 0;
     clearBtn.disabled = entries.length === 0;
@@ -71,6 +81,7 @@ export function mount(root) {
 
   function clearAll() {
     entries.length = 0;
+    thumbs.clear();
     pool.clear();
     update();
   }

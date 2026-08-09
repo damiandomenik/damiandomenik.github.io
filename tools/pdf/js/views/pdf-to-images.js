@@ -57,7 +57,8 @@ export function mount(root) {
     const p = progress('Reading PDF');
     try {
       sourceName = baseName(files[0].name);
-      await composer.addFiles(files.slice(0, 1), (r, name) => p.set(r, name));
+      const { failed } = await composer.addFiles(files.slice(0, 1), (r, name) => p.set(r, name));
+      for (const f of failed) showError(f.error, `Could not read ${f.name}`);
     } catch (err) {
       showError(err, 'Could not read that PDF');
     } finally {

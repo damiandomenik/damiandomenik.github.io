@@ -27,15 +27,24 @@ export class Composer {
 
   /* ---------- adding ---------- */
 
-  /** Adds files of either kind, in the order given. Returns the number of pages added. */
+  /**
+   * Adds files of either kind, in the order given. One unreadable file does not
+   * stop the rest — the caller gets the list of failures to report.
+   * @returns {{added: number, failed: Array<{name: string, error: Error}>}}
+   */
   async addFiles(files, onStep = () => {}) {
     let added = 0;
+    const failed = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       onStep(i / files.length, file.name);
-      added += isPdf(file) ? await this.addPdf(file) : await this.addImage(file);
+      try {
+        added += isPdf(file) ? await this.addPdf(file) : await this.addImage(file);
+      } catch (error) {
+        failed.push({ name: file.name, error });
+      }
     }
-    return added;
+    return { added, failed };
   }
 
   async addPdf(file) {

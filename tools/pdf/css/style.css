@@ -170,7 +170,7 @@ input[type="checkbox"] { accent-color: var(--phosphor); }
 
 /* ---------- page grid ---------- */
 .pagegrid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;
   margin: 18px 0;
 }
 .pcell {
@@ -181,15 +181,17 @@ input[type="checkbox"] { accent-color: var(--phosphor); }
 .pcell.dragging { opacity: .35; }
 .pcell.drop-before { box-shadow: inset 3px 0 0 var(--phosphor); }
 .pcell.drop-after { box-shadow: inset -3px 0 0 var(--phosphor); }
+/* The frame is never taller than the narrowest cell is wide, so a page turned
+   90° still fits inside it instead of being clipped at the sides. */
 .pcell-frame {
-  height: 132px; display: flex; align-items: center; justify-content: center;
+  height: 130px; display: flex; align-items: center; justify-content: center;
   background: var(--void); overflow: hidden;
 }
 .pcell-frame img {
   max-width: 100%; max-height: 100%; display: block;
   transition: transform .12s linear; background: #fff;
 }
-.pcell-frame.r90 img, .pcell-frame.r270 img { max-width: 132px; max-height: 100%; }
+.pcell-frame.r90 img, .pcell-frame.r270 img { max-width: 130px; max-height: 100%; }
 .pcell-frame.r90 img { transform: rotate(90deg); }
 .pcell-frame.r180 img { transform: rotate(180deg); }
 .pcell-frame.r270 img { transform: rotate(270deg); }
@@ -283,8 +285,9 @@ input[type="checkbox"] { accent-color: var(--phosphor); }
   .topbar { padding: 8px 14px; gap: 10px; }
   .statusline { padding: 6px 14px; font-size: 11px; }
   .st-info { display: none; }
-  .pagegrid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
-  .pcell-frame { height: 112px; }
+  .pagegrid { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); }
+  .pcell-frame { height: 108px; }
+  .pcell-frame.r90 img, .pcell-frame.r270 img { max-width: 108px; }
   .pcell-ops { display: flex; }
   .pcell-src { display: none; }
 }

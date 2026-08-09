@@ -123,14 +123,17 @@ export function workspace(root, config) {
 
   async function addFiles(files) {
     const bar = progress('Reading files');
+    let result = { added: 0, failed: [] };
     try {
-      await composer.addFiles(files, (ratio, name) => bar.set(ratio, name));
+      result = await composer.addFiles(files, (ratio, name) => bar.set(ratio, name));
       bar.set(1);
     } catch (err) {
       showError(err, 'Could not read that file');
     } finally {
       bar.done();
     }
+    for (const { name, error } of result.failed) showError(error, `Skipped ${name}`);
+    if (result.added) toast('Added', `${result.added} page${result.added === 1 ? '' : 's'}`);
     refresh();
   }
 
