@@ -70,11 +70,13 @@ export function dropzone({ onFiles }) {
 
 /* ---------------- controls ---------------- */
 
-export function controlBar({ onCleanAll, onClear, onOptionChange }) {
+export function controlBar({ onCleanAll, onClear, onOptionChange, onViewChange }) {
   const orientation = el('input', { type: 'checkbox', checked: true });
   const colour = el('input', { type: 'checkbox', checked: true });
+  const expand = el('input', { type: 'checkbox' });
   orientation.addEventListener('change', onOptionChange);
   colour.addEventListener('change', onOptionChange);
+  expand.addEventListener('change', onViewChange);
 
   const cleanAll = el('button', { class: 'btn btn-primary', onclick: onCleanAll }, 'Clean all');
   const clear = el('button', { class: 'btn btn-quiet', onclick: onClear }, 'Clear');
@@ -83,6 +85,7 @@ export function controlBar({ onCleanAll, onClear, onOptionChange }) {
     el('label', { class: 'check' }, orientation, 'Keep orientation flag',
       el('span', { class: 'check-note', text: '(recommended)' })),
     el('label', { class: 'check' }, colour, 'Keep colour profile'),
+    el('label', { class: 'check' }, expand, 'Show every tag'),
     el('span', { class: 'spacer' }),
     el('span', { class: 'button-row' }, cleanAll, clear)
   );
@@ -90,6 +93,7 @@ export function controlBar({ onCleanAll, onClear, onOptionChange }) {
   return {
     node,
     options: () => ({ keepOrientation: orientation.checked, keepColorProfile: colour.checked }),
+    showAll: () => expand.checked,
     setBusy(busy) { cleanAll.disabled = busy; cleanAll.textContent = busy ? 'Cleaning…' : 'Clean all'; },
   };
 }
@@ -181,8 +185,9 @@ function findingsSection(entry, handlers) {
   const section = el('div', { class: 'findings' }, ...important);
 
   if (technical.length) {
-    section.append(el('details', { class: 'disclosure' },
-      el('summary', { text: 'Technical tags — camera settings, dimensions, software' }),
+    const count = technical.reduce((n, block) => n + block.querySelectorAll('.row').length, 0);
+    section.append(el('details', { class: 'disclosure', open: handlers?.showAll === true },
+      el('summary', { text: `Everything else — ${count} further tag${count === 1 ? '' : 's'}: camera settings, dimensions, software, unrecognised entries` }),
       ...technical
     ));
   }
@@ -215,10 +220,6 @@ function groupBlock(group, findings, worst, entry, handlers) {
 
 function coordinateBlock(finding, entry, handlers) {
   const { lat, lon } = finding.value;
-
-  // Deliberately not an embedded map: rendering one would send these exact
-  // coordinates to a tile server on page load, which is the thing this page
-  // exists to stop. Both the link and the lookup below wait for a click.
   const href = `https://www.openstreetmap.org/?mlat=${lat.toFixed(6)}&mlon=${lon.toFixed(6)}#map=16/${lat.toFixed(4)}/${lon.toFixed(4)}`;
 
   const block = el('div', { class: 'coords' },
@@ -226,39 +227,72 @@ function coordinateBlock(finding, entry, handlers) {
     finding.precision ? el('p', { class: 'coords-note', text: finding.precision }) : null
   );
 
+  /* --- address --- */
   if (entry.address) {
-    block.append(
-      el('div', { class: 'address' },
-        el('span', { class: 'label', text: 'This is' }),
-        el('p', { class: 'address-line', text: entry.address.summary }),
-        entry.address.detail !== entry.address.summary
-          ? el('p', { class: 'address-detail', text: entry.address.detail })
-          : null,
-        el('p', { class: 'address-credit', text: entry.address.attribution })
-      )
-    );
+    block.append(el('div', { class: 'address' },
+      el('span', { class: 'label', text: 'This is' }),
+      el('p', { class: 'address-line', text: entry.address.summary }),
+      entry.address.detail !== entry.address.summary
+        ? el('p', { class: 'address-detail', text: entry.address.detail }) : null,
+      el('p', { class: 'address-credit', text: entry.address.attribution })
+    ));
   } else if (entry.addressError) {
     block.append(el('p', { class: 'coords-note', text: entry.addressError }));
-  } else if (handlers?.onLookup) {
-    const button = el('button', { class: 'btn btn-sm' }, 'Look up this address');
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      button.textContent = 'Asking…';
+  }
+
+  /* --- map --- */
+  if (entry.showMap) {
+    // Loaded only after a click. referrerpolicy keeps the page URL out of the
+    // request; the coordinates themselves are unavoidably in it — that is what
+    // asking for a map means.
+    const delta = 0.0025;
+    const src = `https://www.openstreetmap.org/export/embed.html`
+      + `?bbox=${(lon - delta).toFixed(5)},${(lat - delta).toFixed(5)},${(lon + delta).toFixed(5)},${(lat + delta).toFixed(5)}`
+      + `&layer=mapnik&marker=${lat.toFixed(6)},${lon.toFixed(6)}`;
+    block.append(el('div', { class: 'map' },
+      el('iframe', {
+        src, loading: 'lazy', referrerpolicy: 'no-referrer',
+        title: 'Map of where this photo was taken',
+      }),
+      el('div', { class: 'map-bar' },
+        el('span', { class: 'address-credit', text: '© OpenStreetMap contributors' }),
+        el('button', {
+          class: 'btn btn-sm btn-quiet',
+          onclick: () => { entry.showMap = false; handlers.onRefresh(entry); },
+        }, 'Hide map'))
+    ));
+  }
+
+  /* --- the opt-in controls --- */
+  const buttons = [];
+  if (!entry.address && !entry.addressError && handlers?.onLookup) {
+    const lookup = el('button', { class: 'btn btn-sm' }, 'Look up the address');
+    lookup.addEventListener('click', async () => {
+      lookup.disabled = true;
+      lookup.textContent = 'Asking…';
       await handlers.onLookup(entry, finding);
     });
-    block.append(
-      el('div', { class: 'lookup' },
-        button,
-        el('p', { class: 'lookup-warning' },
-          el('strong', { text: 'This one step leaves your browser. ' }),
-          'Pressing it sends these coordinates — and nothing else, no photo, no filename — to OpenStreetMap to ask what is there. Everything else on this page stays local.')
-      )
-    );
+    buttons.push(lookup);
+  }
+  if (!entry.showMap && handlers?.onRefresh) {
+    buttons.push(el('button', {
+      class: 'btn btn-sm',
+      onclick: () => { entry.showMap = true; handlers.onRefresh(entry); },
+    }, 'Show on a map'));
+  }
+
+  if (buttons.length) {
+    block.append(el('div', { class: 'lookup' },
+      el('div', { class: 'button-row' }, ...buttons),
+      el('p', { class: 'lookup-warning' },
+        el('strong', { text: 'These two buttons are the only things here that leave your browser. ' }),
+        'Either one sends these coordinates to OpenStreetMap — nothing else, no photo, no filename. Neither fires on its own.')
+    ));
   }
 
   block.append(el('p', { class: 'coords-note' },
-    el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, 'Open in OpenStreetMap'),
-    ' to see it on a map.'
+    el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, 'Open on openstreetmap.org'),
+    ' for the full map.'
   ));
 
   return block;

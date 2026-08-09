@@ -22,6 +22,7 @@ document.getElementById('dropzone-slot').append(zone);
 const controls = controlBar({
   onCleanAll: cleanAll,
   onClear: clearAll,
+  onViewChange: () => { for (const entry of entries) entry.view.update(); },
   onOptionChange: () => {
     // Options changed: previously cleaned files were made with the old ones.
     for (const entry of entries) {
@@ -91,7 +92,14 @@ async function addOne(file) {
 
   entry.dimensions = await measure(entry.previewUrl).catch(() => null);
 
-  entry.view = sheet(entry, { onClean: cleanOne, onRemove: removeOne, onReencode: reencodeOne, onLookup: lookUp });
+  entry.view = sheet(entry, {
+    onClean: cleanOne,
+    onRemove: removeOne,
+    onReencode: reencodeOne,
+    onLookup: lookUp,
+    onRefresh: e => e.view.update(),
+    get showAll() { return controls.showAll(); },
+  });
   entries.push(entry);
   list.append(entry.view.node);
 }

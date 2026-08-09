@@ -30,7 +30,7 @@
     <p class="lede">
       Most cameras and phones write a hidden record into every file: where you were, to the metre.
       When you took it, to the second. Which device, down to its serial number. Sometimes your name.
-      Drop a photo below to read that record — then strip it out.
+      Drop a photo below to read the whole record — every tag, including the ones this tool cannot name — then strip it out.
     </p>
   </section>
 
@@ -49,8 +49,8 @@
       <dt>The orientation flag is kept, on purpose</dt>
       <dd>Stripping everything also strips the flag telling viewers which way up the photo goes, which is why so many cleaned phone photos end up sideways. A 36-byte block containing that single tag is written back. It identifies nobody. You can turn it off.</dd>
 
-      <dt>One button, and only that button, leaves the browser</dt>
-      <dd>Where a photo has GPS data, the coordinates are shown as plain numbers and no map is embedded — loading map tiles would send your location to a provider before you had decided anything. If you want to know what is actually at those coordinates, there is a button that asks OpenStreetMap. It sends the coordinates and nothing else: no photo, no filename. It never fires on its own, and the rest of the page never touches the network.</dd>
+      <dt>Two buttons, and only those, leave the browser</dt>
+      <dd>Where a photo has GPS data, the coordinates appear as plain numbers and nothing is loaded. If you want to see where that is, one button asks OpenStreetMap for the address and another draws the map. Both send the coordinates and nothing else — no photo, no filename — and neither fires on its own. That is a real trade-off, not a loophole: no service can tell you what is at a location without being told the location. Everything else on this page, including the cleaning itself, never touches the network.</dd>
     </dl>
   </section>
 </main>

@@ -77,12 +77,18 @@ export const TAGS = {
   0x0010: { name: 'GPSImgDirection', group: 'location', severity: 'medium' },
   0x0011: { name: 'GPSImgDirectionRef', group: 'location', severity: 'low' },
   0x001b: { name: 'GPSProcessingMethod', group: 'location', severity: 'medium' },
+  0x0008: { name: 'GPSSatellites', group: 'location', severity: 'low' },
+  0x0009: { name: 'GPSStatus', group: 'location', severity: 'low' },
+  0x000c: { name: 'GPSSpeedRef', group: 'location', severity: 'low' },
+  0x000d: { name: 'GPSSpeed', group: 'location', severity: 'medium' },
+  0x0012: { name: 'GPSMapDatum', group: 'location', severity: 'low' },
+  0x001f: { name: 'GPSHPositioningError', group: 'location', severity: 'medium' },
 };
 
 /** GPS tags live in their own IFD, so tag numbers collide with IFD0. */
 export const GPS_TAGS = new Set([
   0x0000, 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007,
-  0x0010, 0x0011, 0x001b, 0x001d,
+  0x0008, 0x0009, 0x000c, 0x000d, 0x0010, 0x0011, 0x0012, 0x001b, 0x001d, 0x001f,
 ]);
 
 export const ORIENTATION_LABELS = {
@@ -121,6 +127,11 @@ export const GROUP_INFO = {
   software: { label: 'Software', icon: '🛠', consequence: 'Which program last touched the file.' },
   camera: { label: 'Camera settings', icon: '⚙️', consequence: 'Exposure, aperture, ISO. Harmless on its own.' },
   technical: { label: 'Technical', icon: '📐', consequence: 'Dimensions, resolution, orientation. Harmless on its own.' },
+  unknown: {
+    label: 'Unrecognised tags',
+    icon: '❓',
+    consequence: 'Tags with no entry in this tool\u2019s dictionary — usually manufacturer extensions. Shown by their raw number so nothing stays hidden from you. They are removed along with everything else.',
+  },
   thumbnail: {
     label: 'Embedded preview',
     icon: '🖼',
@@ -141,5 +152,5 @@ export const GROUP_INFO = {
 export const SEVERITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 
 export const GROUP_ORDER = [
-  'location', 'identity', 'thumbnail', 'time', 'device', 'xmp', 'text', 'software', 'camera', 'technical',
+  'location', 'identity', 'thumbnail', 'time', 'device', 'xmp', 'text', 'software', 'camera', 'technical', 'unknown',
 ];

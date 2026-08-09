@@ -26,7 +26,7 @@ tools/
 │   │   ├── strip.js        verlustfreies Entfernen je Format
 │   │   ├── tags.js         Tag-Wörterbuch + Risikobewertung
 │   │   └── geocode.js      optionale Adress-Suche via Nominatim
-│   └── test/               85 Tests: node test/all.js
+│   └── test/               106 Tests: node test/all.js
 └── pdftoolbox/             Tool 1: PDF Toolbox
     ├── index.html          App-Shell, lädt die CDN-Libraries
     ├── css/

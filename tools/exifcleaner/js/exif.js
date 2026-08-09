@@ -217,8 +217,17 @@ function readTiff(bytes, start, limit) {
 
       // GPS tag numbers collide with IFD0 tag numbers, so a GPS definition may
       // only ever be used inside the GPS directory.
-      const definition = GPS_TAGS.has(tag) && kind !== 'gps' ? null : TAGS[tag];
-      if (!definition) continue;
+      const known = GPS_TAGS.has(tag) && kind !== 'gps' ? null : TAGS[tag];
+
+      // Anything without an entry in the dictionary is still shown, as a raw
+      // tag number. Hiding what we cannot name would be the opposite of the
+      // job: you asked what is in the file, not what we recognise.
+      const definition = known || {
+        name: `Tag 0x${tag.toString(16).padStart(4, '0').toUpperCase()}`,
+        group: 'unknown',
+        severity: 'low',
+        unknown: true,
+      };
 
       // IFD1 describes the embedded thumbnail, not the photo. Its tags would
       // otherwise duplicate the real ones and its orientation could overwrite
@@ -237,6 +246,8 @@ function readTiff(bytes, start, limit) {
         severity: definition.severity,
         value,
         display: formatValue(definition, value),
+        unknown: definition.unknown === true,
+        ifd: kind,
       });
     }
 
