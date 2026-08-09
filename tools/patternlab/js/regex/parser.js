@@ -129,8 +129,19 @@ function parseGroup(state) {
       kind = 'named';
       state.index = close + 1;
     } else {
-      // Modifier groups like (?i:…) exist in other flavours, not in JavaScript.
-      throw new RegexSyntaxError(`Unsupported group syntax at position ${start}.`, start);
+      // Modifier groups — (?i:…) and (?-i:…) — are new and not in every engine.
+      // Refusing the whole pattern would lose the explanation of everything
+      // else in it, so this becomes a gap and parsing continues.
+      const close = findGroupEnd(state.source, start);
+      const raw = close > 0 ? state.source.slice(start, close + 1) : state.source.slice(start);
+      state.index = close > 0 ? close + 1 : state.source.length;
+      const node = {
+        type: 'unsupported', raw,
+        reason: 'an inline modifier group — very new syntax, and not explained here',
+        start, end: state.index,
+      };
+      state.unsupported.push(node);
+      return node;
     }
   }
 
@@ -149,6 +160,17 @@ function parseGroup(state) {
   return { type: 'group', kind, name, number, body, start, end: state.index };
 }
 
+/** Index of the ) that closes the ( at `open`, or -1. */
+function findGroupEnd(source, open) {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '\\') { i++; continue; }
+    if (source[i] === '(') depth++;
+    else if (source[i] === ')') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
 function parseCharacterClass(state) {
   const start = state.index;
   state.index++;                                    // consume [
@@ -164,6 +186,18 @@ function parseCharacterClass(state) {
 
     let from;
     if (peek(state) === '\\') {
+      // \q{…} is a v-flag string set. Reading it character by character would
+      // describe something the engine does not do.
+      if (state.source[state.index + 1] === 'q' && state.source[state.index + 2] === '{') {
+        const close = state.source.indexOf('}', state.index + 3);
+        const end = close < 0 ? state.source.length : close + 1;
+        const raw = state.source.slice(state.index, end);
+        state.index = end;
+        const node = { type: 'unsupported', raw, reason: 'a \\q{…} string set, which needs the v flag and is not explained here' };
+        state.unsupported.push(node);
+        parts.push(node);
+        continue;
+      }
       const escape = parseEscape(state, true);
       if (escape.type === 'escapeClass') { parts.push(escape); continue; }
       from = escape.value;
@@ -221,6 +255,22 @@ function parseEscape(state, insideClass = false) {
   }
   if (insideClass && ch === 'b') {
     return { type: 'char', value: '\b', escaped: true, description: 'a backspace character', start, end: state.index };
+  }
+  if (ch === 'c') {
+    // \cJ is the control character for J — a line feed, not the letters "cJ".
+    // Reading it as a literal produced a confidently wrong explanation.
+    const letter = state.source[state.index];
+    if (letter && /[a-zA-Z]/.test(letter)) {
+      state.index++;
+      const code = letter.toUpperCase().charCodeAt(0) - 64;
+      return {
+        type: 'char',
+        value: String.fromCharCode(code),
+        escaped: true,
+        description: `the control character Ctrl-${letter.toUpperCase()} (code ${code})`,
+        start, end: state.index,
+      };
+    }
   }
   if (ch === 'u') {
     // \uFFFF or \u{1F600} with the u flag

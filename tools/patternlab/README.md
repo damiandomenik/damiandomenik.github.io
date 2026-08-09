@@ -109,7 +109,19 @@ The brief asked for React, TypeScript and Vite. This is vanilla ES modules inste
 
 **`\w` and `\b` are ASCII-only** in JavaScript, so `ä` is not a word character. The explanation says this where it matters; the engine's behaviour is not changed.
 
-**Unicode property escapes** (`\p{Script=Greek}`) are valid and will match correctly, but are shown as "not explained" rather than described — naming every property honestly would mean shipping the Unicode database.
+### Syntax coverage
+
+`test/coverage.test.js` throws every JavaScript regex construct at the parser and asserts that each one is either fully explained or openly marked as a gap. Currently: **53 fully explained, 7 marked as gaps, 0 wrongly rejected.**
+
+The seven gaps, and why:
+
+| Construct | Status |
+|---|---|
+| `\p{L}`, `\P{L}`, `\p{Script=Greek}` | Matches correctly; not described. Naming every Unicode property honestly would mean shipping the Unicode database. |
+| `(?i:…)`, `(?-i:…)` inline modifiers | Very new syntax. Marked as a gap; the rest of the pattern is still explained. |
+| `[\p{L}--[aeiou]]`, `[\q{abc}]` | Set notation and string sets, which need the `v` flag. |
+
+The `v` flag is deliberately not offered in the flag toggles: the engine would handle it, but the explainer would read set notation as ordinary characters, and a confident wrong explanation is worse than an absent one. That is not hypothetical — the coverage test caught exactly this with `\cJ`, which was being described as the literal letters "cJ" when it actually matches a line feed.
 
 **The common-password list is short.** A few hundred entries, enough to catch the obvious. A real breach corpus is hundreds of megabytes, which is not something to download into a browser tab.
 

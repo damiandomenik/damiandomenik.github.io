@@ -150,6 +150,7 @@ function describeClass(node) {
   const pieces = node.parts.map(part => {
     if (part.type === 'range') return `${part.from} to ${part.to}`;
     if (part.type === 'escapeClass') return part.description;
+    if (part.type === 'unsupported') return `${part.raw} (not explained)`;
     return `"${part.value}"`;
   });
   const list = joinList(pieces);

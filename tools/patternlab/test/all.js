@@ -2,7 +2,9 @@
 import { spawnSync } from 'node:child_process';
 
 let failed = 0;
-if (spawnSync('node', ['test/run.js'], { stdio: 'inherit' }).status !== 0) failed++;
+for (const suite of ['test/run.js', 'test/coverage.test.js']) {
+  if (spawnSync('node', [suite], { stdio: 'inherit' }).status !== 0) failed++;
+}
 
 // The view suite needs jsdom; skip it rather than fail when it is absent.
 try {
