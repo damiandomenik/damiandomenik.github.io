@@ -85,6 +85,7 @@ async function addOne(file) {
       const meta = readMetadata(bytes);
       entry.findings = meta.findings;
       entry.orientation = meta.orientation;
+      entry.containers = meta.containers || [];
     }
   } catch (err) {
     entry.error = err.message || 'The file could not be read.';

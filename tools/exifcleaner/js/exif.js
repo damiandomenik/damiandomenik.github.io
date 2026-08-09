@@ -63,9 +63,16 @@ export function readMetadata(bytes) {
     case 'jpeg': return { format, ...readJpeg(bytes) };
     case 'png': return { format, ...readPng(bytes) };
     case 'webp': return { format, ...readWebp(bytes) };
-    default: return { format, findings: [], orientation: null, raw: {} };
+    default: return { format, findings: [], orientation: null, raw: {}, containers: [] };
   }
 }
+
+/** What this format could be carrying, so "nothing found" can be specific. */
+export const SCANNED_FOR = {
+  jpeg: ['Exif', 'XMP', 'IPTC / Photoshop', 'JPEG comments'],
+  png: ['eXIf', 'XMP', 'text chunks', 'timestamps'],
+  webp: ['Exif', 'XMP'],
+};
 
 /* ------------------------------------------------------------------ *
  * JPEG                                                                *
@@ -123,6 +130,7 @@ export function isXmpSegment(bytes, segment) {
 
 function readJpeg(bytes) {
   const findings = [];
+  const containers = [];
   let orientation = null;
   const raw = {};
 
@@ -151,15 +159,165 @@ function readJpeg(bytes) {
     } else if (isXmpSegment(bytes, segment)) {
       findings.push(...readXmp(ascii(bytes, segment.dataStart + XMP_NS.length, segment.dataEnd - segment.dataStart - XMP_NS.length)));
     } else if (segment.marker === 0xed) {
-      findings.push({ name: 'Photoshop/IPTC block', group: 'identity', severity: 'high',
-        display: `${formatBytes(segment.dataEnd - segment.dataStart)} of Photoshop metadata` });
+      findings.push(...readPhotoshop(bytes, segment.dataStart, segment.dataEnd));
     } else if (segment.marker === 0xfe) {
       const comment = ascii(bytes, segment.dataStart, segment.dataEnd - segment.dataStart).replace(/\0+$/, '');
       if (comment.trim()) findings.push({ name: 'Comment', group: 'text', severity: 'medium', display: comment.slice(0, 200) });
+    } else if (segment.marker === 0xe0) {
+      containers.push({ name: 'JFIF header', bytes: segment.dataEnd - segment.dataStart });
+    } else if (segment.marker === 0xe2 && ascii(bytes, segment.dataStart, 11) === 'ICC_PROFILE') {
+      containers.push({ name: 'ICC colour profile', bytes: segment.dataEnd - segment.dataStart });
+    } else if (segment.marker >= 0xe3 && segment.marker <= 0xef) {
+      containers.push({ name: `APP${segment.marker - 0xe0} block`, bytes: segment.dataEnd - segment.dataStart });
     }
   }
 
-  return { findings, orientation, raw };
+  return { findings, orientation, raw, containers };
+}
+
+/* ------------------------------------------------------------------ *
+ * Photoshop image resource blocks (APP13) and the IPTC data inside     *
+ * ------------------------------------------------------------------ */
+
+/** What each 8BIM resource id is, so a block can be named rather than weighed. */
+const IRB_NAMES = {
+  0x03e8: 'channel and row info', 0x03ed: 'resolution info', 0x03f3: 'print flags',
+  0x0404: 'IPTC block', 0x0406: 'JPEG quality', 0x0408: 'grid and guides',
+  0x0409: 'embedded thumbnail', 0x040a: 'copyright flag', 0x040b: 'URL',
+  0x040c: 'embedded thumbnail', 0x040d: 'global lighting angle', 0x0411: 'ICC untagged flag',
+  0x0414: 'document id seed', 0x0419: 'global altitude', 0x041a: 'slices',
+  0x0421: 'version info', 0x0425: 'caption digest', 0x042d: 'print scale',
+  0x043a: 'print info', 0x2710: 'print flags info',
+};
+
+/**
+ * IPTC (IIM) record 2 datasets worth surfacing. Everything else in the record
+ * is layout trivia.
+ */
+const IPTC_FIELDS = {
+  5:   ['Title', 'text', 'medium'],
+  25:  ['Keywords', 'text', 'medium'],
+  40:  ['Instructions', 'text', 'medium'],
+  55:  ['Date created', 'time', 'high'],
+  60:  ['Time created', 'time', 'high'],
+  80:  ['Photographer', 'identity', 'critical'],
+  85:  ['Photographer title', 'identity', 'high'],
+  90:  ['City', 'location', 'critical'],
+  92:  ['Location', 'location', 'critical'],
+  95:  ['Region', 'location', 'high'],
+  100: ['Country code', 'location', 'medium'],
+  101: ['Country', 'location', 'high'],
+  105: ['Headline', 'text', 'medium'],
+  110: ['Credit', 'identity', 'high'],
+  115: ['Source', 'identity', 'high'],
+  116: ['Copyright notice', 'identity', 'high'],
+  120: ['Caption', 'text', 'medium'],
+  122: ['Caption writer', 'identity', 'critical'],
+};
+
+/**
+ * A Photoshop block is a list of resources, most of which are print settings
+ * and grid spacing. Reporting the whole block as "personal details" because it
+ * might contain a name is crying wolf — so it gets read, and only what is
+ * actually in it is reported.
+ */
+function readPhotoshop(bytes, start, end) {
+  const findings = [];
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  let offset = start;
+  if (ascii(bytes, offset, 13) === 'Photoshop 3.0') offset += 14;   // signature + NUL
+
+  const resources = [];
+  let guard = 0;
+  while (offset + 12 <= end && guard++ < 200) {
+    if (ascii(bytes, offset, 4) !== '8BIM') break;
+    offset += 4;
+
+    const id = view.getUint16(offset);
+    offset += 2;
+
+    // Pascal-style name: length byte plus content, padded so the pair is even.
+    const nameLength = bytes[offset];
+    offset += 1 + nameLength;
+    if ((nameLength + 1) % 2) offset += 1;
+
+    if (offset + 4 > end) break;
+    const size = view.getUint32(offset);
+    offset += 4;
+    if (size > end - offset) break;
+
+    if (id === 0x0404) {
+      findings.push(...readIptc(bytes, offset, offset + size, view));
+    } else if (id === 0x0409 || id === 0x040c) {
+      findings.push({
+        name: 'Photoshop preview', group: 'thumbnail', severity: 'high',
+        display: `${formatBytes(size)} embedded preview image`,
+      });
+    } else {
+      resources.push(IRB_NAMES[id] || `resource 0x${id.toString(16).padStart(4, '0')}`);
+    }
+
+    offset += size + (size % 2);
+  }
+
+  if (resources.length) {
+    findings.push({
+      name: 'Photoshop settings', group: 'software', severity: 'low',
+      display: resources.join(', '),
+    });
+  }
+  if (!findings.length) {
+    findings.push({
+      name: 'Photoshop block', group: 'software', severity: 'low',
+      display: `${formatBytes(end - start)}, no readable fields`,
+    });
+  }
+  return findings;
+}
+
+function readIptc(bytes, start, end, view) {
+  const findings = [];
+  let offset = start;
+  let guard = 0;
+
+  while (offset + 5 <= end && guard++ < 300) {
+    if (bytes[offset] !== 0x1c) { offset++; continue; }
+    const record = bytes[offset + 1];
+    const dataset = bytes[offset + 2];
+    let length = view.getUint16(offset + 3);
+    let header = 5;
+
+    if (length & 0x8000) {                       // extended length: rare, and huge
+      const sizeBytes = length & 0x7fff;
+      if (sizeBytes !== 4 || offset + 9 > end) break;
+      length = view.getUint32(offset + 5);
+      header = 9;
+    }
+    if (offset + header + length > end) break;
+
+    const field = record === 2 ? IPTC_FIELDS[dataset] : null;
+    if (field) {
+      const value = decodeText(bytes, offset + header, length);
+      if (value) {
+        const [name, group, severity] = field;
+        findings.push({ name: `IPTC ${name}`, group, severity, display: value.slice(0, 200) });
+      }
+    }
+    offset += header + length;
+  }
+  return findings;
+}
+
+/** IPTC is usually UTF-8 these days but was Latin-1 for years. Try both. */
+function decodeText(bytes, offset, length) {
+  const slice = bytes.subarray(offset, offset + length);
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(slice);
+    return text.replace(/[\u0000-\u001f]/g, '').trim();
+  } catch {
+    return ascii(bytes, offset, length).replace(/[\u0000-\u001f]/g, '').trim();
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -426,6 +584,7 @@ export const PNG_METADATA_CHUNKS = new Set(['tEXt', 'zTXt', 'iTXt', 'eXIf', 'tIM
 
 function readPng(bytes) {
   const findings = [];
+  const containers = [];
   let orientation = null;
 
   for (const chunk of pngChunks(bytes)) {
@@ -449,6 +608,8 @@ function readPng(bytes) {
       const tiff = readTiff(bytes, chunk.dataStart, chunk.dataEnd);
       findings.push(...tiff.findings);
       orientation = tiff.orientation;
+    } else if (chunk.type === 'iCCP' || chunk.type === 'sRGB' || chunk.type === 'gAMA' || chunk.type === 'pHYs') {
+      containers.push({ name: `${chunk.type} chunk`, bytes: chunk.length });
     } else if (chunk.type === 'tIME') {
       const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       const year = view.getUint16(chunk.dataStart);
@@ -459,7 +620,7 @@ function readPng(bytes) {
       });
     }
   }
-  return { findings, orientation, raw: {} };
+  return { findings, orientation, raw: {}, containers };
 }
 
 const pad = n => String(n ?? 0).padStart(2, '0');
@@ -489,9 +650,13 @@ export const WEBP_METADATA_CHUNKS = new Set(['EXIF', 'XMP ']);
 
 function readWebp(bytes) {
   const findings = [];
+  const containers = [];
   let orientation = null;
 
   for (const chunk of webpChunks(bytes)) {
+    if (chunk.type === 'ICCP' || chunk.type === 'ALPH') {
+      containers.push({ name: `${chunk.type} chunk`, bytes: chunk.length });
+    }
     if (chunk.type === 'EXIF') {
       // Some writers prefix the TIFF block with "Exif\0\0", some do not.
       const hasHeader = EXIF_HEADER.every((b, i) => bytes[chunk.dataStart + i] === b);
@@ -502,7 +667,7 @@ function readWebp(bytes) {
       findings.push(...readXmp(ascii(bytes, chunk.dataStart, chunk.length)));
     }
   }
-  return { findings, orientation, raw: {} };
+  return { findings, orientation, raw: {}, containers };
 }
 
 /* ------------------------------------------------------------------ */

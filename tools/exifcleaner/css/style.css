@@ -184,6 +184,18 @@ button { font: inherit; color: inherit; }
 
 .findings { border-top: 1px solid var(--rule-soft); }
 
+.nothing { border-top: 1px solid var(--rule-soft); padding: 16px 18px; }
+.nothing .group-title { color: var(--calm); margin-bottom: 6px; }
+.disclosure-inline summary {
+  cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 0; list-style: none;
+}
+.disclosure-inline summary::-webkit-details-marker { display: none; }
+.disclosure-inline summary::before { content: "▸ "; }
+.disclosure-inline[open] summary::before { content: "▾ "; }
+.disclosure-inline summary:hover { color: var(--ink); }
+.reasons { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; }
+.reasons li { margin-bottom: 6px; max-width: 62ch; }
+
 .group { border-bottom: 1px solid var(--rule-soft); padding: 15px 18px; }
 .group:last-child { border-bottom: 0; }
 .group-head { display: flex; align-items: baseline; gap: 9px; }

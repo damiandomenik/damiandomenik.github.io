@@ -1,6 +1,6 @@
 /* Parser and stripper tests. Run: node test/run.js */
 
-import { buildJpeg, buildPng, buildWebp, realisticTiff, buildTiff, crc32 } from './fixtures.js';
+import { buildJpeg, buildPng, buildWebp, realisticTiff, buildTiff, crc32, photoshopWithIptc, photoshopPrintOnly } from './fixtures.js';
 import { readMetadata, detectFormat, jpegSegments, pngChunks, webpChunks } from '../js/exif.js';
 import { stripMetadata, orientationOnlyExif } from '../js/strip.js';
 
@@ -180,6 +180,36 @@ console.log('\nreading and stripping a WebP');
   const originalVp8 = webpChunks(webp).find(c => c.type === 'VP8 ');
   const keptVp8 = webpChunks(clean).find(c => c.type === 'VP8 ');
   t('image data untouched', bytesEqual(webp.subarray(originalVp8.start, originalVp8.end), clean.subarray(keptVp8.start, keptVp8.end)));
+}
+
+console.log('\nPhotoshop and IPTC blocks are read, not just weighed');
+{
+  const withIptc = readMetadata(buildJpeg({
+    photoshop: photoshopWithIptc(), tiff: buildTiff([]), xmp: false, comment: false,
+  })).findings;
+  eq('photographer name extracted', find(withIptc, 'IPTC Photographer')?.display, 'Anna Beispiel');
+  eq('and flagged as identifying', find(withIptc, 'IPTC Photographer')?.severity, 'critical');
+  eq('city extracted', find(withIptc, 'IPTC City')?.display, 'Vaduz');
+  eq('city counts as location', find(withIptc, 'IPTC City')?.group, 'location');
+  eq('country extracted', find(withIptc, 'IPTC Country')?.display, 'Liechtenstein');
+  eq('copyright extracted', find(withIptc, 'IPTC Copyright notice')?.display, '(c) 2024 Anna Beispiel');
+  eq('caption extracted', find(withIptc, 'IPTC Caption')?.display, 'A view over the city at night');
+  t('print settings listed separately and quietly',
+    find(withIptc, 'Photoshop settings')?.severity === 'low');
+
+  // The false alarm this replaced: a block of print settings used to be
+  // reported as "Reveals personal details" purely because of its size.
+  // Isolated: no Exif and no XMP, so the only thing under test is the block.
+  const printOnly = readMetadata(buildJpeg({
+    photoshop: photoshopPrintOnly(), tiff: buildTiff([]), xmp: false, comment: false,
+  })).findings;
+  const named = printOnly.filter(f => f.group === 'identity');
+  eq('a print-settings block raises no identity alarm', named.length, 0);
+  eq('it is described by what it holds', find(printOnly, 'Photoshop settings')?.display,
+     'resolution info, JPEG quality');
+
+  const cleaned = stripMetadata(buildJpeg({ photoshop: photoshopWithIptc() }), { keepOrientation: false });
+  eq('and the whole block is removed on clean', readMetadata(cleaned.bytes).findings.length, 0);
 }
 
 console.log('\nfiles with nothing to remove');

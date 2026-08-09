@@ -3,7 +3,7 @@
  * this page is concerned. */
 
 import { GROUP_INFO, GROUP_ORDER, SEVERITY_RANK } from './tags.js';
-import { formatBytes } from './exif.js';
+import { formatBytes, SCANNED_FOR } from './exif.js';
 
 export function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -120,6 +120,10 @@ function render(node, entry, handlers) {
     ));
   } else if (entry.findings?.length) {
     children.push(findingsSection(entry, handlers));
+  } else {
+    // "Nothing found" has to be said out loud. Showing an empty space leaves
+    // you unable to tell a clean photo from a tool that did not work.
+    children.push(nothingFound(entry));
   }
 
   if (entry.cleaned) children.push(resultStrip(entry, handlers));
@@ -163,6 +167,32 @@ function listPhrase(items) {
   if (items.length <= 1) return items[0] || 'something';
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function nothingFound(entry) {
+  const checked = SCANNED_FOR[entry.format] || ['metadata blocks'];
+  const containers = entry.containers || [];
+
+  return el('section', { class: 'nothing' },
+    el('h3', { class: 'group-title', text: 'No metadata in this file' }),
+    el('p', { class: 'group-why' },
+      'Checked for ', checked.join(', '),
+      '. None of it is present — no location, no timestamps, no device, no name.'),
+    containers.length
+      ? el('p', { class: 'group-why', text:
+          `The file does contain: ${containers.map(c => `${c.name} (${formatBytes(c.bytes)})`).join(', ')}. `
+          + 'Those describe how to display the image, not who made it.' })
+      : null,
+    el('details', { class: 'disclosure-inline' },
+      el('summary', { text: 'Why would a photo have nothing?' }),
+      el('ul', { class: 'reasons' },
+        el('li', { text: 'It came through a messaging app or social network. WhatsApp, Signal, Instagram, Facebook and X all strip metadata when you upload — the copy you downloaded is already bare.' }),
+        el('li', { text: 'It is a screenshot. Screenshots never carry camera data, because no camera was involved.' }),
+        el('li', { text: 'It was exported or re-saved by an editor set to discard metadata.' }),
+        el('li', { text: 'It has already been through a cleaner — including this one.' })
+      )
+    )
+  );
 }
 
 function findingsSection(entry, handlers) {

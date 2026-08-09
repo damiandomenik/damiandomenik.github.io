@@ -68,5 +68,27 @@ t('Zeitstempel sichtbar', s.node.textContent.includes('2024:07:14 15:32:08'));
 showAll = true; s.update();
 t('ISO im aufgeklappten Bereich', s.node.querySelector('details').textContent.includes('400'));
 
+
+console.log('\nDatei ohne Metadaten');
+{
+  const bare = {
+    id:'b', file:{ name:'6A7AF4F5-30A5-42C7.jpg', size:281000, type:'image/jpeg' },
+    previewUrl:'blob:x', format:'jpeg', findings:[], containers:[{name:'JFIF header', bytes:14},{name:'ICC colour profile', bytes:456}],
+    orientation:null, error:null, cleaned:null, dimensions:{width:2048,height:1536},
+  };
+  const v = ui.sheet(bare, handlers);
+  document.body.append(v.node);
+  const text = v.node.textContent;
+  t('sagt ausdrücklich, dass nichts drin ist', text.includes('No metadata in this file'));
+  t('nennt, wonach gesucht wurde', text.includes('Exif') && text.includes('XMP') && text.includes('IPTC'));
+  t('nennt, was strukturell da ist', text.includes('ICC colour profile'));
+  t('erklärt die wahrscheinliche Ursache', text.includes('WhatsApp'));
+  t('Verdikt bleibt ruhig', v.node.querySelector('.verdict').dataset.level === 'clean');
+
+  bare.cleaned = { bytes:new Uint8Array(280000), notes:[], lossless:true, url:'blob:y', name:'x-clean.jpg' };
+  v.update();
+  t('Erklärung bleibt auch nach dem Säubern sichtbar', v.node.textContent.includes('No metadata in this file'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail?1:0);

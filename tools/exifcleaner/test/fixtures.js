@@ -143,7 +143,7 @@ function segment(marker, payload) {
  * Huffman tables, frame header, scan data, EOI. Not a decodable picture — the
  * scan bytes are filler — but every marker a stripper walks is real.
  */
-export function buildJpeg({ tiff = realisticTiff(), xmp = true, comment = true, icc = true } = {}) {
+export function buildJpeg({ tiff = realisticTiff(), xmp = true, comment = true, icc = true, photoshop = null } = {}) {
   const scan = new Uint8Array(512);
   for (let i = 0; i < scan.length; i++) scan[i] = (i * 31) % 251;    // never 0xFF: no fake markers
 
@@ -159,6 +159,7 @@ export function buildJpeg({ tiff = realisticTiff(), xmp = true, comment = true, 
     ])));
   }
   if (icc) parts.push(segment(0xe2, concat([enc('ICC_PROFILE\0'), new Uint8Array([1, 1]), new Uint8Array(120)])));
+  if (photoshop) parts.push(segment(0xed, photoshop));
   if (comment) parts.push(segment(0xfe, enc('Created with SecretApp 1.2')));
 
   parts.push(
@@ -252,4 +253,43 @@ export function buildWebp() {
   out.set(enc('WEBP'), 8);
   out.set(body, 12);
   return out;
+}
+
+/* ---------------- Photoshop APP13 ---------------- */
+
+function irb(id, data) {
+  // '8BIM'(4) + resource id(2) + empty Pascal name padded to 2 + size(4) = 12
+  const head = new Uint8Array(12);
+  const view = new DataView(head.buffer);
+  head.set(enc('8BIM'), 0);
+  view.setUint16(4, id);
+  view.setUint16(6, 0);                       // empty Pascal name, padded to 2
+  view.setUint32(8, data.length);
+  const pad = data.length % 2 ? new Uint8Array(1) : new Uint8Array(0);
+  return concat([head, data, pad]);
+}
+
+function iptcField(dataset, text) {
+  const value = enc(text);
+  const head = new Uint8Array(5);
+  head[0] = 0x1c; head[1] = 0x02; head[2] = dataset;
+  new DataView(head.buffer).setUint16(3, value.length);
+  return concat([head, value]);
+}
+
+/** A Photoshop block carrying real IPTC fields: name, city, copyright. */
+export function photoshopWithIptc() {
+  const iptc = concat([
+    iptcField(80, 'Anna Beispiel'),
+    iptcField(90, 'Vaduz'),
+    iptcField(101, 'Liechtenstein'),
+    iptcField(116, '(c) 2024 Anna Beispiel'),
+    iptcField(120, 'A view over the city at night'),
+  ]);
+  return concat([enc('Photoshop 3.0\0'), irb(0x03ed, new Uint8Array(16)), irb(0x0404, iptc)]);
+}
+
+/** A Photoshop block with nothing but print settings — the common false alarm. */
+export function photoshopPrintOnly() {
+  return concat([enc('Photoshop 3.0\0'), irb(0x03ed, new Uint8Array(16)), irb(0x0406, new Uint8Array([0xff, 0xfd]))]);
 }
