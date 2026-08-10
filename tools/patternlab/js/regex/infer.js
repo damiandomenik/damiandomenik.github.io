@@ -41,13 +41,15 @@ export function tokenize(text) {
     const kind = found ? found.kind : 'literal';
     const last = tokens[tokens.length - 1];
 
-    // Literals only merge with themselves when they are the same character,
-    // so "AZ-" stays "AZ" + "-" rather than becoming one blob.
-    if (last && last.kind === kind && (kind !== 'literal' || last.value === ch)) {
+    // Literals only merge with the same character, so "AZ-" stays "AZ" + "-"
+    // rather than becoming one blob. The repeated character is stored on the
+    // token: comparing against value[0] worked for dashes and broke for emoji,
+    // where [0] is half of a surrogate pair.
+    if (last && last.kind === kind && (kind !== 'literal' || last.char === ch)) {
       last.value += ch;
       last.length++;
     } else {
-      tokens.push({ kind, value: ch, length: 1 });
+      tokens.push({ kind, value: ch, char: ch, length: 1 });
     }
   }
   return tokens;
@@ -112,21 +114,36 @@ function build(tokenized, examples, mode) {
     const max = Math.max(...lengths);
 
     if (kind === 'literal') {
-      const values = [...new Set(column.map(token => token.value))];
-      if (values.length === 1) {
-        parts.push(escapeLiteral(values[0]) + quantifier(1, 1, mode, values[0].length > 1 ? values[0].length : 1));
-        words.push(`the text "${values[0]}"`);
+      // A literal token is a run of one repeated character, so the character
+      // goes in once and the quantifier carries the count. Writing out the run
+      // *and* adding a count produced "---{3}", which is six dashes.
+      const chars = [...new Set(column.map(token => token.char ?? [...token.value][0]))];
+      if (chars.length === 1) {
+        // Without the u flag a quantifier binds to the last UTF-16 unit only,
+        // so "🔐{2}" would repeat half a surrogate pair. Grouping fixes that
+        // and costs nothing for ordinary characters.
+        const quant = quantifier(min, max, mode, true);
+        const body = escapeLiteral(chars[0]);
+        parts.push(quant && chars[0].length > 1 ? `(?:${body})${quant}` : body + quant);
+        words.push(min === 1 && max === 1
+          ? `the character "${chars[0]}"`
+          : `${countWords(min, max, mode)} "${chars[0]}"`);
       } else {
-        // Different punctuation in the same slot: a class of the characters seen.
-        const chars = [...new Set(values.join(''))];
-        parts.push(`[${chars.map(escapeInClass).join('')}]${quantifier(min, max, mode)}`);
+        // Different characters in the same slot. A character class is the
+        // natural form, but "[🎉🎊]" without the u flag is a class of four
+        // surrogate halves; alternation keeps each character whole.
+        const quant = quantifier(min, max, mode, true);
+        const astral = chars.some(ch => ch.length > 1);
+        parts.push(astral
+          ? `(?:${chars.map(escapeLiteral).join('|')})${quant}`
+          : `[${chars.map(escapeInClass).join('')}]${quant}`);
         words.push(`one of ${chars.map(c => `"${c}"`).join(', ')}`);
       }
       continue;
     }
 
     const definition = CLASSES.find(c => c.kind === kind);
-    parts.push(definition.pattern + quantifier(min, max, mode));
+    parts.push(definition.pattern + quantifier(min, max, mode, false));
     words.push(`${countWords(min, max, mode)} ${definition.label}`);
   }
 
@@ -149,14 +166,14 @@ function build(tokenized, examples, mode) {
   };
 }
 
-function quantifier(min, max, mode, literalRepeat = 1) {
-  if (mode === 'loose') return min === 1 && max === 1 && literalRepeat === 1 ? '' : '+';
-  if (mode === 'relaxed') {
-    if (literalRepeat > 1) return `{${literalRepeat}}`;
-    if (min === max) return min === 1 ? '' : `{${min},}`;
-    return `{${min},}`;
+function quantifier(min, max, mode, isLiteral) {
+  if (mode === 'loose') {
+    // Loosening a class means "one or more". Loosening a separator does not:
+    // a single dot between numbers should stay a single dot.
+    if (isLiteral) return max > 1 ? '+' : '';
+    return '+';
   }
-  if (literalRepeat > 1) return `{${literalRepeat}}`;
+  if (mode === 'relaxed') return min === max && min === 1 ? '' : `{${min},}`;
   if (min === max) return min === 1 ? '' : `{${min}}`;
   return `{${min},${max}}`;
 }

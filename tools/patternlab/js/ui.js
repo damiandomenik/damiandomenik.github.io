@@ -71,11 +71,14 @@ export function field(label, control, hint) {
   );
 }
 
-export function button(label, { kind = '', onclick, title, disabled } = {}) {
+export function button(label, { kind = '', onclick, title, disabled, ariaLabel } = {}) {
   return el('button', {
     class: `btn ${kind}`.trim(),
     onclick,
     title,
+    // An icon-only button needs a real name. title is only a fallback, and
+    // screen readers do not announce it consistently.
+    'aria-label': ariaLabel,
     disabled: disabled || false,
     type: 'button',
   }, label);

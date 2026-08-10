@@ -91,8 +91,12 @@ export function mount(root) {
     sampleChips.replaceChildren(...state.samples.map((sample, index) =>
       el('span', { class: 'chip' },
         el('code', { text: sample }),
-        button('×', { kind: 'ghost small', title: 'Remove this example',
-          onclick: () => { state.samples.splice(index, 1); renderInference(); } })
+        button('×', {
+          kind: 'ghost small',
+          title: 'Remove this example',
+          ariaLabel: `Remove the example ${sample}`,
+          onclick: () => { state.samples.splice(index, 1); renderInference(); },
+        })
       )));
 
     if (!state.samples.length) {
@@ -108,7 +112,11 @@ export function mount(root) {
     const rows = [el('p', { class: 'field-hint', text: note })];
 
     for (const candidate of candidates) {
-      const pattern = state.boundaries && canBound ? `\\b${candidate.pattern}\\b` : candidate.pattern;
+      // The group is not decoration: \ba|b\b parses as (\ba)|(b\b), so a
+      // candidate built from alternatives would silently mean something else.
+      const pattern = state.boundaries && canBound
+        ? `\\b(?:${candidate.pattern})\\b`
+        : candidate.pattern;
       const result = findMatches(pattern, 'g', state.text);
 
       let verdict;
@@ -305,7 +313,9 @@ export function mount(root) {
         toggle,
         el('span', { class: 'case-actual', text: outcome.ok ? (matched ? 'matches' : 'no match') : 'invalid pattern' }),
         button('×', {
-          kind: 'ghost small', title: 'Remove this case',
+          kind: 'ghost small',
+          title: 'Remove this case',
+          ariaLabel: `Remove the test case ${testCase.value}`,
           onclick: () => { state.cases.splice(index, 1); renderCases(); },
         })
       );

@@ -81,7 +81,7 @@ Then open `http://localhost:8080`. ES modules need `http://`; opening `index.htm
 Deploying is copying the folder. It is already part of the `tools/` site and reachable at `…/tools/patternlab/`.
 
 ```bash
-node test/all.js                # 153 assertions
+node test/all.js                # 179 assertions
 npm install jsdom               # optional, adds the view suite
 ```
 

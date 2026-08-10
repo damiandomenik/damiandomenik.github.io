@@ -140,6 +140,48 @@ console.log('\nbuilding a pattern from examples');
   t('examples with no shared shape are not forced into one', !mixed.aligned);
   t('and that is stated plainly', /do not share a common structure/.test(mixed.note));
 
+  /* Regressions: every one of these produced a pattern that matched nothing,
+     or matched the wrong thing, while looking plausible. */
+
+  // "a---b" split into runs of "--" and "-", then wrote the run out AND
+  // counted it: "---{3}" is six dashes.
+  eq('a run of three identical characters stays one token', tokenize('a---b').map(t => t.length), [1, 3, 1]);
+  const dashes = inferPatterns(['a---b']).candidates[0];
+  eq('and becomes a counted single character', dashes.pattern, '[a-z]-{3}[a-z]');
+  eq('which actually matches the example', findMatches(dashes.pattern, 'g', 'x a---b y').matches[0]?.value, 'a---b');
+
+  const runs = inferPatterns(['a--b', 'a----b']).candidates[0];
+  eq('differing run lengths become a range', runs.pattern, '[a-z]-{2,4}[a-z]');
+  eq('matching both examples', findMatches(runs.pattern, 'g', 'a--b a----b a-b').matches.map(m => m.value), ['a--b', 'a----b']);
+
+  // Loosening a class means "one or more"; loosening a separator does not.
+  const dotted = inferPatterns(['1.2.3']).candidates.find(c => c.id === 'loose');
+  eq('single-character runs still loosen usefully', dotted.pattern, '\\d+\\.\\d+\\.\\d+');
+
+  // \ba|b\b parses as (\ba)|(b\b) — the boundaries must wrap a group.
+  const ungrouped = findMatches('\\bcat|dog\\b', 'g', 'catalog and a cat').matches.map(m => m.value);
+  const grouped = findMatches('\\b(?:cat|dog)\\b', 'g', 'catalog and a cat').matches.map(m => m.value);
+  eq('ungrouped boundaries catch the wrong thing', ungrouped, ['cat', 'cat']);
+  eq('grouped boundaries catch only the whole word', grouped, ['cat']);
+
+  // Characters outside the basic plane are two UTF-16 units, so anything that
+  // reaches for [0] or hangs a quantifier off them silently breaks.
+  const emoji = inferPatterns(['🔐ab']).candidates[0];
+  eq('an astral character survives as itself', emoji.pattern, '🔐[a-z]{2}');
+  eq('and the pattern matches its own example', findMatches(emoji.pattern, 'g', '🔐ab').matches[0]?.value, '🔐ab');
+
+  const repeated = inferPatterns(['🔐🔐🔐x']).candidates[0];
+  eq('a repeated astral character is grouped', repeated.pattern, '(?:🔐){3}[a-z]');
+  t('because a bare quantifier would repeat half of it', !/🔐\{3\}/.test(repeated.pattern));
+  eq('and it matches', findMatches(repeated.pattern, 'g', '🔐🔐🔐x').matches[0]?.value, '🔐🔐🔐x');
+
+  const twoEmoji = inferPatterns(['🎉', '🎊']).candidates[0];
+  eq('differing astral characters become alternation, not a class', twoEmoji.pattern, '(?:🎉|🎊)');
+  eq('matching both', findMatches(twoEmoji.pattern, 'g', '🎉 🎊').matches.map(m => m.value), ['🎉', '🎊']);
+
+  const accented = inferPatterns(['Müller-Straße 7']).candidates[0];
+  eq('accented letters are kept literally', findMatches(accented.pattern, 'g', 'Müller-Straße 7').matches[0]?.value, 'Müller-Straße 7');
+
   t('word boundaries suggested where they fit', suggestsBoundaries(examples, text));
   t('and not where the example starts with punctuation', !suggestsBoundaries(['+41 79'], 'call +41 79 now'));
   eq('no examples means no candidates', inferPatterns([]).candidates.length, 0);
@@ -321,6 +363,50 @@ console.log('\na maximum length is a rule, not a suggestion');
     generatePassword({ length: 8, maxLength: 4, upper: 2, lower: 2, digit: 2, special: 2 });
   } catch (err) { message = err.message; }
   t('requirements that cannot fit under the cap are refused', /maximum length is 4/.test(message));
+}
+
+console.log('\nrules that require no particular character type');
+{
+  const { optionsFromRules } = await import('../js/password/generate.js');
+  // "At least 18 characters, nothing else" is an ordinary policy, and
+  // ^.{18,}$ is a valid pattern for it. Requiring no class is not the same as
+  // forbidding every class — the generator used to refuse this outright.
+  const rules = { minLength: 18, maxLength: 0, upper: 0, lower: 0, digit: 0, special: 0, specialSet: '!@#$%' };
+  eq('the rule set itself is valid', validateRules(rules).length, 0);
+
+  const { password, notes } = generatePassword(optionsFromRules(rules, { length: 18 }));
+  eq('a password is produced', password.length, 18);
+  t('drawing on every class, and saying so', notes.some(n => /no particular character type/i.test(n)));
+  t('and it passes the rules', testPassword(password, rules).ok);
+
+  // In the generator's own mode the checkboxes mean inclusion, so clearing
+  // them all still has to be an error rather than a surprise.
+  let message = '';
+  try { generatePassword({ length: 12, upper: 0, lower: 0, digit: 0, special: 0 }); } catch (err) { message = err.message; }
+  t('unchecking every box in the generator is still refused', /nothing to build/.test(message));
+}
+
+console.log('\ngenerated passwords hold up across many random rule sets');
+{
+  const { optionsFromRules } = await import('../js/password/generate.js');
+  let checked = 0;
+  let violations = 0;
+  for (let i = 0; i < 400; i++) {
+    const rules = {
+      minLength: 1 + (i % 24),
+      maxLength: i % 5 === 0 ? 30 + (i % 15) : 0,
+      upper: i % 3, lower: (i + 1) % 3, digit: (i + 2) % 3, special: (i + 1) % 2,
+      specialSet: '!@#$%',
+    };
+    if (validateRules(rules).length) continue;
+    checked++;
+    try {
+      const { password } = generatePassword(optionsFromRules(rules, { length: rules.minLength }));
+      if (!testPassword(password, rules).ok) violations++;
+      new RegExp(rulesToRegex(rules));
+    } catch { violations++; }
+  }
+  t(`${checked} rule sets generated and verified without a violation`, violations === 0 && checked > 100);
 }
 
 console.log('\ngeneration refuses the impossible instead of looping');

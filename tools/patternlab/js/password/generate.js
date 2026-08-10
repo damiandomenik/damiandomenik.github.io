@@ -66,6 +66,7 @@ export function shuffle(items) {
  *   specialSet        which symbols are allowed
  *   excludeAmbiguous  drop lookalike characters
  *   noRepeat          never use the same character twice
+ *   allowUnrequired   when nothing is required, draw from every class anyway
  * @returns {{password: string, length: number, notes: string[]}}
  */
 export function generatePassword(options = {}) {
@@ -76,19 +77,32 @@ export function generatePassword(options = {}) {
     specialSet = DEFAULT_SPECIALS,
     excludeAmbiguous = false,
     noRepeat = false,
+    allowUnrequired = false,
   } = options;
 
   const notes = [];
   const filter = text => (excludeAmbiguous ? [...text].filter(ch => !AMBIGUOUS.includes(ch)).join('') : text);
 
-  const classes = [
+  const everyClass = [
     { key: 'upper', need: upper, pool: filter(POOLS.upper) },
     { key: 'lower', need: lower, pool: filter(POOLS.lower) },
     { key: 'digit', need: digit, pool: filter(POOLS.digit) },
     { key: 'special', need: special, pool: filter(specialSet || '') },
-  ].filter(entry => entry.need > 0);
+  ];
 
-  if (!classes.length) throw new ImpossibleRules('No character types are enabled, so there is nothing to build a password from.');
+  let classes = everyClass.filter(entry => entry.need > 0);
+
+  if (!classes.length) {
+    // "At least 18 characters, nothing else" is a perfectly ordinary policy.
+    // Requiring no particular class is not the same as forbidding every class,
+    // so a rule set like that draws from everything rather than being refused.
+    if (!allowUnrequired) {
+      throw new ImpossibleRules('No character types are enabled, so there is nothing to build a password from.');
+    }
+    classes = everyClass.filter(entry => entry.pool.length);
+    if (!classes.length) throw new ImpossibleRules('No characters are available to build a password from.');
+    notes.push('These rules require no particular character type, so all of them are used.');
+  }
 
   for (const entry of classes) {
     if (!entry.pool.length) {
@@ -162,7 +176,9 @@ export function generatePassword(options = {}) {
 
 /** Turn a rule set from rules.js into generator options. */
 export function optionsFromRules(rules, extra = {}) {
+  const requiresNothing = !(rules.upper || rules.lower || rules.digit || rules.special);
   return {
+    allowUnrequired: requiresNothing,
     length: Math.max(rules.minLength || 0, extra.length || 0),
     maxLength: rules.maxLength || 0,
     upper: rules.upper || 0,
