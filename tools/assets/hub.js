@@ -29,6 +29,15 @@ const TOOLS = [
     keywords: ['pattern', 'match', 'test', 'strength', 'generator', 'entropy', 'rules'],
     ready: true,
   },
+  {
+    id: 'fileencoder',
+    name: 'file-encoder',
+    href: './fileencoder/',
+    desc: 'Encode files as Base64, data URLs or QR codes — with an honest answer on whether QR transfer is even possible.',
+    tags: ['base64', 'qr', 'offline'],
+    keywords: ['encode', 'decode', 'data url', 'convert', 'file', 'transfer', 'mime'],
+    ready: true,
+  },
   // Example of how a future tool is declared — remove or replace.
   // {
   //   id: 'docx',

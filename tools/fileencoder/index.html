@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Universal File Encoder — turn any file into portable data</title>
+<meta name="description" content="Encode files as Base64 or data URLs, decode them back, and find out honestly whether QR transfer makes sense. Everything runs in your browser.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0F1216">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230F1216'/><rect x='7' y='7' width='7' height='7' fill='%2338BDF8'/><rect x='18' y='7' width='7' height='7' fill='%23E6E9EE'/><rect x='7' y='18' width='7' height='7' fill='%23E6E9EE'/><rect x='18' y='18' width='7' height='7' fill='%2338BDF8'/></svg>">
+
+<!-- Third-party libraries, loaded as classic scripts (globals: qrcode, jsQR, JSZip).
+     They are code, not a service: no file is ever sent anywhere. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#/">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">File<span>Encoder</span></span>
+    </a>
+    <nav class="tabs" id="tabs" aria-label="Sections"></nav>
+    <a class="back" href="../">← tools</a>
+  </div>
+</header>
+
+<main class="wrap view" id="view" tabindex="-1"></main>
+
+<footer class="foot">
+  <div class="wrap foot-inner">
+    <span class="lock">🔒 Your files never leave your browser. No uploads, no accounts, no database.</span>
+  </div>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="./js/main.js"></script>
+<noscript><p class="wrap" style="padding:3rem 0">This tool reads and encodes files in the browser, which needs JavaScript. There is no server-side version — that is the point of it.</p></noscript>
+</body>
+</html>
