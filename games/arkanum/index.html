@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arkanum — VFX Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#05040c;
+    --haze:#0d0b1c;
+    --line:rgba(150,140,220,.18);
+    --text:#e6e2ff;
+    --dim:#8b85b8;
+    --fire:#ff7a2f;
+    --frost:#5fd8ff;
+    --storm:#c08bff;
+    --ward:#7bffd4;
+    --meteor:#ff4d5e;
+    --void:#b06bff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  canvas{display:block}
+  #app{position:fixed;inset:0}
+
+  /* ---------- HUD ---------- */
+  .hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+
+  .crosshair{
+    position:absolute;left:50%;top:50%;width:26px;height:26px;
+    transform:translate(-50%,-50%);opacity:.55;
+  }
+  .crosshair::before,.crosshair::after{
+    content:"";position:absolute;background:var(--text);
+  }
+  .crosshair::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%)}
+  .crosshair::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%)}
+  .crosshair .ring{
+    position:absolute;inset:-9px;border:1px solid currentColor;border-radius:50%;
+    opacity:0;transform:scale(.6);color:var(--text);
+  }
+  .crosshair .ring.pulse{animation:castring .45s ease-out}
+  @keyframes castring{
+    0%{opacity:.9;transform:scale(.5)}
+    100%{opacity:0;transform:scale(1.6)}
+  }
+
+  .topbar{
+    position:absolute;top:18px;left:20px;display:flex;gap:22px;align-items:baseline;
+  }
+  .brand{font-weight:700;letter-spacing:.18em;text-transform:uppercase;font-size:13px}
+  .brand span{color:var(--void)}
+  .stat{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);letter-spacing:.08em}
+  .stat b{color:var(--text);font-weight:700}
+
+  .keys{
+    position:absolute;top:18px;right:20px;text-align:right;
+    font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--dim);line-height:1.7;
+  }
+  .keys kbd{
+    color:var(--text);background:rgba(255,255,255,.06);
+    border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:10px;
+  }
+
+  .bar{
+    position:absolute;left:50%;bottom:26px;transform:translateX(-50%);
+    display:flex;gap:10px;
+  }
+  .slot{
+    position:relative;width:74px;height:82px;
+    background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.01));
+    border:1px solid var(--line);border-radius:3px;
+    display:flex;flex-direction:column;justify-content:flex-end;
+    padding:8px;overflow:hidden;
+    transition:transform .12s ease, border-color .2s ease;
+  }
+  .slot .glyph{
+    position:absolute;top:9px;left:0;right:0;text-align:center;
+    font-size:24px;line-height:1;filter:saturate(1.2);
+  }
+  .slot .name{
+    font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .slot .key{
+    position:absolute;top:6px;left:7px;font-family:"JetBrains Mono",monospace;
+    font-size:10px;color:var(--dim);
+  }
+  .slot .cd{
+    position:absolute;left:0;right:0;bottom:0;height:0%;
+    background:rgba(6,4,16,.78);border-top:1px solid rgba(255,255,255,.22);
+    pointer-events:none;
+  }
+  .slot .edge{position:absolute;left:0;right:0;bottom:0;height:2px;background:currentColor;opacity:.75}
+  .slot.ready{border-color:currentColor}
+  .slot.fire{color:var(--fire)} .slot.frost{color:var(--frost)} .slot.storm{color:var(--storm)}
+  .slot.ward{color:var(--ward)} .slot.meteor{color:var(--meteor)} .slot.void{color:var(--void)}
+  .slot.flash{transform:translateY(-6px)}
+
+  .gate{
+    position:fixed;inset:0;z-index:10;display:grid;place-items:center;
+    background:radial-gradient(120% 90% at 50% 45%,rgba(90,60,180,.22),rgba(5,4,12,.94));
+    backdrop-filter:blur(3px);cursor:pointer;text-align:center;padding:24px;
+  }
+  .gate h1{
+    font-size:clamp(34px,7vw,68px);font-weight:700;letter-spacing:-.02em;line-height:.95;
+  }
+  .gate h1 em{font-style:normal;color:var(--void)}
+  .gate p{margin-top:14px;color:var(--dim);font-size:14px;max-width:46ch;line-height:1.6}
+  .gate .cta{
+    margin-top:26px;display:inline-block;font-family:"JetBrains Mono",monospace;
+    font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    border:1px solid var(--line);padding:12px 22px;border-radius:3px;
+    animation:breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe{50%{border-color:rgba(176,107,255,.7);color:#fff}}
+  .gate.hidden{display:none}
+
+  @media (max-width:640px){
+    .keys{display:none}
+    .slot{width:52px;height:62px}
+    .slot .glyph{font-size:18px}
+    .slot .name{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .gate .cta{animation:none}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="brand">Arkan<span>um</span></div>
+    <div class="stat">KRISTALLE <b id="score">0</b></div>
+    <div class="stat">FPS <b id="fps">–</b></div>
+  </div>
+
+  <div class="keys">
+    <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> laufen · <kbd>Shift</kbd> rennen</div>
+    <div><kbd>Space</kbd> springen · <kbd>Maus</kbd> zielen</div>
+    <div><kbd>1</kbd>–<kbd>6</kbd> zaubern · <kbd>Esc</kbd> Maus frei</div>
+  </div>
+
+  <div class="crosshair"><div class="ring" id="ring"></div></div>
+  <div class="bar" id="bar"></div>
+</div>
+
+<div class="gate" id="gate">
+  <div>
+    <h1>Sechs Zauber.<br>Kein einziges <em>Sprite</em>.</h1>
+    <p>Alle Effekte laufen live: GLSL-Shader, GPU-Partikel, Schockwellen. Keine Texturen, keine Sprite-Sheets, keine gebackenen Meshes.</p>
+    <div class="cta">Klicken zum Starten</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+"use strict";
+
+/* =========================================================
+   0 — Setup
+   ========================================================= */
+const app = document.getElementById('app');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05040c);
+scene.fog = new THREE.FogExp2(0x05040c, 0.019);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(0, 4, 8);
+
+const clock = new THREE.Clock();
+
+// Licht
+scene.add(new THREE.HemisphereLight(0x8f7cff, 0x120a20, 0.85));
+const sun = new THREE.DirectionalLight(0xc8b8ff, 0.9);
+sun.position.set(6, 12, 4);
+scene.add(sun);
+
+// Pool aus Blitzlichtern für Einschläge
+const flashLights = [];
+for (let i = 0; i < 4; i++) {
+  const l = new THREE.PointLight(0xffffff, 0, 26, 2);
+  l.visible = false;
+  scene.add(l);
+  flashLights.push({ light: l, t: 0, dur: 0, power: 0 });
+}
+function flash(pos, color, power, dur) {
+  let slot = flashLights.find(f => f.t <= 0) || flashLights[0];
+  slot.light.position.copy(pos);
+  slot.light.color.set(color);
+  slot.light.visible = true;
+  slot.t = dur; slot.dur = dur; slot.power = power;
+}
+function updateFlashes(dt) {
+  for (const f of flashLights) {
+    if (f.t > 0) {
+      f.t -= dt;
+      const k = Math.max(f.t / f.dur, 0);
+      f.light.intensity = f.power * k * k;
+      if (f.t <= 0) { f.light.visible = false; f.light.intensity = 0; }
+    }
+  }
+}
+
+/* =========================================================
+   1 — Boden (Shader-Grid statt Textur)
+   ========================================================= */
+const groundMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime:   { value: 0 },
+    uPlayer: { value: new THREE.Vector3() },
+    uGrid:   { value: new THREE.Color(0x4a3a8f) },
+    uBase:   { value: new THREE.Color(0x0a0818) },
+    uGlow:   { value: new THREE.Color(0x6c4fd0) }
+  },
+  vertexShader: `
+    varying vec3 vWorld;
+    void main(){
+      vWorld = (modelMatrix * vec4(position,1.0)).xyz;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+    }`,
+  fragmentShader: `
+    uniform float uTime; uniform vec3 uPlayer;
+    uniform vec3 uGrid; uniform vec3 uBase; uniform vec3 uGlow;
+    varying vec3 vWorld;
+
+    float lineMask(vec2 p, float scale, float w){
+      vec2 g = abs(fract(p * scale - 0.5) - 0.5) / fwidth(p * scale);
+      float l = min(g.x, g.y);
+      return 1.0 - min(l * w, 1.0);
+    }
+    void main(){
+      vec2 p = vWorld.xz;
+      float fine  = lineMask(p, 1.0, 1.0) * 0.30;
+      float major = lineMask(p, 0.2, 1.0) * 0.55;
+
+      float d = length(p);
+      float fade = smoothstep(70.0, 12.0, d);
+
+      // Ringe, die langsam nach außen atmen
+      float pulse = sin(d * 0.35 - uTime * 1.1) * 0.5 + 0.5;
+      pulse = pow(pulse, 8.0) * 0.16 * fade;
+
+      // Halo unter dem Magier
+      float near = smoothstep(7.0, 0.0, distance(p, uPlayer.xz));
+
+      vec3 col = uBase;
+      col += uGrid * (fine + major) * fade;
+      col += uGlow * pulse;
+      col += uGlow * near * 0.20;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+  fog: true
+});
+// Fog manuell in den Shader mischen wäre Overkill – Fläche endet vor der Fog-Wand.
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(220, 220, 1, 1), groundMat);
+ground.rotation.x = -Math.PI / 2;
+scene.add(ground);
+
+// Ein paar schwebende Felsen als Tiefenanker
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x2a2246, roughness: 0.9, metalness: 0.1, flatShading: true });
+const rocks = [];
+for (let i = 0; i < 26; i++) {
+  const a = Math.random() * Math.PI * 2;
+  const r = 26 + Math.random() * 34;
+  const s = 0.6 + Math.random() * 2.2;
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+  m.position.set(Math.cos(a) * r, 1 + Math.random() * 6, Math.sin(a) * r);
+  m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+  m.userData.base = m.position.y;
+  m.userData.sp = 0.3 + Math.random() * 0.6;
+  m.userData.ph = Math.random() * 6;
+  scene.add(m);
+  rocks.push(m);
+}
+
+/* =========================================================
+   2 — Partikel-Pool (ein Draw-Call für alles)
+   ========================================================= */
+const MAXP = 7000;
+const pPos   = new Float32Array(MAXP * 3);
+const pCol   = new Float32Array(MAXP * 3);
+const pScale = new Float32Array(MAXP);
+const pAlpha = new Float32Array(MAXP);
+const vX = new Float32Array(MAXP), vY = new Float32Array(MAXP), vZ = new Float32Array(MAXP);
+const pLife = new Float32Array(MAXP), pMax = new Float32Array(MAXP);
+const pSize = new Float32Array(MAXP), pGrow = new Float32Array(MAXP);
+const pDrag = new Float32Array(MAXP), pGrav = new Float32Array(MAXP);
+const pTurb = new Float32Array(MAXP), pMode = new Uint8Array(MAXP);
+let pCursor = 0;
+
+const vortex = new THREE.Vector3();
+let vortexOn = 0;
+
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('aColor',   new THREE.BufferAttribute(pCol, 3));
+pGeo.setAttribute('aScale',   new THREE.BufferAttribute(pScale, 1));
+pGeo.setAttribute('aAlpha',   new THREE.BufferAttribute(pAlpha, 1));
+
+const pMat = new THREE.ShaderMaterial({
+  uniforms: { uPR: { value: renderer.getPixelRatio() } },
+  vertexShader: `
+    attribute vec3 aColor; attribute float aScale; attribute float aAlpha;
+    uniform float uPR;
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vColor = aColor; vAlpha = aAlpha;
+      vec4 mv = modelViewMatrix * vec4(position,1.0);
+      gl_PointSize = aScale * uPR * (340.0 / max(-mv.z, 0.001));
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vec2 c = gl_PointCoord - 0.5;
+      float d = dot(c,c);
+      if(d > 0.25) discard;
+      float a = 1.0 - d * 4.0;
+      a = pow(a, 1.7);
+      float core = pow(a, 6.0);
+      gl_FragColor = vec4(vColor + core * 0.6, a * vAlpha);
+    }`,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending
+});
+const points = new THREE.Points(pGeo, pMat);
+points.frustumCulled = false;
+scene.add(points);
+
+const _c = new THREE.Color();
+function spawn(x, y, z, vx, vy, vz, color, size, life, o) {
+  o = o || {};
+  const i = pCursor; pCursor = (pCursor + 1) % MAXP;
+  const i3 = i * 3;
+  pPos[i3] = x; pPos[i3 + 1] = y; pPos[i3 + 2] = z;
+  vX[i] = vx; vY[i] = vy; vZ[i] = vz;
+  _c.set(color);
+  if (o.jitter) { // leichte Farbstreuung, damit nichts flach wirkt
+    _c.offsetHSL((Math.random() - 0.5) * o.jitter, 0, (Math.random() - 0.5) * 0.18);
+  }
+  pCol[i3] = _c.r; pCol[i3 + 1] = _c.g; pCol[i3 + 2] = _c.b;
+  pLife[i] = life; pMax[i] = life;
+  pSize[i] = size;
+  pGrow[i] = o.grow || 0;
+  pDrag[i] = o.drag === undefined ? 1.4 : o.drag;
+  pGrav[i] = o.grav === undefined ? 0 : o.grav;
+  pTurb[i] = o.turb || 0;
+  pMode[i] = o.mode || 0;
+}
+
+function updateParticles(dt, t) {
+  for (let i = 0; i < MAXP; i++) {
+    if (pLife[i] <= 0) { pAlpha[i] = 0; pScale[i] = 0; continue; }
+    pLife[i] -= dt;
+    if (pLife[i] <= 0) { pAlpha[i] = 0; pScale[i] = 0; continue; }
+
+    const i3 = i * 3;
+    const k = 1 - pLife[i] / pMax[i];
+
+    const damp = 1 - Math.min(pDrag[i] * dt, 0.95);
+    vX[i] *= damp; vY[i] *= damp; vZ[i] *= damp;
+    vY[i] -= pGrav[i] * dt;
+
+    if (pTurb[i] > 0) {
+      const s = pTurb[i] * dt;
+      vX[i] += Math.sin(t * 3.1 + pPos[i3 + 1] * 2.4 + i) * s;
+      vZ[i] += Math.cos(t * 2.7 + pPos[i3] * 2.1 + i) * s;
+    }
+    if (pMode[i] === 1 && vortexOn > 0) { // Sog Richtung Vortex
+      const dx = vortex.x - pPos[i3], dy = vortex.y - pPos[i3 + 1], dz = vortex.z - pPos[i3 + 2];
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.001;
+      const f = 26 * dt / d;
+      vX[i] += dx * f; vY[i] += dy * f; vZ[i] += dz * f;
+      // Tangentialer Drall
+      vX[i] += -dz / d * 9 * dt; vZ[i] += dx / d * 9 * dt;
+    }
+
+    pPos[i3]     += vX[i] * dt;
+    pPos[i3 + 1] += vY[i] * dt;
+    pPos[i3 + 2] += vZ[i] * dt;
+
+    if (pPos[i3 + 1] < 0.02 && pGrav[i] > 0) { // simpler Bodenkontakt
+      pPos[i3 + 1] = 0.02;
+      vY[i] *= -0.28;
+      vX[i] *= 0.6; vZ[i] *= 0.6;
+    }
+
+    pAlpha[i] = Math.min(k * 9, 1) * Math.pow(1 - k, 1.35);
+    pScale[i] = pSize[i] * (1 + pGrow[i] * k);
+  }
+  pGeo.attributes.position.needsUpdate = true;
+  pGeo.attributes.aColor.needsUpdate = true;
+  pGeo.attributes.aScale.needsUpdate = true;
+  pGeo.attributes.aAlpha.needsUpdate = true;
+}
+
+function burst(pos, count, color, opt) {
+  opt = opt || {};
+  const speed = opt.speed || 8, spread = opt.spread === undefined ? 1 : opt.spread;
+  for (let i = 0; i < count; i++) {
+    let dx = Math.random() * 2 - 1, dy = Math.random() * 2 - 1, dz = Math.random() * 2 - 1;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    dx /= len; dy /= len; dz /= len;
+    if (opt.flat) dy = Math.abs(dy) * 0.25;
+    if (opt.up) dy = Math.abs(dy) * 1.6 + 0.4;
+    const s = speed * (0.35 + Math.random() * 0.65);
+    spawn(
+      pos.x + dx * spread * 0.3, pos.y + dy * spread * 0.3, pos.z + dz * spread * 0.3,
+      dx * s, dy * s, dz * s,
+      color,
+      (opt.size || 7) * (0.5 + Math.random()),
+      (opt.life || 0.9) * (0.6 + Math.random() * 0.8),
+      opt
+    );
+  }
+}
+
+/* =========================================================
+   3 — Wiederverwendbare Shader-Meshes
+   ========================================================= */
+function makeShockwave(color, maxRadius, thickness) {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uP: { value: 0 },
+      uColor: { value: new THREE.Color(color) },
+      uTh: { value: thickness || 0.12 }
+    },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: `
+      uniform float uP; uniform vec3 uColor; uniform float uTh;
+      varying vec2 vUv;
+      void main(){
+        float d = distance(vUv, vec2(0.5)) * 2.0;
+        float ring = smoothstep(uTh, 0.0, abs(d - uP));
+        float inner = smoothstep(uP, uP - 0.35, d) * 0.18 * (1.0 - uP);
+        float fade = pow(1.0 - uP, 1.4);
+        float a = (ring + inner) * fade;
+        if(a < 0.003) discard;
+        gl_FragColor = vec4(uColor * (1.0 + ring * 1.6), a);
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(maxRadius * 2, maxRadius * 2), mat);
+  m.rotation.x = -Math.PI / 2;
+  return m;
+}
+
+function makeOrbMaterial(color, intensity) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(color) },
+      uI: { value: intensity === undefined ? 1 : intensity }
+    },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vP;
+      void main(){
+        vN = normalize(normalMatrix * normal);
+        vP = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime; uniform vec3 uColor; uniform float uI;
+      varying vec3 vN; varying vec3 vP;
+      void main(){
+        float rim = pow(1.0 - abs(vN.z), 1.6);
+        float churn = sin(vP.x*9.0 + uTime*5.0) * sin(vP.y*8.0 - uTime*4.0) * sin(vP.z*10.0 + uTime*3.0);
+        float hot = 0.55 + churn * 0.45;
+        vec3 col = mix(uColor, vec3(1.0), hot * 0.55 + rim * 0.4);
+        gl_FragColor = vec4(col * uI, 1.0);
+      }`
+  });
+}
+
+/* =========================================================
+   4 — Der Magier
+   ========================================================= */
+const mage = new THREE.Group();
+scene.add(mage);
+
+const robeMat = new THREE.MeshStandardMaterial({ color: 0x2b2168, roughness: 0.75, metalness: 0.05, flatShading: true });
+const trimMat = new THREE.MeshStandardMaterial({ color: 0x7a5cff, roughness: 0.4, metalness: 0.3, emissive: 0x2a1b6b, flatShading: true });
+const skinMat = new THREE.MeshStandardMaterial({ color: 0xe8c9a8, roughness: 0.8 });
+
+const body = new THREE.Group();
+mage.add(body);
+
+const robe = new THREE.Mesh(new THREE.ConeGeometry(0.52, 1.35, 9), robeMat);
+robe.position.y = 0.67; body.add(robe);
+
+const shoulders = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), robeMat);
+shoulders.position.y = 1.28; shoulders.scale.set(1, 0.7, 1); body.add(shoulders);
+
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 10), skinMat);
+head.position.y = 1.55; body.add(head);
+
+const hat = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.72, 9), trimMat);
+hat.position.y = 1.92; hat.rotation.z = 0.09; body.add(hat);
+const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.05, 12), trimMat);
+brim.position.y = 1.62; body.add(brim);
+
+const armGroup = new THREE.Group();
+armGroup.position.set(0.3, 1.24, 0.06);
+body.add(armGroup);
+const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.62, 7), robeMat);
+arm.position.y = -0.26; armGroup.add(arm);
+
+const staff = new THREE.Group();
+staff.position.set(0.34, 1.18, 0.1);
+body.add(staff);
+const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.9, 7),
+  new THREE.MeshStandardMaterial({ color: 0x4a3b2a, roughness: 0.9, flatShading: true }));
+shaft.position.y = 0.15; staff.add(shaft);
+const orbMat = makeOrbMaterial(0xb06bff, 1.0);
+const orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), orbMat);
+orb.position.y = 1.16; staff.add(orb);
+const halo = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.012, 6, 20),
+  new THREE.MeshBasicMaterial({ color: 0xb06bff, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+halo.position.y = 1.16; halo.rotation.x = Math.PI / 2.4; staff.add(halo);
+
+const staffTip = new THREE.Vector3();
+function getStaffTip() {
+  orb.getWorldPosition(staffTip);
+  return staffTip;
+}
+
+/* =========================================================
+   5 — Ziele: Kristalle
+   ========================================================= */
+const crystals = [];
+const crystalGeo = new THREE.OctahedronGeometry(0.75, 0);
+function makeCrystal(a, r) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x6fe6ff, emissive: 0x1a5c80, roughness: 0.15, metalness: 0.6, flatShading: true
+  });
+  const m = new THREE.Mesh(crystalGeo, mat);
+  const c = {
+    mesh: m, hp: 100, maxHp: 100, dead: false, respawn: 0,
+    home: new THREE.Vector3(Math.cos(a) * r, 1.5, Math.sin(a) * r),
+    ph: Math.random() * 6, hit: 0
+  };
+  m.position.copy(c.home);
+  scene.add(m);
+  crystals.push(c);
+}
+for (let i = 0; i < 9; i++) makeCrystal((i / 9) * Math.PI * 2 + 0.3, 13 + (i % 3) * 5);
+
+let score = 0;
+const scoreEl = document.getElementById('score');
+
+function killCrystal(c) {
+  c.dead = true; c.respawn = 6; c.mesh.visible = false;
+  burst(c.mesh.position, 90, 0x7fe9ff, { speed: 11, size: 8, life: 1.3, grav: 9, drag: 0.6, jitter: 0.05 });
+  burst(c.mesh.position, 30, 0xffffff, { speed: 5, size: 14, life: 0.5, grow: 2.5, drag: 3 });
+  flash(c.mesh.position, 0x7fe9ff, 9, 0.35);
+  score++; scoreEl.textContent = score;
+}
+function damageArea(center, radius, dmg, color) {
+  for (const c of crystals) {
+    if (c.dead) continue;
+    if (c.mesh.position.distanceTo(center) <= radius) {
+      c.hp -= dmg; c.hit = 0.35;
+      burst(c.mesh.position, 12, color || 0xffffff, { speed: 6, size: 6, life: 0.5, drag: 2 });
+      if (c.hp <= 0) killCrystal(c);
+    }
+  }
+}
+function nearestCrystals(from, dir, maxCount, range, cosLimit) {
+  const list = [];
+  for (const c of crystals) {
+    if (c.dead) continue;
+    const to = c.mesh.position.clone().sub(from);
+    const d = to.length();
+    if (d > range) continue;
+    if (dir && to.normalize().dot(dir) < cosLimit) continue;
+    list.push({ c: c, d: d });
+  }
+  list.sort((a, b) => a.d - b.d);
+  return list.slice(0, maxCount).map(x => x.c);
+}
+
+/* =========================================================
+   6 — Effekt-Manager
+   ========================================================= */
+const effects = [];
+function addEffect(e) { effects.push(e); return e; }
+function disposeObj(o) {
+  scene.remove(o);
+  if (o.geometry) o.geometry.dispose();
+  if (o.material) { if (Array.isArray(o.material)) o.material.forEach(m => m.dispose()); else o.material.dispose(); }
+}
+
+/* ---- 1. Feuerball ---- */
+function castFireball(origin, dir) {
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.3, 2), makeOrbMaterial(0xff6a1e, 1.6));
+  core.position.copy(origin);
+  scene.add(core);
+  const vel = dir.clone().multiplyScalar(30);
+  let alive = 2.4;
+
+  addEffect({
+    update(dt, t) {
+      alive -= dt;
+      core.material.uniforms.uTime.value = t;
+      core.position.addScaledVector(vel, dt);
+      core.rotation.x += dt * 6; core.rotation.y += dt * 4;
+
+      for (let i = 0; i < 4; i++) {
+        spawn(
+          core.position.x + (Math.random() - 0.5) * 0.3,
+          core.position.y + (Math.random() - 0.5) * 0.3,
+          core.position.z + (Math.random() - 0.5) * 0.3,
+          (Math.random() - 0.5) * 3, Math.random() * 2.2, (Math.random() - 0.5) * 3,
+          i === 0 ? 0xffe08a : 0xff5a12,
+          9 + Math.random() * 7, 0.45 + Math.random() * 0.35,
+          { drag: 2.6, grow: 1.4, turb: 4, jitter: 0.03 }
+        );
+      }
+
+      let hit = core.position.y <= 0.25;
+      if (!hit) {
+        for (const c of crystals) {
+          if (!c.dead && c.mesh.position.distanceTo(core.position) < 1.5) { hit = true; break; }
+        }
+      }
+      if (hit || alive <= 0) {
+        explode(core.position.clone());
+        disposeObj(core);
+        return false;
+      }
+      return true;
+    }
+  });
+
+  function explode(p) {
+    burst(p, 200, 0xff5a12, { speed: 16, size: 11, life: 1.1, grow: 1.8, drag: 1.5, turb: 6, jitter: 0.05 });
+    burst(p, 60, 0xffd58a, { speed: 24, size: 6, life: 0.7, drag: 1.0 });
+    burst(p, 40, 0x33202a, { speed: 6, size: 22, life: 1.8, grow: 3, drag: 2.2, grav: -1.2 });
+    flash(p, 0xff7a2f, 22, 0.5);
+    damageArea(p, 4.5, 60, 0xff7a2f);
+    const wave = makeShockwave(0xff8a3a, 7, 0.1);
+    wave.position.set(p.x, 0.06, p.z);
+    scene.add(wave);
+    let k = 0;
+    addEffect({ update(dt) {
+      k += dt * 1.7;
+      wave.material.uniforms.uP.value = k;
+      if (k >= 1) { disposeObj(wave); return false; }
+      return true;
+    }});
+  }
+}
+
+/* ---- 2. Frostnova ---- */
+function castFrostNova(origin) {
+  const p = new THREE.Vector3(origin.x, 0.05, origin.z);
+  flash(new THREE.Vector3(p.x, 1.2, p.z), 0x5fd8ff, 14, 0.4);
+
+  const wave = makeShockwave(0x8fe9ff, 9, 0.07);
+  wave.position.set(p.x, 0.06, p.z);
+  scene.add(wave);
+
+  const shardMat = new THREE.MeshStandardMaterial({
+    color: 0x9fefff, emissive: 0x1d6d96, roughness: 0.1, metalness: 0.4,
+    transparent: true, opacity: 0.9, flatShading: true
+  });
+  const shards = [];
+  const n = 18;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.2;
+    const r = 2.6 + Math.random() * 4.5;
+    const h = 1.1 + Math.random() * 1.6;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.22 + Math.random() * 0.16, h, 5), shardMat.clone());
+    m.position.set(p.x + Math.cos(a) * r, -h, p.z + Math.sin(a) * r);
+    m.rotation.set((Math.random() - 0.5) * 0.35, Math.random() * 3, (Math.random() - 0.5) * 0.35);
+    scene.add(m);
+    shards.push({ m: m, delay: r * 0.045, h: h, up: 0 });
+  }
+
+  let t0 = 0;
+  addEffect({ update(dt) {
+    t0 += dt;
+    wave.material.uniforms.uP.value = Math.min(t0 * 1.05, 1);
+
+    if (t0 < 0.5) {
+      for (let i = 0; i < 6; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = t0 * 9;
+        spawn(p.x + Math.cos(a) * r, 0.2 + Math.random() * 0.5, p.z + Math.sin(a) * r,
+          Math.cos(a) * 3, 1.5 + Math.random() * 2, Math.sin(a) * 3,
+          Math.random() < 0.4 ? 0xffffff : 0x6fd9ff,
+          7 + Math.random() * 6, 0.9 + Math.random() * 0.6,
+          { drag: 1.2, grav: 1.6, jitter: 0.02 });
+      }
+    }
+    for (const s of shards) {
+      const local = t0 - s.delay;
+      if (local <= 0) continue;
+      if (local < 0.16) s.m.position.y = -s.h + (s.h * 0.5 + 0.55) * (local / 0.16);
+      else if (local > 1.5) {
+        const f = Math.max(1 - (local - 1.5) / 0.6, 0);
+        s.m.material.opacity = 0.9 * f;
+        s.m.position.y -= dt * 1.4;
+      }
+    }
+    if (t0 > 2.2) {
+      shards.forEach(s => disposeObj(s.m));
+      disposeObj(wave);
+      return false;
+    }
+    return true;
+  }});
+
+  damageArea(p, 9, 45, 0x5fd8ff);
+}
+
+/* ---- 3. Kettenblitz ---- */
+function castLightning(origin, dir) {
+  const targets = nearestCrystals(origin, dir, 3, 30, 0.1);
+  const nodes = [origin.clone()];
+  if (targets.length) {
+    targets.forEach(c => nodes.push(c.mesh.position.clone()));
+    targets.forEach(c => {
+      c.hp -= 70; c.hit = 0.4;
+      burst(c.mesh.position, 40, 0xd8b6ff, { speed: 10, size: 8, life: 0.6, drag: 2.4, jitter: 0.06 });
+      flash(c.mesh.position, 0xc08bff, 10, 0.25);
+      if (c.hp <= 0) killCrystal(c);
+    });
+  } else {
+    nodes.push(origin.clone().add(dir.clone().multiplyScalar(22)).setY(0.2));
+  }
+
+  const SEG = 12;
+  const total = (nodes.length - 1) * SEG;
+  const pos = new Float32Array(total * 2 * 3);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.LineBasicMaterial({
+    color: 0xd9c2ff, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const bolt = new THREE.LineSegments(geo, mat);
+  bolt.frustumCulled = false;
+  scene.add(bolt);
+
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), prev = new THREE.Vector3(), cur = new THREE.Vector3();
+
+  function rebuild(amp) {
+    let w = 0;
+    for (let s = 0; s < nodes.length - 1; s++) {
+      a.copy(nodes[s]); b.copy(nodes[s + 1]);
+      prev.copy(a);
+      for (let i = 1; i <= SEG; i++) {
+        const f = i / SEG;
+        cur.lerpVectors(a, b, f);
+        if (i < SEG) {
+          const j = amp * Math.sin(f * Math.PI);
+          cur.x += (Math.random() - 0.5) * j;
+          cur.y += (Math.random() - 0.5) * j;
+          cur.z += (Math.random() - 0.5) * j;
+        }
+        pos[w++] = prev.x; pos[w++] = prev.y; pos[w++] = prev.z;
+        pos[w++] = cur.x;  pos[w++] = cur.y;  pos[w++] = cur.z;
+        if (Math.random() < 0.25) {
+          spawn(cur.x, cur.y, cur.z,
+            (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6,
+            Math.random() < 0.5 ? 0xffffff : 0xc08bff, 5 + Math.random() * 5, 0.35,
+            { drag: 3.5, grav: 3 });
+        }
+        prev.copy(cur);
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+  }
+  rebuild(0.9);
+  flash(origin, 0xc08bff, 12, 0.2);
+
+  let life = 0.34;
+  addEffect({ update(dt) {
+    life -= dt;
+    if (life <= 0) { disposeObj(bolt); return false; }
+    nodes[0].copy(getStaffTip());
+    rebuild(0.55 + Math.random() * 0.7);
+    mat.opacity = 0.35 + Math.random() * 0.65;
+    return true;
+  }});
+}
+
+/* ---- 4. Arkanes Bollwerk ---- */
+let shieldActive = 0;
+function castWard() {
+  if (shieldActive > 0) { shieldActive = 6; return; }
+  shieldActive = 6;
+
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 }, uOpacity: { value: 0 },
+      uColor: { value: new THREE.Color(0x7bffd4) }
+    },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vW; varying vec3 vL;
+      void main(){
+        vN = mat3(modelMatrix) * normal;
+        vL = position;
+        vW = (modelMatrix * vec4(position,1.0)).xyz;
+        gl_Position = projectionMatrix * viewMatrix * vec4(vW,1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime; uniform float uOpacity; uniform vec3 uColor;
+      varying vec3 vN; varying vec3 vW; varying vec3 vL;
+      void main(){
+        vec3 V = normalize(cameraPosition - vW);
+        float fres = pow(1.0 - abs(dot(normalize(vN), V)), 2.6);
+        vec3 q = vL * 7.5;
+        float g = sin(q.x + uTime) * sin(q.y * 0.9 - uTime * 1.4) * sin(q.z + uTime * 0.7);
+        float cells = smoothstep(0.55, 0.95, abs(g));
+        float scan = smoothstep(0.02, 0.0, abs(fract(vL.y * 1.6 - uTime * 0.35) - 0.5) - 0.48);
+        float a = (fres * 0.85 + cells * 0.30 + scan * 0.5) * uOpacity;
+        gl_FragColor = vec4(uColor * (0.6 + fres), a);
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending
+  });
+  const dome = new THREE.Mesh(new THREE.IcosahedronGeometry(1.85, 3), mat);
+  scene.add(dome);
+  flash(mage.position.clone().setY(1.2), 0x7bffd4, 10, 0.4);
+
+  addEffect({ update(dt, t) {
+    shieldActive -= dt;
+    dome.position.copy(mage.position).setY(mage.position.y + 1.1);
+    dome.rotation.y += dt * 0.35;
+    mat.uniforms.uTime.value = t * 1.6;
+    const fadeIn = Math.min((6 - shieldActive) * 5, 1);
+    const fadeOut = Math.min(shieldActive * 1.6, 1);
+    mat.uniforms.uOpacity.value = 0.75 * fadeIn * fadeOut * (0.85 + Math.sin(t * 6) * 0.15);
+
+    if (Math.random() < 0.6) {
+      const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI;
+      const r = 1.85;
+      const x = dome.position.x + Math.sin(e) * Math.cos(a) * r;
+      const y = dome.position.y + Math.cos(e) * r;
+      const z = dome.position.z + Math.sin(e) * Math.sin(a) * r;
+      spawn(x, y, z, -Math.cos(a) * 0.6, 0.5, -Math.sin(a) * 0.6, 0x7bffd4, 6, 0.8, { drag: 1.2 });
+    }
+    if (shieldActive <= 0) {
+      burst(dome.position, 60, 0x7bffd4, { speed: 9, size: 7, life: 0.7, drag: 1.6 });
+      disposeObj(dome);
+      return false;
+    }
+    return true;
+  }});
+}
+
+/* ---- 5. Meteor ---- */
+function castMeteor(target) {
+  const p = target.clone().setY(0.06);
+
+  const telMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uK: { value: 0 }, uColor: { value: new THREE.Color(0xff4d5e) } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: `
+      uniform float uTime; uniform float uK; uniform vec3 uColor;
+      varying vec2 vUv;
+      void main(){
+        vec2 c = vUv - 0.5;
+        float d = length(c) * 2.0;
+        if(d > 1.0) discard;
+        float edge = smoothstep(0.06, 0.0, abs(d - 0.97));
+        float fillR = uK;
+        float fill = step(d, fillR) * 0.16;
+        float ang = atan(c.y, c.x);
+        float spokes = smoothstep(0.86, 1.0, abs(sin(ang * 6.0 + uTime * 2.0))) * step(d, 0.97) * 0.28;
+        float a = (edge + fill + spokes) * (0.45 + uK * 0.55);
+        gl_FragColor = vec4(uColor, a);
+      }`,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending
+  });
+  const tel = new THREE.Mesh(new THREE.PlaneGeometry(11, 11), telMat);
+  tel.rotation.x = -Math.PI / 2;
+  tel.position.copy(p);
+  scene.add(tel);
+
+  const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(1.05, 1),
+    new THREE.MeshStandardMaterial({ color: 0x3a1414, emissive: 0xff3a12, emissiveIntensity: 1.2, roughness: 1, flatShading: true }));
+  rock.position.set(p.x + 7, 42, p.z - 5);
+  rock.visible = false;
+  scene.add(rock);
+
+  const CHARGE = 1.0, FALL = 0.62;
+  let t0 = 0, phase = 0;
+  const start = rock.position.clone();
+  const end = p.clone().setY(0.7);
+
+  addEffect({ update(dt, t) {
+    t0 += dt;
+    telMat.uniforms.uTime.value = t;
+
+    if (phase === 0) {
+      telMat.uniforms.uK.value = Math.min(t0 / CHARGE, 1);
+      if (t0 >= CHARGE) { phase = 1; t0 = 0; rock.visible = true; }
+    } else if (phase === 1) {
+      const f = Math.min(t0 / FALL, 1);
+      rock.position.lerpVectors(start, end, f * f);
+      rock.rotation.x += dt * 7; rock.rotation.z += dt * 5;
+      for (let i = 0; i < 10; i++) {
+        spawn(rock.position.x + (Math.random() - 0.5) * 1.3,
+              rock.position.y + (Math.random() - 0.5) * 1.3 + 0.6,
+              rock.position.z + (Math.random() - 0.5) * 1.3,
+              (Math.random() - 0.5) * 4, 3 + Math.random() * 5, (Math.random() - 0.5) * 4,
+              Math.random() < 0.3 ? 0xffe08a : 0xff3a12,
+              12 + Math.random() * 12, 0.7 + Math.random() * 0.6,
+              { drag: 1.4, grow: 2.2, turb: 5, jitter: 0.04 });
+      }
+      if (f >= 1) {
+        phase = 2; t0 = 0; rock.visible = false;
+        impact();
+      }
+    } else {
+      telMat.uniforms.uK.value = Math.max(1 - t0 * 3, 0);
+      if (t0 > 2.6) { disposeObj(tel); disposeObj(rock); return false; }
+      if (t0 < 1.8 && Math.random() < 0.9) { // Restglut
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 4.5;
+        spawn(p.x + Math.cos(a) * r, 0.1, p.z + Math.sin(a) * r,
+          0, 1.5 + Math.random() * 2.5, 0,
+          Math.random() < 0.5 ? 0xff5a12 : 0xff9a3a,
+          9 + Math.random() * 8, 0.8, { drag: 1.1, grow: 1.6, turb: 3 });
+      }
+      return true;
+    }
+    return true;
+  }});
+
+  function impact() {
+    const c = p.clone().setY(0.4);
+    burst(c, 260, 0xff3a12, { speed: 22, size: 14, life: 1.4, grow: 2.2, drag: 1.2, turb: 7, jitter: 0.05 });
+    burst(c, 90, 0xffe0a0, { speed: 32, size: 7, life: 0.8, drag: 0.9, flat: true });
+    burst(c, 70, 0x2a1418, { speed: 9, size: 28, life: 2.2, grow: 3.4, drag: 2, grav: -1.4 });
+    flash(c, 0xff5a3a, 40, 0.7);
+    damageArea(p, 7.5, 130, 0xff4d5e);
+    shake(0.55);
+
+    const w1 = makeShockwave(0xff8a3a, 12, 0.075);
+    w1.position.set(p.x, 0.07, p.z); scene.add(w1);
+    const w2 = makeShockwave(0xffd7a0, 16, 0.03);
+    w2.position.set(p.x, 0.08, p.z); scene.add(w2);
+    let k = 0;
+    addEffect({ update(dt) {
+      k += dt * 1.15;
+      w1.material.uniforms.uP.value = Math.min(k * 1.3, 1);
+      w2.material.uniforms.uP.value = Math.min(k, 1);
+      if (k >= 1) { disposeObj(w1); disposeObj(w2); return false; }
+      return true;
+    }});
+  }
+}
+
+/* ---- 6. Leerensog ---- */
+function castVoid(target) {
+  const p = target.clone().setY(1.6);
+  vortex.copy(p); vortexOn = 1;
+
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.9, 24, 18), new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uK: { value: 0 } },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vW;
+      void main(){
+        vN = mat3(modelMatrix) * normal;
+        vW = (modelMatrix * vec4(position,1.0)).xyz;
+        gl_Position = projectionMatrix * viewMatrix * vec4(vW,1.0);
+      }`,
+    fragmentShader: `
+      uniform float uTime; uniform float uK;
+      varying vec3 vN; varying vec3 vW;
+      void main(){
+        vec3 V = normalize(cameraPosition - vW);
+        float fres = pow(1.0 - abs(dot(normalize(vN), V)), 3.2);
+        vec3 col = mix(vec3(0.02,0.0,0.05), vec3(0.69,0.42,1.0), fres);
+        col += vec3(0.4,0.1,0.8) * pow(fres, 4.0) * 2.0;
+        gl_FragColor = vec4(col * uK, 1.0);
+      }`
+  }));
+  core.position.copy(p);
+  scene.add(core);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.05, 8, 48),
+    new THREE.MeshBasicMaterial({ color: 0xb06bff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+  ring.position.copy(p); ring.rotation.x = Math.PI / 2.2;
+  scene.add(ring);
+
+  const DUR = 2.6;
+  let t0 = 0;
+  addEffect({ update(dt, t) {
+    t0 += dt;
+    const k = Math.min(t0 * 4, 1) * Math.min((DUR - t0) * 2.2, 1);
+    core.material.uniforms.uTime.value = t;
+    core.material.uniforms.uK.value = Math.max(k, 0);
+    core.scale.setScalar(0.4 + Math.max(k, 0) * (0.9 + Math.sin(t * 9) * 0.06));
+    ring.rotation.z += dt * 2.2;
+    ring.rotation.y += dt * 1.1;
+    ring.scale.setScalar(1 + Math.sin(t * 4) * 0.08);
+    ring.material.opacity = 0.8 * Math.max(k, 0);
+
+    if (t0 < DUR - 0.3) {
+      for (let i = 0; i < 8; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 7 + Math.random() * 6;
+        const y = Math.random() * 5;
+        spawn(p.x + Math.cos(a) * r, y, p.z + Math.sin(a) * r,
+          0, 0, 0,
+          Math.random() < 0.3 ? 0xffffff : 0xb06bff,
+          5 + Math.random() * 6, 1.6,
+          { drag: 0.25, mode: 1, jitter: 0.05 });
+      }
+      // Kristalle im Radius nehmen dauerhaft Schaden
+      if (Math.floor(t0 * 6) !== Math.floor((t0 - dt) * 6)) damageArea(p, 8, 14, 0xb06bff);
+    }
+
+    if (t0 >= DUR) {
+      burst(p, 200, 0xb06bff, { speed: 26, size: 10, life: 1.0, drag: 1.4, jitter: 0.07 });
+      burst(p, 50, 0xffffff, { speed: 14, size: 16, life: 0.5, grow: 2, drag: 2.4 });
+      flash(p, 0xb06bff, 26, 0.5);
+      damageArea(p, 9, 70, 0xb06bff);
+      shake(0.3);
+      vortexOn = 0;
+      disposeObj(core); disposeObj(ring);
+      return false;
+    }
+    return true;
+  }});
+}
+
+/* =========================================================
+   7 — Zauberbuch + Hotbar
+   ========================================================= */
+const spells = [
+  { key: '1', name: 'Feuerball',  glyph: '🔥', cls: 'fire',   cd: 0.55, color: 0xff7a2f, mode: 'aim',    cast: (o, d) => castFireball(o, d) },
+  { key: '2', name: 'Frostnova',  glyph: '❄️', cls: 'frost',  cd: 3.0,  color: 0x5fd8ff, mode: 'self',   cast: () => castFrostNova(mage.position) },
+  { key: '3', name: 'Kettenblitz',glyph: '⚡', cls: 'storm',  cd: 1.4,  color: 0xc08bff, mode: 'aim',    cast: (o, d) => castLightning(o, d) },
+  { key: '4', name: 'Bollwerk',   glyph: '🛡️', cls: 'ward',   cd: 8.0,  color: 0x7bffd4, mode: 'self',   cast: () => castWard() },
+  { key: '5', name: 'Meteor',     glyph: '☄️', cls: 'meteor', cd: 6.0,  color: 0xff4d5e, mode: 'ground', cast: (o, d, g) => castMeteor(g) },
+  { key: '6', name: 'Leerensog',  glyph: '🌀', cls: 'void',   cd: 5.0,  color: 0xb06bff, mode: 'ground', cast: (o, d, g) => castVoid(g) }
+];
+
+const bar = document.getElementById('bar');
+spells.forEach((s, i) => {
+  const el = document.createElement('div');
+  el.className = 'slot ready ' + s.cls;
+  el.innerHTML =
+    '<div class="key">' + s.key + '</div>' +
+    '<div class="glyph">' + s.glyph + '</div>' +
+    '<div class="name">' + s.name + '</div>' +
+    '<div class="edge"></div>' +
+    '<div class="cd"></div>';
+  bar.appendChild(el);
+  s.el = el; s.cdEl = el.querySelector('.cd'); s.timer = 0;
+});
+
+const ringEl = document.getElementById('ring');
+let castAnim = 0, castColor = new THREE.Color(0xb06bff);
+
+const _plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _ray = new THREE.Ray();
+const _ground = new THREE.Vector3();
+function aimGroundPoint() {
+  _ray.origin.copy(camera.position);
+  camera.getWorldDirection(_ray.direction);
+  if (!_ray.intersectPlane(_plane, _ground)) {
+    _ground.copy(mage.position).addScaledVector(aimDir, 14);
+  }
+  const d = _ground.distanceTo(mage.position);
+  if (d > 26) _ground.copy(mage.position).addScaledVector(_ground.clone().sub(mage.position).normalize(), 26);
+  _ground.y = 0;
+  return _ground;
+}
+
+const aimDir = new THREE.Vector3(0, 0, -1);
+function updateAimDir() {
+  camera.getWorldDirection(aimDir);
+  aimDir.y = 0;
+  if (aimDir.lengthSq() < 0.0001) aimDir.set(0, 0, -1);
+  aimDir.normalize();
+}
+
+function tryCast(index) {
+  const s = spells[index];
+  if (!s || s.timer > 0) return;
+  s.timer = s.cd;
+
+  updateAimDir();
+  const origin = getStaffTip().clone();
+  const dirFull = new THREE.Vector3();
+  camera.getWorldDirection(dirFull);
+
+  if (s.mode === 'ground') s.cast(origin, aimDir, aimGroundPoint().clone());
+  else s.cast(origin, aimDir.clone());
+
+  // Feedback
+  castAnim = 0.32;
+  castColor.set(s.color);
+  s.el.classList.add('flash');
+  setTimeout(() => s.el.classList.remove('flash'), 130);
+  ringEl.style.color = '#' + castColor.getHexString();
+  ringEl.classList.remove('pulse');
+  void ringEl.offsetWidth;
+  ringEl.classList.add('pulse');
+
+  // Aufladung an der Stabspitze
+  burst(origin, 26, s.color, { speed: 5, size: 8, life: 0.45, drag: 3, jitter: 0.05 });
+}
+
+function updateCooldowns(dt) {
+  for (const s of spells) {
+    if (s.timer > 0) {
+      s.timer -= dt;
+      const f = Math.max(s.timer / s.cd, 0);
+      s.cdEl.style.height = (f * 100) + '%';
+      if (s.timer <= 0) { s.el.classList.add('ready'); s.cdEl.style.height = '0%'; }
+      else s.el.classList.remove('ready');
+    }
+  }
+}
+
+/* =========================================================
+   8 — Steuerung
+   ========================================================= */
+const keys = Object.create(null);
+let yaw = 0, pitch = -0.18;
+let pointerLocked = false;
+
+const gate = document.getElementById('gate');
+function requestLock() { renderer.domElement.requestPointerLock(); }
+gate.addEventListener('click', requestLock);
+renderer.domElement.addEventListener('click', () => { if (!pointerLocked) requestLock(); });
+
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer.domElement;
+  gate.classList.toggle('hidden', pointerLocked);
+});
+document.addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  yaw   -= e.movementX * 0.0022;
+  pitch -= e.movementY * 0.0018;
+  pitch = Math.max(-0.85, Math.min(0.55, pitch));
+});
+document.addEventListener('mousedown', e => {
+  if (pointerLocked && e.button === 0) tryCast(0);
+});
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  const n = ['Digit1','Digit2','Digit3','Digit4','Digit5','Digit6'].indexOf(e.code);
+  if (n >= 0) { tryCast(n); e.preventDefault(); }
+  if (e.code === 'Space') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* Bewegung */
+const vel = new THREE.Vector3();
+let vy = 0, grounded = true, walkPhase = 0, facing = 0;
+
+function updatePlayer(dt) {
+  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  const r = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  const sprint = keys.ShiftLeft || keys.ShiftRight;
+  const speed = sprint ? 11 : 6.4;
+
+  const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const wish = new THREE.Vector3().addScaledVector(fwd, f).addScaledVector(right, r);
+  if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+
+  vel.lerp(wish, 1 - Math.pow(0.0009, dt));
+  mage.position.x += vel.x * dt;
+  mage.position.z += vel.z * dt;
+
+  const lim = 78;
+  mage.position.x = Math.max(-lim, Math.min(lim, mage.position.x));
+  mage.position.z = Math.max(-lim, Math.min(lim, mage.position.z));
+
+  if (keys.Space && grounded) { vy = 8.2; grounded = false; }
+  vy -= 24 * dt;
+  mage.position.y += vy * dt;
+  if (mage.position.y <= 0) {
+    if (!grounded) burst(mage.position, 14, 0x7a5cff, { speed: 3.5, size: 7, life: 0.4, drag: 3, flat: true });
+    mage.position.y = 0; vy = 0; grounded = true;
+  }
+
+  // Ausrichtung: beim Zaubern in Blickrichtung, sonst in Laufrichtung
+  const moving = vel.lengthSq() > 0.6;
+  let want = facing;
+  if (castAnim > 0) want = yaw;
+  else if (moving) want = Math.atan2(vel.x, vel.z);
+  let diff = ((want - facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  facing += diff * Math.min(dt * 12, 1);
+  mage.rotation.y = facing;
+
+  // Lauf-Animation (rein prozedural)
+  const spd = vel.length();
+  walkPhase += dt * (2 + spd * 1.5);
+  const bob = moving ? Math.sin(walkPhase * 3.2) * 0.055 * Math.min(spd / 7, 1.2) : Math.sin(walkPhase * 0.9) * 0.02;
+  body.position.y = bob + (grounded ? 0 : 0.06);
+  body.rotation.z = Math.sin(walkPhase * 1.6) * 0.035 * Math.min(spd / 7, 1);
+  body.rotation.x = -Math.min(spd / 90, 0.12);
+  hat.rotation.z = 0.09 + Math.sin(walkPhase * 1.6 + 0.6) * 0.09;
+
+  // Stab: Ruhehaltung vs. Zauberpose
+  const cast = Math.max(castAnim / 0.32, 0);
+  const ease = cast * cast * (3 - 2 * cast);
+  staff.rotation.x = -0.12 - ease * 1.15 + Math.sin(walkPhase * 1.6) * 0.06;
+  staff.rotation.z = 0.16 - ease * 0.2;
+  staff.position.y = 1.18 + ease * 0.16;
+  armGroup.rotation.x = -ease * 1.6 + Math.sin(walkPhase * 1.6 + Math.PI) * 0.18;
+
+  orbMat.uniforms.uColor.value.lerp(castColor, Math.min(dt * 6, 1));
+  orbMat.uniforms.uI.value = 1 + ease * 2.6;
+  halo.material.color.copy(orbMat.uniforms.uColor.value);
+  halo.rotation.z += dt * (1.2 + ease * 8);
+  orb.rotation.y += dt * 1.4;
+
+  if (Math.random() < 0.35 + ease) {
+    const tip = getStaffTip();
+    spawn(tip.x + (Math.random() - 0.5) * 0.14, tip.y + (Math.random() - 0.5) * 0.14, tip.z + (Math.random() - 0.5) * 0.14,
+      (Math.random() - 0.5) * 0.6, 0.7 + Math.random(), (Math.random() - 0.5) * 0.6,
+      '#' + castColor.getHexString(), 4 + Math.random() * 4, 0.6, { drag: 1.6 });
+  }
+
+  if (castAnim > 0) castAnim -= dt;
+}
+
+/* Kamera */
+let shakeAmt = 0;
+function shake(a) { shakeAmt = Math.max(shakeAmt, a); }
+
+const camTarget = new THREE.Vector3();
+function updateCamera(dt, t) {
+  const dist = 7.2, height = 1.6;
+  const cy = Math.cos(pitch);
+  const off = new THREE.Vector3(
+    Math.sin(yaw) * cy * dist,
+    height + Math.sin(-pitch) * dist,
+    Math.cos(yaw) * cy * dist
+  );
+  camTarget.copy(mage.position).add(off);
+  camTarget.y = Math.max(camTarget.y, 0.6);
+  camera.position.lerp(camTarget, 1 - Math.pow(0.0015, dt));
+
+  const look = mage.position.clone().add(new THREE.Vector3(0, 1.5 + pitch * 2.2, 0));
+  camera.lookAt(look);
+
+  if (shakeAmt > 0.001) {
+    shakeAmt *= Math.pow(0.06, dt);
+    const a = shakeAmt;
+    camera.position.x += Math.sin(t * 61) * a * 0.5;
+    camera.position.y += Math.sin(t * 47) * a * 0.5;
+    camera.position.z += Math.cos(t * 53) * a * 0.5;
+  }
+}
+
+/* =========================================================
+   9 — Schleife
+   ========================================================= */
+const fpsEl = document.getElementById('fps');
+let fpsT = 0, fpsN = 0;
+
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  updatePlayer(dt);
+  updateCamera(dt, t);
+
+  groundMat.uniforms.uTime.value = t;
+  groundMat.uniforms.uPlayer.value.copy(mage.position);
+
+  for (const r of rocks) {
+    r.position.y = r.userData.base + Math.sin(t * r.userData.sp + r.userData.ph) * 0.5;
+    r.rotation.y += dt * 0.08;
+  }
+
+  for (const c of crystals) {
+    if (c.dead) {
+      c.respawn -= dt;
+      if (c.respawn <= 0) {
+        c.dead = false; c.hp = c.maxHp; c.mesh.visible = true;
+        c.mesh.position.copy(c.home);
+        c.mesh.scale.setScalar(0.01);
+        burst(c.home, 40, 0x7fe9ff, { speed: 5, size: 7, life: 0.7, drag: 2.4 });
+      }
+      continue;
+    }
+    c.mesh.scale.lerp(new THREE.Vector3(1, 1, 1), Math.min(dt * 5, 1));
+    c.mesh.position.y = c.home.y + Math.sin(t * 1.4 + c.ph) * 0.35;
+    c.mesh.rotation.y += dt * 0.7;
+    c.mesh.rotation.x += dt * 0.25;
+    const hurt = c.hp / c.maxHp;
+    c.mesh.material.emissive.setRGB(0.1 + (1 - hurt) * 0.6, 0.36 * hurt, 0.5 * hurt);
+    if (c.hit > 0) {
+      c.hit -= dt;
+      c.mesh.position.x = c.home.x + (Math.random() - 0.5) * c.hit * 0.6;
+      c.mesh.position.z = c.home.z + (Math.random() - 0.5) * c.hit * 0.6;
+    }
+  }
+
+  for (let i = effects.length - 1; i >= 0; i--) {
+    if (!effects[i].update(dt, t)) effects.splice(i, 1);
+  }
+
+  updateParticles(dt, t);
+  updateFlashes(dt);
+  updateCooldowns(dt);
+
+  fpsT += dt; fpsN++;
+  if (fpsT >= 0.5) { fpsEl.textContent = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; }
+
+  renderer.render(scene, camera);
+}
+loop();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  pMat.uniforms.uPR.value = renderer.getPixelRatio();
+});
+
+})();
+</script>
+</body>
+</html>
