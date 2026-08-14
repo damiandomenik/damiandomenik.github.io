@@ -228,6 +228,9 @@ button:disabled{cursor:not-allowed}
 .meter i{display:block;height:100%;transition:width .18s}
 #hpFill{background:linear-gradient(90deg,#37D67A,#8BE3A6)}
 #shFill{background:linear-gradient(90deg,#4EA8FF,#9BD1FF)}
+#stFill{background:linear-gradient(90deg,#FFB020,#FFE0A6)}
+.meter.stam{height:5px;opacity:.9}
+.meter.stam.spent i{background:linear-gradient(90deg,#FF4D3D,#FF9A8F)}
 .mlabel{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.2em;color:var(--dim);margin-bottom:4px;text-transform:uppercase}
 #ammo{position:absolute;right:26px;bottom:22px;text-align:right;font-family:'Chakra Petch',sans-serif}
 #ammoN{font-size:52px;font-weight:700;line-height:1;color:var(--bone)}
@@ -245,6 +248,36 @@ button:disabled{cursor:not-allowed}
   font-size:12.5px;letter-spacing:.08em;white-space:nowrap}
 #pickPrompt b{display:inline-block;background:var(--amber);color:#0A1214;
   font-family:'Chakra Petch',sans-serif;font-weight:700;padding:1px 7px;margin-right:8px}
+#spectate{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);text-align:center;
+  border:1px solid var(--line);background:rgba(10,18,20,.88);padding:11px 26px;min-width:300px}
+#spectate .sp-eye{font-size:10px;letter-spacing:.24em;color:var(--dim);text-transform:uppercase}
+#spectate .sp-who{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:23px;
+  color:var(--amber);line-height:1.15;margin-top:3px}
+#spectate .sp-hint{font-size:10.5px;letter-spacing:.14em;color:var(--dim);
+  text-transform:uppercase;margin-top:7px}
+#climbPrompt{position:absolute;left:50%;top:63.5%;transform:translateX(-50%);
+  border:1px solid var(--storm);background:rgba(10,18,20,.85);padding:6px 14px;
+  font-size:12px;letter-spacing:.08em;white-space:nowrap}
+#climbPrompt b{display:inline-block;background:var(--storm);color:#0A1214;
+  font-family:'Chakra Petch',sans-serif;font-weight:700;padding:1px 7px;margin-right:8px}
+/* ---------- Rebirth ---------- */
+#rebirth{position:fixed;inset:0;z-index:32;display:flex;align-items:center;
+  justify-content:center;pointer-events:none;text-align:center}
+#rebirth .rb-box{padding:26px 44px;border:1px solid var(--line);
+  background:rgba(6,12,13,.78);backdrop-filter:blur(2px);min-width:340px}
+#rbTitle{font-family:'Chakra Petch',sans-serif;font-weight:700;
+  font-size:clamp(26px,4.6vw,44px);letter-spacing:.06em;text-transform:uppercase;
+  line-height:1;color:var(--amber)}
+#rbSub{font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--dim);margin-top:12px}
+#rbNum{font-family:'Chakra Petch',sans-serif;font-weight:700;
+  font-size:clamp(38px,8vw,74px);line-height:1;margin-top:14px;color:var(--bone)}
+#rbNum.urgent{color:var(--hazard)}
+#rebirth.danger #rbTitle{color:var(--hazard)}
+#rebirth.good #rbTitle{color:#37D67A}
+#netWarn{position:absolute;left:50%;top:76px;transform:translateX(-50%);font-size:10.5px;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--hazard);
+  background:rgba(10,18,20,.85);border:1px solid var(--hazard);padding:5px 13px}
 #alive{position:absolute;right:26px;top:22px;text-align:right}
 #aliveN{font-family:'Chakra Petch',sans-serif;font-size:34px;font-weight:700;line-height:1;color:var(--amber)}
 #stormInfo{position:absolute;left:50%;top:20px;transform:translateX(-50%);text-align:center;
@@ -326,6 +359,20 @@ button:disabled{cursor:not-allowed}
 #resTitle{font-size:clamp(34px,7vw,68px);font-weight:700;text-transform:uppercase;line-height:1}
 #resSub{color:var(--dim);font-size:13px;margin:14px 0 26px;letter-spacing:.1em}
 
+#armory .wrap{width:min(1020px,100%);display:grid;gap:14px;align-content:start}
+#armBody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;
+  margin-top:18px;min-height:0}
+#armList{display:grid;gap:6px;align-content:start;max-height:56vh;overflow:auto}
+#armList button{text-align:left;padding:10px 13px;border:1px solid var(--line);
+  background:rgba(0,0,0,.3);color:var(--bone);font:inherit;font-size:13px;cursor:pointer;
+  display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+#armList button small{color:var(--dim);font-size:10.5px;letter-spacing:.1em}
+#armList button[aria-pressed=true]{border-color:var(--amber);color:var(--amber);
+  background:rgba(255,176,32,.1)}
+#armPreview{position:relative;min-height:240px;border:1px solid var(--line);
+  background:rgba(0,0,0,.32)}
+#armPreview canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+@media (max-width:820px){#armBody{grid-template-columns:1fr}}
 #lobbyList{font-size:12px;line-height:2;color:var(--dim);max-height:180px;overflow:auto}
 #code{font-family:'Chakra Petch',sans-serif;font-size:38px;font-weight:700;letter-spacing:.3em;color:var(--amber)}
 @media (max-width:820px){#pickBody{grid-template-columns:1fr}#preview{min-height:180px}#minimap{display:none}}
@@ -355,11 +402,19 @@ button:disabled{cursor:not-allowed}
     <div class="mlabel"><span>Leben</span><span id="hpN">100</span></div>
     <div class="meter"><i id="hpFill" style="width:100%"></i></div>
     <div class="meter"><i id="shFill" style="width:0%"></i></div>
+    <div class="meter stam" id="stBar"><i id="stFill" style="width:100%"></i></div>
   </div>
   <div id="ammo"><div id="ammoN">—</div><div id="ammoW">Unbewaffnet</div>
     <div id="reloadBar"><i></i></div>
     <div id="slots"><span data-s="0">1 —</span><span data-s="1">2 —</span></div></div>
   <div id="pickPrompt" class="hidden"><b>E</b> <span id="pickName"></span></div>
+  <div id="climbPrompt" class="hidden"><b>Leertaste</b> <span>Hochziehen</span></div>
+  <div id="netWarn" class="hidden">Verbindung instabil</div>
+  <div id="spectate" class="hidden">
+    <div class="sp-eye">Zuschauer</div>
+    <div class="sp-who" id="specWho">—</div>
+    <div class="sp-hint" id="specHint">A / D oder Klick wechselt · Leertaste Ansicht</div>
+  </div>
   <div id="dropHud" class="hidden">
     <div id="dropAlt">—</div>
     <div id="dropHint" class="eyebrow">F drücken zum Abspringen</div>
@@ -368,6 +423,15 @@ button:disabled{cursor:not-allowed}
   <div id="dmgFlash"></div>
   <div id="stormVig"></div>
 </div>
+<!-- Rebirth: zweite Chance ueber ein 1-gegen-1 -->
+<div id="rebirth" class="hidden">
+  <div class="rb-box">
+    <div id="rbTitle">REBIRTH AVAILABLE</div>
+    <div id="rbSub">WAITING FOR OPPONENT…</div>
+    <div id="rbNum">30</div>
+  </div>
+</div>
+
 <div id="dbg" class="hidden"></div>
 
 <!-- Punktestand, solange Tab gehalten wird -->
@@ -476,6 +540,7 @@ button:disabled{cursor:not-allowed}
         <button id="btHost">Runde hosten</button><i></i>
         <button id="btJoinS">Beitreten</button><i></i>
         <button id="btChar">Figur wechseln</button><i></i>
+        <button id="btArm">Waffenkammer</button><i></i>
         <button id="btTest">Testkammer</button>
       </nav>
 
@@ -486,9 +551,10 @@ button:disabled{cursor:not-allowed}
     </div>
 
     <div class="lb-foot">
-      <span>WASD laufen · C ducken · Leertaste springen · Linksklick schießen ·
+      <span>WASD laufen · <b style="color:var(--amber)">Shift sprinten</b> · C ducken ·
+        Leertaste springen/klettern · Linksklick schießen ·
         <b style="color:var(--amber)">E aufheben</b> · R nachladen · 1/2 Waffe ·
-        F abspringen · Tab Punktestand · Esc Menü</span>
+        F abspringen · U festgesteckt · Tab Punktestand · Esc Menü</span>
     </div>
     <div class="lb-foot2">
       <span id="lbChar">—</span>
@@ -535,6 +601,38 @@ button:disabled{cursor:not-allowed}
     </div>
   </section>
 
+  <!-- Waffenkammer: Modelle den Waffen zuordnen -->
+  <section class="screen hidden" id="armory">
+    <div class="wrap">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div><div class="eyebrow">Waffenkammer</div>
+          <h2 style="font-size:26px">Modelle zuordnen</h2></div>
+        <div class="row">
+          <button class="btn" id="btArmAuto">Automatisch</button>
+          <button class="btn primary" id="btArmDone">Fertig</button>
+        </div>
+      </div>
+      <p class="sub" style="font-size:12px;max-width:70ch">
+        Die Sammeldatei <b>polygon_guns.glb</b> benennt ihre Teile nur mit Nummern.
+        Links eine Waffe wählen, rechts mit ◂ ▸ durch die Modelle blättern —
+        die Zuordnung wird sofort übernommen und im Browser gespeichert.</p>
+      <div id="armBody">
+        <div id="armList"></div>
+        <div style="display:grid;gap:12px;align-content:start;min-height:0">
+          <div id="armPreview"><canvas id="armCv"></canvas></div>
+          <div class="card">
+            <h3 id="armName">—</h3>
+            <p id="armInfo">Waffe links wählen.</p>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" id="btArmPrev">◂ Modell</button>
+              <button class="btn" id="btArmNext">Modell ▸</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Ergebnis -->
   <section class="screen hidden" id="result">
     <div class="panel wrap">
@@ -570,9 +668,20 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
    ========================================================================== */
 
 const ASSETS = {
+  root:  './assets/',
   maps:  './assets/maps/',
   chars: './assets/characters/',
   props: './assets/props/'
+};
+
+/* Aufsammelbares aus eigenen Modellen. Die drei Dateien liegen direkt in
+   assets/ — nicht in props/. Fehlt eine, faellt das Spiel auf den alten
+   Oktaeder zurueck und laeuft weiter. `fit` ist die Zielgroesse in Metern,
+   `spin` die Drehgeschwindigkeit, `lift` die Schwebehoehe ueber dem Boden. */
+const PICKUP_MODELS = {
+  hp:     { file:'minecraft_heart.glb',  fit:0.62, lift:0.72, spin:1.15, tilt:0.00, color:0xff4d5e },
+  shield: { file:'g52_shield.glb',       fit:0.78, lift:0.80, spin:0.85, tilt:0.22, color:0x4ea8ff },
+  ammo:   { file:'bullet_buckshot.glb',  fit:0.46, lift:0.62, spin:1.45, tilt:0.35, color:0xffb020 }
 };
 
 /* Die Insel entsteht aus mehreren GLB-Dateien. Jeder Eintrag wird automatisch
@@ -674,10 +783,62 @@ const FIXED_DT = 1/60;
 const MAX_SUBSTEPS = 5;
 const GRAVITY = 24;
 const JUMP_SPEED = 7.6;
-/* Kein Sprint. Alle Figuren laufen gleich schnell, geduckt langsamer. Das
-   hält die Bewegung ruhig und macht Entfernungen einschätzbar. */
 const SPEED_WALK = 4.7, SPEED_AIR = 0.9, SPEED_CROUCH = 2.3;
 const WORLD_MIN_Y = -80;          // darunter: zurück auf letzte sichere Position
+
+/* ---- Kurzer Sprint ----
+   Bewusst kurz: gut fuer den Sprung ueber eine Strasse, nicht fuer die halbe
+   Karte. Die Ausdauer ist in Sekunden gerechnet (100 = voll), leert sich mit
+   `drain` und fuellt sich nach `regenDelay` mit `regen` wieder auf. Unter
+   `minStart` laesst sich kein neuer Sprint anfangen — sonst stottert man im
+   Halbsekundentakt vorwaerts. */
+const SPRINT = {
+  speed:      7.4,     // m/s statt 4.7
+  drain:      41,      // Punkte je Sekunde  -> gut 2.4 s am Stueck
+  regen:      21,      // Punkte je Sekunde
+  regenDelay: 0.85,    // Sekunden Ruhe, bevor sich die Ausdauer erholt
+  minStart:   18,      // darunter kein neuer Sprint
+  fovAdd:     6.5      // Blickwinkel oeffnet leicht — man spuert das Tempo
+};
+
+/* ---- Klettern / Hochziehen ----
+   Kein Kletter-Clip in den Quaternius-Figuren, also wird die Pose von Hand
+   gefahren (siehe CLIMB_POSE weiter unten). Der Ablauf ist rein kinematisch:
+   Kapselphysik aus, Koerper entlang einer Kurve hoch und vor, Physik wieder an. */
+const CLIMB = {
+  minHeight:  0.62,    // darunter reicht die normale Stufe
+  maxHeight:  2.25,    // so hoch zieht man sich noch selbst hinauf
+  reach:      0.62,    // wie weit vor der Kapsel eine Wand liegen darf
+  forward:    0.58,    // wie weit man nach dem Aufziehen vorrueckt
+  clearance:  0.10,    // Luft ueber der Kante, damit man nicht im Boden steht
+  time:       0.62,    // Dauer der Bewegung in Sekunden
+  cooldown:   0.30
+};
+
+/* ---- Zuschauer ---- */
+const SPECTATE = { dist: 5.6, height: 1.15, sens: 1.0, lerp: 9.0 };
+
+/* ---- Rebirth: zweite Chance ueber ein 1-gegen-1 ----
+   Wer faellt, ist einmal je Runde noch nicht endgueltig raus. Er wartet
+   hoechstens `waitTime` Sekunden auf einen anderen Gefallenen; kommt einer,
+   entscheidet ein Duell in einer kleinen Arena. Kommt keiner, gibt es den
+   Rebirth geschenkt. In beiden Faellen kehrt man mit LEEREN Haenden zurueck
+   und springt wieder mit dem Schirm ab — der Rebirth ist kein Respawn mit
+   Ausruestung, sondern nur ein zweiter Anflug.
+
+   Die Arena liegt weit unter der Karte. Das ist Absicht: so ist sie ohne
+   eine zweite Spiel-Logik sauber getrennt — eigene Kollisionswelt, ausser
+   Reichweite jeder Kugel, ausserhalb des Sturms, fuer die anderen unsichtbar. */
+const REBIRTH = {
+  waitTime:   30,        // Sekunden in der Warteschlange
+  countdown:  3,         // 3 · 2 · 1 · FIGHT
+  arenaSize:  34,        // Kantenlaenge der quadratischen Arena
+  wallHeight: 6,
+  origin:     new THREE.Vector3(6000, -3000, 0),   // erste Arena
+  spacing:    400,       // Abstand weiterer Arenen
+  loadout:    { id:'ar', reserve: 120 },           // gleiche Waffe fuer beide
+  returnAlt:  null       // null = DROP.altitude
+};
 
 /* ---- Trefferzonen ----
    Bewusst getrennt von der Bewegungskapsel: die ist absichtlich schlank
@@ -822,8 +983,11 @@ const LOOT = { guns:58, supplies:40, pickRange:2.6 };
 
 const BLOOM_DECAY = 6.0;      // je Sekunde, exponentiell
 
-const BUILD = '2026-08-08 · 31';
-const NET_HZ = 20;
+const BUILD = '2026-08-14 · 32 (MP-Fix)';
+const NET_HZ = 22;                 // Zustaende je Sekunde
+const NET_INTERP_MS = 130;         // so weit laeuft die Darstellung hinterher
+const NET_SNAP_DIST = 6.0;         // groesserer Sprung -> hart setzen statt gleiten
+const NET_TIMEOUT = 6.0;           // ohne Nachricht gilt eine Verbindung als tot
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
 const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
@@ -851,6 +1015,30 @@ const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
 const lerp = (a,b,t)=> a+(b-a)*t;
 const rnd = (a,b)=> a+Math.random()*(b-a);
 const damp = (a,b,l,dt)=> lerp(a,b,1-Math.exp(-l*dt));
+
+/* ==========================================================================
+   0b — GESETZTER ZUFALL (der eigentliche Multiplayer-Fehler)
+   Beute, Flugbahn und Startpunkte wurden bisher auf jedem Rechner mit
+   Math.random() neu ausgewuerfelt. Jeder sah damit seine eigene Welt: andere
+   Waffen, andere Stellen, ein anderes Flugzeug. Ab jetzt gibt der Host einen
+   Startwert vor, und alle ziehen aus demselben Strom.
+   ========================================================================== */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let matchSeed = 1;
+let seedRand = mulberry32(1);
+function setMatchSeed(seed){
+  matchSeed = (seed >>> 0) || 1;
+  seedRand = mulberry32(matchSeed);
+}
+/* Dieselbe Schnittstelle wie rnd(), nur eben reproduzierbar. */
+const srnd = (a,b)=> a + seedRand()*(b-a);
 
 /* ==========================================================================
    1 — BVH ÜBER DREIECKE
@@ -1710,6 +1898,9 @@ class CharacterController {
     this.slopeDeg = 0;
     this.lastSafe = new THREE.Vector3();
     this.stuckTimer = 0;
+    this.fallTimer = 0;        // wie lange schon ohne Boden unter den Fuessen
+    this.buriedTimer = 0;      // wie lange schon in Geometrie eingeklemmt
+    this.rescues = 0;
     this.contactCount = 0;
     this.stepsTaken = 0;
 
@@ -1966,14 +2157,109 @@ class CharacterController {
     this.slopeDeg = THREE.MathUtils.radToDeg(Math.acos(clamp(this.groundNormal.y,-1,1)));
 
     // --- 4. Rettungsnetz ---
+    /* Der Fehler "ein Spieler war unter dem Boden" hatte drei Ursachen und
+       braucht deshalb drei Netze:
+         a) Durchgefallen und noch ueber WORLD_MIN_Y  -> laenger als 2 s im
+            freien Fall ohne irgendeinen Boden unter sich.
+         b) Unter der Karte gelandet — man steht zwar, aber ueber einem liegt
+            eine begehbare Flaeche und unter einem nichts mehr.
+         c) In Geometrie eingeklemmt (Landung mitten in einer Wand).
+       Alle drei enden gleich: hoch auf die naechste begehbare Flaeche. */
     if (this.grounded && this.contactCount < 60) this.lastSafe.copy(this.position);
-    if (this.position.y < WORLD_MIN_Y){
-      this.position.copy(this.lastSafe.lengthSq() ? this.lastSafe : new THREE.Vector3(0,5,0));
-      this.position.y += 1.0;
-      this.velocity.set(0,0,0);
-      return 'rescued';
+
+    if (this.grounded) this.fallTimer = 0;
+    else this.fallTimer += dt;
+
+    // (c) eingeklemmt: viele Kontakte, aber keine Bewegung moeglich
+    if (this.contactCount > 40 && !this.grounded) this.buriedTimer += dt;
+    else this.buriedTimer = Math.max(0, this.buriedTimer - dt*2);
+
+    const belowWorld = this.world && this.world.bounds
+      ? this.position.y < this.world.bounds.min.y - 1.5 : false;
+
+    if (this.position.y < WORLD_MIN_Y || belowWorld){
+      return this.rescue('unten durchgefallen');
+    }
+    // (a) langer Fall ohne jeden Boden in Sicht
+    if (this.fallTimer > 2.0 && this.velocity.y < -6 && !this.probeGround(70)){
+      return this.rescue('kein Boden in Sicht');
+    }
+    // (b) alle 0.4 s nachsehen, ob wir unter der Karte haengen
+    this.stuckTimer += dt;
+    if (this.stuckTimer > 0.4){
+      this.stuckTimer = 0;
+      if (this.buriedTimer > 0.5 || (this.fallTimer > 1.2 && this.underMap())){
+        return this.rescue('unter der Karte');
+      }
     }
     return this.grounded ? 'ground' : 'air';
+  }
+
+  /** Liegt ueber uns eine begehbare Flaeche und unter uns nichts? Dann sind
+      wir durch den Boden gerutscht. Ein Dach oder eine Bruecke allein reicht
+      als Beweis nicht — deshalb muss der Boden unter uns fehlen. */
+  underMap(){
+    if (!this.world || !this.world.bounds) return false;
+    const top = this.world.bounds.max.y + 20;
+    const above = this.world.groundBelow(this.position.x, top, this.position.z,
+                                         top - this.position.y + 200);
+    if (!above) return false;
+    if (above.point.y <= this.position.y + 0.8) return false;   // wir sind oben drauf
+    return !this.probeGround(6.0);                              // und unter uns: nichts
+  }
+
+  /** Auf die naechste begehbare Flaeche zurueckholen. Erst der Punkt, an dem
+      es zuletzt sicher war, dann die Oberflaeche direkt ueber uns, zuletzt
+      die Mitte der Karte. */
+  rescue(why){
+    const w = this.world;
+    const cands = [];
+    if (this.lastSafe.lengthSq() > 0) cands.push(this.lastSafe.clone().add(new THREE.Vector3(0,0.25,0)));
+    if (w && w.bounds){
+      const top = w.bounds.max.y + 20;
+      const hit = w.groundBelow(this.position.x, top, this.position.z, top - w.bounds.min.y + 200);
+      if (hit) cands.push(new THREE.Vector3(this.position.x, hit.point.y + 0.06, this.position.z));
+      const mid = w.groundBelow(0, top, 0, top - w.bounds.min.y + 200);
+      if (mid) cands.push(new THREE.Vector3(0, mid.point.y + 0.06, 0));
+    }
+    cands.push(new THREE.Vector3(0, 5, 0));
+    for (const c of cands){
+      if (this.isFree(c) || c === cands[cands.length-1]){
+        this.position.copy(c);
+        this.velocity.set(0,0,0);
+        this.grounded = false;
+        this.fallTimer = 0; this.buriedTimer = 0;
+        this.rescues++;
+        this.lastRescue = why || '';
+        return 'rescued';
+      }
+    }
+    return 'air';
+  }
+
+  /** Von Hand ausgeloest (Taste U): einen Meter hoch und auf die naechste
+      freie Stelle im Umkreis setzen. Hilft, wenn man sich in einer Ecke
+      festgefahren hat, ohne dass eines der Netze anschlaegt. */
+  unstuck(){
+    const start = this.position.clone();
+    const probe = new THREE.Vector3();
+    for (let ring = 0; ring < 6; ring++){
+      for (let i = 0; i < 10; i++){
+        const ang = i * 2.399963 + ring;
+        const r = ring * 0.75;
+        probe.set(start.x + Math.cos(ang)*r, start.y + 0.35 + ring*0.25, start.z + Math.sin(ang)*r);
+        const g = this.world.groundBelow(probe.x, probe.y + 4, probe.z, 12);
+        if (!g) continue;
+        const test = new THREE.Vector3(probe.x, g.point.y + 0.06, probe.z);
+        if (!this.isFree(test)) continue;
+        this.position.copy(test);
+        this.velocity.set(0,0,0);
+        this.lastSafe.copy(test);
+        this.fallTimer = 0; this.buriedTimer = 0;
+        return true;
+      }
+    }
+    return !!(this.rescue('von Hand') === 'rescued');
   }
 
   /** Steht die Kapsel an dieser Stelle frei? */
@@ -2061,6 +2347,74 @@ const ANIM_ALIAS = {
   reload:  ['PickUp','SitDown','Idle']
 };
 
+/* ==========================================================================
+   9b — HANDGEMACHTE POSEN
+   Die Quaternius-Figuren bringen Idle, Walk, Run, Jump, Death und ein paar
+   mehr mit — aber nichts zum Klettern. Statt einen fremden Clip zu verbiegen
+   sind die Posen hier von Hand gesetzt: je Zeitpunkt ein Satz Winkel in
+   Radiant, dazwischen wird geglaettet. Angewandt wird das NACH dem Mixer,
+   sonst ueberschreibt die laufende Animation alles wieder.
+
+   `body` bewegt die ganze Figur (Neigung, Rollen, Hub) — das sitzt immer,
+   unabhaengig davon, wie das Skelett benannt ist. Die Knochenwinkel legen
+   sich obendrauf, soweit die Knochen gefunden werden.               */
+const BONE_PATTERNS = {
+  torso:  [/^(torso|spine|chest|body|abdomen|spine_?0?1)$/i],
+  head:   [/^head$/i],
+  armL:   [/^(upper_?arm|arm|shoulder)[._-]?l$/i, /^(left_?(upper)?arm)$/i, /^mixamorigLeftArm$/],
+  armR:   [/^(upper_?arm|arm|shoulder)[._-]?r$/i, /^(right_?(upper)?arm)$/i, /^mixamorigRightArm$/],
+  handL:  [/^(fist|hand|lower_?arm|forearm)[._-]?l$/i, /^mixamorigLeftForeArm$/],
+  handR:  [/^(fist|hand|lower_?arm|forearm)[._-]?r$/i, /^mixamorigRightForeArm$/],
+  legL:   [/^(upper_?leg|leg|thigh)[._-]?l$/i, /^mixamorigLeftUpLeg$/],
+  legR:   [/^(upper_?leg|leg|thigh)[._-]?r$/i, /^mixamorigRightUpLeg$/]
+};
+
+/* Klettern, von Hand gesetzt. t laeuft von 0 (Absprung an der Wand) bis 1
+   (oben, wieder aufrecht).
+     0.00  Griff nach oben, Koerper gestreckt an der Wand
+     0.28  Zug: Arme beugen sich, Beine ziehen an
+     0.55  Knie ueber die Kante, Oberkoerper kippt vor
+     0.80  Aufrichten, Gewicht nach vorne
+     1.00  Neutral
+   body: [Neigung nach vorne, Rollen, Hub in Metern] */
+const CLIMB_POSE = [
+  { t:0.00, body:[ 0.30, 0.00, 0.00], torso:[ 0.16, 0, 0], head:[-0.30,0,0],
+    armL:[-2.35, 0, 0.26], armR:[-2.35, 0,-0.26], handL:[-0.25,0,0], handR:[-0.25,0,0],
+    legL:[ 0.22,0,0], legR:[ 0.10,0,0] },
+  { t:0.28, body:[ 0.44, 0.05, 0.04], torso:[ 0.26, 0, 0], head:[-0.34,0,0],
+    armL:[-1.85, 0, 0.42], armR:[-1.95, 0,-0.42], handL:[-1.05,0,0], handR:[-1.10,0,0],
+    legL:[ 0.95,0,0], legR:[ 0.55,0,0] },
+  { t:0.55, body:[ 0.52,-0.06, 0.10], torso:[ 0.34, 0, 0], head:[-0.30,0,0],
+    armL:[-1.10, 0, 0.30], armR:[-1.35, 0,-0.30], handL:[-0.80,0,0], handR:[-0.90,0,0],
+    legL:[ 1.35,0,0], legR:[ 0.20,0,0] },
+  { t:0.80, body:[ 0.22, 0.03, 0.05], torso:[ 0.16, 0, 0], head:[-0.12,0,0],
+    armL:[-0.55, 0, 0.16], armR:[-0.70, 0,-0.16], handL:[-0.35,0,0], handR:[-0.40,0,0],
+    legL:[ 0.60,0,0], legR:[-0.15,0,0] },
+  { t:1.00, body:[ 0.00, 0.00, 0.00], torso:[ 0, 0, 0], head:[0,0,0],
+    armL:[0,0,0], armR:[0,0,0], handL:[0,0,0], handR:[0,0,0], legL:[0,0,0], legR:[0,0,0] }
+];
+
+/* Zweiter eigener Satz: Zuschauer-Schweben gibt es nicht, aber ein kurzes
+   "Landen aus dem Klettern" macht den Uebergang weich. */
+const POSE_KEYS = ['torso','head','armL','armR','handL','handR','legL','legR'];
+
+function samplePose(track, t){
+  t = clamp(t, 0, 1);
+  let i = 0;
+  while (i < track.length-2 && track[i+1].t < t) i++;
+  const a = track[i], b = track[i+1] || track[i];
+  const span = Math.max(1e-5, b.t - a.t);
+  let k = clamp((t - a.t)/span, 0, 1);
+  k = k*k*(3-2*k);                                  // weich rein, weich raus
+  const out = { body:[0,0,0] };
+  for (let j=0;j<3;j++) out.body[j] = lerp(a.body[j], b.body[j], k);
+  for (const key of POSE_KEYS){
+    const av = a[key] || [0,0,0], bv = b[key] || [0,0,0];
+    out[key] = [lerp(av[0],bv[0],k), lerp(av[1],bv[1],k), lerp(av[2],bv[2],k)];
+  }
+  return out;
+}
+
 class CharacterFactory {
   constructor(loader){ this.loader = loader; this.cache = new Map(); this.pending = new Map(); }
 
@@ -2127,10 +2481,47 @@ class CharacterFactory {
       }
     }
     let current = null;
+
+    /* Knochen einmal einsammeln und ihre Ruhelage sichern. Fehlt einer,
+       bleibt der Eintrag leer — die Pose faellt dann einfach flacher aus,
+       statt eine Ausnahme zu werfen. */
+    const poseBones = {};
+    for (const key in BONE_PATTERNS){
+      const pats = BONE_PATTERNS[key];
+      let found = null;
+      obj.traverse(o=>{
+        if (found || !o.isBone) return;
+        for (const p of pats) if (p.test(o.name)){ found = o; return; }
+      });
+      if (found) poseBones[key] = { bone: found, rest: found.quaternion.clone() };
+    }
+    const _pq = new THREE.Quaternion(), _pe = new THREE.Euler();
+    let poseTrack = null, poseT = 0, poseW = 0;
+
     const api = {
-      obj, mixer, actions, name,
+      obj, mixer, actions, name, poseBones,
       hand: findBone(obj, ['Fist.R','FistR','Hand.R','HandR','mixamorigRightHand']),
       head: findBone(obj, ['Head','head']),
+      /** Eigene Pose setzen. `track` ist null zum Abschalten. */
+      setPose(track, t, weight){
+        poseTrack = track; poseT = t; poseW = clamp(weight, 0, 1);
+      },
+      /** Wird aus update() gerufen, nachdem der Mixer geschrieben hat.
+          Der Rueckgabewert beschreibt, wie die ganze Figur zu neigen und zu
+          heben ist — das setzt renderActors, weil dort die Weltposition
+          entsteht und sie sonst wieder ueberschrieben wuerde. */
+      applyPose(){
+        if (!poseTrack || poseW <= 0.001) return null;
+        const p = samplePose(poseTrack, poseT);
+        for (const key of POSE_KEYS){
+          const rec = poseBones[key]; if (!rec) continue;
+          const e = p[key];
+          _pe.set(e[0]*poseW, e[1]*poseW, e[2]*poseW, 'XYZ');
+          _pq.setFromEuler(_pe);
+          rec.bone.quaternion.copy(rec.rest).multiply(_pq);
+        }
+        return { pitch: p.body[0]*poseW, roll: p.body[1]*poseW, lift: p.body[2]*poseW };
+      },
       play(key, opts = {}){
         const a = actions[key]; if (!a || current === key) return;
         const prev = actions[current];
@@ -2144,7 +2535,7 @@ class CharacterFactory {
         a.play();
       },
       get current(){ return current; },
-      update(dt){ mixer.update(dt); }
+      update(dt){ mixer.update(dt); return api.applyPose(); }
     };
     return api;
   }
@@ -2199,46 +2590,196 @@ class WeaponModel {
    wird an ihrem Mesh-Namen herausgelöst, auf ihre Ziellänge normiert und so
    gedreht, dass die Mündung auf -Z zeigt.
    ========================================================================== */
+/* ==========================================================================
+   10b0 — WAFFEN AUS DER SAMMELDATEI ZUORDNEN
+
+   polygon_guns.glb enthaelt alle Waffen nebeneinander, benannt als
+   Object_61, Object_63 ... — die Nummern sagen nichts ueber den Inhalt.
+   Die fest eingetragenen Namen in WEAPONS.mesh waren geraten und sassen
+   daneben: die "Schrotflinte" war ein MG, der "Revolver" eine MP.
+
+   Statt weiter zu raten wird jetzt gemessen und der Groesse nach zugeordnet:
+   das kuerzeste Teil wird die Pistole, das laengste das Scharfschuetzen-
+   gewehr, dazwischen in der Reihenfolge der Ziellaengen aus WEAPONS.len.
+   Damit stimmen die Groessenverhaeltnisse in jedem Fall.
+
+   Wo die Automatik daneben liegt (eine Schrotflinte ist ungefaehr so lang
+   wie ein Sturmgewehr — das kann kein Messwert unterscheiden), laesst sich
+   in der Waffenkammer im Startbildschirm von Hand zuordnen. Die Zuordnung
+   wird im Browser gespeichert und ueberstimmt die Automatik.
+   ========================================================================== */
+const GUN_MAP = {};                 // Waffenkuerzel -> Meshname
+let GUN_OVERRIDE = {};              // von Hand gesetzt, gespeichert
+
+function loadGunOverride(){
+  try {
+    const j = localStorage.getItem('holdout.gunmesh');
+    GUN_OVERRIDE = j ? JSON.parse(j) : {};
+  } catch(e){ GUN_OVERRIDE = {}; }
+}
+function saveGunOverride(){
+  try { localStorage.setItem('holdout.gunmesh', JSON.stringify(GUN_OVERRIDE)); } catch(e){}
+}
+
+/** Ein Mesh vermessen: laengste Achse, Laenge darauf, und ob die Muendung
+    nach hinten zeigt. Letzteres ueber die Dicke: das duenne Ende ist der
+    Lauf, das dicke der Schaft mit Griff und Magazin. */
+function measureGunMesh(src){
+  const g = src.geometry;
+  const pos = g.attributes && g.attributes.position;
+  if (!pos || pos.count < 12) return null;
+
+  const geo = g.clone();
+  geo.applyMatrix4(src.matrixWorld);
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const size = bb.getSize(new THREE.Vector3());
+  const dims = [size.x, size.y, size.z];
+  let axis = 0;
+  if (dims[1] > dims[axis]) axis = 1;
+  if (dims[2] > dims[axis]) axis = 2;
+  const len = dims[axis];
+  if (len < 0.02) { geo.dispose(); return null; }
+
+  // Dicke je Haelfte entlang der Langachse
+  const p = geo.attributes.position;
+  const mid = (bb.min.getComponent(axis) + bb.max.getComponent(axis)) / 2;
+  const o1 = (axis + 1) % 3, o2 = (axis + 2) % 3;
+  const c1 = (bb.min.getComponent(o1) + bb.max.getComponent(o1)) / 2;
+  const c2 = (bb.min.getComponent(o2) + bb.max.getComponent(o2)) / 2;
+  let sLow = 0, nLow = 0, sHigh = 0, nHigh = 0;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++){
+    v.fromBufferAttribute(p, i);
+    const a = v.getComponent(axis);
+    const d = Math.hypot(v.getComponent(o1) - c1, v.getComponent(o2) - c2);
+    if (a < mid){ sLow += d; nLow++; } else { sHigh += d; nHigh++; }
+  }
+  geo.dispose();
+  const thinLow  = nLow  ? sLow/nLow   : 0;
+  const thinHigh = nHigh ? sHigh/nHigh : 0;
+
+  /* Nach dem Drehen zeigt die urspruengliche +Achse auf -Z, also nach
+     vorne. Ist die obere Haelfte die dickere, sitzt der Schaft vorne und
+     das Teil muss noch einmal herum. */
+  const flip = thinHigh > thinLow * 1.06;
+
+  return { axis, len, size:size.clone(), verts:pos.count, flip,
+           thin: Math.min(thinLow, thinHigh) };
+}
+
+/** GUN_MAP fuellen: erst die gespeicherte Handzuordnung, den Rest der
+    Groesse nach. */
+function resolveGunMap(parts){
+  for (const id in WEAPONS) delete GUN_MAP[id];
+  const used = new Set();
+
+  // 1. von Hand gesetzt
+  for (const id in WEAPONS){
+    const name = GUN_OVERRIDE[id];
+    if (name && parts.some(p=>p.name === name)){ GUN_MAP[id] = name; used.add(name); }
+  }
+
+  // 2. der Rest nach Groesse: kurze Waffe -> kurzes Teil
+  const free = parts.filter(p=>!used.has(p.name));
+  const open = Object.keys(WEAPONS)
+    .filter(id=>!GUN_MAP[id])
+    .sort((a,b)=> WEAPONS[a].len - WEAPONS[b].len);
+  if (free.length && open.length){
+    for (let i = 0; i < open.length; i++){
+      // gleichmaessig ueber die vorhandenen Teile verteilen
+      const k = open.length === 1 ? 0
+        : Math.round(i * (free.length - 1) / (open.length - 1));
+      GUN_MAP[open[i]] = free[clamp(k, 0, free.length-1)].name;
+    }
+  }
+}
+
 class WeaponLibrary {
   /* Kein Loader im Konstruktor: dieser Abschnitt steht im Modul vor dem
      Renderer, und `gltfLoader` gibt es dort noch nicht. Beim Aufruf von load()
      ist längst alles ausgewertet. */
   constructor(){ this.models = {}; this.ready = false; }
 
-  async load(){
-    if (this.ready) return this;
+  async load(force){
+    if (this.ready && !force) return this;
     let by = {};
     try {
       const g = await gltfLoader.loadAsync(ASSETS.props + GUNS_FILE);
       g.scene.updateMatrixWorld(true);
-      g.scene.traverse(o=>{ if (o.isMesh) by[o.name] = o; });
+      g.scene.traverse(o=>{ if (o.isMesh && o.geometry) by[o.name] = o; });
     } catch(e){ console.warn('Waffensammlung fehlt', e); }
+    this.source = by;
+
+    /* Alle Teile einmal vermessen. Das brauchen wir gleich zweimal:
+       fuer die automatische Zuordnung und fuer die Waffenkammer. */
+    this.parts = [];
+    for (const name in by){
+      const info = measureGunMesh(by[name]);
+      if (info) this.parts.push(Object.assign({ name }, info));
+    }
+    this.parts.sort((a,b)=> a.len - b.len);
+    resolveGunMap(this.parts);
 
     for (const id in WEAPONS){
-      const W = WEAPONS[id];
-      const src = by[W.mesh];
-      if (!src){ this.models[id] = null; continue; }
-      // Elterntransformationen einbacken, sonst sitzt die Waffe schief
-      const geo = src.geometry.clone();
-      geo.applyMatrix4(src.matrixWorld);
-      geo.computeBoundingBox();
-      const bb = geo.boundingBox;
-      const ctr = bb.getCenter(new THREE.Vector3());
-      geo.translate(-ctr.x, -ctr.y, -ctr.z);
-      const raw = bb.max.z - bb.min.z;
-      const k = W.len / Math.max(0.01, raw);
-      geo.scale(k, k, k);
-      // Die Modelle liegen mit der Mündung auf +Z, gebraucht wird -Z
-      geo.rotateY(Math.PI);
-      geo.computeVertexNormals();
-      const mats = Array.isArray(src.material) ? src.material : [src.material];
-      mats.forEach(mm=>{ if (mm && mm.map) mm.map.colorSpace = THREE.SRGBColorSpace; });
-      const m = new THREE.Mesh(geo, src.material);
-      m.castShadow = true; m.frustumCulled = false;
-      this.models[id] = m;
+      this.models[id] = this.buildOne(id);
     }
     this.ready = true;
     return this;
+  }
+
+  /** Ein Waffenmodell nach der aktuellen Zuordnung bauen. */
+  buildOne(id){
+    const W = WEAPONS[id];
+    const name = GUN_MAP[id];
+    const src = name ? this.source[name] : null;
+    if (!src) return null;
+
+    const info = measureGunMesh(src);
+    if (!info) return null;
+
+    // Elterntransformationen einbacken, sonst sitzt die Waffe schief
+    const geo = src.geometry.clone();
+    geo.applyMatrix4(src.matrixWorld);
+    geo.computeBoundingBox();
+    const bb = geo.boundingBox;
+    const ctr = bb.getCenter(new THREE.Vector3());
+    geo.translate(-ctr.x, -ctr.y, -ctr.z);
+
+    /* Frueher wurde stur die Z-Ausdehnung als Laenge genommen und stur um
+       180 Grad gedreht. Liegt ein Teil in der Datei aber entlang X oder Y
+       (und das tun in polygon_guns.glb mehrere), kam eine voellig falsche
+       Groesse heraus und der Lauf zeigte zur Seite. Jetzt wird die laengste
+       Achse gesucht und auf -Z gedreht. */
+    if (info.axis === 0)      geo.rotateY(Math.PI/2);      // +X  -> -Z
+    else if (info.axis === 1) { geo.rotateX(Math.PI/2); geo.rotateY(Math.PI); }
+    else                      geo.rotateY(Math.PI);        // +Z  -> -Z
+    // Zeigt die Muendung nach hinten? Dann herumdrehen.
+    if (info.flip) geo.rotateY(Math.PI);
+
+    const k = W.len / Math.max(0.01, info.len);
+    geo.scale(k, k, k);
+    geo.computeVertexNormals();
+
+    /* Texturen des Modells unveraendert uebernehmen — nur den Farbraum
+       richtigstellen, sonst wirken sie ausgewaschen. Material wird geklont,
+       damit zwei Waffen sich nicht dasselbe teilen. */
+    const srcMats = Array.isArray(src.material) ? src.material : [src.material];
+    const mats = srcMats.map(mm=>{
+      if (!mm) return mm;
+      const c = mm.clone();
+      if (c.map){ c.map.colorSpace = THREE.SRGBColorSpace; c.map.needsUpdate = true; }
+      if (c.emissiveMap) c.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+      return c;
+    });
+    const m = new THREE.Mesh(geo, mats.length > 1 ? mats : mats[0]);
+    m.castShadow = true; m.frustumCulled = false;
+    return m;
+  }
+
+  /** Nach einer Aenderung in der Waffenkammer alles neu aufbauen. */
+  rebuild(){
+    for (const id in WEAPONS) this.models[id] = this.buildOne(id);
   }
 
   /** Neues Exemplar einer Waffe. Fällt auf das alte SMG-Modell zurück. */
@@ -2249,6 +2790,97 @@ class WeaponLibrary {
   }
 }
 const gunLib = new WeaponLibrary();
+
+/* ==========================================================================
+   10c — AUFSAMMELBARES AUS EIGENEN MODELLEN
+   Leben, Panzerung und Munition sind keine leuchtenden Oktaeder mehr,
+   sondern die drei mitgelieferten Modelle:
+     minecraft_heart.glb  -> Leben
+     g52_shield.glb       -> Panzerung
+     bullet_buckshot.glb  -> Munition
+   Jedes wird auf eine feste Groesse normiert, mittig gesetzt und mit den
+   eigenen Texturen uebernommen. Fehlt eine Datei, springt der alte Oktaeder
+   in der jeweiligen Farbe ein — das Spiel laeuft in jedem Fall weiter.
+   ========================================================================== */
+class PickupLibrary {
+  constructor(){ this.models = {}; this.ready = false; }
+
+  async load(){
+    if (this.ready) return this;
+    for (const kind in PICKUP_MODELS){
+      const cfg = PICKUP_MODELS[kind];
+      try {
+        const g = await gltfLoader.loadAsync(ASSETS.root + cfg.file);
+        const root = g.scene;
+        root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(root);
+        const size = box.getSize(new THREE.Vector3());
+        const ctr  = box.getCenter(new THREE.Vector3());
+        const big  = Math.max(size.x, size.y, size.z) || 1;
+        const k    = cfg.fit / big;
+        // Erst mittig schieben, dann skalieren — sonst wandert das Modell
+        // beim Drehen um seinen eigenen Rand statt um die Mitte.
+        root.position.sub(ctr);
+        const inner = new THREE.Group();
+        inner.add(root);
+        inner.scale.setScalar(k);
+        root.traverse(m=>{
+          if (!m.isMesh) return;
+          m.castShadow = true; m.receiveShadow = false; m.frustumCulled = false;
+          const mats = Array.isArray(m.material) ? m.material : [m.material];
+          mats.forEach(mm=>{
+            if (!mm) return;
+            // Texturen der Modelle unveraendert uebernehmen, nur den
+            // Farbraum richtigstellen — sonst wirken sie ausgewaschen.
+            if (mm.map) mm.map.colorSpace = THREE.SRGBColorSpace;
+            if (mm.emissiveMap) mm.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+            mm.side = THREE.DoubleSide;
+          });
+        });
+        const wrap = new THREE.Group();
+        wrap.add(inner);
+        this.models[kind] = wrap;
+      } catch(e){
+        console.warn('Aufsammelmodell fehlt:', cfg.file, e);
+        this.models[kind] = null;
+      }
+    }
+    this.ready = true;
+    return this;
+  }
+
+  /** Ein Exemplar samt Lichtkegel, damit man es auch aus der Ferne sieht. */
+  spawn(kind){
+    const cfg = PICKUP_MODELS[kind];
+    const holder = new THREE.Group();
+    const tpl = this.models[kind];
+    let body;
+    if (tpl){
+      body = tpl.clone(true);
+    } else {
+      body = new THREE.Mesh(new THREE.OctahedronGeometry(0.34),
+        new THREE.MeshStandardMaterial({ color:cfg.color, emissive:cfg.color,
+                                         emissiveIntensity:.45, roughness:.35 }));
+      body.castShadow = true;
+    }
+    body.rotation.x = cfg.tilt;
+    holder.add(body);
+
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.26, 0.13, 1.9, 10, 1, true),
+      new THREE.MeshBasicMaterial({ color:cfg.color, transparent:true, opacity:0.12,
+        side:THREE.DoubleSide, depthWrite:false }));
+    beam.position.y = 0.85;
+    holder.add(beam);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.016, 4, 22),
+      new THREE.MeshBasicMaterial({ color:cfg.color }));
+    ring.rotation.x = Math.PI/2; ring.position.y = -cfg.lift + 0.06;
+    holder.add(ring);
+    holder.userData.spinner = body;
+    return holder;
+  }
+}
+const pickupLib = new PickupLibrary();
 
 /** Gewichtete Zufallswahl nach Seltenheit. */
 function randomWeaponId(){
@@ -2294,6 +2926,25 @@ class Actor {
     this.hitFlash = 0;
     this.crouch = false;
     this.placement = 0;
+    /* Sprint, Klettern und Netzzustand */
+    this.stamina = 100;
+    this.sprinting = false;
+    this.staminaHold = 0;                   // Ruhezeit bis zur Erholung
+    this.climb = null;                      // laufende Kletterbewegung
+    this.climbT = 0;                        // 0..1, auch fuer ferne Figuren
+    this.airborne = false;
+    this.lastSeq = undefined;
+    /* Rebirth. `rbState` ist der Zustand im Wiedereinstieg:
+       'none'   noch nicht gefallen (oder Chance noch offen)
+       'queued' wartet auf einen Gegner
+       'arena'  kaempft gerade sein 1-gegen-1
+       'spent'  Chance verbraucht — der naechste Tod ist endgueltig      */
+    this.hasUsedRebirth = false;
+    this.rbState = 'none';
+    this.rbUntil = 0;                       // Ablauf der Warteschlange (G.time)
+    this.arenaId = null;
+    this.rbOpp = null;
+    this.rbFreeze = false;                  // waehrend des Countdowns
   }
 
   get eye(){ return _eyeTmp.set(this.position.x, this.position.y + this.eyeHeight(), this.position.z); }
@@ -2576,7 +3227,18 @@ const G = {
   pickups: [],
   isHost: true, isNet: false,
   peer: null, conns: [], hostConn: null, code: '',
-  lobby: [],
+  myId: 'host',
+  lobby: [], netHost: null,
+  /* Zuschauermodus: nach dem eigenen Tod laeuft die Runde weiter und man
+     sieht den anderen zu, statt sofort im Ergebnisbildschirm zu landen. */
+  spectate: { on:false, idx:0, target:null, yaw:0, pitch:0.16, dist:SPECTATE.dist,
+              pos:new THREE.Vector3(), first:false },
+  rematchAt: 0,
+  /* Rebirth: Warteschlange nach dem FIFO-Prinzip und die laufenden Arenen */
+  rbQueue: [],                    // Reihenfolge der Ids, aeltester zuerst
+  rbReturns: [],                  // wer wann wieder ueber der Karte auftaucht
+  arenas: [],
+  rbNextArena: 0,
   accumulator: 0,
   drop: null,
   physHz: 0, physCount: 0, physTimer: 0,
@@ -2714,6 +3376,8 @@ async function loadWorld(mode){
 
 function clearWorld(){
   if (G.drop){ endDropPhase(); G.drop = null; }
+  disposeArenas();
+  G.rbQueue.length = 0;
   if (G.mapGroup){ scene.remove(G.mapGroup); disposeTree(G.mapGroup); G.mapGroup = null; }
   if (G.sky){ scene.remove(G.sky.group); disposeTree(G.sky.group); G.sky = null; }
   if (G.world && G.world.debugMesh){ scene.remove(G.world.debugMesh); }
@@ -2988,10 +3652,14 @@ function setActorChute(a, on){
 
 async function startDropPhase(spawns){
   await loadDropAssets();
-  const ang = Math.random()*Math.PI*2;
+  /* Flugbahn aus dem gesetzten Strom: sonst fliegt jeder Rechner seine
+     eigene Maschine ueber die Insel, und niemand springt dort ab, wo die
+     anderen ihn vermuten. Das war einer der Hauptgruende dafuer, dass sich
+     Spieler "gar nicht gesehen" haben. */
+  const ang = seedRand()*Math.PI*2;
   const dir  = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
   const perp = new THREE.Vector3(-dir.z, 0, dir.x);
-  const off  = rnd(-70, 70);
+  const off  = srnd(-70, 70);
   const from = perp.clone().multiplyScalar(off).addScaledVector(dir, -DROP.pathHalf);
   const to   = perp.clone().multiplyScalar(off).addScaledVector(dir,  DROP.pathHalf);
   from.y = to.y = DROP.altitude;
@@ -3018,7 +3686,7 @@ async function startDropPhase(spawns){
   for (const a of G.actors){
     if (a.kind !== 'bot') continue;
     a.dropping = true;
-    a.dropPhase = Math.random()*6.28;
+    a.dropPhase = seedRand()*6.28;
     a.dropJumpAt = (0.12 + (i*0.618033988 % 1) * 0.72) * d.duration;
     a.dropFall = 0;
     a.dropTarget = (spawns[i % spawns.length] || new THREE.Vector3()).clone();
@@ -3046,9 +3714,20 @@ function endDropPhase(){
   d.done = true;
 }
 
+/* Bodenhoehe an einer Stelle.
+   Frueher startete der Strahl nur 6 m ueber der Figur. Im freien Fall legt
+   man bei einem einzigen langsamen Bild aber bis zu 15 m zurueck — der
+   Strahl begann dann schon UNTER einem Dach und meldete den Boden darunter.
+   Ergebnis: man "landete" durch das Dach hindurch und stand im oder unter
+   dem Gebaeude. Deshalb wird jetzt immer vom hoechsten Punkt der Karte aus
+   gemessen; damit ist immer die oberste Flaeche gemeint. */
 function groundAt(x, z, fromY){
-  const hit = G.world ? G.world.groundBelow(x, fromY, z, fromY + 400) : null;
-  return hit ? hit.point.y : 0;
+  if (!G.world) return 0;
+  const b = G.world.bounds;
+  const top = Math.max(fromY + 4, (b ? b.max.y : 0) + 40);
+  const reach = top - (b ? b.min.y : -200) + 200;
+  const hit = G.world.groundBelow(x, top, z, reach);
+  return hit ? hit.point.y : (b ? b.min.y : 0);
 }
 
 function updateDrop(dt){
@@ -3159,8 +3838,15 @@ function updateDrop(dt){
     attachViewmodel(me.weapon);          // Faust oder aufgehobene Waffe zeigen
     me.ctrl.position.copy(d.pos);
     me.ctrl.velocity.set(0,0,0);
-    me.ctrl.lastSafe.copy(d.pos);
+    /* Zweite Absicherung: steckt die Kapsel beim Aufsetzen doch in
+       Geometrie (schmale Gasse, Dachkante), holt unstuck() sie sofort auf
+       die naechste freie Flaeche — statt sie eine Runde lang im Boden
+       stehen zu lassen. */
+    if (!me.ctrl.isFree(d.pos)) me.ctrl.unstuck();
+    me.position.copy(me.ctrl.position);
+    me.ctrl.lastSafe.copy(me.ctrl.position);
     me.ctrl.grounded = true;
+    me.ctrl.fallTimer = 0; me.ctrl.buriedTimer = 0;
     $('dropHud').classList.add('hidden');
     $('cross').style.opacity = 1;
     $('ammo').style.opacity = 1;
@@ -3170,11 +3856,138 @@ function updateDrop(dt){
 }
 
 /* ==========================================================================
+   16c — REBIRTH-ARENA
+   Bewusst schlicht: Boden, vier Waende, fuenf Deckungsbloecke, symmetrisch.
+   Alles aus BoxGeometry — keine eigenen Modelle, kein Laden, ein paar
+   hundert Dreiecke. Jede Arena bringt ihre eigene Kollisionswelt mit;
+   der CharacterController der beiden Kaempfer wird ueber setWorld() darauf
+   umgehaengt und danach wieder zurueck. Damit bleibt die normale Karte
+   voellig unberuehrt.
+
+   Die Geometrie haengt allein an der Nummer der Arena. Host und Gast bauen
+   sie deshalb unabhaengig voneinander identisch — es muss nichts uebertragen
+   werden ausser der Nummer.
+   ========================================================================== */
+function arenaOrigin(id){
+  return new THREE.Vector3(REBIRTH.origin.x + id*REBIRTH.spacing,
+                           REBIRTH.origin.y, REBIRTH.origin.z);
+}
+
+function buildRebirthArena(id){
+  const S = REBIRTH.arenaSize, H = REBIRTH.wallHeight, T = 1.0;
+  const o = arenaOrigin(id);
+  const group = new THREE.Group();
+  group.name = 'RebirthArena_' + id;
+  group.position.copy(o);
+
+  const matFloor = new THREE.MeshStandardMaterial({ color:0x2f3a3d, roughness:.95 });
+  const matWall  = new THREE.MeshStandardMaterial({ color:0x1b2529, roughness:.9 });
+  const matBox   = new THREE.MeshStandardMaterial({ color:0x54606b, roughness:.85 });
+  const matLine  = new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.5 });
+
+  const parts = [];
+  const add = (geo, m, x, y, z, name)=>{
+    const q = new THREE.Mesh(geo, m);
+    q.position.set(x,y,z); q.name = name;
+    q.castShadow = true; q.receiveShadow = true;
+    group.add(q); parts.push(q); return q;
+  };
+  const box = (w,h,d)=> new THREE.BoxGeometry(w,h,d);
+
+  add(box(S, T, S), matFloor, 0, -T/2, 0, 'arena_floor');
+  const roof = add(box(S+T*2, T, S+T*2), matWall, 0, H, 0, 'arena_roof');
+  roof.castShadow = false;      // sonst liegt die Arena im eigenen Schatten
+  add(box(S+T*2, H, T), matWall, 0, H/2, -S/2 - T/2, 'arena_wall_n');
+  add(box(S+T*2, H, T), matWall, 0, H/2,  S/2 + T/2, 'arena_wall_s');
+  add(box(T, H, S), matWall, -S/2 - T/2, H/2, 0, 'arena_wall_w');
+  add(box(T, H, S), matWall,  S/2 + T/2, H/2, 0, 'arena_wall_e');
+
+  /* Fuenf Deckungen, punktsymmetrisch — keiner der beiden steht besser. */
+  const c = S*0.22;
+  add(box(2.6, 1.9, 2.6), matBox, -c, 0.95, -c, 'arena_cover_1');
+  add(box(2.6, 1.9, 2.6), matBox,  c, 0.95, -c, 'arena_cover_2');
+  add(box(2.6, 1.9, 2.6), matBox, -c, 0.95,  c, 'arena_cover_3');
+  add(box(2.6, 1.9, 2.6), matBox,  c, 0.95,  c, 'arena_cover_4');
+  add(box(4.0, 1.4, 1.4), matBox,  0, 0.70,  0, 'arena_cover_mid');
+
+  // Zwei Markierungen auf dem Boden, damit man sofort sieht, wo man steht
+  for (const zz of [-S*0.38, S*0.38]){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.05, 4, 28), matLine);
+    ring.rotation.x = Math.PI/2; ring.position.set(0, 0.03, zz);
+    group.add(ring);
+  }
+  const glow = new THREE.PointLight(0xfff0d4, 1.5, S*1.4, 2);
+  glow.position.set(0, H-1.2, 0);
+  group.add(glow);
+
+  scene.add(group);
+  group.updateMatrixWorld(true);
+  const world = new CollisionWorld().build(parts.map(m=>({ mesh:m, tag:'arena' })));
+
+  return {
+    id, group, world, origin:o,
+    spawns: [ new THREE.Vector3(o.x, o.y + 0.05, o.z - S*0.38),
+              new THREE.Vector3(o.x, o.y + 0.05, o.z + S*0.38) ],
+    a:null, b:null, state:'free', timer:0
+  };
+}
+
+/** Arena mit dieser Nummer besorgen — bauen, falls es sie noch nicht gibt.
+    Host und Gast rufen dasselbe auf und bekommen dieselbe Geometrie. */
+function ensureArena(id){
+  let ar = G.arenas.find(x=>x.id === id);
+  if (!ar){ ar = buildRebirthArena(id); G.arenas.push(ar); }
+  return ar;
+}
+
+/** Freie Arena fuer ein neues Duell (nur der Host vergibt). */
+function acquireArena(){
+  for (const ar of G.arenas) if (ar.state === 'free') return ar;
+  return ensureArena(G.rbNextArena++);
+}
+
+function disposeArenas(){
+  for (const ar of G.arenas){
+    scene.remove(ar.group);
+    disposeTree(ar.group);
+  }
+  G.arenas.length = 0;
+  G.rbNextArena = 0;
+}
+
+/* ---------- Welten- und Bereichstrennung ----------
+   Alles, was zwischen zwei Figuren passiert (Kugeln, Nahkampf, Bot-Ziele,
+   Minikarte), fragt ab jetzt zuerst, ob beide ueberhaupt im selben Bereich
+   stehen. Ohne das wuerde ein Schuss auf der Insel jemanden in der Arena
+   treffen und umgekehrt. */
+function realmOf(a){
+  return (a && a.rbState === 'arena' && a.arenaId !== null) ? ('a' + a.arenaId) : 'map';
+}
+function sameRealm(a, b){ return realmOf(a) === realmOf(b); }
+function worldOf(a){
+  if (a && a.rbState === 'arena' && a.arenaId !== null){
+    const ar = G.arenas.find(x=>x.id === a.arenaId);
+    if (ar) return ar.world;
+  }
+  return G.world;
+}
+function inArena(a){ return !!a && a.rbState === 'arena'; }
+
+/* ==========================================================================
    17 — AUFSAMMELBARES
    ========================================================================== */
+/* Fortlaufende Nummer je Beutestueck. Sie ist auf allen Rechnern gleich,
+   weil die Grundverteilung aus demselben Zufallsstrom kommt (setMatchSeed)
+   und spaeter dazukommende Stuecke vom Host mit ihrer Nummer verschickt
+   werden. Ueber diese Nummer laeuft dann auch das Aufheben — vorher hat
+   jeder fuer sich entschieden, und deshalb lag die Beute bei jedem woanders
+   und verschwand bei niemandem gleichzeitig. */
+let lootSeq = 0;
+
 /** Eine Waffe auf den Boden legen — als Beute oder wenn eine ersetzt wird. */
-function spawnLoot(id, at, jitter = 0){
+function spawnLoot(id, at, jitter = 0, nid = null, rand = null){
   const W = WEAPONS[id]; if (!W) return null;
+  const R = rand || seedRand;
   const mesh = gunLib.spawn(id);
   const holder = new THREE.Group();
   holder.add(mesh);
@@ -3192,67 +4005,98 @@ function spawnLoot(id, at, jitter = 0){
   holder.add(ring);
   holder.position.copy(at);
   holder.position.y += 0.55;
-  if (jitter){ holder.position.x += rnd(-jitter,jitter); holder.position.z += rnd(-jitter,jitter); }
+  if (jitter){ holder.position.x += (R()*2-1)*jitter; holder.position.z += (R()*2-1)*jitter; }
   scene.add(holder);
-  const entry = { mesh:holder, kind:'gun', id, taken:false, base:holder.position.y,
-                  label:W.name, phase:Math.random()*6.28 };
+  const n = (nid === null) ? lootSeq++ : nid;
+  if (n >= lootSeq) lootSeq = n + 1;
+  const entry = { nid:n, mesh:holder, spinner:mesh, kind:'gun', id, taken:false,
+                  base:holder.position.y, label:W.name, phase:R()*6.28, lift:0.55 };
   G.pickups.push(entry);
   return entry;
 }
 
+/** Leben / Panzerung / Munition aus den eigenen Modellen. */
+function spawnSupply(kind, at, nid = null, rand = null){
+  const R = rand || seedRand;
+  const cfg = PICKUP_MODELS[kind];
+  const holder = pickupLib.spawn(kind);
+  holder.position.copy(at);
+  holder.position.y += cfg.lift;
+  scene.add(holder);
+  const n = (nid === null) ? lootSeq++ : nid;
+  if (n >= lootSeq) lootSeq = n + 1;
+  const label = kind === 'hp' ? 'Leben' : (kind === 'shield' ? 'Panzerung' : 'Munition');
+  const entry = { nid:n, mesh:holder, spinner:holder.userData.spinner || holder,
+                  kind, id:null, taken:false, base:holder.position.y,
+                  label, phase:R()*6.28, lift:cfg.lift, spin:cfg.spin };
+  G.pickups.push(entry);
+  return entry;
+}
+
+/* Die Verteilung laeuft ueber seedRand(). Damit legen Host und alle Gaeste
+   dieselben Stuecke an dieselben Stellen — der Kern des Fehlers "die Drops
+   liegen bei jedem woanders". */
 function scatterWeapons(count){
   if (!G.spawnMgr) return;
   const R = mapSet().spawnR * 1.15;
   for (let i = 0; i < count; i++){
-    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*R;
+    const ang = seedRand()*Math.PI*2, r = Math.sqrt(seedRand())*R;
     const p = G.spawnMgr.findValidSpawnPosition(
       new THREE.Vector3(Math.cos(ang)*r, 0, Math.sin(ang)*r), { spread:20, tries:26 });
+    const id = seededWeaponId();
     if (!p) continue;
-    spawnLoot(randomWeaponId(), p);
+    spawnLoot(id, p);
   }
 }
 
 function scatterPickups(count){
   if (!G.spawnMgr) return;
-  const kinds = [
-    { k:'hp',    color:0x37d67a, label:'Verband' },
-    { k:'shield',color:0x4ea8ff, label:'Schild' },
-    { k:'ammo',  color:0xffb020, label:'Munition' }
-  ];
+  const kinds = ['hp','shield','ammo'];
   for (let i=0;i<count;i++){
-    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*mapSet().spawnR*1.12;
+    const ang = seedRand()*Math.PI*2, r = Math.sqrt(seedRand())*mapSet().spawnR*1.12;
     const p = G.spawnMgr.findValidSpawnPosition(new THREE.Vector3(Math.cos(ang)*r, 0, Math.sin(ang)*r), { spread:18, tries:24 });
     if (!p) continue;
-    const kind = kinds[i % kinds.length];
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.34),
-      new THREE.MeshStandardMaterial({ color:kind.color, emissive:kind.color, emissiveIntensity:.45, roughness:.35 }));
-    m.position.copy(p).setY(p.y + 0.6);
-    m.castShadow = true;
-    scene.add(m);
-    G.pickups.push({ mesh:m, kind:kind.k, label:kind.label, taken:false, base:m.position.y });
+    spawnSupply(kinds[i % kinds.length], p);
   }
 }
+
+/** Gewichtete Waffenwahl aus dem gesetzten Strom. */
+function seededWeaponId(){
+  let total = 0;
+  for (const id in WEAPONS) total += WEAPONS[id].weight;
+  let r = seedRand()*total;
+  for (const id in WEAPONS){ r -= WEAPONS[id].weight; if (r <= 0) return id; }
+  return 'pistol';
+}
+
+function findLoot(nid){
+  for (const p of G.pickups) if (p.nid === nid) return p;
+  return null;
+}
+
 function updatePickups(dt){
   const me = G.me;
   for (const p of G.pickups){
     if (p.taken) continue;
-    p.mesh.rotation.y += dt*(p.kind === 'gun' ? 0.9 : 1.6);
-    p.mesh.position.y = p.base + Math.sin(G.time*2 + (p.phase||p.base))*0.10;
-    if (!me || !me.alive) continue;
+    // Ausstehende Bestaetigung laeuft nach einer Sekunde ab — sonst bliebe
+    // ein Stueck unsichtbar liegen, wenn eine Nachricht verloren geht.
+    if (p.pending){
+      p.pendingT = (p.pendingT || 0) + dt;
+      if (p.pendingT > 1.0){ p.pending = false; p.pendingT = 0; p.mesh.visible = true; }
+      continue;
+    }
+    const spin = p.spin || (p.kind === 'gun' ? 0.9 : 1.4);
+    if (p.spinner) p.spinner.rotation.y += dt*spin*1.4;
+    p.mesh.rotation.y += dt*spin*0.25;
+    p.mesh.position.y = p.base + Math.sin(G.time*2 + p.phase)*0.10;
+    if (!me || !me.alive || me.dropping) continue;
     if (p.kind === 'gun') continue;               // Waffen werden mit E genommen
-    if (p.mesh.position.distanceToSquared(me.position) < 2.0){
-      p.taken = true; p.mesh.visible = false;
-      if (p.kind === 'hp'){ me.hp = Math.min(me.maxHp, me.hp + 35); }
-      else if (p.kind === 'shield'){ me.shield = Math.min(100, me.shield + 40); }
-      else {
-        // Munition füllt auf, was man dabei hat
-        let got = false;
-        for (const id of me.slots){ if (!id) continue;
-          me.reserve[id] = (me.reserve[id]||0) + Math.round(WEAPONS[id].reserve*0.5); got = true; }
-        if (!got) continue;
-      }
-      toast(p.label + ' aufgenommen');
-      sfx.pick();
+    if (p.mesh.position.distanceToSquared(me.position) < 2.6){
+      // Munition nur, wenn sie ueberhaupt nuetzt
+      if (p.kind === 'ammo' && !me.slots.some(x=>!!x)) continue;
+      if (p.kind === 'hp' && me.hp >= me.maxHp) continue;
+      if (p.kind === 'shield' && me.shield >= 100) continue;
+      requestPickup(p);
     }
   }
 }
@@ -3263,22 +4107,87 @@ function nearestLoot(){
   if (!me || !me.alive || me.dropping) return null;
   let best = null, bd = LOOT.pickRange*LOOT.pickRange;
   for (const p of G.pickups){
-    if (p.taken || p.kind !== 'gun') continue;
+    if (p.taken || p.pending || p.kind !== 'gun') continue;
     const d = p.mesh.position.distanceToSquared(me.position);
     if (d < bd){ bd = d; best = p; }
   }
   return best;
 }
 
-function tryPickUp(){
-  const p = nearestLoot();
-  if (!p) return;
+/* ---------- Aufheben: der Host entscheidet ----------
+   Vorher hat jeder Rechner fuer sich entschieden, dass ein Stueck weg ist.
+   Zwei Spieler konnten dieselbe Waffe nehmen, und beim jeweils anderen lag
+   sie weiter da. Ab jetzt: lokal sofort ausblenden (damit es sich flott
+   anfuehlt), wirken tut es erst, wenn der Host es bestaetigt hat. */
+function requestPickup(p){
   const me = G.me;
-  p.taken = true;
+  if (!p || p.taken || p.pending || !me || !me.alive) return;
+  if (inArena(me)) return;          // kein Loot-System in der Arena
+  p.pending = true; p.pendingT = 0;
+  p.mesh.visible = false;
+  if (!G.isNet || G.isHost) grantPickup(p.nid, me.id);
+  else if (G.hostConn) send(G.hostConn, { t:'take', nid:p.nid });
+}
+
+/** Nur auf dem Host: pruefen und allen mitteilen. */
+function grantPickup(nid, byId){
+  if (!G.isHost) return;
+  const p = findLoot(nid);
+  if (!p || p.taken) return;
+  const a = G.actors.find(x=>x.id === byId);
+  if (!a || !a.alive) return;
+  // Grosszuegige Reichweitenpruefung — die Position eines Gastes ist beim
+  // Host immer ein Stueck alt, ein harter Grenzwert wuerde ehrliche
+  // Aufnahmen verwerfen.
+  if (p.mesh.position.distanceTo(a.position) > LOOT.pickRange + 4.5) {
+    p.pending = false; p.mesh.visible = true;
+    if (G.isNet) broadcast({ t:'took', nid, by:null });
+    return;
+  }
+  applyPickup(p, a);
+  if (G.isNet) broadcast({ t:'took', nid, by:byId });
+}
+
+/** Wirkung eintragen. Laeuft auf jedem Rechner mit denselben Zahlen. */
+function applyPickup(p, a){
+  if (!p || p.taken) return;
+  p.taken = true; p.pending = false;
+  p.mesh.visible = false;
   scene.remove(p.mesh);
-  giveWeapon(me, p.id);
-  sfx.pick();
-  toast(WEAPONS[p.id].name + ' aufgenommen');
+  if (!a) return;
+  if (p.kind === 'gun'){
+    giveWeapon(a, p.id);
+  } else if (p.kind === 'hp'){
+    a.hp = Math.min(a.maxHp, a.hp + 35);
+  } else if (p.kind === 'shield'){
+    a.shield = Math.min(100, a.shield + 40);
+  } else if (p.kind === 'ammo'){
+    for (const id of a.slots){ if (!id) continue;
+      a.reserve[id] = (a.reserve[id]||0) + Math.round(WEAPONS[id].reserve*0.5); }
+  }
+  if (a === G.me){
+    toast(p.label + ' aufgenommen');
+    sfx.pick();
+  }
+}
+
+function tryPickUp(){
+  requestPickup(nearestLoot());
+}
+
+/** Was eine gefallene Figur zurueckgelassen hat. Nur der Host legt es hin
+    und schickt es herum — sonst haette es bei den Gaesten gar nicht
+    existiert (genau das war einer der gemeldeten Fehler). */
+function dropLootOnDeath(target){
+  if (!G.isHost) return;
+  const made = [];
+  for (const id of target.slots){
+    if (!id) continue;
+    const e = spawnLoot(id, target.position, 0.7);
+    if (e) made.push({ nid:e.nid, id, x:+e.mesh.position.x.toFixed(2),
+                       y:+(e.mesh.position.y-0.55).toFixed(2), z:+e.mesh.position.z.toFixed(2) });
+  }
+  if (G.isNet && made.length) broadcast({ t:'drop', items:made });
 }
 
 /* ==========================================================================
@@ -3411,10 +4320,13 @@ function fire(actor){
   for (let s = 0; s < pellets; s++){
     if (s > 0){ aimDir(actor.yaw, actor.pitch, _rd); spreadDir(_rd, currentSpread(actor), _rd); }
     let t = W.range, who = null, hd = false, pt = null;
-    const wallHit = G.world ? G.world.raycast(_ro, _rd, W.range, {}) : null;
+    const shooterWorld = worldOf(actor);
+    const wallHit = shooterWorld ? shooterWorld.raycast(_ro, _rd, W.range, {}) : null;
     if (wallHit){ t = wallHit.dist; pt = wallHit.point.clone(); }
     for (const o of G.actors){
       if (o === actor || !o.alive || o.dropping) continue;
+      // Ueber die Bereichsgrenze hinweg trifft niemand
+      if (!sameRealm(actor, o)) continue;
       const hr = o.hitHead(_ch);
       const th = raySphere(_ro, _rd, _ch, hr, W.range);
       if (th !== null && th < t){
@@ -3514,6 +4426,7 @@ function melee(actor){
   let best = MELEE.range, target = null;
   for (const o of G.actors){
     if (o === actor || !o.alive || o.dropping) continue;
+    if (!sameRealm(actor, o)) continue;
     const br = o.hitBody(_ca, _cb);
     const h = rayCapsule(_ro, _rd, _ca, _cb, br + 0.25, MELEE.range);
     if (h && h.t < best){ best = h.t; target = o; }
@@ -3580,30 +4493,428 @@ function applyDamage(target, dmg, src, head){
   if (target === G.me) flashDamage();
   if (target.hp <= 0){
     target.alive = false; target.hp = 0;
-    target.placement = G.actors.filter(a=>a.alive).length + 1;
+    const wasArena = inArena(target);
+    /* Ein Tod in der Arena ist kein Ausscheiden aus der Runde — das
+       entscheidet rbHostTick() gleich beim naechsten Schritt. Deshalb hier
+       weder Platzierung noch Beute noch Sieganzeige. */
+    if (!wasArena)
+      target.placement = G.actors.filter(a=>a.alive && !inArena(a)).length + 1;
     if (src && src !== target) src.kills++;
-    // Was die Figur trug, bleibt liegen — die Stelle lohnt sich also
-    for (const id of target.slots) if (id) spawnLoot(id, target.position, 0.7);
+    // Was die Figur trug, bleibt liegen — die Stelle lohnt sich also.
+    // Nur der Host legt es hin und schickt es herum, sonst existiert es
+    // fuer die Gaeste gar nicht.
+    if (!wasArena) dropLootOnDeath(target);
     target.slots = [null, null]; target.weapon = null;
     setHandWeapon(target, null);
     if (target === G.me) attachViewmodel(null);
     if (target.view) target.view.play('die', { once:true });
     feed(`<b>${esc(src?src.name:'Die Zone')}</b> ${head?'⌖':'✕'} ${esc(target.name)}`);
-    if (G.isNet && G.isHost) broadcast({ t:'kill', by:src?src.id:null, victim:target.id, head:!!head });
-    if (target === G.me) onLocalDeath();
-    checkVictory();
+
+    /* Noch eine Chance? Dann wandert die Figur in die Warteschlange statt
+       endgueltig auszuscheiden. Das entscheidet allein der Host. */
+    let toQueue = false;
+    if (!wasArena && G.isHost && canRebirth(target)) toQueue = rbHostEnqueue(target);
+
+    if (G.isNet && G.isHost) broadcast({ t:'kill', by:src?src.id:null, victim:target.id,
+                                         head:!!head, place:target.placement,
+                                         rb: (toQueue || wasArena) ? 1 : 0 });
+    if (target === G.me && !toQueue && !wasArena) onLocalDeath();
+    if (!wasArena) checkVictory();
   }
 }
 
 function checkVictory(){
   if (!G.isHost || G.phase !== 'play' || G.mode !== 'br') return;
-  const alive = G.actors.filter(a=>a.alive);
+  /* Wer in der Warteschlange steht oder gerade sein Duell kaempft, ist noch
+     im Rennen — sonst waere die Runde vorbei, waehrend zwei Leute unten in
+     der Arena um ihre Rueckkehr schiessen. */
+  const alive = G.actors.filter(a=>a.alive || a.rbState === 'queued');
   if (alive.length <= 1){
-    const w = alive[0] || null;
+    const w = alive.find(a=>a.alive && !inArena(a)) || alive[0] || null;
     if (w) w.placement = 1;
+    /* Fallen wirklich alle gleichzeitig (Sturm, letzte Granate, letzter
+       Doppeltreffer), gibt es keinen Sieger. Frueher blieb die Runde dann
+       einfach stehen. Jetzt wird sie sauber beendet — und danach laedt
+       dieselbe Karte erneut. */
     if (G.isNet) broadcast({ t:'end', winner: w?w.id:null, name: w?w.name:'' });
     endMatch(w);
   }
+}
+
+/* ==========================================================================
+   18c — REBIRTH: WARTESCHLANGE, MATCHMAKING, DUELL, RUECKKEHR
+
+   Aufgeteilt in zwei Haelften, und zwar streng:
+
+     rbHost*()   entscheidet. Laeuft ausschliesslich beim Host. Wer in die
+                 Schlange darf, wer gegen wen kaempft, wer gewonnen hat,
+                 wann die Chance verbraucht ist — nichts davon darf ein
+                 Gast bestimmen. Ein Client kann nicht "ich habe gewonnen"
+                 behaupten: Treffer laufen wie bisher ueber reportHit zum
+                 Host, und erst dessen applyDamage beendet ein Duell.
+
+     rbApply()   fuehrt aus. Laeuft auf JEDEM Rechner mit derselben
+                 Nachricht — beim Host direkt, bei den Gaesten aus dem Netz.
+                 Dadurch sind Host und Gast garantiert im selben Zustand,
+                 ohne dass die Logik doppelt geschrieben werden muesste.
+   ========================================================================== */
+
+/** Darf diese Figur nach ihrem Tod in die Warteschlange? */
+function canRebirth(a){
+  if (!a) return false;
+  if (G.mode !== 'br' || G.phase !== 'play') return false;
+  if (a.hasUsedRebirth) return false;             // hoechstens einmal je Runde
+  if (a.rbState === 'queued' || a.rbState === 'arena') return false;
+  return true;
+}
+
+/** Alles ablegen. Der Rebirth ist ausdruecklich KEIN Respawn mit
+    Ausruestung — wer zurueckkommt, faengt bei null an. */
+function stripActor(a){
+  a.slots = [null, null];
+  a.slot = 0;
+  a.weapon = null;
+  a.ammo = {};
+  a.reserve = {};
+  a.shield = 0;
+  a.hp = a.maxHp;
+  a.reloading = false; a.reloadStart = -99;
+  a.bloom = 0;
+  setHandWeapon(a, null);
+  if (a === G.me) attachViewmodel(null);
+}
+
+/** Figur in eine Arena setzen (Seite 0 oder 1). */
+function placeInArena(a, ar, side){
+  const p = ar.spawns[side];
+  a.position.copy(p);
+  a.yaw = side === 0 ? 0 : Math.PI;       // beide schauen zur Mitte
+  a.pitch = 0;
+  a.dropping = false;
+  a.chuteOpen = false;
+  a.climb = null; a.climbT = 0;
+  a.netBuf.length = 0;
+  if (a.ctrl){
+    a.ctrl.setWorld(ar.world);            // eigene Kollisionswelt der Arena
+    a.ctrl.position.copy(p);
+    a.ctrl.lastSafe.copy(p);
+    a.ctrl.velocity.set(0,0,0);
+    a.ctrl.grounded = true;
+    a.ctrl.fallTimer = 0; a.ctrl.buriedTimer = 0;
+  }
+  if (a === G.me){
+    camYaw = a.yaw; camPitch = 0;
+    leaveSpectate();
+    if (G.phase === 'play' && !pauseOpen){
+      suppressPause = false;
+      try { canvas.requestPointerLock(); } catch(e){}
+    }
+  }
+}
+
+/* ---------------------------------------------------------------- ausfuehren
+   Eine Nachricht, ein Zustand. Beim Host wie beim Gast derselbe Code. */
+function rbApply(m){
+  const a = G.actors.find(x=>x.id === m.id);
+
+  if (m.op === 'queue'){
+    if (!a) return;
+    a.alive = false;
+    a.rbState = 'queued';
+    a.rbUntil = G.time + (m.secs || REBIRTH.waitTime);
+    a.arenaId = null; a.rbOpp = null; a.rbFreeze = false;
+    // Aus der Welt nehmen: nicht sichtbar, nicht treffbar, nicht im Weg
+    if (a.view) a.view.obj.visible = false;
+    if (a === G.me) rbUI('queue', { secs: m.secs || REBIRTH.waitTime });
+    return;
+  }
+
+  if (m.op === 'match'){
+    const ar = ensureArena(m.arena);
+    ar.state = 'countdown';
+    const pa = G.actors.find(x=>x.id === m.a);
+    const pb = G.actors.find(x=>x.id === m.b);
+    ar.a = pa || null; ar.b = pb || null;
+    for (const [p, side] of [[pa,0],[pb,1]]){
+      if (!p) continue;
+      p.rbState = 'arena';
+      p.arenaId = m.arena;
+      p.rbOpp = (p === pa ? m.b : m.a);
+      p.rbFreeze = true;
+      p.alive = true;
+      p.hp = p.maxHp; p.shield = 0;
+      // Gleiches Loadout fuer beide — kein altes Inventar, kein Loot
+      stripActor(p);
+      giveWeapon(p, REBIRTH.loadout.id, { reserve: REBIRTH.loadout.reserve, dropOld:false });
+      // Beide starten mit vollem Magazin und derselben Reserve
+      p.ammo[REBIRTH.loadout.id] = WEAPONS[REBIRTH.loadout.id].mag;
+      p.reserve[REBIRTH.loadout.id] = REBIRTH.loadout.reserve;
+      p.nextShot = 0; p.nextMelee = 0;
+      if (p.view) p.view.obj.visible = true;
+      placeInArena(p, ar, side);
+    }
+    if (pa === G.me || pb === G.me){
+      const opp = (pa === G.me) ? pb : pa;
+      rbUI('ready', { name: opp ? opp.name : 'Gegner', cd: m.cd || REBIRTH.countdown });
+      if (G.me) attachViewmodel(G.me.weapon);
+    }
+    return;
+  }
+
+  if (m.op === 'fight'){
+    const ar = G.arenas.find(x=>x.id === m.arena);
+    if (ar){
+      ar.state = 'fight';
+      if (ar.a) ar.a.rbFreeze = false;
+      if (ar.b) ar.b.rbFreeze = false;
+      if (ar.a === G.me || ar.b === G.me) rbUI('fight');
+    }
+    return;
+  }
+
+  if (m.op === 'lucky'){
+    if (!a) return;
+    a.hasUsedRebirth = true;
+    a.rbState = 'spent';
+    a.rbUntil = 0;
+    removeFromQueue(a.id);
+    if (a === G.me) rbUI('lucky');
+    return;
+  }
+
+  if (m.op === 'result'){
+    const ar = G.arenas.find(x=>x.id === m.arena);
+    const win = G.actors.find(x=>x.id === m.win);
+    const los = G.actors.find(x=>x.id === m.lose);
+    if (win){
+      win.hasUsedRebirth = true; win.rbState = 'spent';
+      win.arenaId = null; win.rbOpp = null; win.rbFreeze = false;
+      if (win.ctrl) win.ctrl.setWorld(G.world);
+      if (win === G.me) rbUI('win');
+    }
+    if (los){
+      los.hasUsedRebirth = true; los.rbState = 'spent';
+      los.arenaId = null; los.rbOpp = null; los.rbFreeze = false;
+      los.alive = false; los.hp = 0;
+      if (los.ctrl) los.ctrl.setWorld(G.world);
+      stripActor(los);
+      if (los.view){ los.view.obj.visible = true; los.view.play('die', { once:true }); }
+      if (los === G.me){
+        rbUI('lose');
+        // Endgueltig raus — ab hier das vorhandene Zuschauersystem
+        setTimeout(()=>{ if (G.phase === 'play') enterSpectate(); }, 1600);
+      }
+    }
+    if (ar){ ar.a = null; ar.b = null; ar.state = 'free'; }
+    if (win && los) feed(`<b>${esc(win.name)}</b> ⟲ ${esc(los.name)} · Rebirth`);
+    return;
+  }
+
+  if (m.op === 'return'){
+    if (!a) return;
+    a.rbState = 'spent';
+    a.hasUsedRebirth = true;
+    a.alive = true;
+    a.arenaId = null; a.rbOpp = null; a.rbFreeze = false;
+    a.placement = 0;
+    if (a.ctrl) a.ctrl.setWorld(G.world);
+    stripActor(a);                       // leer zurueck: keine Waffe, kein Schild
+    if (a.view) a.view.obj.visible = true;
+    a.netBuf.length = 0;
+    const p = new THREE.Vector3(m.x, m.y, m.z);
+    startRebirthDrop(a, p);
+    if (a === G.me) rbUI('drop');
+    return;
+  }
+}
+
+/** Den Wiedereinstieg ueber das VORHANDENE Fallschirmsystem starten.
+    Es wird kein zweites gebaut: updateDrop() kann bereits freien Fall,
+    Schirm, Steuerung und Aufsetzen — es braucht nur einen Zustand ohne
+    Flugzeug, der genau bei dieser einen Figur beginnt. */
+function startRebirthDrop(a, pos){
+  a.dropping = true;
+  a.chuteOpen = false;
+  a.dropPhase = 0;
+  setActorChute(a, false);
+
+  if (a === G.me){
+    G.drop = {
+      t: 0, duration: 1e9,
+      from: pos.clone(), to: pos.clone(),
+      dir: new THREE.Vector3(0, 0, -1),
+      planeObj: null, planePos: pos.clone(),
+      playerState: 'freefall',
+      vel: new THREE.Vector3(0, -6, 0),
+      pos: pos.clone(),
+      agl: DROP.altitude, done: false,
+      rebirth: true
+    };
+    a.position.copy(pos);
+    if (a.ctrl){ a.ctrl.position.copy(pos); a.ctrl.velocity.set(0,0,0); }
+    if (a.view) a.view.obj.visible = true;
+    $('dropHud').classList.remove('hidden');
+    $('cross').style.opacity = 0;
+    $('ammo').style.opacity = 0;
+    camPitch = -0.35;
+    sfx.zone();
+    toast('Wiedereinstieg — F öffnet den Schirm');
+  } else if (a.kind === 'bot'){
+    /* Bots bekommen keinen eigenen Fallschirmflug: sie wuerden dafuer eine
+       zweite Absprungphase brauchen. Sie setzen unten am Rand der Zone auf,
+       das Ergebnis ist dasselbe — leer und irgendwo auf der Karte. */
+    const mgr = G.spawnMgr;
+    const ang = Math.random()*Math.PI*2, r = Math.sqrt(Math.random())*G.storm.r*0.8;
+    const want = new THREE.Vector3(G.storm.cx + Math.cos(ang)*r, 0, G.storm.cz + Math.sin(ang)*r);
+    const p = mgr ? mgr.findValidSpawnPosition(want, { spread:30, tries:40 }) : null;
+    const land = p || want.setY(0);
+    a.dropping = false;
+    a.position.copy(land);
+    if (a.ctrl){
+      a.ctrl.position.copy(land); a.ctrl.lastSafe.copy(land);
+      a.ctrl.velocity.set(0,0,0); a.ctrl.grounded = true;
+      a.ctrl.fallTimer = 0; a.ctrl.buriedTimer = 0;
+    }
+  } else {
+    // Ferner Spieler: der springt bei sich selbst ab, wir sehen es ueber
+    // die Standortpakete. Hier nur den Anfangswert setzen.
+    a.position.copy(pos);
+  }
+}
+
+/* ---------------------------------------------------------------- Host
+   Ab hier entscheidet ausschliesslich der Host. */
+function rbSend(m){
+  rbApply(m);                                   // beim Host sofort
+  if (G.isNet && G.isHost) broadcast({ t:'rb', m });
+}
+
+function removeFromQueue(id){
+  const i = G.rbQueue.indexOf(id);
+  if (i >= 0) G.rbQueue.splice(i, 1);
+}
+
+/** Nach dem Tod: in die Warteschlange, wenn die Chance noch offen ist. */
+function rbHostEnqueue(a){
+  if (!G.isHost || !canRebirth(a)) return false;
+  if (G.rbQueue.includes(a.id)) return false;   // nie doppelt
+  G.rbQueue.push(a.id);                          // FIFO: hinten anstellen
+  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime });
+  return true;
+}
+
+/** Zwei Wartende zusammenbringen — immer die beiden aeltesten. */
+function rbHostMatch(){
+  while (G.rbQueue.length >= 2){
+    const ida = G.rbQueue.shift();
+    const idb = G.rbQueue.shift();
+    const a = G.actors.find(x=>x.id === ida);
+    const b = G.actors.find(x=>x.id === idb);
+    // Zwischenzeitlich ausgestiegen? Den jeweils anderen wieder anstellen.
+    if (!a || a.rbState !== 'queued'){ if (b && b.rbState === 'queued') G.rbQueue.unshift(idb); continue; }
+    if (!b || b.rbState !== 'queued'){ G.rbQueue.unshift(ida); continue; }
+    const ar = acquireArena();
+    ar.state = 'countdown';
+    ar.timer = REBIRTH.countdown;
+    rbSend({ op:'match', arena:ar.id, a:a.id, b:b.id, id:a.id, cd:REBIRTH.countdown });
+  }
+}
+
+/** Niemand gekommen: der Rebirth wird geschenkt. */
+function rbHostLucky(a){
+  if (!G.isHost) return;
+  removeFromQueue(a.id);
+  rbSend({ op:'lucky', id:a.id });
+  rbHostReturn(a, 1.8);
+}
+
+/** Duell entschieden. */
+function rbHostResolve(ar, win, los){
+  if (!G.isHost || !ar || ar.state === 'free') return;
+  ar.state = 'free';
+  rbSend({ op:'result', arena:ar.id, win: win?win.id:null, lose: los?los.id:null, id: win?win.id:(los?los.id:null) });
+  if (win) rbHostReturn(win, 2.2);
+}
+
+/** Rueckkehr ueber der Karte vorbereiten — der Host bestimmt die Stelle,
+    damit sie bei allen dieselbe ist. */
+function rbHostReturn(a, delay){
+  if (!G.isHost || !a) return;
+  G.rbReturns.push({ id:a.id, at: G.time + (delay || 2.0) });
+}
+
+function rbHostDoReturn(a){
+  const ang = seedRand()*Math.PI*2;
+  const r = Math.sqrt(seedRand()) * Math.max(40, G.storm.r * 0.75);
+  const x = G.storm.cx + Math.cos(ang)*r;
+  const z = G.storm.cz + Math.sin(ang)*r;
+  const y = (REBIRTH.returnAlt || DROP.altitude);
+  rbSend({ op:'return', id:a.id, x:+x.toFixed(2), y:+y.toFixed(2), z:+z.toFixed(2) });
+}
+
+/** Jede Runde einmal: Schlange, Countdowns, Arenen, Rueckkehr. */
+function rbHostTick(dt){
+  if (!G.isHost || G.phase !== 'play' || G.mode !== 'br') return;
+
+  // 1. Paarungen bilden (aelteste zuerst)
+  rbHostMatch();
+
+  // 2. Ablaufende Wartezeiten -> Lucky Rebirth
+  for (const id of G.rbQueue.slice()){
+    const a = G.actors.find(x=>x.id === id);
+    if (!a || a.rbState !== 'queued'){ removeFromQueue(id); continue; }
+    if (G.time >= a.rbUntil) rbHostLucky(a);
+  }
+
+  // 3. Arenen: Countdown und Abbruchfaelle
+  for (const ar of G.arenas){
+    if (ar.state === 'countdown'){
+      ar.timer -= dt;
+      if (ar.timer <= 0) rbSend({ op:'fight', arena:ar.id, id: ar.a?ar.a.id:null });
+    }
+    if (ar.state !== 'free'){
+      const a = ar.a, b = ar.b;
+      // Weggefallen (Verbindungsabbruch): der Verbliebene gewinnt
+      const aGone = !a || !G.actors.includes(a);
+      const bGone = !b || !G.actors.includes(b);
+      if (aGone && bGone){ ar.a = ar.b = null; ar.state = 'free'; }
+      else if (aGone) rbHostResolve(ar, b, null);
+      else if (bGone) rbHostResolve(ar, a, null);
+      else if (!a.alive && !b.alive) rbHostResolve(ar, null, null);
+      else if (!a.alive) rbHostResolve(ar, b, a);
+      else if (!b.alive) rbHostResolve(ar, a, b);
+    }
+  }
+
+  // 4. Faellige Rueckkehrer
+  for (let i = G.rbReturns.length-1; i >= 0; i--){
+    const e = G.rbReturns[i];
+    if (G.time < e.at) continue;
+    G.rbReturns.splice(i, 1);
+    const a = G.actors.find(x=>x.id === e.id);
+    if (a && G.phase === 'play') rbHostDoReturn(a);
+  }
+
+  /* 5. Erst jetzt zaehlen. Ein Tod in der Arena laesst die Siegpruefung
+     bewusst aus — sonst waere die Runde in dem Augenblick vorbei, in dem
+     unten jemand faellt, obwohl der Sieger gleich zurueckkommt. */
+  checkVictory();
+}
+
+/** Rundenende: alles sauber abraeumen, niemand spawnt hinterher noch. */
+function rbShutdown(){
+  G.rbQueue.length = 0;
+  G.rbReturns.length = 0;
+  for (const ar of G.arenas){ ar.a = null; ar.b = null; ar.state = 'free'; }
+  for (const a of G.actors){
+    if (a.rbState === 'arena' || a.rbState === 'queued'){
+      a.rbState = 'spent';
+      a.rbFreeze = false;
+      a.arenaId = null;
+      if (a.ctrl) a.ctrl.setWorld(G.world);
+    }
+  }
+  rbUI(null);
 }
 
 /* ==========================================================================
@@ -3625,6 +4936,7 @@ function botThink(bot, dt){
     let bd = 62;
     for (const o of G.actors){
       if (o === bot || !o.alive) continue;
+      if (!sameRealm(bot, o)) continue;
       const d = o.position.distanceTo(bot.position);
       if (d < bd && hasLineOfSight(bot, o)){ bd = d; bot.target = o; }
     }
@@ -3633,6 +4945,29 @@ function botThink(bot, dt){
   }
 
   let wx = 0, wz = 0, speed = SPEED_WALK;
+  if (inArena(bot)){
+    // In der Arena gibt es keine Zone — nur den Gegner
+    if (bot.target){
+      const dx = bot.target.position.x - bot.position.x;
+      const dz = bot.target.position.z - bot.position.z;
+      const d = Math.hypot(dx,dz) || 1;
+      bot.yaw = Math.atan2(-dx, -dz);
+      bot.pitch = Math.atan2((bot.target.position.y + 1.2) - (bot.position.y + PLAYER.eyeHeight),
+                             Math.max(0.5, d));
+      if (d > 11){ wx = dx/d; wz = dz/d; }
+      else { wx = -dz/d*bot.strafe; wz = dx/d*bot.strafe; }
+      if (!bot.rbFreeze && G.time > bot.nextShot) fire(bot);
+    } else {
+      const a = bot.wanderAng ?? (bot.wanderAng = Math.random()*Math.PI*2);
+      wx = Math.cos(a); wz = Math.sin(a);
+      bot.yaw = Math.atan2(-wx, -wz);
+    }
+    if (bot.rbFreeze){ wx = 0; wz = 0; }
+    const l0 = Math.hypot(wx,wz) || 1;
+    bot.wish.set(wx/l0*speed, 0, wz/l0*speed);
+    bot.jump = false;
+    return;
+  }
   if (distToCenter > s.r - 12){
     // zurück in die Zone, das hat Vorrang
     const a = Math.atan2(s.cz - bot.position.z, s.cx - bot.position.x);
@@ -3670,13 +5005,15 @@ function botThink(bot, dt){
 }
 
 function hasLineOfSight(a, b){
-  if (!G.world) return true;
+  if (!sameRealm(a, b)) return false;
+  const w = worldOf(a);
+  if (!w) return true;
   _ro.copy(a.eye);
   _rd.subVectors(b.eye, _ro);
   const d = _rd.length();
   if (d < 0.1) return true;
   _rd.divideScalar(d);
-  const hit = G.world.raycast(_ro, _rd, d - 0.4, {});
+  const hit = w.raycast(_ro, _rd, d - 0.4, {});
   return !hit;
 }
 
@@ -3728,8 +5065,9 @@ const sfx = {
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
-const input = { mx:0, mz:0, jump:false, crouch:false, fire:false, fireEdge:false,
-                reload:false, dropAction:false, pickup:false, ads:false };
+const input = { mx:0, mz:0, jump:false, jumpEdge:false, crouch:false, sprint:false,
+                fire:false, fireEdge:false, reload:false, dropAction:false,
+                pickup:false, ads:false, specNext:false, specPrev:false, specView:false };
 let camYaw = 0, camPitch = 0, pointerLocked = false;
 
 /** Alle gedrückten Tasten vergessen. Nötig, wenn das Fenster den Fokus
@@ -3737,6 +5075,7 @@ let camYaw = 0, camPitch = 0, pointerLocked = false;
 function clearKeys(){
   for (const k in keys) keys[k] = false;
   input.fire = false; input.fireEdge = false; input.ads = false;
+  input.jumpEdge = false; input.sprint = false;
   showBoard(false);
 }
 addEventListener('blur', clearKeys);
@@ -3747,8 +5086,21 @@ addEventListener('keydown', e=>{
      geschlossen — und Strg+W lässt sich nicht abfangen. Also fassen wir
      solche Anschläge gar nicht erst an. */
   if (e.ctrlKey || e.metaKey || e.altKey){ clearKeys(); return; }
+  const wasDown = keys[e.code];
   keys[e.code] = true;
+  if (e.code === 'Space' && !wasDown) input.jumpEdge = true;
   if (e.code === 'Tab'){ e.preventDefault(); showBoard(true); }
+  /* Festgesteckt? U holt einen auf die naechste freie Stelle. Der Fall
+     "unter dem Boden" faengt sich zwar inzwischen von selbst ab, aber es
+     bleibt beruhigend, einen Knopf dafuer zu haben. */
+  if (e.code === 'KeyU' && G.phase === 'play' && G.me && G.me.ctrl && !G.me.dropping){
+    if (G.me.ctrl.unstuck()){ G.me.position.copy(G.me.ctrl.position); toast('Wieder frei'); }
+  }
+  if (G.spectate.on){
+    if (e.code === 'KeyD' || e.code === 'ArrowRight') input.specNext = true;
+    if (e.code === 'KeyA' || e.code === 'ArrowLeft')  input.specPrev = true;
+    if (e.code === 'Space') input.specView = true;
+  }
   if (e.code === 'KeyR') input.reload = true;
   if (e.code === 'KeyF') input.dropAction = true;
   if (e.code === 'Digit1' && G.me) selectSlot(G.me, 0);
@@ -3771,6 +5123,12 @@ addEventListener('keyup', e=>{
 canvas.addEventListener('mousedown', e=>{
   if (G.phase !== 'play' || pauseOpen) return;
   if (!pointerLocked){ applyFullscreenWish(); canvas.requestPointerLock(); return; }
+  if (G.spectate.on){
+    // Als Zuschauer blaettert die Maus durch die Uebriggebliebenen
+    if (e.button === 0) input.specNext = true;
+    if (e.button === 2) input.specPrev = true;
+    return;
+  }
   if (e.button === 0){ input.fire = true; input.fireEdge = true; }
   if (e.button === 2) input.ads = true;
 });
@@ -3804,7 +5162,91 @@ function readInput(){
   input.mx = (keys.KeyD||keys.ArrowRight ? 1:0) - (keys.KeyA||keys.ArrowLeft ? 1:0);
   input.jump = !!keys.Space;
   input.crouch = !!(keys.KeyC || keys.KeyX);
+  input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
   return input;
+}
+
+/* ==========================================================================
+   21b — KLETTERN
+   Gesucht wird eine Kante vor der Figur: Wand auf Brusthoehe, darueber eine
+   begehbare Flaeche zwischen CLIMB.minHeight und CLIMB.maxHeight, und dort
+   oben genug Platz fuer die Kapsel. Nur dann laesst sich hochziehen.
+   ========================================================================== */
+const _clF = new THREE.Vector3(), _clO = new THREE.Vector3(), _clD = new THREE.Vector3();
+function findLedge(a){
+  const W = worldOf(a);
+  if (!a || !a.ctrl || !W || a.dropping) return null;
+  const pos = a.position;
+  aimDir(a.yaw, 0, _clF);                       // nur die Blickrichtung, ohne Neigung
+  const reach = PLAYER.radius + CLIMB.reach;
+
+  /* Zwei Tastversuche: einmal auf Bauchhoehe, einmal knapp ueber den Fuessen.
+     Eine Kante, die nur unten anliegt (Mauervorsprung), wird sonst uebersehen. */
+  let wall = null;
+  for (const hy of [0.95, 0.45]){
+    _clO.set(pos.x, pos.y + hy, pos.z);
+    const hit = W.raycast(_clO, _clF, reach, {});
+    if (hit && Math.abs(hit.normal.y) < 0.55){ wall = hit; break; }
+  }
+  if (!wall) return null;
+
+  // Punkt hinter der Kante, auf den man sich zieht
+  const tx = pos.x + _clF.x*(reach + CLIMB.forward);
+  const tz = pos.z + _clF.z*(reach + CLIMB.forward);
+  const top = W.groundBelow(tx, pos.y + CLIMB.maxHeight + 0.8, tz,
+                            CLIMB.maxHeight + 1.2);
+  if (!top) return null;
+  if (top.normal.y < Math.cos(PLAYER.maxSlopeAngle)) return null;   // Schraege, kein Absatz
+  const h = top.point.y - pos.y;
+  if (h < CLIMB.minHeight || h > CLIMB.maxHeight) return null;
+
+  const target = new THREE.Vector3(tx, top.point.y + CLIMB.clearance, tz);
+  if (!a.ctrl.isFree(target)) return null;      // oben ist kein Platz
+  return { target, height:h };
+}
+
+function startClimb(a, ledge){
+  if (!a || !ledge || a.climb) return false;
+  a.climb = {
+    t: 0,
+    from: a.position.clone(),
+    to: ledge.target.clone(),
+    dur: CLIMB.time * clamp(0.7 + ledge.height/CLIMB.maxHeight*0.55, 0.7, 1.3)
+  };
+  a.climbT = 0.0001;
+  a.sprinting = false;
+  if (a.ctrl) a.ctrl.velocity.set(0,0,0);
+  if (a === G.me) sfx.hit();
+  return true;
+}
+
+/** Kinematisch: erst hoch, dann vor. Waehrend dieser Zeit ruehrt die
+    Kapselphysik die Figur nicht an — sonst zieht die Schwerkraft dagegen. */
+function stepClimb(a, dt){
+  const c = a.climb;
+  c.t += dt / c.dur;
+  const k = clamp(c.t, 0, 1);
+  a.climbT = k;
+  const ease = t => t*t*(3-2*t);
+  const up = ease(clamp(k/0.62, 0, 1));
+  const fw = ease(clamp((k-0.34)/0.66, 0, 1));
+  a.position.x = lerp(c.from.x, c.to.x, fw);
+  a.position.z = lerp(c.from.z, c.to.z, fw);
+  a.position.y = lerp(c.from.y, c.to.y, up);
+  if (a.ctrl){
+    a.ctrl.position.copy(a.position);
+    a.ctrl.velocity.set(0,0,0);
+    a.ctrl.grounded = false;
+  }
+  if (k >= 1){
+    a.climb = null;
+    a.climbT = 0;
+    if (a.ctrl){
+      a.ctrl.grounded = true;
+      a.ctrl.lastSafe.copy(a.position);
+      a.ctrl.fallTimer = 0;
+    }
+  }
 }
 
 /* ==========================================================================
@@ -3953,6 +5395,7 @@ function adsWeapon(){
   return (W && W.scoped) ? W : null;
 }
 
+let sprintFov = 0;
 function updateAds(dt){
   const W = adsWeapon();
   const want = (input.ads && W) ? 1 : 0;
@@ -3961,8 +5404,12 @@ function updateAds(dt){
   if (adsT > 0){
     const fov = lerp(FOV_BASE, FOV_BASE/(W ? W.zoom : 5), adsT);
     if (Math.abs(fov - camera.fov) > 0.01){ camera.fov = fov; camera.updateProjectionMatrix(); }
-  } else if (camera.fov !== FOV_BASE){
-    camera.fov = FOV_BASE; camera.updateProjectionMatrix();
+  } else {
+    /* Beim Sprint oeffnet sich der Blickwinkel ein wenig — das Tempo wird
+       spuerbar, ohne dass man es an einer Zahl ablesen muesste. */
+    sprintFov = damp(sprintFov, (G.me && G.me.sprinting) ? SPRINT.fovAdd : 0, 7, dt);
+    const want = FOV_BASE + sprintFov;
+    if (Math.abs(want - camera.fov) > 0.01){ camera.fov = want; camera.updateProjectionMatrix(); }
   }
   const scoped = !!W && adsT > 0.6;
   $('scope').classList.toggle('hidden', !scoped);
@@ -3973,6 +5420,10 @@ function updateAds(dt){
 
 function updateCamera(){
   const me = G.me;
+
+  // --- Zuschauer: ueber die Schulter der noch lebenden Figuren ---
+  if (G.spectate.on){ updateSpectateCamera(); return; }
+
   if (!me) return;
 
   /* Beim Absprung Verfolgersicht: man will sich fallen sehen und die Insel
@@ -4004,8 +5455,231 @@ function updateCamera(){
   camera.rotation.order = 'YXZ';
   camera.rotation.y = camYaw + kick.yaw;
   camera.rotation.x = clamp(camPitch + kick.pitch, -1.53, 1.53);
+  /* Beim Hochziehen kippt der Blick kurz mit: erst nach oben zur Kante, dann
+     wieder gerade. Ein kleines Rollen macht die Bewegung koerperlich. */
+  if (me.climbT > 0){
+    const k = me.climbT;
+    const rise = Math.sin(clamp(k/0.62,0,1) * Math.PI) * 0.30;
+    camera.rotation.x = clamp(camera.rotation.x + rise*0.5, -1.53, 1.53);
+    camera.rotation.z = Math.sin(k*Math.PI) * 0.10;
+  } else if (camera.rotation.z !== 0){
+    camera.rotation.z = 0;
+  }
   sun.position.set(me.position.x + 60, me.position.y + 100, me.position.z + 45);
   sun.target.position.copy(me.position);
+  sun.target.updateMatrixWorld();
+}
+
+/* ==========================================================================
+   22a — REBIRTH-ANZEIGE
+   Eine einzige Box, die je nach Zustand etwas anderes zeigt. Kein zweites
+   UI-System: dieselben Farben, dieselbe Schrift, dieselben Klassen wie der
+   Rest der Oberflaeche.
+   ========================================================================== */
+const RBUI = { mode:null, until:0, cd:0, t:0, name:'' };
+
+function rbUI(mode, opts){
+  opts = opts || {};
+  RBUI.mode = mode;
+  RBUI.t = 0;
+  const box = $('rebirth');
+  if (!mode){ box.classList.add('hidden'); box.classList.remove('danger','good'); return; }
+  box.classList.remove('hidden');
+  box.classList.remove('danger','good');
+
+  if (mode === 'queue'){
+    RBUI.until = performance.now() + (opts.secs || REBIRTH.waitTime)*1000;
+    $('rbTitle').textContent = 'REBIRTH AVAILABLE';
+    $('rbSub').textContent = 'WAITING FOR OPPONENT…';
+    $('rbNum').style.display = '';
+    sfx.pick();
+  } else if (mode === 'ready'){
+    RBUI.cd = opts.cd || REBIRTH.countdown;
+    RBUI.name = opts.name || '';
+    $('rbTitle').textContent = 'OPPONENT FOUND';
+    $('rbSub').textContent = 'GET READY · ' + esc(RBUI.name).toUpperCase();
+    $('rbNum').style.display = '';
+    sfx.zone();
+  } else if (mode === 'fight'){
+    $('rbTitle').textContent = 'FIGHT!';
+    $('rbSub').textContent = '1 vs 1 · WINNER RETURNS';
+    $('rbNum').style.display = 'none';
+    box.classList.add('good');
+    sfx.kill && sfx.kill();
+  } else if (mode === 'win'){
+    $('rbTitle').textContent = 'REBIRTH!';
+    $('rbSub').textContent = 'RETURNING TO BATTLE…';
+    $('rbNum').style.display = 'none';
+    box.classList.add('good');
+  } else if (mode === 'lucky'){
+    $('rbTitle').textContent = 'LUCKY REBIRTH!';
+    $('rbSub').textContent = 'NO OPPONENT FOUND';
+    $('rbNum').style.display = 'none';
+    box.classList.add('good');
+  } else if (mode === 'lose'){
+    $('rbTitle').textContent = 'ELIMINATED';
+    $('rbSub').textContent = 'NO REBIRTH LEFT';
+    $('rbNum').style.display = 'none';
+    box.classList.add('danger');
+  } else if (mode === 'drop'){
+    $('rbTitle').textContent = 'REBIRTH!';
+    $('rbSub').textContent = 'NO GEAR · LOOT AGAIN';
+    $('rbNum').style.display = 'none';
+    box.classList.add('good');
+  }
+}
+
+function updateRebirthUI(dt){
+  if (!RBUI.mode) return;
+  RBUI.t += dt;
+  const num = $('rbNum');
+
+  if (RBUI.mode === 'queue'){
+    const left = Math.max(0, Math.ceil((RBUI.until - performance.now())/1000));
+    num.textContent = left;
+    num.classList.toggle('urgent', left <= 5);
+    return;
+  }
+  if (RBUI.mode === 'ready'){
+    const left = Math.max(0, RBUI.cd - RBUI.t);
+    const n = Math.ceil(left);
+    num.textContent = n > 0 ? n : '';
+    num.classList.remove('urgent');
+    return;
+  }
+  // Erfolgs- und Abschlussmeldungen blenden sich nach kurzer Zeit weg
+  if ((RBUI.mode === 'fight' && RBUI.t > 1.2) ||
+      (RBUI.mode === 'drop'  && RBUI.t > 3.0) ||
+      (RBUI.mode === 'win'   && RBUI.t > 2.6) ||
+      (RBUI.mode === 'lucky' && RBUI.t > 2.6) ||
+      (RBUI.mode === 'lose'  && RBUI.t > 3.2)){
+    rbUI(null);
+  }
+}
+
+/* ==========================================================================
+   22b — ZUSCHAUER
+   Wer ausscheidet, fliegt nicht mehr sofort in den Ergebnisbildschirm,
+   sondern schaut den Uebriggebliebenen ueber die Schulter. Erst wenn die
+   Runde wirklich vorbei ist, kommt das Ergebnis.
+   ========================================================================== */
+const _spF = new THREE.Vector3(), _spWant = new THREE.Vector3(),
+      _spOrg = new THREE.Vector3(), _spDir = new THREE.Vector3();
+
+function spectateTargets(){
+  return G.actors.filter(a=>a.alive && a !== G.me && !a.dropping);
+}
+
+function enterSpectate(){
+  if (G.spectate.on || G.phase !== 'play') return;
+  const list = spectateTargets();
+  if (!list.length) return;
+  G.spectate.on = true;
+  G.spectate.idx = 0;
+  G.spectate.target = list[0];
+  G.spectate.first = false;
+  G.spectate.pos.copy(camera.position);
+  $('spectate').classList.remove('hidden');
+  $('cross').style.opacity = 0;
+  $('ammo').style.opacity = 0;
+  $('vitals').style.opacity = '0.35';
+  $('pickPrompt').classList.add('hidden');
+  $('climbPrompt').classList.add('hidden');
+  attachViewmodel(null);
+  suppressPause = false;
+  toast('Zuschauer — A / D wechselt die Ansicht');
+}
+
+function leaveSpectate(){
+  if (!G.spectate.on) return;
+  G.spectate.on = false;
+  G.spectate.target = null;
+  $('spectate').classList.add('hidden');
+  $('cross').style.opacity = 1;
+  $('ammo').style.opacity = 1;
+  $('vitals').style.opacity = '';
+}
+
+function cycleSpectate(dir){
+  const list = spectateTargets();
+  if (!list.length){ G.spectate.target = null; return; }
+  let i = list.indexOf(G.spectate.target);
+  if (i < 0) i = 0;
+  i = (i + dir + list.length) % list.length;
+  G.spectate.idx = i;
+  G.spectate.target = list[i];
+  sfx.hover && sfx.hover();
+}
+
+function updateSpectate(dt){
+  if (!G.spectate.on) return;
+  const list = spectateTargets();
+  if (!list.length){
+    // Niemand mehr uebrig — der Host beendet gleich ohnehin
+    G.spectate.target = null;
+    $('specWho').textContent = '—';
+    return;
+  }
+  if (!G.spectate.target || !G.spectate.target.alive || !list.includes(G.spectate.target)){
+    G.spectate.target = list[Math.min(G.spectate.idx, list.length-1)];
+  }
+  if (input.specNext){ input.specNext = false; cycleSpectate(1); }
+  if (input.specPrev){ input.specPrev = false; cycleSpectate(-1); }
+  if (input.specView){ input.specView = false; G.spectate.first = !G.spectate.first; }
+
+  const t = G.spectate.target;
+  $('specWho').textContent = t ? t.name : '—';
+  $('specHint').textContent = (G.spectate.first ? 'Augen der Figur' : 'Ueber der Schulter')
+    + ' · A / D wechselt · Leertaste Ansicht · ' + Math.ceil(t ? t.hp : 0) + ' Leben';
+}
+
+function updateSpectateCamera(){
+  const t = G.spectate.target;
+  if (!t){
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = camYaw; camera.rotation.x = camPitch; camera.rotation.z = 0;
+    return;
+  }
+  camera.rotation.set(0,0,0);
+  camera.rotation.order = 'YXZ';
+
+  if (G.spectate.first){
+    // Aus den Augen der Figur — ihre Blickrichtung, nicht die eigene Maus
+    const eyeY = t.position.y + (t.crouch ? PLAYER.eyeHeight*0.62 : PLAYER.eyeHeight);
+    _spWant.set(t.position.x, eyeY, t.position.z);
+    G.spectate.pos.lerp(_spWant, 0.45);
+    camera.position.copy(G.spectate.pos);
+    camera.rotation.y = t.yaw;
+    camera.rotation.x = clamp(t.pitch, -1.5, 1.5);
+  } else {
+    // Ueber der Schulter, die Maus dreht frei um die Figur
+    aimDir(camYaw, camPitch, _spF);
+    const d = SPECTATE.dist;
+    _spWant.set(t.position.x - _spF.x*d,
+                t.position.y + SPECTATE.height - _spF.y*d + 0.9,
+                t.position.z - _spF.z*d);
+    /* Nicht durch Waende schauen: liegt zwischen Figur und Wunschpunkt
+       Geometrie, rueckt die Kamera davor. */
+    if (G.world){
+      _spOrg.set(t.position.x, t.position.y + 1.2, t.position.z);
+      _spDir.subVectors(_spWant, _spOrg);
+      const len = _spDir.length();
+      if (len > 0.01){
+        _spDir.divideScalar(len);
+        const hit = G.world.raycast(_spOrg, _spDir, len, {});
+        if (hit){
+          const d = Math.max(0.35, hit.dist - 0.25);
+          _spWant.copy(_spOrg).addScaledVector(_spDir, d);
+        }
+      }
+    }
+    G.spectate.pos.lerp(_spWant, 0.35);
+    camera.position.copy(G.spectate.pos);
+    camera.rotation.y = camYaw;
+    camera.rotation.x = camPitch;
+  }
+  sun.position.set(camera.position.x + 60, camera.position.y + 100, camera.position.z + 45);
+  sun.target.position.set(camera.position.x, camera.position.y - 20, camera.position.z);
   sun.target.updateMatrixWorld();
 }
 
@@ -4112,6 +5786,17 @@ async function setupMatch(roster, spawns){
     ? spawns.map(p=>new THREE.Vector3(p[0],p[1],p[2]))
     : G.spawnMgr.scatter(roster.length, mapSet().spawnR);
 
+  /* Die Startpunkte kommen beim Gast vom Host. Sie werden hier gegen die
+     eigene Karte geprueft: winzige Unterschiede beim Laden reichen sonst,
+     um jemanden im Boden starten zu lassen. */
+  for (let i=0;i<pts.length;i++){
+    const p = pts[i];
+    if (!G.spawnMgr.ctrl.isFree(p)){
+      const fix = G.spawnMgr.findValidSpawnPosition(p, { spread:14, tries:40 });
+      if (fix) pts[i] = fix;
+    }
+  }
+
   for (let i=0;i<roster.length;i++){
     const r = roster[i];
     const a = await createActor({ id:r.id, name:r.name, charName:r.char, kind:r.kind });
@@ -4149,25 +5834,73 @@ function simulate(dt){
   // --- eigene Figur ---
   if (me && me.alive && me.ctrl && !me.dropping){
     const inp = readInput();
-    me.crouch = inp.crouch;
-    let sp = inp.crouch ? SPEED_CROUCH : SPEED_WALK;
-    if (me.ads) sp *= ADS.moveMul;              // im Anschlag geht man langsamer
-    /* Die Kamera blickt entlang ihrer lokalen -Z. Vorwaerts ist damit
-       (-sin yaw, 0, -cos yaw), rechts ist (cos yaw, 0, -sin yaw). */
-    const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
-    let wx = inp.mx*cos - inp.mz*sin;
-    let wz = -inp.mx*sin - inp.mz*cos;
-    const l = Math.hypot(wx,wz);
-    if (l > 1){ wx/=l; wz/=l; }
-    if (!me.ctrl.grounded) sp *= SPEED_AIR + 0.1;
-    me.wish.set(wx*sp, 0, wz*sp);
     me.yaw = camYaw + kick.yaw;
     me.pitch = clamp(camPitch + kick.pitch, -1.53, 1.53);
-    const res = me.ctrl.step(dt, me.wish, inp.jump);
-    if (res === 'rescued') toast('Zurück auf sicheren Boden');
-    me.position.copy(me.ctrl.position);
+
+    // --- Klettern geht allem anderen vor ---
+    if (me.climb){
+      stepClimb(me, dt);
+      input.jumpEdge = false;
+      me.crouch = false;
+      me.sprinting = false;
+      G.climbHint = null;
+    } else {
+      me.crouch = inp.crouch;
+
+      /* --- kurzer Sprint ---
+         Nur vorwaerts, nicht geduckt, nicht im Anschlag. Die Ausdauer haelt
+         gut zweieinhalb Sekunden und braucht danach eine kurze Pause. */
+      const canSprint = inp.mz > 0 && !inp.crouch && !me.ads && !me.reloading;
+      const wants = inp.sprint && canSprint;
+      if (wants && (me.sprinting ? me.stamina > 0 : me.stamina >= SPRINT.minStart)){
+        me.sprinting = true;
+      } else if (!wants || me.stamina <= 0){
+        me.sprinting = false;
+      }
+      if (me.sprinting){
+        me.stamina = Math.max(0, me.stamina - SPRINT.drain*dt);
+        me.staminaHold = SPRINT.regenDelay;
+        if (me.stamina <= 0) me.sprinting = false;
+      } else {
+        me.staminaHold = Math.max(0, me.staminaHold - dt);
+        if (me.staminaHold <= 0)
+          me.stamina = Math.min(100, me.stamina + SPRINT.regen*dt);
+      }
+
+      let sp = inp.crouch ? SPEED_CROUCH : (me.sprinting ? SPRINT.speed : SPEED_WALK);
+      if (me.ads) sp *= ADS.moveMul;              // im Anschlag geht man langsamer
+      /* Die Kamera blickt entlang ihrer lokalen -Z. Vorwaerts ist damit
+         (-sin yaw, 0, -cos yaw), rechts ist (cos yaw, 0, -sin yaw). */
+      const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
+      let wx = inp.mx*cos - inp.mz*sin;
+      let wz = -inp.mx*sin - inp.mz*cos;
+      const l = Math.hypot(wx,wz);
+      if (l > 1){ wx/=l; wz/=l; }
+      if (!me.ctrl.grounded) sp *= SPEED_AIR + 0.1;
+      me.wish.set(wx*sp, 0, wz*sp);
+
+      // Waehrend des 3-2-1 steht man still
+      if (me.rbFreeze){ me.wish.set(0,0,0); }
+
+      /* Kante vor der Nase? Dann zieht die Leertaste hoch statt zu springen.
+         Gesucht wird nur, wenn man auch vorwaerts drueckt — sonst klebt man
+         an jeder Mauer fest, an der man zufaellig steht. */
+      const ledge = (!me.rbFreeze && inp.mz > 0) ? findLedge(me) : null;
+      G.climbHint = ledge;
+      if (ledge && input.jumpEdge){
+        startClimb(me, ledge);
+        input.jumpEdge = false;
+      } else {
+        const res = me.ctrl.step(dt, me.wish, inp.jump);
+        if (res === 'rescued') toast(me.ctrl.lastRescue === 'unter der Karte'
+          ? 'Unter der Karte — zurück auf festen Boden'
+          : 'Zurück auf sicheren Boden');
+        me.position.copy(me.ctrl.position);
+        input.jumpEdge = false;
+      }
+    }
     // Halbautomatische Waffen brauchen je Schuss einen neuen Klick
-    if (input.fire){
+    if (input.fire && !me.rbFreeze){
       // Ohne Waffe gibt es kein W — vorher stand hier WEAPONS[me.weapon].auto
       // und das warf beim Boxen eine Ausnahme mitten im Physikschritt.
       const Wc = WEAPONS[me.weapon];
@@ -4195,19 +5928,23 @@ function simulate(dt){
     }
   }
 
+  // --- Rebirth: Warteschlange, Countdowns, Duelle, Rueckkehr ---
+  rbHostTick(dt);
+
   // --- Sturm & Schaden ---
   if (G.mode === 'br'){
     updateStorm(dt);
     if (G.isHost){
       for (const a of G.actors){
         if (!a.alive || a.dropping) continue;
+        if (inArena(a)) continue;              // in der Arena gibt es keine Zone
         if (outsideStorm(a)) applyDamage(a, G.storm.dps*dt, null);
       }
-    } else if (me && me.alive && !me.dropping && outsideStorm(me)){
+    } else if (me && me.alive && !me.dropping && !inArena(me) && outsideStorm(me)){
       me.hp -= G.storm.dps*dt;     // Anzeige lokal, Wahrheit kommt vom Host
       if (me.hp < 0) me.hp = 0;
     }
-    const inStorm = me && outsideStorm(me);
+    const inStorm = me && !inArena(me) && outsideStorm(me);
     $('stormVig').style.opacity = inStorm ? 1 : 0;
   }
   G.time += dt;
@@ -4224,23 +5961,48 @@ function renderActors(dt){
     const obj = a.view.obj;
 
     if (a.kind === 'remote'){
-      // Interpolation aus dem Netzpuffer, 110 ms hinter der Gegenwart
-      const t = performance.now() - 110;
+      /* Interpolation aus dem Netzpuffer, NET_INTERP_MS hinter der Gegenwart.
+         Neu ist das Nachfuehren: laeuft der Puffer leer (verlorene Pakete,
+         kurzer Aussetzer), wird die letzte Bewegung hoechstens 250 ms
+         weitergerechnet, statt die Figur einzufrieren. Genau dieses
+         Einfrieren sah im Spiel aus, als "buggten" die anderen. */
+      const t = performance.now() - NET_INTERP_MS;
       const buf = a.netBuf;
       while (buf.length > 2 && buf[1].t <= t) buf.shift();
       if (buf.length >= 2){
-        const k = clamp((t - buf[0].t) / Math.max(1, buf[1].t - buf[0].t), 0, 1);
-        a.position.lerpVectors(buf[0].p, buf[1].p, k);
-        a.yaw = lerpAngle(buf[0].yaw, buf[1].yaw, k);
+        const b0 = buf[0], b1 = buf[1];
+        const span = Math.max(1, b1.t - b0.t);
+        if (t <= b1.t){
+          const k = clamp((t - b0.t)/span, 0, 1);
+          a.position.lerpVectors(b0.p, b1.p, k);
+          a.yaw = lerpAngle(b0.yaw, b1.yaw, k);
+        } else {
+          // Puffer erschoepft: kurz weiterschieben, gedeckelt
+          const over = Math.min(250, t - b1.t);
+          const k = 1 + over/span;
+          a.position.lerpVectors(b0.p, b1.p, Math.min(k, 1 + 250/span));
+          a.yaw = lerpAngle(b0.yaw, b1.yaw, 1);
+        }
       } else if (buf.length === 1){
         a.position.copy(buf[0].p); a.yaw = buf[0].yaw;
       }
     }
 
+    /* Eigene Kletter-Pose: sie neigt und hebt die ganze Figur, deshalb wird
+       sie hier ausgewertet und nicht in der Figurklasse. */
+    let poseTilt = null;
+    if (a.view.setPose){
+      const ct = a.climbT || 0;
+      a.view.setPose(ct > 0 ? CLIMB_POSE : null, ct, ct > 0 ? 1 : 0);
+    }
+
     obj.position.copy(a.position);
     obj.rotation.set(0, a.yaw + Math.PI, 0);   // Quaternius-Figuren schauen nach +Z
-    // Der eigene Körper ist unsichtbar — ausser beim Absprung, da sieht man sich
-    obj.visible = (a !== G.me) || (a.dropping && G.drop && G.drop.playerState !== 'plane');
+    /* Der eigene Körper ist unsichtbar — ausser beim Absprung und im
+       Zuschauermodus, wo man auf sich selbst blicken koennte. */
+    obj.visible = ((a !== G.me)
+      || (a.dropping && G.drop && G.drop.playerState !== 'plane'))
+      && a.rbState !== 'queued';       // Wartende sind aus der Welt genommen
     if (a.handWeapon) a.handWeapon.visible = a.alive && !a.dropping;
 
     /* Im freien Fall wird die Figur nicht animiert, sondern gestellt: waagrecht
@@ -4268,20 +6030,31 @@ function renderActors(dt){
 
     // Animation nach Bewegung wählen
     if (a.alive){
-      const v = a.ctrl ? a.ctrl.velocity : null;
+      const v = (a.ctrl && !a.climb) ? a.ctrl.velocity : null;
       let speed;
       if (v) speed = Math.hypot(v.x, v.z);
       else { speed = a._prevPos ? a.position.distanceTo(a._prevPos)/Math.max(dt,1e-4) : 0; }
       if (!a._prevPos) a._prevPos = a.position.clone(); else a._prevPos.copy(a.position);
-      const airborne = a.ctrl ? !a.ctrl.grounded : false;
-      if (a.reloading) a.view.play('reload', { fade:0.12 });
+      const airborne = a.ctrl ? !a.ctrl.grounded : !!a.airborne;
+      if (a.climbT > 0){
+        /* Waehrend des Hochziehens laeuft unten der Sprung-Clip weiter, die
+           handgemachte Pose legt sich darueber. Zusammen sieht das aus wie
+           Greifen, Ziehen, Knie ueber die Kante. */
+        a.view.play('jump', { fade:0.10, speed:0.55 });
+      }
+      else if (a.reloading) a.view.play('reload', { fade:0.12 });
       else if (G.time - a.lastShotAt < 0.22) a.view.play('shoot', { once:true, fade:0.05 });
       else if (airborne) a.view.play('jump', { fade:0.1 });
-      else if (speed > 3.2) a.view.play('run',  { speed: clamp(speed/4.7, 0.8, 1.35) });
+      else if (speed > 3.2) a.view.play('run',  { speed: clamp(speed/(a.sprinting?6.6:4.7), 0.8, 1.55) });
       else if (speed > 0.4) a.view.play('walk', { speed: clamp(speed/2.3, 0.7, 1.5) });
       else a.view.play('idle');
     }
-    a.view.update(dt);
+    poseTilt = a.view.update(dt);
+    if (poseTilt){
+      obj.rotation.order = 'YXZ';
+      obj.rotation.set(poseTilt.pitch, a.yaw + Math.PI, poseTilt.roll);
+      obj.position.y = a.position.y + poseTilt.lift;
+    }
   }
 }
 function lerpAngle(a,b,t){
@@ -4300,6 +6073,9 @@ function updateHUD(dt){
     $('hpN').textContent = Math.ceil(me.hp);
     $('hpFill').style.width = clamp(me.hp/me.maxHp*100,0,100) + '%';
     $('shFill').style.width = clamp(me.shield,0,100) + '%';
+    // Ausdauer: leuchtet rot, solange sie sich noch erholen muss
+    $('stFill').style.width = clamp(me.stamina,0,100) + '%';
+    $('stBar').classList.toggle('spent', me.staminaHold > 0 && me.stamina < 99);
     const W = WEAPONS[me.weapon];
     const n = $('ammoN');
     if (!W){
@@ -4323,9 +6099,13 @@ function updateHUD(dt){
       el.textContent = (i+1) + ' ' + (id ? WEAPONS[id].name : '—');
       el.classList.toggle('on', me.slot === i && !!id);
     }
-    const near = nearestLoot();
+    const spec = G.spectate.on;
+    const near = spec ? null : nearestLoot();
     $('pickPrompt').classList.toggle('hidden', !near);
     if (near) $('pickName').textContent = WEAPONS[near.id].name + ' aufnehmen';
+    // Kletterhinweis nur, wenn tatsaechlich eine Kante erreichbar ist
+    const canClimb = !spec && me.alive && !me.climb && !!G.climbHint;
+    $('climbPrompt').classList.toggle('hidden', !canClimb);
   }
   if (me && me.alive){
     // Fadenkreuz öffnet sich genau so weit, wie die Waffe gerade streut
@@ -4341,8 +6121,11 @@ function updateHUD(dt){
       d.playerState === 'chute'  ? 'Schirm offen · WASD steuert' :
                                    'F öffnet den Schirm';
   }
-  $('aliveN').textContent = G.actors.filter(a=>a.alive).length;
-  if (G.mode === 'br'){
+  $('aliveN').textContent = G.actors.filter(a=>a.alive || a.rbState === 'queued').length;
+  if (G.mode === 'br' && me && inArena(me)){
+    $('stormPhase').textContent = 'Rebirth-Arena · 1 gegen 1';
+    $('stormT').textContent = '—';
+  } else if (G.mode === 'br'){
     const s = G.storm;
     $('stormPhase').textContent = s.state === 'hold' ? 'Zone hält · Phase ' + (s.phase+1) : 'Zone schrumpft';
     const tt = Math.max(0, s.timer);
@@ -4373,6 +6156,7 @@ function drawMinimap(){
      Wer still bleibt, bleibt unsichtbar. */
   for (const a of G.actors){
     if (!a.alive || a === me) continue;
+    if (!sameRealm(a, me)) continue;      // Arena taucht auf der Karte nicht auf
     const age = G.time - a.lastShotAt;
     if (age < 0 || age > MM_PING_TIME) continue;
     if (a.position.distanceTo(me.position) > MM_PING_RANGE) continue;
@@ -4512,133 +6296,401 @@ function updateDebugPanel(dt){
 
 /* ==========================================================================
    28 — NETZWERK (PeerJS / WebRTC)
-   Lokale Physik bleibt lokal. Über das Netz gehen nur Zustände.
+   Der Host ist die Wahrheit. Er allein wuerfelt, verteilt Beute, rechnet
+   Schaden ab und entscheidet, wann eine Runde vorbei ist. Alle anderen
+   schicken ihre Eingaben und ihren Standort und stellen dar, was zurueckkommt.
+
+   Was hier vorher schiefging und jetzt behoben ist:
+     · Jeder Rechner hat seine Beute selbst ausgewuerfelt  -> gesetzter Zufall
+     · Die Absprungbahn wurde ueberall neu gezogen         -> kommt vom Host
+     · Neue Gaeste sahen die alten nicht                   -> Liste an alle
+     · Tote Figuren bekamen keine Standorte mehr           -> immer uebernehmen
+     · Puffer lief leer, Figuren froren ein                -> Nachfuehren
+     · Beute liess sich doppelt aufheben                   -> Host bestaetigt
+     · Abgerissene Verbindungen blieben unbemerkt          -> Herzschlag
    ========================================================================== */
 function code4(){ let s=''; for(let i=0;i<4;i++) s += 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]; return s; }
 const peerIdFor = c => 'holdout-' + c;
-function send(conn, msg){ try{ conn.send(msg); }catch(e){} }
-function broadcast(msg){ for (const c of G.conns) send(c, msg); }
 
+/* Ohne STUN scheitert die Verbindung hinter vielen Routern still — die Gaeste
+   sahen dann eine Lobby, aber nie einander. */
+const PEER_OPTS = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      { urls: 'stun:stun1.l.google.com:19302' }
+    ]
+  }
+};
+
+function send(conn, msg){
+  try { if (conn && conn.open) conn.send(msg); } catch(e){}
+}
+function broadcast(msg){ for (const c of G.conns) send(c, msg); }
+function netAlive(){ return G.isNet && G.peer && !G.peer.destroyed; }
+
+function setNetWarn(txt){
+  const el = $('netWarn');
+  if (!el) return;
+  el.classList.toggle('hidden', !txt);
+  if (txt) el.textContent = txt;
+}
+
+/* ---------------------------------------------------------------- Host --- */
 function hostGame(){
   G.isHost = true; G.isNet = true; G.code = code4();
-  G.peer = new Peer(peerIdFor(G.code));
+  G.myId = 'host';
+  G.lobby = [];
+  G.peer = new Peer(peerIdFor(G.code), PEER_OPTS);
   G.peer.on('open', ()=>{ $('code').textContent = G.code; refreshLobby(); });
-  G.peer.on('error', e=>{ console.warn(e); $('code').textContent = 'Fehler'; });
+  G.peer.on('error', e=>{
+    console.warn('Peer-Fehler:', e && e.type, e);
+    // 'unavailable-id' heisst: der Code ist noch belegt. Einmal neu ziehen.
+    if (e && e.type === 'unavailable-id' && !G.codeRetried){
+      G.codeRetried = true;
+      try { G.peer.destroy(); } catch(err){}
+      setTimeout(hostGame, 250);
+      return;
+    }
+    $('code').textContent = 'Fehler';
+  });
   G.peer.on('connection', c=>{
+    c.lastSeen = performance.now();
     G.conns.push(c);
-    c.on('data', d=>onHostData(c, d));
-    c.on('close', ()=>{
-      G.conns = G.conns.filter(x=>x!==c);
-      G.lobby = G.lobby.filter(p=>p.id !== c.peer);
-      const a = G.actors.find(x=>x.id === c.peer);
-      if (a){ a.alive = false; }
-      refreshLobby();
+    c.on('open', ()=>{
+      c.lastSeen = performance.now();
+      send(c, { t:'welcome', you:c.peer, host:myName, code:G.code });
+      broadcastLobby();
     });
+    c.on('data', d=>{ c.lastSeen = performance.now(); onHostData(c, d); });
+    c.on('error', e=> console.warn('Verbindungsfehler', e));
+    c.on('close', ()=> dropConn(c, 'hat die Runde verlassen'));
   });
 }
+
+function dropConn(c, why){
+  G.conns = G.conns.filter(x=>x!==c);
+  const row = G.lobby.find(p=>p.id === c.peer);
+  G.lobby = G.lobby.filter(p=>p.id !== c.peer);
+  const a = G.actors.find(x=>x.id === c.peer);
+  /* Wer die Verbindung verliert, verliert auch seine zweite Chance —
+     sonst wartete die Schlange auf jemanden, der nie zurueckkommt, und
+     ein laufendes Duell haette keinen Gegner mehr. rbHostTick() erkennt
+     das leere Feld und erklaert den Verbliebenen zum Sieger. */
+  if (a){
+    removeFromQueue(a.id);
+    a.hasUsedRebirth = true;
+    if (a.rbState === 'arena'){
+      const ar = G.arenas.find(x=>x.id === a.arenaId);
+      const other = ar ? (ar.a === a ? ar.b : ar.a) : null;
+      a.alive = false;
+      rbHostResolve(ar, other, a);
+    }
+    a.rbState = 'spent';
+  }
+  if (a && a.alive && G.phase === 'play'){
+    /* Wer die Verbindung verliert, faellt aus der Runde — sonst steht seine
+       Figur bis zum Ende unbeweglich in der Landschaft herum und blockiert
+       den Sieg. */
+    applyDamage(a, 9999, null);
+  } else if (a){
+    a.alive = false;
+  }
+  if (row) feed('<b>' + esc(row.name) + '</b> ' + esc(why || 'weg'));
+  refreshLobby();
+  broadcastLobby();
+}
+
+function broadcastLobby(){
+  const list = G.lobby.map(p=>({ id:p.id, name:p.name, char:p.char }));
+  broadcast({ t:'lobby', list, host:{ id:'host', name:myName, char:chosenChar } });
+  refreshLobby();
+}
+
 function onHostData(c, d){
+  if (!d || !d.t) return;
   if (d.t === 'join'){
     G.lobby = G.lobby.filter(p=>p.id !== c.peer);
-    G.lobby.push({ id:c.peer, name:d.name, char:d.char, kind:'remote' });
-    refreshLobby();
-    send(c, { t:'lobby', list:G.lobby });
-  } else if (d.t === 'state'){
-    const a = G.actors.find(x=>x.id === c.peer);
-    if (a && a.alive){
-      a.position.set(d.x, d.y, d.z); a.yaw = d.yaw; a.pitch = d.pitch; a.crouch = !!d.cr;
-      if (d.sh) a.lastShotAt = G.time;
-      if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
-      a.netBuf.push({ t: performance.now(), p: a.position.clone(), yaw: a.yaw });
-      if (a.netBuf.length > 8) a.netBuf.shift();
+    G.lobby.push({ id:c.peer, name:String(d.name||'Gast').slice(0,14),
+                   char:d.char, kind:'remote' });
+    broadcastLobby();
+    // Wer mitten in einer laufenden Runde kommt, wartet auf die naechste
+    if (G.phase === 'play' || G.phase === 'loading') send(c, { t:'wait' });
+    return;
+  }
+  if (d.t === 'ping'){ send(c, { t:'pong', s:d.s, h:G.time }); return; }
+
+  const a = G.actors.find(x=>x.id === c.peer);
+  if (d.t === 'state'){
+    if (!a) return;
+    /* Frueher stand hier `if (a && a.alive)`. Ein einziger verlorener
+       Lebenswert liess die Figur damit fuer immer stehenbleiben. Standorte
+       werden jetzt immer uebernommen, ueber Leben und Tod entscheidet
+       ohnehin der Host. */
+    if (typeof d.q === 'number'){
+      if (a.lastSeq !== undefined && d.q <= a.lastSeq) return;   // veraltet
+      a.lastSeq = d.q;
     }
-  } else if (d.t === 'hit'){
-    const src = G.actors.find(x=>x.id === c.peer);
+    pushNetSample(a, d.x, d.y, d.z, d.yaw);
+    a.pitch = d.pitch;
+    a.crouch = !!d.cr;
+    a.sprinting = !!d.sp;
+    a.climbT = (typeof d.cl === 'number') ? d.cl : 0;
+    a.airborne = !!d.ai;
+    a.dropping = !!d.dp;
+    if (d.sh) a.lastShotAt = G.time;
+    if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
+    return;
+  }
+  if (d.t === 'hit'){
     const tgt = G.actors.find(x=>x.id === d.target);
-    if (src && tgt) applyDamage(tgt, d.dmg, src, d.head);
+    if (!a || !tgt || !a.alive || !tgt.alive) return;
+    // Ueber die Bereichsgrenze hinweg gibt es keinen Schaden — weder von
+    // der Insel in die Arena noch umgekehrt
+    if (!sameRealm(a, tgt)) return;
+    // Schaden begrenzen: ein Treffer kann nie mehr als die staerkste Waffe
+    const dmg = Math.max(0, Math.min(+d.dmg || 0, 220));
+    applyDamage(tgt, dmg, a, !!d.head);
+    return;
+  }
+  if (d.t === 'take'){ grantPickup(d.nid, c.peer); return; }
+  if (d.t === 'melee'){
+    const tgt = G.actors.find(x=>x.id === d.target);
+    if (a && tgt && a.alive && tgt.alive && sameRealm(a, tgt))
+      applyDamage(tgt, Math.min(+d.dmg||0, 90), a, !!d.head);
+    return;
   }
 }
+
+/* ---------------------------------------------------------------- Gast --- */
 function joinGame(codeStr, onOk, onErr){
   G.isHost = false; G.isNet = true; G.code = codeStr;
-  G.peer = new Peer();
+  G.peer = new Peer(undefined, PEER_OPTS);
+  let settled = false;
   G.peer.on('open', ()=>{
+    G.myId = G.peer.id;
     const c = G.peer.connect(peerIdFor(codeStr), { reliable:true });
     G.hostConn = c;
-    c.on('open', ()=> onOk());
+    const failTimer = setTimeout(()=>{
+      if (!settled){ settled = true; onErr('Keine Antwort — Code pruefen'); }
+    }, 9000);
+    c.on('open', ()=>{ if (!settled){ settled = true; clearTimeout(failTimer); onOk(); } });
     c.on('data', onClientData);
-    c.on('error', e=> onErr('Verbindung abgebrochen'));
+    c.on('error', e=>{
+      console.warn(e);
+      if (!settled){ settled = true; clearTimeout(failTimer); onErr('Verbindung abgebrochen'); }
+    });
+    c.on('close', ()=> onHostLost());
   });
-  G.peer.on('error', e=> onErr('Kein Spiel unter diesem Code'));
+  G.peer.on('error', e=>{
+    console.warn('Peer-Fehler:', e && e.type, e);
+    if (!settled){ settled = true; onErr('Kein Spiel unter diesem Code'); }
+  });
 }
+
+function onHostLost(){
+  if (!G.isNet || G.isHost) return;
+  setNetWarn(null);
+  toast('Verbindung zum Host verloren');
+  if (G.phase === 'play' || G.phase === 'over'){
+    setTimeout(()=>{ returnToLobby(); }, 1200);
+  }
+}
+
 async function onClientData(d){
-  if (d.t === 'lobby'){ G.lobby = d.list; refreshLobby(); }
-  else if (d.t === 'start'){
+  if (!d || !d.t) return;
+  netLastRecv = performance.now();
+
+  if (d.t === 'welcome'){ G.myId = d.you || (G.peer && G.peer.id); return; }
+  if (d.t === 'pong'){
+    netPing = performance.now() - (netPingSent[d.s] || performance.now());
+    return;
+  }
+  if (d.t === 'wait'){
+    $('lobbyList').innerHTML = 'Eine Runde laeuft gerade — du bist bei der naechsten dabei.';
+    return;
+  }
+  if (d.t === 'lobby'){
+    G.lobby = (d.list||[]).slice();
+    G.netHost = d.host || null;
+    refreshLobby();
+    return;
+  }
+  if (d.t === 'start' || d.t === 'restart'){
     if (starting) return;
     if (d.map && MAP_SETS.some(m=>m.id === d.map)) mapSetId = d.map;   // Host gibt die Karte vor
     starting = true; setLobbyBusy(true);
-    try { await startFromRoster(d.roster, d.spawns, d.myId); }
+    try { await startFromRoster(d.roster, d.spawns, d.seed, d.drop); }
+    catch(e){ console.error(e); toast('Runde konnte nicht geladen werden'); returnToLobby(); }
     finally { starting = false; setLobbyBusy(false); }
-  } else if (d.t === 'snap'){
-    applySnapshot(d);
-  } else if (d.t === 'kill'){
+    return;
+  }
+  if (d.t === 'rb'){ if (d.m) rbApply(d.m); return; }
+  if (d.t === 'snap'){ applySnapshot(d); return; }
+  if (d.t === 'took'){
+    const p = findLoot(d.nid);
+    if (!p) return;
+    if (d.by === null || d.by === undefined){ p.pending = false; p.mesh.visible = true; return; }
+    applyPickup(p, G.actors.find(a=>a.id === d.by));
+    return;
+  }
+  if (d.t === 'drop'){
+    for (const it of (d.items||[])){
+      if (findLoot(it.nid)) continue;
+      spawnLoot(it.id, new THREE.Vector3(it.x, it.y, it.z), 0, it.nid);
+    }
+    return;
+  }
+  if (d.t === 'kill'){
     const v = G.actors.find(a=>a.id === d.victim);
     const b = G.actors.find(a=>a.id === d.by);
-    if (v){ v.alive = false; v.hp = 0; if (v.view) v.view.play('die', { once:true });
+    if (v){
+      v.alive = false; v.hp = 0;
+      if (v.view) v.view.play('die', { once:true });
+      setHandWeapon(v, null); v.weapon = null; v.slots = [null,null];
       feed(`<b>${esc(b?b.name:'Die Zone')}</b> ${d.head?'⌖':'✕'} ${esc(v.name)}`);
-      if (v === G.me) onLocalDeath(); }
-  } else if (d.t === 'end'){
-    endMatch(G.actors.find(a=>a.id === d.winner));
+      /* d.rb = 1 heisst: der Host schickt diese Figur in den Rebirth. Dann
+         kein Zuschauermodus und kein Ergebnisbildschirm — die passende
+         rb-Nachricht kommt gleich hinterher. */
+      if (v === G.me && !d.rb) onLocalDeath();
+    }
+    return;
+  }
+  if (d.t === 'end'){
+    endMatch(G.actors.find(a=>a.id === d.winner), d.place);
+    return;
   }
 }
+
+/* ------------------------------------------------- Puffer / Interpolation - */
+/** Einen Standort in den Puffer legen. Ein grosser Sprung (Rettung aus dem
+    Boden, Wiedereinstieg) wird hart gesetzt statt hingeglitten. */
+function pushNetSample(a, x, y, z, yaw){
+  const now = performance.now();
+  const p = new THREE.Vector3(x, y, z);
+  const last = a.netBuf.length ? a.netBuf[a.netBuf.length-1] : null;
+  if (last && last.p.distanceTo(p) > NET_SNAP_DIST){
+    a.netBuf.length = 0;
+    a.position.copy(p); a.yaw = yaw;
+  }
+  a.netBuf.push({ t: now, p, yaw });
+  if (a.netBuf.length > 14) a.netBuf.shift();
+}
+
+let snapSeq = 0;
 function snapshot(){
+  snapSeq++;
   return {
-    t:'snap', time:G.time,
+    t:'snap', q:snapSeq, time:G.time,
     storm: { cx:G.storm.cx, cz:G.storm.cz, r:G.storm.r, phase:G.storm.phase,
              state:G.storm.state, timer:G.storm.timer, dps:G.storm.dps },
     a: G.actors.map(a=>({
       i:a.id, x:+a.position.x.toFixed(2), y:+a.position.y.toFixed(2), z:+a.position.z.toFixed(2),
       w:+a.yaw.toFixed(3), p:+a.pitch.toFixed(3), h:Math.ceil(a.hp), s:Math.ceil(a.shield),
       l:a.alive?1:0, k:a.kills, f:(G.time - a.lastShotAt < 0.2)?1:0,
-      c:a.chuteOpen?1:0, dr:a.dropping?1:0, g:a.weapon || ''
+      c:a.chuteOpen?1:0, dr:a.dropping?1:0, cr:a.crouch?1:0,
+      sp:a.sprinting?1:0, cl:+(a.climbT||0).toFixed(2),
+      ai:(a.ctrl && !a.ctrl.grounded)?1:0,
+      rb:({ none:0, queued:1, arena:2, spent:3 })[a.rbState] || 0,
+      g:a.weapon || ''
     }))
   };
 }
+
+let lastSnapSeq = -1;
 function applySnapshot(s){
+  if (typeof s.q === 'number'){
+    if (s.q <= lastSnapSeq) return;              // veraltet, ueberholt worden
+    lastSnapSeq = s.q;
+  }
   Object.assign(G.storm, s.storm);
   applyStormMesh();
   for (const d of s.a){
     const a = G.actors.find(x=>x.id === d.i);
     if (!a) continue;
     if (a === G.me){                       // eigene Position bleibt lokal
-      a.hp = d.h; a.shield = d.s;
-      if (!d.l && a.alive){ a.alive = false; onLocalDeath(); }
+      a.hp = d.h; a.shield = d.s; a.kills = d.k;
+      /* Der Rebirth setzt einen wieder auf lebendig. Ohne diese Zeile
+         bliebe man beim Gast tot, obwohl der Host einen laengst
+         zurueckgeholt hat. */
+      if (d.l && !a.alive && a.rbState !== 'queued') a.alive = true;
+      if (!d.l && a.alive && d.rb !== 1){ a.alive = false; onLocalDeath(); }
       continue;
     }
     a.hp = d.h; a.shield = d.s; a.kills = d.k;
-    if (!d.l && a.alive){ a.alive = false; if (a.view) a.view.play('die', { once:true }); }
+    if (!d.l && a.alive){
+      a.alive = false;
+      if (a.view) a.view.play('die', { once:true });
+      setHandWeapon(a, null);
+    }
+    if (d.l && !a.alive){ a.alive = true; }     // Wiedereinstieg nach Neustart
+    // Wartende sind aus der Welt genommen und bleiben unsichtbar
+    if (a.view) a.view.obj.visible = (d.rb !== 1);
     a.pitch = d.p;
     a.dropping = !!d.dr;
+    a.crouch = !!d.cr;
+    a.sprinting = !!d.sp;
+    a.climbT = d.cl || 0;
+    a.airborne = !!d.ai;
     if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
     if (!!d.c !== !!a.chuteOpen) setActorChute(a, !!d.c);
     if (d.f){
       if (G.time - a.lastShotAt > 0.12) muzzleSpark(a);
       a.lastShotAt = G.time;
     }
-    a.netBuf.push({ t: performance.now(), p: new THREE.Vector3(d.x,d.y,d.z), yaw: d.w });
-    if (a.netBuf.length > 10) a.netBuf.shift();
+    pushNetSample(a, d.x, d.y, d.z, d.w);
   }
 }
-let netAcc = 0;
+
+/* ------------------------------------------------------------ Herzschlag - */
+let netAcc = 0, netStateSeq = 0;
+let netLastRecv = 0, netPing = 0;
+const netPingSent = {};
+let netPingSeq = 0, netPingAcc = 0, netWarnT = 0;
+
 function netTick(dt){
   if (!G.isNet) return;
+
+  // --- Verbindungspflege ---
+  netPingAcc += dt;
+  if (netPingAcc > 2){
+    netPingAcc = 0;
+    if (G.isHost){
+      const now = performance.now();
+      for (const c of G.conns.slice()){
+        if (now - (c.lastSeen||now) > NET_TIMEOUT*1000) dropConn(c, 'Verbindung abgerissen');
+      }
+    } else if (G.hostConn){
+      const sq = ++netPingSeq;
+      netPingSent[sq] = performance.now();
+      send(G.hostConn, { t:'ping', s:sq });
+    }
+  }
+  if (!G.isHost){
+    const quiet = (performance.now() - netLastRecv) / 1000;
+    netWarnT = quiet > 1.5 ? netWarnT + dt : 0;
+    setNetWarn(netWarnT > 0.5 ? 'Verbindung instabil' : null);
+  }
+
+  // --- Zustaende ---
   netAcc += dt;
   if (netAcc < 1/NET_HZ) return;
   netAcc = 0;
-  if (G.isHost) broadcast(snapshot());
-  else if (G.hostConn && G.me){
-    send(G.hostConn, { t:'state', x:+G.me.position.x.toFixed(2), y:+G.me.position.y.toFixed(2),
-      z:+G.me.position.z.toFixed(2), yaw:+G.me.yaw.toFixed(3), pitch:+G.me.pitch.toFixed(3),
-      cr:G.me.crouch, sh:(G.time - G.me.lastShotAt < 1/NET_HZ + 0.05) ? 1 : 0,
-      g:G.me.weapon || '' });
+  if (G.isHost){ broadcast(snapshot()); return; }
+  if (G.hostConn && G.me){
+    send(G.hostConn, {
+      t:'state', q:++netStateSeq,
+      x:+G.me.position.x.toFixed(2), y:+G.me.position.y.toFixed(2), z:+G.me.position.z.toFixed(2),
+      yaw:+G.me.yaw.toFixed(3), pitch:+G.me.pitch.toFixed(3),
+      cr:G.me.crouch ? 1 : 0,
+      sp:G.me.sprinting ? 1 : 0,
+      cl:+(G.me.climbT||0).toFixed(2),
+      ai:(G.me.ctrl && !G.me.ctrl.grounded) ? 1 : 0,
+      dp:G.me.dropping ? 1 : 0,
+      sh:(G.time - G.me.lastShotAt < 1/NET_HZ + 0.05) ? 1 : 0,
+      g:G.me.weapon || ''
+    });
   }
 }
 
@@ -4649,6 +6701,7 @@ const clock = new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt = Math.min(0.25, clock.getDelta());
+  updateRematch();
 
   if (G.phase === 'play' && !G.paused){
     G.accumulator += dt;
@@ -4670,6 +6723,8 @@ function loop(){
 
     netTick(dt);
     updateAds(dt);
+    updateRebirthUI(dt);
+    updateSpectate(dt);
     updateCamera();
     // Die Kuppel ist eine feste Grösse um den Betrachter — sie zieht mit
     if (G.sky) G.sky.dome.position.copy(camera.position);
@@ -4827,8 +6882,160 @@ function buildCharGrid(){
   });
 }
 
+/* ==========================================================================
+   30b — WAFFENKAMMER
+   Eine eigene kleine Szene mit einem einzigen Objekt darin. Links steht,
+   welche Waffe gerade gemeint ist, rechts blaettert man durch alle Teile
+   aus polygon_guns.glb, bis das richtige im Bild steht.
+   ========================================================================== */
+let armRenderer = null, armScene = null, armCam = null, armObj = null;
+let armWeapon = null;
+
+function initArmory(){
+  if (armRenderer) return;
+  const cv = $('armCv');
+  armRenderer = new THREE.WebGLRenderer({ canvas: cv, antialias:true, alpha:true });
+  armRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  armRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  armScene = new THREE.Scene();
+  armScene.add(new THREE.HemisphereLight(0xcfe4f0, 0x33302a, 2.3));
+  const k = new THREE.DirectionalLight(0xffffff, 1.7); k.position.set(2,3,3); armScene.add(k);
+  const f = new THREE.DirectionalLight(0xffffff, 0.6); f.position.set(-2,1,-2); armScene.add(f);
+  armCam = new THREE.PerspectiveCamera(32, 1, 0.01, 20);
+  const tick = ()=>{
+    requestAnimationFrame(tick);
+    if ($('armory').classList.contains('hidden')) return;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (w && h && (cv.width !== Math.round(w*armRenderer.getPixelRatio()) ||
+                   cv.height !== Math.round(h*armRenderer.getPixelRatio()))){
+      armRenderer.setSize(w, h, false);
+      armCam.aspect = w/h; frameArmory();
+    }
+    if (armObj) armObj.rotation.y += 0.012;
+    armRenderer.render(armScene, armCam);
+  };
+  tick();
+}
+
+function frameArmory(){
+  if (!armCam) return;
+  let L = 0.8, H = 0.3;
+  if (armObj){
+    armObj.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(armObj);
+    if (isFinite(b.min.x) && b.max.x > b.min.x){
+      L = Math.max(b.max.z - b.min.z, b.max.x - b.min.x);
+      H = Math.max(0.05, b.max.y - b.min.y);
+    }
+  }
+  const vFov = THREE.MathUtils.degToRad(armCam.fov);
+  const d = Math.max(H/2/Math.tan(vFov/2), L*0.62/Math.tan(vFov/2*armCam.aspect)) * 1.7 + 0.25;
+  armCam.position.set(d*0.55, d*0.35, d*0.8);
+  armCam.lookAt(0, 0, 0);
+  armCam.updateProjectionMatrix();
+}
+
+function buildArmoryList(){
+  const box = $('armList');
+  box.innerHTML = '';
+  for (const id in WEAPONS){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.w = id;
+    b.setAttribute('aria-pressed', id === armWeapon ? 'true' : 'false');
+    b.innerHTML = '<span>' + esc(WEAPONS[id].name) + '</span><small>' +
+                  esc(GUN_MAP[id] || 'kein Modell') + '</small>';
+    b.onclick = ()=> selectArmoryWeapon(id);
+    box.appendChild(b);
+  }
+}
+
+function selectArmoryWeapon(id){
+  armWeapon = id;
+  for (const el of $('armList').children)
+    el.setAttribute('aria-pressed', el.dataset.w === id ? 'true' : 'false');
+  showArmoryModel();
+}
+
+function showArmoryModel(){
+  if (!armWeapon) return;
+  if (armObj){ armScene.remove(armObj); armObj = null; }
+  const m = gunLib.buildOne(armWeapon);
+  if (m){
+    armObj = m;
+    armObj.castShadow = false;
+    armScene.add(armObj);
+  }
+  const name = GUN_MAP[armWeapon];
+  const part = (gunLib.parts||[]).find(p=>p.name === name);
+  $('armName').textContent = WEAPONS[armWeapon].name;
+  $('armInfo').textContent = name
+    ? `Modell ${name} · Rohlänge ${part ? part.len.toFixed(2) : '?'} · ` +
+      `im Spiel auf ${WEAPONS[armWeapon].len.toFixed(2)} m normiert` +
+      (GUN_OVERRIDE[armWeapon] ? ' · von Hand gesetzt' : ' · automatisch')
+    : 'Kein Modell gefunden — polygon_guns.glb prüfen.';
+  frameArmory();
+}
+
+/** Ein Teil weiter oder zurueck. Die Reihenfolge ist die der Laenge nach,
+    damit man nicht wild springt. */
+function cycleArmory(dir){
+  if (!armWeapon || !gunLib.parts || !gunLib.parts.length) return;
+  const names = gunLib.parts.map(p=>p.name);
+  let i = names.indexOf(GUN_MAP[armWeapon]);
+  if (i < 0) i = 0;
+  i = (i + dir + names.length) % names.length;
+  GUN_OVERRIDE[armWeapon] = names[i];
+  GUN_MAP[armWeapon] = names[i];
+  saveGunOverride();
+  gunLib.rebuild();
+  buildArmoryList();
+  for (const el of $('armList').children)
+    el.setAttribute('aria-pressed', el.dataset.w === armWeapon ? 'true' : 'false');
+  showArmoryModel();
+}
+
+function openArmory(){
+  initArmory();
+  if (!armWeapon) armWeapon = Object.keys(WEAPONS)[0];
+  buildArmoryList();
+  selectArmoryWeapon(armWeapon);
+  show('armory');
+}
+
+/* Ueber die Konsole geht es auch — praktisch, um schnell nachzusehen,
+   was ueberhaupt in der Datei steckt. */
+window.guns = {
+  list(){
+    const rows = (gunLib.parts||[]).map(p=>({
+      Modell:p.name, Laenge:+p.len.toFixed(3), Achse:'xyz'[p.axis], Punkte:p.verts,
+      zugeordnet:Object.keys(GUN_MAP).filter(id=>GUN_MAP[id]===p.name).join(', ')
+    }));
+    console.table(rows);
+    return rows.length + ' Teile in ' + GUNS_FILE;
+  },
+  set(id, meshName){
+    if (!WEAPONS[id]) return 'Unbekannte Waffe: ' + id;
+    GUN_OVERRIDE[id] = meshName; GUN_MAP[id] = meshName;
+    saveGunOverride(); gunLib.rebuild();
+    return id + ' -> ' + meshName;
+  },
+  auto(){
+    GUN_OVERRIDE = {}; saveGunOverride();
+    resolveGunMap(gunLib.parts||[]); gunLib.rebuild();
+    return 'Zuordnung wieder automatisch';
+  }
+};
+
 function refreshLobby(){
-  const rows = [{ id:'host', name: myName + ' (Host)', char: chosenChar }].concat(G.lobby);
+  /* Als Gast steht der Host nicht in G.lobby — seine Zeile kommt mit der
+     Lobby-Nachricht. Frueher hat sich hier jeder Gast selbst als "Host"
+     eingetragen und die anderen gar nicht gesehen. */
+  const rows = G.isHost
+    ? [{ id:'host', name: myName + ' (Host)', char: chosenChar }].concat(G.lobby)
+    : (G.netHost ? [{ id:'host', name: G.netHost.name + ' (Host)', char: G.netHost.char }] : [])
+        .concat(G.lobby.map(p=>({ id:p.id, name: p.id === G.myId ? p.name + ' (du)' : p.name, char:p.char })));
+  if (!rows.length){ $('lobbyList').innerHTML = 'Warten auf den Host…'; return; }
   $('lobbyList').innerHTML = rows.map(p=>`· ${esc(p.name)} — ${esc(String(p.char).replace(/_/g,' '))}`).join('<br>');
 }
 
@@ -4836,7 +7043,7 @@ function refreshLobby(){
    anstossen — sonst laufen zwei Ladevorgänge nebeneinander, der Balken springt
    zurück und am Ende steht die Welt doppelt in der Szene. */
 let starting = false;
-const LOBBY_BTNS = ['btPlay','btHost','btJoinS','btChar','btTest','btGear','btStart'];
+const LOBBY_BTNS = ['btPlay','btHost','btJoinS','btChar','btArm','btTest','btGear','btStart'];
 function setLobbyBusy(on){
   for (const id of LOBBY_BTNS){ const b = $(id); if (b) b.disabled = on; }
   $('menu').classList.toggle('busy', on);
@@ -4862,9 +7069,16 @@ async function beginMatch(){
   show('menu');
   setLoad(2, 'Karten werden geladen');
   G.phase = 'loading';
+  /* Der Startwert wird EINMAL gezogen und dann an alle verschickt. Ab hier
+     zieht jeder Rechner aus demselben Strom: gleiche Beute, gleiche Stellen,
+     gleiche Flugbahn. */
+  setMatchSeed((Math.random()*4294967295) >>> 0);
+  lootSeq = 0;
+  G.myId = 'host';
   await weaponModel.load();
   setLoad(3, 'Waffenkammer wird geöffnet');
   await gunLib.load();
+  await pickupLib.load();
   if (flow !== 'test'){ setLoad(5, 'Maschine wird betankt'); await loadDropAssets(); }
   await loadWorld(flow === 'test' ? 'test' : 'br');
   attachViewmodel(null);
@@ -4887,12 +7101,15 @@ async function beginMatch(){
     ? [new THREE.Vector3(0, 0.2, -2)]
     : G.spawnMgr.scatter(roster.length, mapSet().spawnR);
 
-  await setupMatch(roster, pts.map(p=>[p.x,p.y,p.z]));
+  /* Erst verschicken, dann selbst aufbauen: die Gaeste brauchen fuer Karte
+     und Figuren mehrere Sekunden, und in dieser Zeit soll der Host nicht
+     schon losrennen. */
   if (flow === 'host' && G.isNet){
-    broadcast({ t:'start', map: mapSetId,
+    broadcast({ t:'start', map: mapSetId, seed: matchSeed,
                 roster: roster.map(r=>({ id:r.id, name:r.name, char:r.char, kind:'x' })),
                 spawns: pts.map(p=>[p.x,p.y,p.z]) });
   }
+  await setupMatch(roster, pts.map(p=>[p.x,p.y,p.z]));
   setLoad(100, 'Los');
   G.phase = 'play';
   suppressPause = false;
@@ -4906,22 +7123,35 @@ async function beginMatch(){
 }
 
 /** Client: Aufstellung vom Host übernehmen. */
-async function startFromRoster(roster, spawns, myId){
+async function startFromRoster(roster, spawns, seed){
   resetMatchState();
   show('menu'); setLoad(4, 'Karten werden geladen');
   G.phase = 'loading';
+  // Denselben Startwert wie der Host setzen — das ist der Kern der Sache
+  setMatchSeed(seed || 1);
+  lootSeq = 0;
+  G.myId = (G.myId && G.myId !== 'host') ? G.myId : (G.peer ? G.peer.id : 'gast');
   await weaponModel.load();
+  setLoad(6, 'Waffenkammer wird geöffnet');
+  await gunLib.load();          // fehlte bisher: Gaeste sahen Ersatzmodelle
+  await pickupLib.load();
+  setLoad(8, 'Maschine wird betankt');
+  await loadDropAssets();
   await loadWorld('br');
   attachViewmodel(null);
   const list = roster.map(r=>({
     id:r.id, name:r.name, char:r.char,
-    kind: r.id === G.peer.id ? 'local' : (r.id.startsWith('bot') ? 'remote' : 'remote')
+    kind: (r.id === G.myId) ? 'local' : 'remote'
   }));
-  // Der eigene Eintrag: der Host kennt uns unter unserer Peer-ID
-  const meRow = list.find(r=>r.id === G.peer.id);
-  if (meRow) meRow.kind = 'local';
+  if (!list.some(r=>r.kind === 'local')){
+    // Sicherheitsnetz: ohne eigene Figur waere die Runde unspielbar
+    console.warn('Eigene Figur nicht im Aufgebot — Notfall-Eintrag', G.myId);
+    list.push({ id:G.myId, name:myName, char:chosenChar, kind:'local' });
+  }
+  setLoad(90, 'Figuren werden geladen');
   await setupMatch(list, spawns);
-  G.phase = 'play'; G.time = 0; clock.getDelta();
+  setLoad(100, 'Los');
+  G.phase = 'play'; suppressPause = false; G.time = 0; clock.getDelta();
   show(null); canvas.requestPointerLock();
 }
 
@@ -4934,6 +7164,15 @@ function resetMatchState(){
   G.paused = false;
   pauseOpen = false;
   suppressPause = false;
+  leaveSpectate();
+  cancelRematch();
+  lastSnapSeq = -1; snapSeq = 0; netStateSeq = 0;
+  lootSeq = 0;
+  G.rbQueue.length = 0; G.rbReturns.length = 0;
+  rbUI(null);
+  G.climbHint = null;
+  sprintFov = 0;
+  setNetWarn(null);
   $('pause').classList.add('hidden');
   showBoard(false);
   clearWorld();                       // Karte, Figuren, Beute, Sturm
@@ -4981,9 +7220,21 @@ function returnToLobby(){
 
 function onLocalDeath(){
   sfx.die();
+  attachViewmodel(null);
+  const place = G.actors.filter(a=>a.alive).length + 1;
+  if (G.me) G.me.placement = G.me.placement || place;
+
+  /* Solange noch jemand lebt, laeuft die Runde weiter und man schaut zu.
+     Der Ergebnisbildschirm kommt erst, wenn wirklich Schluss ist. */
+  if (G.mode === 'br' && G.phase === 'play' && spectateTargets().length){
+    setTimeout(()=>{
+      if (G.phase !== 'play') return;
+      enterSpectate();
+    }, 1500);
+    return;
+  }
   suppressPause = true;
   document.exitPointerLock();
-  const place = G.actors.filter(a=>a.alive).length + 1;
   setTimeout(()=>{
     if (G.phase !== 'play') return;
     endMatch(null, place);
@@ -4991,22 +7242,71 @@ function onLocalDeath(){
 }
 
 function endMatch(winner, place){
+  if (G.phase === 'over') return;
   G.phase = 'over';
   suppressPause = true;
   G.paused = false;
   pauseOpen = false;
+  leaveSpectate();
+  rbShutdown();
   $('pause').classList.add('hidden');
   showBoard(false);
   document.exitPointerLock();
   $('hud').classList.remove('on');
   const won = winner && winner === G.me;
-  $('resTitle').textContent = won ? 'Letzte Figur steht' : (G.mode === 'test' ? 'Test beendet' : 'Ausgeschieden');
+  const nobody = !winner;
+  $('resTitle').textContent = won ? 'Letzte Figur steht'
+    : (G.mode === 'test' ? 'Test beendet'
+    : (nobody ? 'Alle gefallen' : 'Ausgeschieden'));
   $('resTitle').style.color = won ? 'var(--amber)' : 'var(--bone)';
   const k = G.me ? G.me.kills : 0;
-  $('resSub').textContent = won
+  resultLine = won
     ? `${k} Ausschaltungen · Insel gehalten`
-    : `Platz ${place || (G.me?G.me.placement:'—')} von ${G.actors.length} · ${k} Ausschaltungen`;
+    : (nobody
+        ? `Niemand hat es überstanden · ${k} Ausschaltungen`
+        : `Platz ${place || (G.me?G.me.placement:'—')} von ${G.actors.length} · ${k} Ausschaltungen`);
+  $('resSub').textContent = resultLine;
   show('result');
+  scheduleRematch();
+}
+
+/* ---------- Dieselbe Karte noch einmal ----------
+   Nach jeder Runde wird automatisch wieder auf derselben Karte geladen —
+   mit neuem Startwert, also neuer Beute und neuer Flugbahn, aber demselben
+   Gelaende. Der Host gibt den Takt vor; die Gaeste folgen seiner Nachricht.
+   Wer nicht warten will, drueckt "Neue Runde"; wer aussteigen will,
+   "Zum Start" — beides bricht den Zaehler ab. */
+let resultLine = '';
+const REMATCH_DELAY = 9;
+function scheduleRematch(){
+  if (G.mode !== 'br'){ G.rematchAt = 0; return; }
+  if (G.isNet && !G.isHost){ G.rematchAt = -1; return; }   // wartet auf den Host
+  G.rematchAt = performance.now() + REMATCH_DELAY*1000;
+}
+function cancelRematch(){ G.rematchAt = 0; }
+
+function updateRematch(){
+  if (G.phase !== 'over') return;
+  if (G.rematchAt === -1){
+    $('resSub').textContent = resultLine + ' · Der Host startet gleich dieselbe Karte neu';
+    return;
+  }
+  if (!G.rematchAt) return;
+  const left = Math.ceil((G.rematchAt - performance.now())/1000);
+  if (left > 0){
+    $('resSub').textContent = resultLine + ` · ${mapSet().name} startet in ${left} s neu`;
+    return;
+  }
+  G.rematchAt = 0;
+  restartSameMap();
+}
+
+function restartSameMap(){
+  if (starting) return;
+  if (G.isNet && !G.isHost) return;
+  // mapSetId bleibt unangetastet — genau darum geht es
+  flow = G.isNet ? 'host' : (flow === 'test' ? 'test' : 'solo');
+  guardedStart();
 }
 
 const BOT_NAMES = ['Renz','Oda','Kimura','Vasquez','Brandt','Okoro','Lind','Petrov','Halvorsen',
@@ -5027,6 +7327,18 @@ function launch(kind){
 $('btPlay').onclick = ()=> launch('solo');
 $('btTest').onclick = ()=> launch('test');
 $('btChar').onclick = ()=>{ if (!starting) show('pick'); };
+$('btArm').onclick = ()=>{ if (!starting) openArmory(); };
+$('btArmDone').onclick = ()=> show('menu');
+$('btArmPrev').onclick = ()=> cycleArmory(-1);
+$('btArmNext').onclick = ()=> cycleArmory(1);
+$('btArmAuto').onclick = ()=>{
+  GUN_OVERRIDE = {}; saveGunOverride();
+  resolveGunMap(gunLib.parts || []);
+  gunLib.rebuild();
+  buildArmoryList();
+  if (armWeapon) selectArmoryWeapon(armWeapon);
+  toast('Zuordnung wieder automatisch');
+};
 $('btGear').onclick = ()=> openPause(true);
 $('btPlay').onmouseenter = ()=>{ if (AC) sfx.hover(); };
 $('botCount').oninput = e=>{
@@ -5041,9 +7353,12 @@ $('btHost').onclick = ()=>{
 $('btJoinS').onclick = ()=>{ if (starting) return; flow='client'; readName(); show('join'); };
 $('btJoinBack').onclick = ()=> show('menu');
 $('btLobbyBack').onclick = ()=>{ closeNet(); show('menu'); };
-$('btMenu').onclick = ()=> returnToLobby();
+$('btMenu').onclick = ()=>{ cancelRematch(); returnToLobby(); };
 $('btAgain').onclick = ()=>{
-  returnToLobby();
+  cancelRematch();
+  if (G.isNet && !G.isHost){ toast('Der Host startet die naechste Runde'); return; }
+  if (G.isNet){ restartSameMap(); return; }   // Verbindung bleibt bestehen
+  resetMatchState();
   launch(flow === 'test' ? 'test' : 'solo');
 };
 
@@ -5068,7 +7383,8 @@ $('btStart').onclick = ()=> guardedStart();
 
 /* ---- Start ---- */
 $('btResume').onclick = ()=> closePause();
-$('btQuit').onclick = ()=>{ pauseOpen = false; $('pause').classList.add('hidden'); returnToLobby(); };
+$('btQuit').onclick = ()=>{ pauseOpen = false; cancelRematch();
+  $('pause').classList.add('hidden'); returnToLobby(); };
 $('setVol').oninput = e=>{
   SETTINGS.volume = (+e.target.value)/100;
   $('setVolV').textContent = e.target.value;
@@ -5102,6 +7418,7 @@ document.addEventListener('fullscreenchange', ()=>{
 });
 
 loadSettings();
+loadGunOverride();
 syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
 if (SETTINGS.map && MAP_SETS.some(m=>m.id === SETTINGS.map)) mapSetId = SETTINGS.map;
