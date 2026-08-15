@@ -855,7 +855,7 @@ const phaseRadius = ph => ph.f * BR.islandRadius;
    Nahkampf- von Fernwaffen, ohne die Reichweite hart abzuschneiden. */
 const WEAPONS = {
   pistol: {
-    name:'Pistole', mesh:'Object_70', len:0.26, rarity:'common', weight:5,
+    name:'Pistole', mesh:'Object_73', len:0.26, rarity:'common', weight:5,
     dmg:21, rpm:360, mag:15, reserve:90, reload:1.3, auto:false, headMul:1.9,
     range:90, falloff:[35,80,0.65],
     spreadBase:0.0013, bloom:0.0090, spreadMax:0.036,
@@ -863,7 +863,7 @@ const WEAPONS = {
     recoilPitch:0.0100, recoilYaw:0.0026
   },
   revolver: {
-    name:'Revolver', mesh:'Object_61', len:0.31, rarity:'rare', weight:3,
+    name:'Revolver', mesh:'Object_71', len:0.31, rarity:'rare', weight:3,
     dmg:48, rpm:140, mag:6, reserve:42, reload:2.2, auto:false, headMul:2.0,
     range:100, falloff:[45,95,0.70],
     spreadBase:0.0011, bloom:0.0120, spreadMax:0.040,
@@ -871,7 +871,7 @@ const WEAPONS = {
     recoilPitch:0.0200, recoilYaw:0.0040
   },
   smg: {
-    name:'MP', mesh:'Object_63', len:0.46, rarity:'common', weight:5,
+    name:'MP', mesh:'Object_61', len:0.46, rarity:'common', weight:5,
     dmg:12, rpm:900, mag:32, reserve:190, reload:1.8, auto:true, headMul:1.50,
     range:70, falloff:[18,55,0.45],
     spreadBase:0.0022, bloom:0.0120, spreadMax:0.058,
@@ -879,7 +879,7 @@ const WEAPONS = {
     recoilPitch:0.0055, recoilYaw:0.0020
   },
   pdw: {
-    name:'PDW', mesh:'Object_65', len:0.56, rarity:'common', weight:4,
+    name:'PDW', mesh:'Object_63', len:0.56, rarity:'common', weight:4,
     dmg:15, rpm:750, mag:25, reserve:150, reload:1.9, auto:true, headMul:1.55,
     range:85, falloff:[24,65,0.55],
     spreadBase:0.0019, bloom:0.0110, spreadMax:0.050,
@@ -887,7 +887,7 @@ const WEAPONS = {
     recoilPitch:0.0060, recoilYaw:0.0021
   },
   ar: {
-    name:'Sturmgewehr', mesh:'Object_68', len:0.86, rarity:'rare', weight:3,
+    name:'Sturmgewehr', mesh:'Object_69', len:0.86, rarity:'rare', weight:3,
     dmg:19, rpm:560, mag:30, reserve:180, reload:2.2, auto:true, headMul:1.70,
     range:130, falloff:[55,120,0.70],
     spreadBase:0.0014, bloom:0.0095, spreadMax:0.045,
@@ -895,15 +895,15 @@ const WEAPONS = {
     recoilPitch:0.0070, recoilYaw:0.0022
   },
   shotgun: {
-    name:'Schrotflinte', mesh:'Object_81', len:0.82, rarity:'rare', weight:3,
+    name:'Schrotflinte', mesh:'Object_62', len:0.82, rarity:'rare', weight:3,
     dmg:11, pellets:8, rpm:75, mag:6, reserve:36, reload:2.8, auto:false, headMul:1.30,
     range:45, falloff:[8,32,0.25],
-    spreadBase:0.0300, bloom:0.0040, spreadMax:0.046,
+    spreadBase:0.0400, bloom:0.0045, spreadMax:0.058,
     moveSpread:0.006, airSpread:0.014, crouchMul:0.75,
     recoilPitch:0.0230, recoilYaw:0.0038
   },
   lmg: {
-    name:'MG', mesh:'Object_62', len:1.02, rarity:'epic', weight:1,
+    name:'MG', mesh:'Object_75', len:1.02, rarity:'epic', weight:1,
     dmg:16, rpm:700, mag:60, reserve:240, reload:4.2, auto:true, headMul:1.50,
     range:120, falloff:[45,110,0.65],
     spreadBase:0.0035, bloom:0.0100, spreadMax:0.062,
@@ -911,7 +911,7 @@ const WEAPONS = {
     recoilPitch:0.0075, recoilYaw:0.0030
   },
   dmr: {
-    name:'Marksman', mesh:'Object_72', len:1.05, rarity:'rare', weight:2,
+    name:'Marksman', mesh:'Object_81', len:1.05, rarity:'rare', weight:2,
     dmg:40, rpm:190, mag:12, reserve:72, reload:2.4, auto:false, headMul:2.0,
     range:180, falloff:[90,180,0.85],
     spreadBase:0.0009, bloom:0.0140, spreadMax:0.050,
@@ -2551,94 +2551,92 @@ class WeaponModel {
    gedreht, dass die Mündung auf -Z zeigt.
    ========================================================================== */
 /* ==========================================================================
-   10b0 — WAFFEN AUS DER SAMMELDATEI ZUORDNEN
+   10b0 — WAFFEN AUS DER SAMMELDATEI
 
-   polygon_guns.glb enthaelt alle Waffen nebeneinander, benannt als
-   Object_61, Object_63 ... — die Nummern sagen nichts ueber den Inhalt.
-   Die fest eingetragenen Namen in WEAPONS.mesh waren geraten und sassen
-   daneben: die "Schrotflinte" war ein MG, der "Revolver" eine MP.
+   polygon_guns.glb enthaelt 81 Objekte mit nichtssagenden Namen
+   (Object_2 … Object_82). Darunter sind 20 echte Waffen, aber auch
+   Munitionskisten, eine Rakete, Staender und Kleinteile.
 
-   Statt weiter zu raten wird jetzt gemessen und der Groesse nach zugeordnet:
-   das kuerzeste Teil wird die Pistole, das laengste das Scharfschuetzen-
-   gewehr, dazwischen in der Reihenfolge der Ziellaengen aus WEAPONS.len.
-   Damit stimmen die Groessenverhaeltnisse in jedem Fall.
+   Zwei Anlaeufe sind vorher schiefgegangen, und beide aus demselben Grund:
+   es wurde geraten. Erst waren die Namen von Hand eingetippt (die
+   "Schrotflinte" war in Wahrheit ein Marksman-Gewehr, der "Revolver" eine
+   MP), dann habe ich der Groesse nach sortiert — womit gelegentlich eine
+   Munitionskiste in der Hand landete.
 
-   Zwei Waffen aehnlicher Laenge koennen dabei die Plaetze tauschen (eine
-   Schrotflinte ist ungefaehr so lang wie ein Sturmgewehr). Das faellt im
-   Spiel kaum auf, solange nichts verkehrt herum in der Hand liegt — und
-   genau dafuer sorgt die einheitliche Ausrichtung weiter unten.
+   Diese Liste ist nachgesehen. Die Datei wurde entpackt (Draco), jedes
+   Objekt von der Seite gerendert und die Silhouetten verglichen:
+
+     Object_73  Selbstladepistole          -> pistol
+     Object_71  Revolver, kurzer Lauf      -> revolver
+     Object_61  Maschinenpistole, kompakt  -> smg
+     Object_63  P90-Bauart, Magazin oben   -> pdw
+     Object_69  Sturmgewehr mit Schaft     -> ar
+     Object_62  Vorderschaftrepetierer     -> shotgun
+     Object_75  leichtes MG, Kastenmagazin -> lmg
+     Object_81  Selbstladebuechse, Zielfernrohr -> dmr
+     Object_77  Scharfschuetzengewehr, lang     -> sniper
+
+   Zur Einordnung, was frueher in der Hand lag: Object_9 ist ein Stapel
+   Munition, Object_2 eine Panzerfaustrakete, Object_76 ein zerlegter
+   Bausatz. Genau die sollen nie wieder auftauchen.
    ========================================================================== */
 const GUN_MAP = {};                 // Waffenkuerzel -> Meshname
 
-/* Ein frueherer Stand hat die Zuordnung im Browser gespeichert und von Hand
-   setzen lassen. Das ist raus — die Zuordnung entsteht jetzt beim Laden.
-   Alte Eintraege werden einmal weggeraeumt, sonst wuerde eine gespeicherte
-   Fehlzuordnung ewig weiterleben. */
+/* Ein frueherer Stand hat eine Zuordnung im Browser gespeichert und von
+   Hand setzen lassen. Das ist raus. Alte Eintraege werden einmal
+   weggeraeumt, sonst wuerde eine gespeicherte Fehlzuordnung ewig
+   weiterleben. */
 try { localStorage.removeItem('holdout.gunmesh'); } catch(e){}
 
-/** Ein Mesh vermessen: Ausdehnung je Achse und Punktzahl. Welche Achse
-    "vorne" ist, wird NICHT je Mesh entschieden — siehe gunAxisOf(). */
+/** Ein Mesh vermessen. Alle Waffen der Datei liegen entlang Z, mit der
+    Muendung auf +Z — deshalb ist die Laenge schlicht die Z-Ausdehnung. */
 function measureGunMesh(src){
   const g = src.geometry;
   const pos = g.attributes && g.attributes.position;
   if (!pos || pos.count < 12) return null;
-
   const geo = g.clone();
   geo.applyMatrix4(src.matrixWorld);
   geo.computeBoundingBox();
   const bb = geo.boundingBox;
   const size = bb.getSize(new THREE.Vector3());
   geo.dispose();
-  const dims = [size.x, size.y, size.z];
-  let axis = 0;
-  if (dims[1] > dims[axis]) axis = 1;
-  if (dims[2] > dims[axis]) axis = 2;
-  if (dims[axis] < 0.02) return null;
-
-  return { size, dims, longAxis: axis, verts: pos.count };
+  if (size.z < 0.02) return null;
+  return { size, len: size.z, verts: pos.count };
 }
 
-/* Die Sammeldatei ist aus einem Guss: alle Waffen liegen darin gleich
-   ausgerichtet. Genau das war der Fehler im letzten Versuch — dort wurde
-   je Modell einzeln entschieden, welche Achse nach vorne zeigt, und bei
-   fast quadratischen Teilen fiel die Entscheidung falsch aus. Ergebnis:
-   ein Teil der Waffen wurde verkehrt herum getragen.
-
-   Jetzt wird EINMAL fuer die ganze Datei abgestimmt: welche Achse ist bei
-   den meisten Modellen die laengste? Diese Achse gilt dann fuer alle. */
-let GUN_AXIS = 2;                 // 0 = X, 1 = Y, 2 = Z (Vorgabe wie bisher)
-
-function decideGunAxis(parts){
-  const votes = [0,0,0];
-  for (const p of parts) votes[p.longAxis]++;
-  let a = 2;                       // bei Gleichstand bleibt es bei Z
-  if (votes[0] > votes[a]) a = 0;
-  if (votes[1] > votes[a]) a = 1;
-  GUN_AXIS = a;
-}
-
-/** Laenge eines Teils entlang der fuer die Datei gueltigen Achse. */
-const gunLength = p => p.dims[GUN_AXIS];
-
-/** GUN_MAP fuellen: der Groesse nach, kurze Waffe auf kurzes Teil.
-    Damit ist eine Pistole nie ein MG und ein Revolver nie eine MP. */
+/** GUN_MAP fuellen. Regelfall: der Name aus WEAPONS.mesh, der oben
+    nachgesehen ist. Nur falls eine Datei ohne diesen Namen geladen wird
+    (anderer Waffensatz), springt die Sortierung nach Laenge ein — dann
+    stimmt wenigstens das Groessenverhaeltnis. */
 function resolveGunMap(parts){
   for (const id in WEAPONS) delete GUN_MAP[id];
   if (!parts || !parts.length) return;
+  const have = new Set(parts.map(p=>p.name));
 
-  /* Nur Teile, die ueberhaupt wie eine Waffe aussehen: laenglich entlang
-     der Dateiachse und nicht bloss ein Splitter. Sonst landet ein
-     Magazindeckel als "Pistole" in der Hand. */
-  let cand = parts.filter(p =>
-    p.longAxis === GUN_AXIS && p.verts >= 40 && gunLength(p) > 0.05);
-  if (cand.length < Object.keys(WEAPONS).length) cand = parts.slice();
-  cand.sort((a,b)=> gunLength(a) - gunLength(b));
+  const missing = [];
+  for (const id in WEAPONS){
+    const want = WEAPONS[id].mesh;
+    if (want && have.has(want)) GUN_MAP[id] = want;
+    else missing.push(id);
+  }
+  if (!missing.length) return;
 
-  const ids = Object.keys(WEAPONS).sort((a,b)=> WEAPONS[a].len - WEAPONS[b].len);
-  for (let i = 0; i < ids.length; i++){
-    const k = ids.length === 1 ? 0
-      : Math.round(i * (cand.length - 1) / (ids.length - 1));
-    GUN_MAP[ids[i]] = cand[clamp(k, 0, cand.length-1)].name;
+  console.warn('Waffenmodelle nicht in der Datei:', missing.join(', '),
+               '— es wird nach Laenge zugeordnet.');
+  /* Nur Teile, die ueberhaupt wie eine Waffe aussehen: laenglich, genug
+     Geometrie, nicht schon vergeben. Sonst landet eine Munitionskiste in
+     der Hand. */
+  const used = new Set(Object.values(GUN_MAP));
+  const cand = parts
+    .filter(p => !used.has(p.name) && p.verts >= 1000 &&
+                 p.len >= 0.25 && p.len / Math.max(p.size.x, p.size.y) > 1.8)
+    .sort((a,b)=> a.len - b.len);
+  if (!cand.length) return;
+  missing.sort((a,b)=> WEAPONS[a].len - WEAPONS[b].len);
+  for (let i = 0; i < missing.length; i++){
+    const k = missing.length === 1 ? 0
+      : Math.round(i * (cand.length - 1) / (missing.length - 1));
+    GUN_MAP[missing[i]] = cand[clamp(k, 0, cand.length-1)].name;
   }
 }
 
@@ -2665,8 +2663,7 @@ class WeaponLibrary {
       const info = measureGunMesh(by[name]);
       if (info) this.parts.push(Object.assign({ name }, info));
     }
-    decideGunAxis(this.parts);                 // einmal fuer die ganze Datei
-    this.parts.sort((a,b)=> gunLength(a) - gunLength(b));
+    this.parts.sort((a,b)=> a.len - b.len);
     resolveGunMap(this.parts);
 
     for (const id in WEAPONS){
@@ -2694,16 +2691,15 @@ class WeaponLibrary {
     const ctr = bb.getCenter(new THREE.Vector3());
     geo.translate(-ctr.x, -ctr.y, -ctr.z);
 
-    /* Ausrichtung: fuer ALLE Teile gleich, nach der einmal bestimmten
-       Dateiachse. Die Modelle liegen mit der Muendung auf +Achse, gebraucht
-       wird -Z. Nichts wird je Modell einzeln entschieden — genau daran ist
-       der letzte Versuch gescheitert. */
-    if (GUN_AXIS === 0)      geo.rotateY(Math.PI/2);       // +X -> -Z
-    else if (GUN_AXIS === 1){ geo.rotateX(Math.PI/2); geo.rotateY(Math.PI); }
-    else                     geo.rotateY(Math.PI);         // +Z -> -Z
-
-    const k = W.len / Math.max(0.01, gunLength(info));
+    /* Groesse und Ausrichtung genau wie im urspruenglichen Stand: die
+       Laenge ist die Z-Ausdehnung, die Muendung liegt auf +Z und wird auf
+       -Z gedreht. Dazwischen hatte ich je Modell eine Achse erraten — das
+       hat einige Waffen verkehrt herum und in falscher Groesse in die Hand
+       gelegt. Alle Waffen dieser Datei liegen gleich, es gibt nichts zu
+       erraten. */
+    const k = W.len / Math.max(0.01, info.len);
     geo.scale(k, k, k);
+    geo.rotateY(Math.PI);
     geo.computeVertexNormals();
 
     /* Texturen des Modells unveraendert uebernehmen — nur den Farbraum
@@ -3847,13 +3843,38 @@ function buildRebirthArena(id){
   add(box(T, H, S), matWall, -S/2 - T/2, H/2, 0, 'arena_wall_w');
   add(box(T, H, S), matWall,  S/2 + T/2, H/2, 0, 'arena_wall_e');
 
-  /* Fuenf Deckungen, punktsymmetrisch — keiner der beiden steht besser. */
-  const c = S*0.22;
-  add(box(2.6, 1.9, 2.6), matBox, -c, 0.95, -c, 'arena_cover_1');
-  add(box(2.6, 1.9, 2.6), matBox,  c, 0.95, -c, 'arena_cover_2');
-  add(box(2.6, 1.9, 2.6), matBox, -c, 0.95,  c, 'arena_cover_3');
-  add(box(2.6, 1.9, 2.6), matBox,  c, 0.95,  c, 'arena_cover_4');
-  add(box(4.0, 1.4, 1.4), matBox,  0, 0.70,  0, 'arena_cover_mid');
+  /* Deckung. Punktsymmetrisch aufgebaut: was die eine Seite hat, hat die
+     andere auch, nur gespiegelt. Drei Hoehen, damit es etwas zu entscheiden
+     gibt — hohe Bloecke decken im Stehen, mittlere zwingen zum Ducken, die
+     flachen lassen sich uebersteigen und taugen als Absatz.
+
+     `mirror` legt jedes Stueck zweimal an, einmal je Haelfte. Beim
+     mittleren Riegel entfaellt das, der steht ohnehin auf der Achse. */
+  const mirror = (w,h,d, x,z, name)=>{
+    add(box(w,h,d), matBox,  x, h/2,  z, name+'_a');
+    add(box(w,h,d), matBox, -x, h/2, -z, name+'_b');
+  };
+
+  /* Zwanzig Bloecke, paarweise punktsymmetrisch: was die eine Seite hat,
+     hat die andere gespiegelt. Vier Hoehen, damit es etwas zu entscheiden
+     gibt — 2.6 m Pfeiler decken vollstaendig, 2.1 m Bloecke auch im Stehen,
+     1.1–1.3 m Riegel nur im Ducken, und die 0.7 m Kisten lassen sich
+     uebersteigen oder als Absatz zum Hochziehen nutzen.
+
+     Die Masse sind gegengerechnet: nichts ueberschneidet sich, nichts ragt
+     in die Aussenwand, um beide Startpunkte bleibt 1.2 m frei, und im
+     Streifen um die Mittelachse steht nichts — dort faehrt die Trennwand
+     in den Boden. */
+  mirror(2.6, 2.1, 2.6,   6.8,  7.6, 'arena_high');    // Kern-Deckung
+  mirror(2.6, 2.1, 2.6,  -6.8,  7.6, 'arena_high2');
+  mirror(1.2, 2.6, 1.2,  13.2, 12.6, 'arena_pillar');  // Ecken zum Umlaufen
+  mirror(1.2, 2.6, 1.2, -13.2, 12.6, 'arena_pillar2');
+  mirror(6.4, 1.1, 1.0,   4.6,  3.4, 'arena_bar');     // erste Deckung nach dem Startsignal
+  mirror(6.4, 1.1, 1.0,  -4.6,  3.4, 'arena_bar2');
+  mirror(1.6, 0.7, 1.6,  10.6,  4.6, 'arena_crate');   // uebersteigbar
+  mirror(1.6, 0.7, 1.6,  -3.2, 10.4, 'arena_crate2');
+  mirror(1.0, 2.3, 4.4,   9.6, 10.4, 'arena_slab');    // bricht die lange Sichtachse
+  mirror(4.6, 1.3, 1.2,  11.8,  2.2, 'arena_ledge');   // Absatz an der Flanke
 
   // Zwei Markierungen auf dem Boden, damit man sofort sieht, wo man steht
   for (const zz of [-S*0.38, S*0.38]){
@@ -4308,6 +4329,12 @@ function rayCapsule(origin, dir, a, b, r, maxDist){
   return { t: Math.max(0, t), point: _o1.clone() };
 }
 
+/** Eine Leuchtspur je Kugel. Bei einläufigen Waffen ist das genau eine,
+    bei Schrot faechert sich der Schuss sichtbar auf. */
+function drawPellets(from, ends){
+  for (const p of ends) tracer(from, p.end);
+}
+
 function fire(actor){
   if (actor.dropping) return;
   const W = WEAPONS[actor.weapon];
@@ -4329,6 +4356,10 @@ function fire(actor){
   const pellets = W.pellets || 1;
   const tally = new Map();
   let bestT = W.range, hitActor = null, head = false, hitPoint = null;
+  /* Jede einzelne Kugel merkt sich ihr Ende. Bisher wurde nur eine Spur
+     gezeichnet — aus der Schrotflinte kam sichtbar ein einziger Schuss,
+     obwohl acht Kugeln unterwegs waren. */
+  const pelletEnds = [];
 
   for (let s = 0; s < pellets; s++){
     if (s > 0){ aimDir(actor.yaw, actor.pitch, _rd); spreadDir(_rd, currentSpread(actor), _rd); }
@@ -4357,16 +4388,20 @@ function fire(actor){
       if (t < e.t){ e.t = t; e.pt = pt; }
       tally.set(who, e);
     }
+    pelletEnds.push({
+      end: new THREE.Vector3().copy(_ro).addScaledVector(_rd, t),
+      wall: who ? null : pt
+    });
     if (s === 0 || t < bestT){ bestT = t; hitPoint = pt; }
     if (who && (!hitActor || t < bestT + 1e-6)){ hitActor = who; head = hd; }
   }
 
   const end = _trB.copy(_ro).addScaledVector(_rd, bestT);
   if (actor === G.me){
-    tracer(muzzlePoint(_trA), end);
+    drawPellets(muzzlePoint(_trA), pelletEnds);
     vmState.flash = 0.05;
     recoil(W);
-    sfx.shot();
+    sfx.shot(actor.weapon);
     if (tally.size){
       let killed = false, anyHead = false;
       for (const [o, e] of tally){
@@ -4376,13 +4411,25 @@ function fire(actor){
       }
       showHitmark(killed ? 'kill' : (anyHead ? 'head' : 'body'));
     }
-    else if (hitPoint) impact(hitPoint);
+    else {
+      // Einschlaege aller Kugeln, aber gedeckelt — acht Funkenwolken auf
+      // einmal kosten mehr, als sie zeigen
+      let n = 0;
+      for (const p of pelletEnds){ if (p.wall && n++ < 4) impact(p.wall); }
+      if (!n && hitPoint) impact(hitPoint);
+    }
   } else if (actor.kind === 'bot' && G.isHost){
     for (const [o, e] of tally) applyDamage(o, e.dmg*0.75, actor, e.head);
     if (G.me){
       const d = actor.position.distanceTo(G.me.position);
-      if (d < 200){ tracer(actorMuzzle(actor, _trA), end); muzzleSpark(actor); }
-      if (d < 55) sfx.shotFar();
+      if (d < 200){ drawPellets(actorMuzzle(actor, _trA), pelletEnds); muzzleSpark(actor); }
+      /* Entfernte Schuetzen sind leiser und dumpfer. Bis 30 m hoert man den
+         Knall, danach nur noch das Grollen — bei 150 m gar nichts mehr. */
+      if (d < 150){
+        const att = clamp(1 - d/150, 0, 1);
+        if (d < 30) sfx.shot(actor.weapon, att*att*0.75);
+        else sfx.shotFar(actor.weapon, att*att);
+      }
     }
   }
   if (actor.view) actor.view.play('shoot', { once:true, fade:0.05 });
@@ -5054,7 +5101,8 @@ function botThink(bot, dt){
       wx = Math.cos(a); wz = Math.sin(a);
       bot.yaw = Math.atan2(-wx, -wz);
     }
-    if (bot.rbFreeze){ wx = 0; wz = 0; }
+    // Hinter der Trennwand hilft Suchen nichts — dort wird nur umgestellt
+    if (bot.rbFreeze && Math.random() < 0.02) bot.wanderAng = Math.random()*Math.PI*2;
     const l0 = Math.hypot(wx,wz) || 1;
     bot.wish.set(wx/l0*speed, 0, wz/l0*speed);
     bot.jump = false;
@@ -5136,9 +5184,112 @@ function blip(type, f0, f1, dur, vol){
     o.connect(g); g.connect(masterGain || c.destination); o.start(t); o.stop(t+dur+0.02);
   }catch(e){}
 }
+/* Ein Schuss ist zum groessten Teil Rauschen, kein Ton. Mit reinen
+   Oszillatoren klingt jede Waffe deshalb gleich — nach Pieps. Hier kommt
+   ein Rauschpuffer dazu, der durch ein wanderndes Filter laeuft: hohe
+   Frequenzen fuer den Knall, tiefe fuer den Nachhall. Der Puffer wird
+   einmal erzeugt und danach nur noch abgespielt. */
+let _noiseBuf = null;
+function noiseBuffer(){
+  const c = ac();
+  if (_noiseBuf && _noiseBuf.sampleRate === c.sampleRate) return _noiseBuf;
+  const n = Math.floor(c.sampleRate * 0.8);
+  _noiseBuf = c.createBuffer(1, n, c.sampleRate);
+  const d = _noiseBuf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random()*2 - 1;
+  return _noiseBuf;
+}
+
+/** Gefiltertes Rauschen. `f0`/`f1` ist der Weg des Filters waehrend des
+    Klangs — von hell nach dunkel klingt nach Knall, umgekehrt nach Zischen. */
+function nburst(f0, f1, dur, vol, opts){
+  try{
+    const c = ac(), t = c.currentTime;
+    const o = opts || {};
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer();
+    src.playbackRate.value = o.rate || 1;
+    const flt = c.createBiquadFilter();
+    flt.type = o.type || 'lowpass';
+    flt.frequency.setValueAtTime(Math.max(40, f0), t);
+    flt.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+    flt.Q.value = o.q ?? 0.9;
+    const g = c.createGain();
+    const atk = o.attack ?? 0.002;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + atk);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(flt); flt.connect(g); g.connect(masterGain || c.destination);
+    const off = o.offset ?? Math.random()*0.4;
+    src.start(t, off, dur + 0.05);
+    src.stop(t + dur + 0.06);
+  }catch(e){}
+}
+
+/* Jede Waffe hat ihren eigenen Klang. Die Zahlen beschreiben, was man
+   hoert: `crack` ist der Knall (Dauer und Helligkeit), `body` der Druck im
+   Bauch, `tail` das Nachhallen. Eine MP knallt kurz und hell, eine
+   Schrotflinte dumpf und lang, ein Scharfschuetzengewehr peitscht und
+   hallt am laengsten nach. */
+const GUN_SFX = {
+  pistol:   { vol:0.17, crack:0.060, hi:3400, lo: 820, body:190, tail:0.13, tv:0.05 },
+  revolver: { vol:0.26, crack:0.085, hi:2700, lo: 480, body:118, tail:0.30, tv:0.09 },
+  smg:      { vol:0.13, crack:0.042, hi:3900, lo:1150, body:225, tail:0.07, tv:0.035 },
+  pdw:      { vol:0.14, crack:0.048, hi:3500, lo:1020, body:210, tail:0.08, tv:0.04 },
+  ar:       { vol:0.19, crack:0.068, hi:3100, lo: 700, body:155, tail:0.17, tv:0.06 },
+  shotgun:  { vol:0.30, crack:0.130, hi:1900, lo: 250, body: 88, tail:0.40, tv:0.12 },
+  lmg:      { vol:0.22, crack:0.078, hi:2700, lo: 580, body:125, tail:0.21, tv:0.075 },
+  dmr:      { vol:0.24, crack:0.090, hi:3500, lo: 620, body:135, tail:0.28, tv:0.085 },
+  sniper:   { vol:0.31, crack:0.115, hi:4000, lo: 400, body: 98, tail:0.46, tv:0.11 }
+};
+const GUN_SFX_DEFAULT = GUN_SFX.ar;
+
 const sfx = {
-  shot(){ blip('square', 780, 160, 0.08, 0.10); blip('sawtooth', 240, 60, 0.11, 0.06); },
-  shotFar(){ blip('square', 380, 120, 0.09, 0.03); },
+  /** Schuss einer bestimmten Waffe. `att` daempft fuer entfernte Schuetzen. */
+  shot(id, att){
+    const p = GUN_SFX[id] || GUN_SFX_DEFAULT;
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    const jit = 0.94 + Math.random()*0.12;         // kein Schuss klingt wie der andere
+    nburst(p.hi*jit, p.lo, p.crack, p.vol*a, { q:0.7 });
+    blip('triangle', p.body*jit, p.body*0.34, p.crack*1.5, p.vol*0.55*a);
+    blip('sine', p.body*0.55, p.body*0.28, p.crack*2.2, p.vol*0.30*a);
+    if (p.tail > 0.05) nburst(900, 160, p.tail, p.tv*a, { attack:0.02, q:0.5 });
+  },
+  /** Schuss aus der Ferne: nur noch der dumpfe Rest. */
+  shotFar(id, att){
+    const p = GUN_SFX[id] || GUN_SFX_DEFAULT;
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    nburst(p.lo*1.4, 140, p.crack*1.8, p.vol*0.30*a, { q:0.5 });
+    nburst(420, 110, p.tail*1.3, p.tv*0.9*a, { attack:0.03, q:0.4 });
+  },
+  /* ---- Schritte. Bewusst leise und kurz; sie sollen Richtung verraten,
+     nicht den Kampf uebertoenen. Geduckt wird gar nichts gespielt. ---- */
+  stepWalk(att){
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    nburst(760 + Math.random()*260, 210, 0.055, 0.052*a, { q:0.6, rate:0.9+Math.random()*0.25 });
+  },
+  stepRun(att){
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    nburst(1250 + Math.random()*380, 260, 0.070, 0.095*a, { q:0.7, rate:0.9+Math.random()*0.3 });
+    blip('sine', 120, 62, 0.055, 0.030*a);
+  },
+  jump(att){
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    nburst(1500, 520, 0.075, 0.045*a, { type:'highpass', q:0.5 });
+    blip('sine', 205, 320, 0.085, 0.030*a);
+  },
+  land(force, att){
+    const a = att ?? 1;
+    if (a <= 0.02) return;
+    const f = clamp(force, 0, 1);
+    nburst(640 + f*500, 130, 0.10 + f*0.09, (0.070 + f*0.085)*a, { q:0.7 });
+    blip('sine', 108 + f*35, 48, 0.13 + f*0.08, (0.045 + f*0.055)*a);
+  },
   hit(){ blip('triangle', 1400, 900, 0.05, 0.09); },
   hitHead(){ blip('triangle', 2000, 1250, 0.06, 0.11); blip('sine', 900, 700, 0.05, 0.05); },
   kill(){ blip('square', 900, 300, 0.13, 0.10); blip('triangle', 1800, 600, 0.16, 0.07); },
@@ -5563,6 +5714,96 @@ function updateCamera(){
 }
 
 /* ==========================================================================
+   21c — SCHRITTE, SPRUNG UND AUFKOMMEN
+
+   Gerechnet wird nach zurueckgelegter Strecke, nicht nach Zeit: dann passt
+   der Takt von allein zum Tempo, und beim Anhalten hoert es sofort auf.
+   Ein Schritt ist ein Schrittlaenge lang — beim Rennen sind die Schritte
+   laenger, kommen wegen des Tempos aber trotzdem dichter.
+
+   Geduckt ist alles stumm. Das ist der eigentliche Sinn der Sache: wer sich
+   mit C anschleicht, verraet sich nicht, und wer jemanden laufen hoert,
+   weiss, aus welcher Richtung er kommt. Das gilt fuer die eigene Figur
+   ebenso wie fuer alle anderen — auch fremde Schritte sind hoerbar, mit
+   der Entfernung leiser.
+   ========================================================================== */
+const STEP = {
+  walkLen:   1.85,     // Meter je Schritt beim Gehen
+  runLen:    2.35,     // beim Sprint greift man weiter aus
+  minSpeed:  0.9,      // darunter gilt es als Stehen
+  hearing:   26,       // ab hier hoert man fremde Schritte gar nicht mehr
+  runHear:   34        // Rennen traegt weiter
+};
+
+/** Lautstaerkefaktor nach Entfernung. Die eigene Figur ist immer voll zu
+    hoeren, fremde nur im selben Bereich (also nicht ueber die Arenagrenze). */
+function earshot(a, range){
+  if (a === G.me) return 1;
+  const me = G.me;
+  if (!me || !sameRealm(a, me)) return 0;
+  const d = a.position.distanceTo(me.position);
+  if (d >= range) return 0;
+  const k = 1 - d/range;
+  return k*k;                                  // nah deutlich lauter als fern
+}
+
+function updateFootsteps(dt){
+  if (G.phase !== 'play') return;
+  for (const a of G.actors){
+    if (!a.alive || a.dropping){ a._stepAcc = 0; a._wasGround = true; continue; }
+
+    const grounded = a.ctrl ? a.ctrl.grounded : !a.airborne;
+
+    /* --- Absprung und Aufkommen ---
+       Nur Figuren mit eigener Physik liefern eine Fallgeschwindigkeit; bei
+       fernen Spielern reicht der Zustandswechsel aus dem Netz. */
+    if (a._wasGround === undefined) a._wasGround = grounded;
+    if (a._wasGround && !grounded && !a.climb){
+      /* Nur ein echter Absprung macht ein Geraeusch. Wer ueber eine Kante
+         laeuft, faellt still — sonst knurrt es bei jeder Treppenstufe. Der
+         Aufwaertsimpuls unterscheidet beides. */
+      const jumped = a.ctrl ? a.ctrl.velocity.y > 1.5 : false;
+      if (jumped && !a.crouch) sfx.jump(earshot(a, STEP.hearing));
+    }
+    if (!a._wasGround && grounded){
+      const vy = a.ctrl ? -a.ctrl.velocity.y : 8;
+      const force = clamp((vy - 4) / 14, 0, 1);
+      // Aus geringer Hoehe zu tropfen macht keinen Laerm
+      if (vy > 3.2) sfx.land(force, earshot(a, STEP.hearing + force*10));
+    }
+    a._wasGround = grounded;
+
+    /* --- Schritte ---
+       Geduckt, in der Luft oder beim Hochziehen gibt es keine. Die letzte
+       Position wird trotzdem mitgefuehrt, sonst zaehlt der naechste Schritt
+       die ganze Strecke nach, die man geduckt zurueckgelegt hat. */
+    if (a.crouch || !grounded || a.climb){
+      a._stepAcc = 0;
+      if (a._stepPrev) a._stepPrev.copy(a.position);
+      continue;
+    }
+
+    if (!a._stepPrev){ a._stepPrev = a.position.clone(); a._stepAcc = 0; continue; }
+    const dx = a.position.x - a._stepPrev.x;
+    const dz = a.position.z - a._stepPrev.z;
+    a._stepPrev.copy(a.position);
+    const moved = Math.hypot(dx, dz);
+    const speed = moved / Math.max(dt, 1e-4);
+    if (speed < STEP.minSpeed){ a._stepAcc = Math.max(0, (a._stepAcc||0) - moved); continue; }
+    if (moved > 3) continue;                   // Versetzung, kein Laufen
+
+    const running = !!a.sprinting;
+    a._stepAcc = (a._stepAcc || 0) + moved;
+    const len = running ? STEP.runLen : STEP.walkLen;
+    if (a._stepAcc >= len){
+      a._stepAcc -= len;
+      if (running) sfx.stepRun(earshot(a, STEP.runHear));
+      else         sfx.stepWalk(earshot(a, STEP.hearing));
+    }
+  }
+}
+
+/* ==========================================================================
    22a — REBIRTH-ANZEIGE
    Eine einzige Box, die je nach Zustand etwas anderes zeigt. Kein zweites
    UI-System: dieselben Farben, dieselbe Schrift, dieselben Klassen wie der
@@ -5592,7 +5833,8 @@ function rbUI(mode, opts){
     RBUI.cd = opts.cd || REBIRTH.countdown;
     RBUI.name = opts.name || '';
     $('rbTitle').textContent = 'OPPONENT FOUND';
-    $('rbSub').textContent = 'GET READY · ' + String(RBUI.name).toUpperCase();
+    $('rbSub').textContent = 'GET READY · ' + String(RBUI.name).toUpperCase()
+      + ' · POSITION YOURSELF';
     $('rbNum').style.display = '';
     sfx.zone();
   } else if (mode === 'fight'){
@@ -5974,13 +6216,14 @@ function simulate(dt){
       if (!me.ctrl.grounded) sp *= SPEED_AIR + 0.1;
       me.wish.set(wx*sp, 0, wz*sp);
 
-      // Waehrend des 3-2-1 steht man still
-      if (me.rbFreeze){ me.wish.set(0,0,0); }
+      /* Waehrend des 3-2-1 laesst sich noch laufen — man soll sich hinter
+         der Trennwand in Ruhe eine Seite aussuchen koennen. Nur geschossen
+         wird nicht; das regelt die Abfrage weiter unten. */
 
       /* Kante vor der Nase? Dann zieht die Leertaste hoch statt zu springen.
          Gesucht wird nur, wenn man auch vorwaerts drueckt — sonst klebt man
          an jeder Mauer fest, an der man zufaellig steht. */
-      const ledge = (!me.rbFreeze && inp.mz > 0) ? findLedge(me) : null;
+      const ledge = (inp.mz > 0) ? findLedge(me) : null;
       G.climbHint = ledge;
       if (ledge && input.jumpEdge){
         startClimb(me, ledge);
@@ -6022,6 +6265,9 @@ function simulate(dt){
       a.position.copy(a.ctrl.position);
     }
   }
+
+  // --- Schritte, Sprung, Aufkommen ---
+  updateFootsteps(dt);
 
   // --- Rebirth: Warteschlange, Countdowns, Duelle, Rueckkehr ---
   rbHostTick(dt);
