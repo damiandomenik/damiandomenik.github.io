@@ -553,7 +553,7 @@ button:disabled{cursor:not-allowed}
 
     <div class="lb-foot">
       <span>WASD laufen · <b style="color:var(--amber)">Shift sprinten</b> ·
-        <b style="color:var(--amber)">C halten / Strg umschalten</b> ducken ·
+        <b style="color:var(--amber)">C oder Q</b> ducken ·
         Leertaste springen/klettern · Linksklick schießen ·
         <b style="color:var(--amber)">E aufheben</b> · R nachladen · 1/2 Waffe ·
         F abspringen · U festgesteckt · Tab Punktestand · Esc Menü</span>
@@ -3958,7 +3958,6 @@ function updateDrop(dt){
     return;
   }
   const act = input.dropAction; input.dropAction = false;
-  crouchLatch = false;              // in der Luft duckt sich niemand
 
   if (d.playerState === 'plane'){
     d.pos.copy(d.planePos);
@@ -5649,8 +5648,6 @@ const sfx = {
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
-/* Umschaltzustand fuer das Ducken auf Strg. C haelt, Strg rastet ein. */
-let crouchLatch = false;
 const input = { mx:0, mz:0, jump:false, jumpEdge:false, crouch:false, sprint:false,
                 fire:false, fireEdge:false, reload:false, dropAction:false,
                 pickup:false, ads:false, specNext:false, specPrev:false, specView:false };
@@ -5666,7 +5663,6 @@ function clearKeys(){
      im ersten Bild aus dem Flugzeug geworfen. */
   input.dropAction = false; input.reload = false; input.pickup = false;
   input.specNext = false; input.specPrev = false; input.specView = false;
-  crouchLatch = false;
   showBoard(false);
 }
 addEventListener('blur', clearKeys);
@@ -5677,17 +5673,7 @@ addEventListener('keydown', e=>{
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
 
-  /* Ducken auf Strg — als Umschalter, nicht zum Halten. Wer Strg gedrückt
-     hält und dabei W tippt, schliesst in den meisten Browsern den Tab, und
-     Strg+W lässt sich nicht abfangen. Einmal drücken duckt, nochmal drücken
-     richtet wieder auf; die Finger verlassen Strg dazwischen. C bleibt
-     zusätzlich als Halten-Taste. */
-  if (e.code === 'ControlLeft' || e.code === 'ControlRight'){
-    if (!e.repeat && G.phase === 'play' && !pauseOpen) crouchLatch = !crouchLatch;
-    return;
-  }
-
-  /* Übrige Kombinationen mit Strg, Alt oder Cmd gehören dem Browser. Früher hat
+  /* Kombinationen mit Strg, Alt oder Cmd gehören dem Browser. Früher hat
      Strg (Ducken) zusammen mit A die Seite markiert, mit W sogar den Tab
      geschlossen — und Strg+W lässt sich nicht abfangen. Also fassen wir
      solche Anschläge gar nicht erst an. */
@@ -5770,10 +5756,8 @@ function readInput(){
   input.mx = (keys.KeyD||keys.ArrowRight ? 1:0) - (keys.KeyA||keys.ArrowLeft ? 1:0);
   input.jump = !!keys.Space;
   input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
-  // Wer losspurtet, richtet sich von selbst auf — sonst stünde der
-  // Umschalter dem Sprint stumm im Weg
-  if (input.sprint && crouchLatch) crouchLatch = false;
-  input.crouch = !!(keys.KeyC || keys.KeyX) || crouchLatch;
+  // Ducken auf C oder Q — beide halten, beide gleichwertig
+  input.crouch = !!(keys.KeyC || keys.KeyQ || keys.KeyX);
   return input;
 }
 
@@ -6610,8 +6594,8 @@ async function setupMatch(roster, spawns){
     initStorm();
     // Mehr Figuren, mehr Beute — sonst steht die halbe Runde mit Fäusten da
     const heads = G.actors.length;
-    scatterWeapons(clamp(Math.round(heads*7.2), 70, 190));
-    scatterPickups(clamp(Math.round(heads*5.2), 55, 140));
+    scatterWeapons(clamp(Math.round(heads*8.6), 88, 230));
+    scatterPickups(clamp(Math.round(heads*6.2), 68, 170));
     await startDropPhase(pts);
   } else {
     G.drop = null;
