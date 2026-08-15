@@ -754,7 +754,10 @@ const MAX_SUBSTEPS = 5;
 const GRAVITY = 24;
 const JUMP_SPEED = 7.6;
 const SPEED_WALK = 4.7, SPEED_AIR = 0.9, SPEED_CROUCH = 2.3;
-const WORLD_MIN_Y = -80;          // darunter: zurück auf letzte sichere Position
+/* Nur noch Rueckfall, wenn eine Welt gar keine Ausdehnung meldet. Die
+   eigentliche Grenze liefert jede Kollisionswelt selbst — sonst gilt fuer
+   die Arena tief unter der Karte dieselbe Zahl wie fuer die Insel. */
+const WORLD_MIN_Y = -80;
 
 /* ---- Kurzer Sprint ----
    Bewusst kurz: gut fuer den Sprung ueber eine Strasse, nicht fuer die halbe
@@ -965,7 +968,8 @@ const BUILD = '2026-08-14 · 32 (MP-Fix)';
 const NET_HZ = 22;                 // Zustaende je Sekunde
 const NET_INTERP_MS = 130;         // so weit laeuft die Darstellung hinterher
 const NET_SNAP_DIST = 6.0;         // groesserer Sprung -> hart setzen statt gleiten
-const NET_TIMEOUT = 6.0;           // ohne Nachricht gilt eine Verbindung als tot
+const NET_TIMEOUT = 14.0;          // ohne Lebenszeichen gilt eine Verbindung als tot
+const NET_HB = 1.5;                // Takt der Lebenszeichen in Sekunden
 const MM_PING_TIME = 2.6;    // so lange bleibt ein Mündungsfeuer auf der Karte
 const MM_PING_RANGE = 130;   // weiter entfernte Schüsse hört man nicht
 const DEBUG_FLAGS = { stats:false, colliders:false, capsule:false };
@@ -2137,7 +2141,7 @@ class CharacterController {
     // --- 4. Rettungsnetz ---
     /* Der Fehler "ein Spieler war unter dem Boden" hatte drei Ursachen und
        braucht deshalb drei Netze:
-         a) Durchgefallen und noch ueber WORLD_MIN_Y  -> laenger als 2 s im
+         a) Durchgefallen und noch ueber der Weltunterkante -> laenger als 2 s im
             freien Fall ohne irgendeinen Boden unter sich.
          b) Unter der Karte gelandet — man steht zwar, aber ueber einem liegt
             eine begehbare Flaeche und unter einem nichts mehr.
@@ -2152,10 +2156,12 @@ class CharacterController {
     if (this.contactCount > 40 && !this.grounded) this.buriedTimer += dt;
     else this.buriedTimer = Math.max(0, this.buriedTimer - dt*2);
 
-    const belowWorld = this.world && this.world.bounds
-      ? this.position.y < this.world.bounds.min.y - 1.5 : false;
-
-    if (this.position.y < WORLD_MIN_Y || belowWorld){
+    /* Unterkante der AKTUELLEN Welt. Fuer die Insel ist das ungefaehr die
+       Meereshoehe, fuer die Arena rund 3000 m tiefer. Eine feste Zahl waere
+       genau der Fehler, der die Arena unspielbar gemacht hat. */
+    const bb = this.world && this.world.bounds;
+    const floorY = (bb && isFinite(bb.min.y)) ? bb.min.y - 2.0 : WORLD_MIN_Y;
+    if (this.position.y < floorY){
       return this.rescue('unten durchgefallen');
     }
     // (a) langer Fall ohne jeden Boden in Sicht
@@ -6429,7 +6435,14 @@ function flashDamage(){
   sfx.hurt();
 }
 let toastT = 0;
-function toast(t){ $('toast').textContent = t; toastT = 2.2; }
+let lastToastMsg = '', lastToastAt = -99;
+function toast(t){
+  /* Dieselbe Meldung nicht mehrfach je Sekunde. Wenn doch einmal etwas im
+     Sekundentakt ausloest, soll die Zeile nicht dreissigmal blinken. */
+  if (t === lastToastMsg && G.time - lastToastAt < 1.2) return;
+  lastToastMsg = t; lastToastAt = G.time;
+  $('toast').textContent = t; toastT = 2.2;
+}
 function feed(html){
   G.killfeed.unshift(html);
   if (G.killfeed.length > 5) G.killfeed.pop();
@@ -7108,6 +7121,14 @@ function hostGame(){
     G.conns.push(c);
     c.on('open', ()=>{
       c.lastSeen = performance.now();
+      // Aeltere Verbindung desselben Gastes stillschweigend ablegen
+      for (const old of G.conns.slice()){
+        if (old !== c && old.peer === c.peer){
+          old._replaced = true;
+          G.conns = G.conns.filter(x => x !== old);
+          try { old.close(); } catch(e){}
+        }
+      }
       send(c, { t:'welcome', you:c.peer, host:myName, code:G.code });
       broadcastLobby();
     });
@@ -7118,7 +7139,15 @@ function hostGame(){
 }
 
 function dropConn(c, why){
+  // Wurde nur ersetzt: die Figur gehoert jetzt der neuen Verbindung
+  if (c._replaced){ G.conns = G.conns.filter(x=>x!==c); return; }
   G.conns = G.conns.filter(x=>x!==c);
+  // Haelt eine andere Verbindung denselben Gast, bleibt er im Spiel
+  if (G.conns.some(x => x.peer === c.peer)) return;
+  /* Ein Gast, den es rauswirft, obwohl seine Verbindung noch steht, soll
+     erfahren warum — sonst laeuft er wie im Screenshot weiter herum und
+     wundert sich, dass nichts mehr geht. */
+  if (c.open) send(c, { t:'kicked', why: why || 'Verbindung abgerissen' });
   const row = G.lobby.find(p=>p.id === c.peer);
   G.lobby = G.lobby.filter(p=>p.id !== c.peer);
   const a = G.actors.find(x=>x.id === c.peer);
@@ -7174,14 +7203,15 @@ function onHostData(c, d){
     return;
   }
   if (d.t === 'ping'){ send(c, { t:'pong', s:d.s, h:G.time }); return; }
+  if (d.t === 'hb'){ return; }                 // lastSeen ist schon gesetzt
 
   const a = G.actors.find(x=>x.id === c.peer);
   if (d.t === 'state'){
     if (!a) return;
-    /* Frueher stand hier `if (a && a.alive)`. Ein einziger verlorener
-       Lebenswert liess die Figur damit fuer immer stehenbleiben. Standorte
-       werden jetzt immer uebernommen, ueber Leben und Tod entscheidet
-       ohnehin der Host. */
+    /* Der Host entscheidet ueber Leben und Tod, also darf er sich hier auf
+       seinen eigenen Stand verlassen. Eine gefallene Figur bleibt liegen,
+       statt fuehrerlos ueber die Karte zu gleiten. */
+    if (!a.alive && !RB_IN_ARENA[a.rbState]) return;
     if (typeof d.q === 'number'){
       if (a.lastSeq !== undefined && d.q <= a.lastSeq) return;   // veraltet
       a.lastSeq = d.q;
@@ -7264,6 +7294,12 @@ async function onClientData(d){
   if (d.t === 'welcome'){ G.myId = d.you || (G.peer && G.peer.id); return; }
   if (d.t === 'pong'){
     netPing = performance.now() - (netPingSent[d.s] || performance.now());
+    return;
+  }
+  if (d.t === 'kicked'){
+    toast('Vom Host getrennt: ' + (d.why || 'Verbindung'));
+    setNetWarn('Verbindung verloren');
+    setTimeout(()=>{ if (G.isNet) returnToLobby(); }, 1800);
     return;
   }
   if (d.t === 'wait'){
@@ -7407,29 +7443,36 @@ let netLastRecv = 0, netPing = 0;
 const netPingSent = {};
 let netPingSeq = 0, netPingAcc = 0, netWarnT = 0;
 
+/* Lebenszeichen an einem eigenen Zeitgeber, nicht an der Bildrate. Das ist
+   der Unterschied zwischen "laeuft immer" und "laeuft nur, wenn das Fenster
+   im Vordergrund ist". */
+setInterval(()=>{
+  if (!G.isNet) return;
+  if (G.isHost){
+    const now = performance.now();
+    for (const c of G.conns.slice()){
+      if (!c.open) continue;                       // baut sich noch auf
+      if (now - (c.lastSeen || now) > NET_TIMEOUT*1000)
+        dropConn(c, 'Verbindung abgerissen');
+    }
+  } else if (G.hostConn){
+    const sq = ++netPingSeq;
+    netPingSent[sq] = performance.now();
+    send(G.hostConn, { t:'ping', s:sq });
+  }
+}, 1000);
+
+/** Nur noch die Anzeige — sie darf ruhig an der Bildrate haengen. */
+function netHeartbeat(dt){
+  if (!G.isNet){ setNetWarn(null); return; }
+  if (G.isHost) return;
+  const quiet = (performance.now() - netLastRecv) / 1000;
+  netWarnT = quiet > 2.5 ? netWarnT + dt : 0;
+  setNetWarn(netWarnT > 1.0 ? 'Verbindung instabil' : null);
+}
+
 function netTick(dt){
   if (!G.isNet) return;
-
-  // --- Verbindungspflege ---
-  netPingAcc += dt;
-  if (netPingAcc > 2){
-    netPingAcc = 0;
-    if (G.isHost){
-      const now = performance.now();
-      for (const c of G.conns.slice()){
-        if (now - (c.lastSeen||now) > NET_TIMEOUT*1000) dropConn(c, 'Verbindung abgerissen');
-      }
-    } else if (G.hostConn){
-      const sq = ++netPingSeq;
-      netPingSent[sq] = performance.now();
-      send(G.hostConn, { t:'ping', s:sq });
-    }
-  }
-  if (!G.isHost){
-    const quiet = (performance.now() - netLastRecv) / 1000;
-    netWarnT = quiet > 1.5 ? netWarnT + dt : 0;
-    setNetWarn(netWarnT > 0.5 ? 'Verbindung instabil' : null);
-  }
 
   // --- Zustaende ---
   netAcc += dt;
@@ -7459,6 +7502,7 @@ const clock = new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt = Math.min(0.25, clock.getDelta());
+  netHeartbeat(dt);          // unabhaengig vom Spielzustand
   updateRematch();
   animateStorm(dt);          // Schleier wandert weiter, auch im Menue
 
