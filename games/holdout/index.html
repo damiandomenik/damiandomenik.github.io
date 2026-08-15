@@ -798,6 +798,23 @@ const CLIMB = {
   cooldown:   0.30
 };
 
+/* ---- Versorgungsabwurf ----
+   Das Scharfschuetzengewehr liegt nirgends mehr auf der Karte. Es kommt
+   ausschliesslich aus diesen Kisten — und wo eine faellt, weiss jeder.
+   Genau das ist der Sinn: ein Ort, an dem man sich trifft. */
+const AIRDROP = {
+  first:     [70, 100],   // Sekunden bis zum ersten Abwurf
+  every:     [105, 165],  // Abstand danach
+  altitude:  260,         // Abwurfhoehe ueber dem Boden
+  fall:      11.0,        // Sinkgeschwindigkeit am Schirm
+  planeSpeed:105,
+  planeLead: 520,         // wie weit vor dem Ziel die Maschine erscheint
+  reach:     3.2,         // ab hier laesst sich die Kiste oeffnen
+  contents:  { gun:'sniper', hp:3, shield:3 },
+  color:     0xffb020,
+  smoke:     70           // Rauchteilchen je Kiste
+};
+
 /* ---- Zuschauer ---- */
 const SPECTATE = { dist: 5.6, height: 1.15, sens: 1.0, lerp: 9.0 };
 
@@ -841,7 +858,9 @@ const HITBOX = {
   bodyHigh:   1.06,   // Mitte der oberen Halbkugel (Schulteransatz)
   headY:      1.45,   // Kopfmitte
   headRadius: 0.33,   // Der Kopf reicht real von 1.12 bis 1.78 m
-  crouchMul:  0.66
+  /* Gilt fuer die Trefferzonen UND fuer das sichtbare Modell — beide
+     benutzen denselben Wert, damit sie nie wieder auseinanderlaufen. */
+  crouchMul:  0.80
 };
 
 /* ---- Kollisionsebenen ---- */
@@ -957,7 +976,9 @@ const WEAPONS = {
     scoped:true, zoom:3.2, adsMul:0.26
   },
   sniper: {
-    name:'Scharfschützengewehr', mesh:'Object_77', len:1.20, rarity:'epic', weight:1,
+    /* weight 0 heisst: taucht in der normalen Verteilung nicht auf. Diese
+       Waffe gibt es nur aus dem Versorgungsabwurf. */
+    name:'Scharfschützengewehr', mesh:'Object_77', len:1.20, rarity:'epic', weight:0,
     dmg:85, rpm:45, mag:5, reserve:30, reload:3.2, auto:false, headMul:2.0,
     range:250, falloff:[140,250,0.90],
     spreadBase:0.0006, bloom:0.0300, spreadMax:0.060,
@@ -1909,6 +1930,7 @@ class CharacterController {
     this._n = new THREE.Vector3(); this._save = new THREE.Vector3();
     this._gnorm = new THREE.Vector3(0,1,0);
     this._inc = new THREE.Vector3();
+    this._frameStart = new THREE.Vector3();
     this._normals = [];
     for (let i=0;i<32;i++) this._normals.push(new THREE.Vector3());
   }
@@ -1954,7 +1976,11 @@ class CharacterController {
           const l2 = this._dir.length();
           if (l2 < 1e-5) return;
           this._dir.divideScalar(l2);
-          depth = depth / Math.max(0.25, 1 - hy*hy) * l2;
+          /* Der Anteil, der senkrecht weggelassen wird, muss waagrecht
+             ausgeglichen werden — aber gedeckelt. Ohne Deckel kam ueber
+             vier Durchlaeufe das Zweieinhalbfache der echten Eindringtiefe
+             heraus, und die Figur schoss durch duenne Waende hindurch. */
+          depth = Math.min(depth * 1.6, depth / Math.max(0.25, 1 - hy*hy) * l2);
         }
 
         // Bereits aufgesammelte Verschiebung anrechnen: verhindert, dass eine
@@ -1974,8 +2000,12 @@ class CharacterController {
         contacts++;
       });
       if (!any) break;
-      // Sicherung gegen Ausreißer bei kaputter Geometrie
-      if (this._off.lengthSq() > 25) this._off.setLength(5);
+      /* Sicherung gegen Ausreisser bei kaputter Geometrie. Der Deckel liegt
+         beim Kapselradius: weiter kann die Kapsel in einem Teilschritt nicht
+         eingedrungen sein, also braucht sie auch nie weiter herausgeschoben
+         zu werden. Vorher standen hier fuenf Meter. */
+      const cap = this.radius * 1.2;
+      if (this._off.lengthSq() > cap*cap) this._off.setLength(cap);
       pos.add(this._off);
     }
     this._normalCount = nn;
@@ -2037,6 +2067,9 @@ class CharacterController {
     if (!surf || surf.y <= fromPos.y + 0.015){ this.position.copy(save); return false; }
     this.position.y = surf.y + 0.001;
     this._resolve(this.position, { noLift:true });
+    /* Landet die Kapsel dabei in Geometrie, war es keine Stufe, sondern ein
+       Durchgriff — dann lieber stehenbleiben. */
+    if (this.isBuried(this.position)){ this.position.copy(save); return false; }
     this.stepsTaken++;
     return true;
   }
@@ -2067,6 +2100,11 @@ class CharacterController {
       @param jump  Sprungwunsch in diesem Schritt */
   step(dt, wish, jump){
     const wasGrounded = this.grounded;
+    /* Ausgangslage merken. Wer diesen Schritt frei begonnen hat, darf ihn
+       nicht tief in einer Wand beenden — egal, welche Rechnung dazwischen
+       schiefgegangen ist. Das ist das letzte Netz gegen das Durchgleiten. */
+    this._frameStart.copy(this.position);
+    const startedFree = !this.isBuried(this.position);
 
     // --- Schwerkraft ---
     if (!this.grounded) this.velocity.y -= GRAVITY * dt;
@@ -2103,7 +2141,9 @@ class CharacterController {
       if (this._groundY !== null){ groundY = this._groundY; groundNormal = this._groundN; }
       const gained = Math.hypot(this.position.x-start.x, this.position.z-start.z);
       const want = hd.length();
-      if (gained < want * 0.72 && (wasGrounded || this.velocity.y <= 0.1)){
+      /* Nur mit Bodenkontakt UND ohne Aufwaertsimpuls. Eine Stufe nimmt man
+         im Gehen; in der Luft gibt es nichts zu ersteigen. */
+      if (gained < want * 0.72 && wasGrounded && this.velocity.y <= 0.5){
         // blockiert — vielleicht ist es nur eine Stufe
         const before = _v3.copy(this.position);
         if (!this._tryStep(start, hd)){
@@ -2151,6 +2191,12 @@ class CharacterController {
       const hit = this.probeGround(this.groundEps + 0.12);
       groundNormal = hit ? hit.normal : null;
     }
+    if (startedFree && this.isBuried(this.position)){
+      this.position.copy(this._frameStart);
+      this.velocity.x = 0; this.velocity.z = 0;
+      this.grounded = wasGrounded;
+    }
+
     if (groundNormal) this.groundNormal.copy(groundNormal);
     else if (this.grounded) this.groundNormal.set(0,1,0);
     this.slopeDeg = THREE.MathUtils.radToDeg(Math.acos(clamp(this.groundNormal.y,-1,1)));
@@ -2259,6 +2305,16 @@ class CharacterController {
         if (!g) continue;
         const test = new THREE.Vector3(probe.x, g.point.y + 0.06, probe.z);
         if (!this.isFree(test)) continue;
+        /* Der Weg dorthin muss frei sein. Sonst setzt das Freisetzen die
+           Figur durch die Wand hindurch — ausgerechnet ins Hausinnere, denn
+           dort ist ja Platz. */
+        _tmp.set(start.x, start.y + this.height*0.5, start.z);
+        _tmp2.set(test.x - start.x, test.y - start.y, test.z - start.z);
+        const len = _tmp2.length();
+        if (len > 0.05){
+          _tmp2.divideScalar(len);
+          if (this.world.raycast(_tmp, _tmp2, len, {})) continue;
+        }
         this.position.copy(test);
         this.velocity.set(0,0,0);
         this.lastSafe.copy(test);
@@ -2267,6 +2323,16 @@ class CharacterController {
       }
     }
     return !!(this.rescue('von Hand') === 'rescued');
+  }
+
+  /** Steckt die Kapselachse tief in Geometrie? Deutlich strenger als
+      isFree(): an eine Wand gelehnt ist man nicht "drin", mitten in ihr
+      schon. */
+  isBuried(pos){
+    this._syncCapsule(pos);
+    let deep = false;
+    this.world.capsuleOverlap(this._p, this._q, this.radius*0.55, ()=>{ deep = true; });
+    return deep;
   }
 
   /** Steht die Kapsel an dieser Stelle frei? */
@@ -2399,6 +2465,19 @@ const CLIMB_POSE = [
     legL:[ 0.60,0,0], legR:[-0.15,0,0] },
   { t:1.00, body:[ 0.00, 0.00, 0.00], torso:[ 0, 0, 0], head:[0,0,0],
     armL:[0,0,0], armR:[0,0,0], handL:[0,0,0], handR:[0,0,0], legL:[0,0,0], legR:[0,0,0] }
+];
+
+/* Ducken, ebenfalls von Hand gesetzt. Hier ist `t` kein Zeitpunkt, sondern
+   der Grad des Duckens: 0 = aufrecht, 1 = ganz unten. Die Stauchung des
+   Modells uebernimmt renderActors — diese Pose sorgt nur dafuer, dass es
+   nach gebeugten Knien aussieht und nicht nach einer gedrueckten Figur. */
+const CROUCH_POSE = [
+  { t:0.00, body:[0,0,0], torso:[0,0,0], head:[0,0,0],
+    armL:[0,0,0], armR:[0,0,0], handL:[0,0,0], handR:[0,0,0],
+    legL:[0,0,0], legR:[0,0,0] },
+  { t:1.00, body:[0.13, 0, 0], torso:[0.20, 0, 0], head:[-0.16, 0, 0],
+    armL:[-0.20, 0, 0.10], armR:[-0.24, 0,-0.10], handL:[-0.18,0,0], handR:[-0.20,0,0],
+    legL:[0.72, 0, 0.10], legR:[0.66, 0,-0.10] }
 ];
 
 /* Zweiter eigener Satz: Zuschauer-Schweben gibt es nicht, aber ein kurzes
@@ -2875,9 +2954,13 @@ const pickupLib = new PickupLibrary();
 /** Gewichtete Zufallswahl nach Seltenheit. */
 function randomWeaponId(){
   let total = 0;
-  for (const id in WEAPONS) total += WEAPONS[id].weight;
+  for (const id in WEAPONS) total += Math.max(0, WEAPONS[id].weight);
   let r = Math.random()*total;
-  for (const id in WEAPONS){ r -= WEAPONS[id].weight; if (r <= 0) return id; }
+  for (const id in WEAPONS){
+    const w = WEAPONS[id].weight;
+    if (w <= 0) continue;
+    r -= w; if (r <= 0) return id;
+  }
   return 'pistol';
 }
 
@@ -2938,7 +3021,10 @@ class Actor {
   }
 
   get eye(){ return _eyeTmp.set(this.position.x, this.position.y + this.eyeHeight(), this.position.z); }
-  eyeHeight(){ return this.crouch ? PLAYER.eyeHeight*0.62 : PLAYER.eyeHeight; }
+  /* Auch die Augenhoehe folgt dem Duckfaktor. Stand sie tiefer als die
+     Kopfkugel, konnte man hinter Deckung stehen, sich sicher fuehlen — und
+     wurde am Kopf getroffen, der weiter oben herausschaute. */
+  eyeHeight(){ return this.crouch ? PLAYER.eyeHeight*HITBOX.crouchMul : PLAYER.eyeHeight; }
   bodyTop(){ return this.position.y + (this.crouch ? PLAYER.height*0.66 : PLAYER.height); }
 
   /** Rumpf als Kapsel. Füllt out_a/out_b, liefert den Radius. */
@@ -3229,6 +3315,8 @@ const G = {
   rbReturns: [],                  // wer wann wieder ueber der Karte auftaucht
   arenas: [],
   rbNextArena: 0,
+  airdrops: [],                   // laufende Versorgungsabwuerfe
+  airNext: 0, airSeq: 0,
   accumulator: 0,
   drop: null,
   physHz: 0, physCount: 0, physTimer: 0,
@@ -3400,6 +3488,8 @@ async function loadWorld(mode){
 function clearWorld(){
   if (G.drop){ endDropPhase(); G.drop = null; }
   disposeArenas();
+  for (const d of G.airdrops.slice()) removeAirdrop(d);
+  G.airdrops.length = 0;
   G.rbQueue.length = 0;
   if (G.mapGroup){ scene.remove(G.mapGroup); disposeTree(G.mapGroup); G.mapGroup = null; }
   if (G.sky){ scene.remove(G.sky.group); disposeTree(G.sky.group); G.sky = null; }
@@ -4262,6 +4352,274 @@ function inArena(a){
 }
 
 /* ==========================================================================
+   16d — VERSORGUNGSABWURF
+
+   Ablauf: eine Maschine zieht ueber die Insel, klinkt eine Kiste aus, die
+   am Schirm zu Boden geht. Ab dem Abwurf raucht sie — im Fallen und am
+   Boden — und blinkt auf der Minikarte. Wer sie oeffnet, bekommt das
+   Scharfschuetzengewehr sowie drei Leben und drei Panzerungen, die rund um
+   die Kiste liegen bleiben. Zu holen ist also nur, wer sich hintraut.
+
+   Wie ueberall gilt: der Host entscheidet, alle fuehren aus. Er bestimmt
+   Zeitpunkt und Stelle und schickt beides herum; das Oeffnen laeuft ueber
+   dieselbe Bestaetigung wie jedes andere Beutestueck.
+   ========================================================================== */
+function airCrateMesh(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.05, 1.25),
+    new THREE.MeshStandardMaterial({ color:0x3d4a3a, roughness:.9 }));
+  body.castShadow = true; body.receiveShadow = true;
+  body.position.y = 0.525;
+  g.add(body);
+  // Auffaellige Baender, damit man die Kiste auch im Gestruepp erkennt
+  const bandMat = new THREE.MeshStandardMaterial({ color:AIRDROP.color,
+    emissive:AIRDROP.color, emissiveIntensity:.55, roughness:.5 });
+  for (const [w,h,d,x,y,z] of [[1.32,0.16,0.20, 0,0.72, 0],
+                               [0.20,0.16,1.32, 0,0.72, 0],
+                               [1.32,0.16,0.20, 0,0.30, 0],
+                               [0.20,0.16,1.32, 0,0.30, 0]]){
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), bandMat);
+    b.position.set(x,y,z); g.add(b);
+  }
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.30, 5.0, 12, 1, true),
+    new THREE.MeshBasicMaterial({ color:AIRDROP.color, transparent:true, opacity:0.14,
+      side:THREE.DoubleSide, depthWrite:false }));
+  beam.position.y = 2.6;
+  g.add(beam);
+  return g;
+}
+
+/** Rauchsaeule: aufsteigende Teilchen, die unten wieder anfangen. */
+function airSmoke(){
+  const n = AIRDROP.smoke;
+  const pos = new Float32Array(n*3);
+  const spd = new Float32Array(n);
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, r = Math.random()*0.5;
+    pos[i*3]   = Math.cos(a)*r;
+    pos[i*3+1] = Math.random()*9;
+    pos[i*3+2] = Math.sin(a)*r;
+    spd[i] = 1.1 + Math.random()*1.5;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const p = new THREE.Points(geo, new THREE.PointsMaterial({
+    color:0xd8c9b4, size:0.85, sizeAttenuation:true,
+    transparent:true, opacity:0.42, depthWrite:false }));
+  p.userData.spd = spd;
+  p.frustumCulled = false;
+  return p;
+}
+
+/** Kiste anlegen. Laeuft auf jedem Rechner mit denselben Werten. */
+function spawnAirdrop(id, x, z){
+  if (G.airdrops.some(d=>d.id === id)) return;
+  const gy = groundAt(x, z, 0);
+  const group = new THREE.Group();
+  const crate = airCrateMesh();
+  group.add(crate);
+  group.position.set(x, gy + AIRDROP.altitude, z);
+
+  // Schirm: das vorhandene Modell, sonst ein einfacher Kegel
+  let chute = null;
+  if (dropAssets.chute){
+    chute = dropAssets.chute.clone(true);
+    chute.scale.setScalar(1.5);
+    chute.position.y = 1.1;
+  } else {
+    chute = new THREE.Mesh(new THREE.ConeGeometry(1.9, 1.4, 12, 1, true),
+      new THREE.MeshStandardMaterial({ color:0xd8d2c4, side:THREE.DoubleSide, roughness:.95 }));
+    chute.position.y = 2.5;
+  }
+  group.add(chute);
+
+  const smoke = airSmoke();
+  smoke.position.y = 0.4;
+  group.add(smoke);
+
+  scene.add(group);
+
+  // Eine Maschine zieht darueber hinweg — nur Beiwerk, sie wirft nichts ab
+  let plane = null;
+  if (dropAssets.plane){
+    plane = dropAssets.plane.clone(true);
+    scene.add(plane);
+  }
+  const ang = seedRand()*Math.PI*2;
+  const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+
+  G.airdrops.push({
+    id, group, crate, chute, smoke, plane, dir,
+    x, z, groundY: gy,
+    y: gy + AIRDROP.altitude,
+    planeT: 0, landed:false, opened:false, t:0
+  });
+  if (G.me) toast('Versorgungsabwurf gesichtet');
+  sfx.zone();
+}
+
+function removeAirdrop(d){
+  if (d.plane){ scene.remove(d.plane); disposeTree(d.plane); d.plane = null; }
+  scene.remove(d.group);
+  disposeTree(d.group);
+  G.airdrops = G.airdrops.filter(x=>x !== d);
+}
+
+function updateAirdrops(dt){
+  for (const d of G.airdrops.slice()){
+    d.t += dt;
+
+    // Maschine: kommt von weit vorn, zieht ueber die Stelle und verschwindet
+    if (d.plane){
+      d.planeT += dt;
+      const travel = -AIRDROP.planeLead + d.planeT*AIRDROP.planeSpeed;
+      d.plane.position.set(d.x + d.dir.x*travel,
+                           d.groundY + AIRDROP.altitude + 70,
+                           d.z + d.dir.z*travel);
+      d.plane.lookAt(d.plane.position.x + d.dir.x, d.plane.position.y, d.plane.position.z + d.dir.z);
+      if (travel > AIRDROP.planeLead){
+        scene.remove(d.plane); disposeTree(d.plane); d.plane = null;
+      }
+    }
+
+    // Kiste sinkt am Schirm
+    if (!d.landed){
+      d.y -= AIRDROP.fall*dt;
+      if (d.y <= d.groundY){
+        d.y = d.groundY;
+        d.landed = true;
+        if (d.chute){ d.group.remove(d.chute); d.chute = null; }
+        if (G.me && G.me.position.distanceTo(d.group.position) < 90) sfx.hit();
+      }
+      d.group.position.y = d.y;
+      if (d.chute) d.chute.rotation.y += dt*0.35;
+      d.crate.rotation.y += dt*0.25;
+    }
+
+    // Rauch: steigt auf, faengt unten wieder an
+    const p = d.smoke.geometry.attributes.position;
+    const spd = d.smoke.userData.spd;
+    for (let i=0;i<p.count;i++){
+      let y = p.getY(i) + dt*spd[i];
+      if (y > 11){
+        y = 0;
+        const a = Math.random()*Math.PI*2, r = Math.random()*0.5;
+        p.setX(i, Math.cos(a)*r); p.setZ(i, Math.sin(a)*r);
+      }
+      p.setY(i, y);
+      // Leicht zur Seite driften, sonst wirkt es wie eine Saeule aus Perlen
+      p.setX(i, p.getX(i) + dt*0.22*Math.sin(y*0.6 + i));
+    }
+    p.needsUpdate = true;
+  }
+}
+
+/** Kiste in Reichweite — fuer die Aufheben-Anzeige. */
+function nearestAirdrop(){
+  const me = G.me;
+  if (!me || !me.alive || me.dropping || inArena(me)) return null;
+  for (const d of G.airdrops){
+    if (!d.landed || d.opened) continue;
+    if (d.group.position.distanceTo(me.position) < AIRDROP.reach) return d;
+  }
+  return null;
+}
+
+function requestAirdrop(d){
+  const me = G.me;
+  if (!d || d.opened || !me) return;
+  if (!G.isNet || G.isHost) hostOpenAirdrop(d.id, me.id);
+  else if (G.hostConn) send(G.hostConn, { t:'air', op:'take', id:d.id });
+}
+
+/** Nur der Host: pruefen, Inhalt hinlegen, allen mitteilen. */
+function hostOpenAirdrop(id, byId){
+  if (!G.isHost) return;
+  const d = G.airdrops.find(x=>x.id === id);
+  if (!d || !d.landed || d.opened) return;
+  const a = G.actors.find(x=>x.id === byId);
+  if (!a || !a.alive) return;
+  if (d.group.position.distanceTo(a.position) > AIRDROP.reach + 4) return;
+
+  d.opened = true;
+  const items = [];
+  const base = new THREE.Vector3(d.x, d.groundY, d.z);
+  const put = (kind, gunId, i, total)=>{
+    const ang = (i/total)*Math.PI*2 + 0.4;
+    const r = 1.5;
+    const p = new THREE.Vector3(base.x + Math.cos(ang)*r, base.y, base.z + Math.sin(ang)*r);
+    const e = kind === 'gun' ? spawnLoot(gunId, p) : spawnSupply(kind, p);
+    if (e) items.push({ nid:e.nid, k:kind, id:gunId||null,
+                        x:+p.x.toFixed(2), y:+p.y.toFixed(2), z:+p.z.toFixed(2) });
+  };
+  const C = AIRDROP.contents;
+  const total = 1 + C.hp + C.shield;
+  let i = 0;
+  put('gun', C.gun, i++, total);
+  for (let n=0;n<C.hp;n++)     put('hp', null, i++, total);
+  for (let n=0;n<C.shield;n++) put('shield', null, i++, total);
+
+  if (G.isNet){
+    broadcast({ t:'air', op:'open', id });
+    broadcast({ t:'drop', items });
+  }
+  airApplyOpen(id);
+}
+
+function airApplyOpen(id){
+  const d = G.airdrops.find(x=>x.id === id);
+  if (!d) return;
+  d.opened = true;
+  if (G.me && G.me.position.distanceTo(d.group.position) < 60){
+    toast('Versorgungskiste geöffnet');
+    sfx.pick();
+  }
+  removeAirdrop(d);
+}
+
+/** Nachrichten vom Host ausfuehren. */
+function airApply(m){
+  if (m.op === 'spawn') spawnAirdrop(m.id, m.x, m.z);
+  else if (m.op === 'open') airApplyOpen(m.id);
+}
+
+/** Nur der Host: Zeitplan. */
+function airHostTick(dt){
+  if (!G.isHost || G.phase !== 'play' || G.mode !== 'br') return;
+  if (G.drop && !G.drop.done) return;            // erst wenn alle gelandet sind
+  G.airNext -= dt;
+  if (G.airNext > 0) return;
+  G.airNext = srnd(AIRDROP.every[0], AIRDROP.every[1]);
+
+  /* Abgeworfen wird in die Zone, die als NAECHSTES gilt — nicht in die
+     jetzige. Der Unterschied ist entscheidend: eine Kiste braucht knapp
+     24 Sekunden bis zum Boden, und danach zieht sich die Zone weiter
+     zusammen. Zielt man auf den Rand der aktuellen Zone, liegt die Kiste
+     schon eine Phase spaeter im Sturm und ist praktisch nicht mehr zu
+     holen.
+
+     Die naechste Zone liegt immer vollstaendig innerhalb der jetzigen
+     (pickNextCentre begrenzt die Verschiebung auf 0.75 des Spielraums).
+     Wer also dort abwirft, trifft beide — jetzt und nachher. */
+  const s = G.storm;
+  const useNext = s.nextR > 8;
+  const cx = useNext ? s.nextCx : s.cx;
+  const cz = useNext ? s.nextCz : s.cz;
+  const zoneR = useNext ? s.nextR : s.r;
+  /* 0.70 des Radius: weit genug draussen, dass man dafuer laufen muss,
+     aber mit Abstand zum Rand, damit die naechste Verengung sie nicht
+     gleich wieder verschluckt. */
+  const r = zoneR * 0.70 * (0.30 + 0.70*Math.sqrt(seedRand()));
+  const ang = seedRand()*Math.PI*2;
+  const x = cx + Math.cos(ang)*r;
+  const z = cz + Math.sin(ang)*r;
+  const id = G.airSeq++;
+  if (G.isNet) broadcast({ t:'air', op:'spawn', id, x:+x.toFixed(1), z:+z.toFixed(1) });
+  spawnAirdrop(id, +x.toFixed(1), +z.toFixed(1));
+  feed('<b>Versorgungsabwurf</b> unterwegs');
+}
+
+/* ==========================================================================
    17 — AUFSAMMELBARES
    ========================================================================== */
 /* Fortlaufende Nummer je Beutestueck. Sie ist auf allen Rechnern gleich,
@@ -4375,9 +4733,13 @@ function scatterPickups(count){
 /** Gewichtete Waffenwahl aus dem gesetzten Strom. */
 function seededWeaponId(){
   let total = 0;
-  for (const id in WEAPONS) total += WEAPONS[id].weight;
+  for (const id in WEAPONS) total += Math.max(0, WEAPONS[id].weight);
   let r = seedRand()*total;
-  for (const id in WEAPONS){ r -= WEAPONS[id].weight; if (r <= 0) return id; }
+  for (const id in WEAPONS){
+    const w = WEAPONS[id].weight;
+    if (w <= 0) continue;                 // nur aus dem Abwurf zu haben
+    r -= w; if (r <= 0) return id;
+  }
   return 'pistol';
 }
 
@@ -4503,6 +4865,10 @@ function applyPickup(p, a){
 }
 
 function tryPickUp(){
+  /* Eine Versorgungskiste hat Vorrang: wer davorsteht, will sie oeffnen und
+     nicht die Pistole aufheben, die daneben liegt. */
+  const crate = nearestAirdrop();
+  if (crate){ requestAirdrop(crate); return; }
   requestPickup(nearestLoot());
 }
 
@@ -4515,7 +4881,7 @@ function dropLootOnDeath(target){
   for (const id of target.slots){
     if (!id) continue;
     const e = spawnLoot(id, target.position, 0.7);
-    if (e) made.push({ nid:e.nid, id, x:+e.mesh.position.x.toFixed(2),
+    if (e) made.push({ nid:e.nid, k:'gun', id, x:+e.mesh.position.x.toFixed(2),
                        y:+(e.mesh.position.y-0.55).toFixed(2), z:+e.mesh.position.z.toFixed(2) });
   }
   if (G.isNet && made.length) broadcast({ t:'drop', items:made });
@@ -6758,6 +7124,10 @@ function simulate(dt){
   // --- Schritte, Sprung, Aufkommen ---
   updateFootsteps(dt);
 
+  // --- Versorgungsabwuerfe ---
+  airHostTick(dt);
+  updateAirdrops(dt);
+
   // --- Rebirth: Warteschlange, Countdowns, Duelle, Rueckkehr ---
   rbHostTick(dt);
   updateArenas(dt);          // Trennwand versinkt — reine Anzeige, ueberall
@@ -6833,13 +7203,22 @@ function renderActors(dt){
       }
     }
 
-    /* Eigene Kletter-Pose: sie neigt und hebt die ganze Figur, deshalb wird
-       sie hier ausgewertet und nicht in der Figurklasse. */
+    /* Eigene Posen: Klettern hat Vorrang, sonst das Ducken. Beide neigen
+       die ganze Figur, deshalb werden sie hier ausgewertet und nicht in
+       der Figurklasse. */
     let poseTilt = null;
+    a.crouchT = damp(a.crouchT || 0, a.crouch ? 1 : 0, 14, dt);
     if (a.view.setPose){
       const ct = a.climbT || 0;
-      a.view.setPose(ct > 0 ? CLIMB_POSE : null, ct, ct > 0 ? 1 : 0);
+      if (ct > 0)            a.view.setPose(CLIMB_POSE, ct, 1);
+      else if (a.crouchT > 0.01) a.view.setPose(CROUCH_POSE, a.crouchT, 1);
+      else                   a.view.setPose(null, 0, 0);
     }
+    /* Und hier der eigentliche Punkt: das Modell wird genauso gestaucht wie
+       die Trefferzonen. Der Nullpunkt der Figur liegt an den Fuessen, sie
+       schrumpft also nach unten und bleibt auf dem Boden. */
+    const cs = lerp(1, HITBOX.crouchMul, a.crouchT);
+    obj.scale.set(lerp(1, 1.06, a.crouchT), cs, lerp(1, 1.06, a.crouchT));
 
     obj.position.copy(a.position);
     obj.rotation.set(0, a.yaw + Math.PI, 0);   // Quaternius-Figuren schauen nach +Z
@@ -6947,9 +7326,11 @@ function updateHUD(dt){
       el.classList.toggle('on', me.slot === i && !!id);
     }
     const spec = G.spectate.on;
-    const near = spec ? null : nearestLoot();
-    $('pickPrompt').classList.toggle('hidden', !near);
-    if (near) $('pickName').textContent = WEAPONS[near.id].name + ' aufnehmen';
+    const crate = spec ? null : nearestAirdrop();
+    const near = (spec || crate) ? null : nearestLoot();
+    $('pickPrompt').classList.toggle('hidden', !near && !crate);
+    if (crate) $('pickName').textContent = 'Versorgungskiste öffnen';
+    else if (near) $('pickName').textContent = WEAPONS[near.id].name + ' aufnehmen';
     // Kletterhinweis nur, wenn tatsaechlich eine Kante erreichbar ist
     const canClimb = !spec && me.alive && !me.climb && !!G.climbHint;
     $('climbPrompt').classList.toggle('hidden', !canClimb);
@@ -7006,6 +7387,30 @@ function drawMinimap(){
   /* Gegner stehen nicht dauerhaft auf der Karte. Wer schiesst, verraet sich
      — der Punkt erscheint mit einem auslaufenden Ring und verblasst wieder.
      Wer still bleibt, bleibt unsichtbar. */
+  /* Versorgungsabwuerfe: ein pulsierender Ring, damit man sie schon von
+     weitem ansteuern kann. Fallende Kisten blinken schneller als gelandete. */
+  for (const d of G.airdrops){
+    if (d.opened) continue;
+    const [ax, az] = toPx(d.x, d.z);
+    const beat = 0.55 + 0.45*Math.sin(G.time*(d.landed ? 3.2 : 6.0));
+    /* Sollte eine Kiste durch eine spaete Verengung doch im Sturm landen,
+       wird sie rot markiert — dann weiss man vorher, worauf man sich
+       einlaesst, statt es erst am Bildschirmrand zu merken. */
+    const inZone = Math.hypot(d.x - G.storm.cx, d.z - G.storm.cz) < G.storm.r;
+    const col = inZone ? '255,176,32' : '255,77,61';
+    mm.strokeStyle = 'rgba(' + col + ',' + (0.35 + 0.5*beat).toFixed(2) + ')';
+    mm.lineWidth = 2;
+    mm.beginPath(); mm.arc(ax, az, 6 + beat*7, 0, Math.PI*2); mm.stroke();
+    mm.fillStyle = inZone ? '#FFB020' : '#FF4D3D';
+    mm.beginPath(); mm.arc(ax, az, 3.4, 0, Math.PI*2); mm.fill();
+    if (!d.landed){
+      mm.strokeStyle = 'rgba(' + col + ',.55)';
+      mm.lineWidth = 1;
+      mm.beginPath(); mm.moveTo(ax-9, az-9); mm.lineTo(ax+9, az+9);
+      mm.moveTo(ax+9, az-9); mm.lineTo(ax-9, az+9); mm.stroke();
+    }
+  }
+
   for (const a of G.actors){
     if (!a.alive || a === me) continue;
     if (!sameRealm(a, me)) continue;      // Arena taucht auf der Karte nicht auf
@@ -7357,6 +7762,7 @@ function onHostData(c, d){
     return;
   }
   if (d.t === 'take'){ grantPickup(d.nid, c.peer); return; }
+  if (d.t === 'air' && d.op === 'take'){ hostOpenAirdrop(d.id, c.peer); return; }
   if (d.t === 'melee'){
     const tgt = G.actors.find(x=>x.id === d.target);
     if (a && tgt && a.alive && tgt.alive && sameRealm(a, tgt))
@@ -7436,6 +7842,7 @@ async function onClientData(d){
     return;
   }
   if (d.t === 'rb'){ if (d.m) rbApply(d.m); return; }
+  if (d.t === 'air'){ airApply(d); return; }
   if (d.t === 'snap'){ applySnapshot(d); return; }
   if (d.t === 'took'){
     const p = findLoot(d.nid);
@@ -7447,7 +7854,11 @@ async function onClientData(d){
   if (d.t === 'drop'){
     for (const it of (d.items||[])){
       if (findLoot(it.nid)) continue;
-      spawnLoot(it.id, new THREE.Vector3(it.x, it.y, it.z), 0, it.nid);
+      const p = new THREE.Vector3(it.x, it.y, it.z);
+      // `k` gibt es seit dem Versorgungsabwurf: dort kommen auch Leben und
+      // Panzerung aus der Kiste, nicht nur Waffen.
+      if (!it.k || it.k === 'gun') spawnLoot(it.id, p, 0, it.nid);
+      else spawnSupply(it.k, p, it.nid);
     }
     return;
   }
@@ -7953,6 +8364,8 @@ function resetMatchState(){
   lastSnapSeq = -1; snapSeq = 0; netStateSeq = 0;
   lootSeq = 0;
   G.rbQueue.length = 0; G.rbReturns.length = 0;
+  G.airSeq = 0;
+  G.airNext = srnd(AIRDROP.first[0], AIRDROP.first[1]);
   rbUI(null);
   G.climbHint = null;
   sprintFov = 0;
