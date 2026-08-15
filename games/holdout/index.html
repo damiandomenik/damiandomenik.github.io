@@ -4053,13 +4053,21 @@ function buildRebirthArena(id){
   };
   const box = (w,h,d)=> new THREE.BoxGeometry(w,h,d);
 
-  add(box(S, T, S), matFloor, 0, -T/2, 0, 'arena_floor');
+  /* SINK: so tief steht alles im Boden. Nichts, worauf man laufen kann,
+     teilt sich dadurch noch eine Ebene mit der Standflaeche. */
+  const SINK = 0.40;
+  /** Ein Block, dessen Oberkante bei `h` liegt und der unten im Boden steckt. */
+  const stand = (w, h, d, x, z, name, mat)=>
+    add(box(w, h + SINK, d), mat || matBox, x, (h + SINK)/2 - SINK, z, name);
+
+  // Boden reicht ueber den Waendekranz hinaus — keine gemeinsame Kante
+  add(box(S + T*4, T, S + T*4), matFloor, 0, -T/2 - 0.001, 0, 'arena_floor');
   const roof = add(box(S+T*2, T, S+T*2), matWall, 0, H, 0, 'arena_roof');
   roof.castShadow = false;      // sonst liegt die Arena im eigenen Schatten
-  add(box(S+T*2, H, T), matWall, 0, H/2, -S/2 - T/2, 'arena_wall_n');
-  add(box(S+T*2, H, T), matWall, 0, H/2,  S/2 + T/2, 'arena_wall_s');
-  add(box(T, H, S), matWall, -S/2 - T/2, H/2, 0, 'arena_wall_w');
-  add(box(T, H, S), matWall,  S/2 + T/2, H/2, 0, 'arena_wall_e');
+  stand(S+T*2, H, T, 0, -S/2 - T/2, 'arena_wall_n', matWall);
+  stand(S+T*2, H, T, 0,  S/2 + T/2, 'arena_wall_s', matWall);
+  stand(T, H, S, -S/2 - T/2, 0, 'arena_wall_w', matWall);
+  stand(T, H, S,  S/2 + T/2, 0, 'arena_wall_e', matWall);
 
   /* Deckung. Punktsymmetrisch aufgebaut: was die eine Seite hat, hat die
      andere auch, nur gespiegelt. Drei Hoehen, damit es etwas zu entscheiden
@@ -4069,8 +4077,8 @@ function buildRebirthArena(id){
      `mirror` legt jedes Stueck zweimal an, einmal je Haelfte. Beim
      mittleren Riegel entfaellt das, der steht ohnehin auf der Achse. */
   const mirror = (w,h,d, x,z, name)=>{
-    add(box(w,h,d), matBox,  x, h/2,  z, name+'_a');
-    add(box(w,h,d), matBox, -x, h/2, -z, name+'_b');
+    stand(w, h, d,  x,  z, name+'_a');
+    stand(w, h, d, -x, -z, name+'_b');
   };
 
   /* Zwanzig Bloecke, paarweise punktsymmetrisch: was die eine Seite hat,
@@ -4111,10 +4119,11 @@ function buildRebirthArena(id){
      in den Boden. */
   const matSplit = new THREE.MeshStandardMaterial({ color:0x1f2a2e, roughness:.85,
                                                     emissive:0x2a1c04, emissiveIntensity:.5 });
-  const divider = new THREE.Mesh(box(S + T*2, REBIRTH.wallHalf, 1.0), matSplit);
-  divider.position.set(0, REBIRTH.wallHalf/2, 0);
+  const divider = new THREE.Mesh(box(S + T*2, REBIRTH.wallHalf + SINK, 1.0), matSplit);
+  divider.position.set(0, (REBIRTH.wallHalf + SINK)/2 - SINK, 0);
   divider.name = 'arena_divider';
   divider.castShadow = false; divider.receiveShadow = true;
+  divider.userData.baseY = divider.position.y;
   group.add(divider);
   // Warnstreifen auf beiden Seiten, damit klar ist: hier geht es gleich los
   for (const zz of [-0.55, 0.55]){
@@ -4141,8 +4150,8 @@ function buildRebirthArena(id){
     id, group, origin:o, divider,
     worldOpen, worldClosed, world: worldClosed,
     divT: 1,                    // 1 = steht, 0 = versenkt
-    spawns: [ new THREE.Vector3(o.x, o.y + 0.05, o.z - S*0.38),
-              new THREE.Vector3(o.x, o.y + 0.05, o.z + S*0.38) ],
+    spawns: [ new THREE.Vector3(o.x, o.y + 0.10, o.z - S*0.38),
+              new THREE.Vector3(o.x, o.y + 0.10, o.z + S*0.38) ],
     a:null, b:null, state:'free', timer:0
   };
 }
@@ -4153,7 +4162,7 @@ function raiseDivider(ar){
   ar.divT = 1;
   ar.world = ar.worldClosed;
   if (ar.divider){ ar.divider.visible = true; ar.divider.scale.y = 1;
-                   ar.divider.position.y = REBIRTH.wallHalf/2; }
+                   ar.divider.position.y = ar.divider.userData.baseY; }
   for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
 }
 
@@ -4175,7 +4184,8 @@ function updateArenas(dt){
       ar.divT = Math.max(0, ar.divT - dt/REBIRTH.wallSink);
       const k = ar.divT;
       ar.divider.scale.y = Math.max(0.001, k);
-      ar.divider.position.y = REBIRTH.wallHalf*k/2;
+      ar.divider.position.y = ar.divider.userData.baseY * k
+                            - (1 - k) * REBIRTH.wallHalf * 0.5;
       if (k <= 0) ar.divider.visible = false;
     }
   }
@@ -6573,6 +6583,21 @@ function simulate(dt){
         }
         me.position.copy(me.ctrl.position);
         input.jumpEdge = false;
+
+        /* An eine Wand gedrueckt zu stehen ist erlaubt und haeufig. IN der
+           Wand zu stecken ist es nicht — genau das unterscheidet isFree,
+           weil es mit leicht verkleinertem Radius prueft. Nur der zweite
+           Fall loest aus. */
+        if (!me.ctrl.isFree(me.ctrl.position)){
+          me.stuckT = (me.stuckT || 0) + dt;
+          if (me.stuckT > 0.5){
+            me.stuckT = 0;
+            const ar = inArena(me) ? G.arenas.find(x=>x.id === me.arenaId) : null;
+            if (me.ctrl.unstuck()) me.position.copy(me.ctrl.position);
+            else if (ar) placeInArena(me, ar, ar.b === me ? 1 : 0);
+            toast('Festgesteckt — freigesetzt');
+          }
+        } else me.stuckT = 0;
       }
     }
     // Halbautomatische Waffen brauchen je Schuss einen neuen Klick
