@@ -102,6 +102,7 @@ input:focus{outline:none;border-color:var(--amber)}
   letter-spacing:.04em;min-height:1.2em}
 .lb-maps .eyebrow{display:block;margin-bottom:8px}
 #mapChips{display:flex;gap:8px;flex-wrap:wrap}
+#mapChips.single .mchip{cursor:default}
 .mchip{border:1px solid var(--line);background:rgba(8,14,16,.55);padding:9px 14px;text-align:left;
   transition:.14s;min-width:150px}
 .mchip b{display:block;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:13px;
@@ -301,7 +302,8 @@ button:disabled{cursor:not-allowed}
 #toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);font-size:12.5px;
   letter-spacing:.1em;color:var(--amber);text-transform:uppercase}
 #dmgFlash{position:absolute;inset:0;box-shadow:inset 0 0 190px rgba(255,77,61,.85);opacity:0;transition:opacity .28s}
-#stormVig{position:absolute;inset:0;box-shadow:inset 0 0 260px rgba(123,92,255,.5);opacity:0;transition:opacity .5s}
+#stormVig{position:absolute;inset:0;opacity:0;transition:opacity .18s;
+  box-shadow:inset 0 0 210px rgba(150,70,255,.62), inset 0 0 60px rgba(255,60,140,.28)}
 #minimap{position:absolute;left:26px;top:22px;width:180px;height:180px;border:1px solid var(--line);
   background:rgba(10,18,20,.6)}
 
@@ -652,6 +654,7 @@ const PICKUP_MODELS = {
 const MAP_SETS = [
   {
     id:'island', name:'Drift-Insel', note:'Vier Landstriche, zusammengetrieben · 500 m',
+    hidden:true,          // aus der Auswahl genommen — Zeile loeschen bringt sie zurueck
     radius:265, spawnR:180, fogNear:150, fogFar:900,
     sky:{ top:0x2f6ea8, horizon:0xbcd6e4, ground:0x8ba0a8,
           water:0x2c5468, plate:0x4a5540, ridge:0x35434f },
@@ -667,6 +670,7 @@ const MAP_SETS = [
   },
   {
     id:'block', name:'Blockland', note:'Klotzlandschaft mit Bergen · 250 × 135 m',
+    hidden:true,          // aus der Auswahl genommen — Zeile loeschen bringt sie zurueck
     radius:155, spawnR:66, fogNear:120, fogFar:800,
     sky:{ top:0x4a8fd0, horizon:0xcfe4f2, ground:0x9db6a8,
           water:0x2f6d8f, plate:0x4c7a34, ridge:0x3c5a4a },
@@ -690,8 +694,16 @@ const MAP_SETS = [
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
-let mapSetId = 'island';
-const mapSet = ()=> MAP_SETS.find(m => m.id === mapSetId) || MAP_SETS[0];
+/* Waehlbar ist, was nicht ausgeblendet ist. Ausgeblendete Saetze bleiben
+   ladbar — ein Host koennte sie weiterhin vorgeben, und alter gespeicherter
+   Zustand laeuft nicht ins Leere, sondern faellt sauber zurueck. */
+const selectableMaps = ()=> MAP_SETS.filter(m => !m.hidden);
+const defaultMapId = ()=> (selectableMaps()[0] || MAP_SETS[0]).id;
+
+let mapSetId = defaultMapId();
+const mapSet = ()=> MAP_SETS.find(m => m.id === mapSetId)
+                 || MAP_SETS.find(m => m.id === defaultMapId())
+                 || MAP_SETS[0];
 
 const WEAPON_FILE = 'sub_machine_gun.glb';   // Rückfallmodell
 const GUNS_FILE   = 'polygon_guns.glb';
@@ -829,13 +841,18 @@ const BR = {
   botCount: 11,
   // `f` ist der Zielradius als Anteil des Kartenradius — so passt derselbe
   // Ablauf auf jede Karte, egal wie gross sie ist.
+  /* `dps` gilt ab jetzt IMMER, wenn man draussen steht — auch waehrend die
+     Zone wandert. Vorher galt im Stillstand der Wert der vorigen Phase, und
+     der lag in der ersten Runde bei 1 Punkt je Sekunde: hundert Sekunden bis
+     zum Tod, das merkt niemand. Die Werte sind angehoben, die Zone ist
+     wieder eine Bedrohung statt einer Empfehlung. */
   phases: [
-    { hold: 55, shrink: 70, f: 0.720, dps: 1 },
-    { hold: 45, shrink: 60, f: 0.460, dps: 2 },
-    { hold: 38, shrink: 50, f: 0.270, dps: 4 },
-    { hold: 32, shrink: 42, f: 0.130, dps: 7 },
-    { hold: 26, shrink: 34, f: 0.045, dps: 11 },
-    { hold: 20, shrink: 28, f: 0,     dps: 16 }
+    { hold: 55, shrink: 70, f: 0.720, dps:  3 },
+    { hold: 45, shrink: 60, f: 0.460, dps:  5 },
+    { hold: 38, shrink: 50, f: 0.270, dps:  9 },
+    { hold: 32, shrink: 42, f: 0.130, dps: 14 },
+    { hold: 26, shrink: 34, f: 0.045, dps: 20 },
+    { hold: 20, shrink: 28, f: 0,     dps: 28 }
   ]
 };
 const phaseRadius = ph => ph.f * BR.islandRadius;
@@ -3162,7 +3179,7 @@ const G = {
   actors: [],
   me: null,
   spawnMgr: null,
-  storm: { cx:0, cz:0, r:BR.islandRadius, targetR:BR.islandRadius, nextCx:0, nextCz:0,
+  storm: { cx:0, cz:0, r:BR.islandRadius, targetR:BR.islandRadius, nextCx:0, nextCz:0, nextR:0,
            phase:0, timer:0, state:'hold', dps:0 },
   time: 0,
   pickups: [],
@@ -3186,7 +3203,7 @@ const G = {
   killfeed: []
 };
 
-let stormMesh = null, stormRing = null;
+let stormMesh = null, stormRing = null, stormTick = 0;
 
 /* ==========================================================================
    14 — DEBUG-ANSICHTEN
@@ -3465,45 +3482,189 @@ function updateCameraRange(){
 /* ==========================================================================
    16 — STURM
    ========================================================================== */
+/* Die Wand ist ein offener Zylinder mit eigenem Shader. Gezeichnet wird
+   nichts Vorberechnetes: Baender, Rauschen und der helle Saum am Boden
+   entstehen im Shader und wandern mit der Zeit. Der Verlauf rechnet in
+   WELTHOEHE, nicht in UV — sonst wuerde er sich mit dem Radius verzerren,
+   und genau das sah bisher falsch aus.
+
+   Den flachen Bodenring gibt es nicht mehr. Er war ein Torus, der mit
+   scale(r, r, 1) in die Breite gezogen wurde — bei 250 m Radius also ein
+   87 m breiter, flacher Teppich, der ueber die halbe Karte lag. Das war
+   das grosse violette Feld. Wo die Wand auf den Boden trifft, leuchtet
+   jetzt ein Saum; der sitzt bei jeder Gelaendehoehe von allein richtig. */
+const STORM_VERT = `
+varying vec2 vUv;
+varying vec3 vWorld;
+void main(){
+  vUv = uv;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorld = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`;
+
+const STORM_FRAG = `
+precision highp float;
+varying vec2 vUv;
+varying vec3 vWorld;
+uniform float uTime;
+uniform vec3  uColA;      // unten, dicht
+uniform vec3  uColB;      // oben, ausduennend
+uniform float uOpacity;
+uniform float uBase;      // Welthoehe, ab der die Wand steht
+uniform float uFade;      // ueber wie viele Meter sie ausblendet
+uniform float uBands;     // Anzahl senkrechter Streifen
+uniform float uDash;      // 0 = durchgehend, 1 = gestrichelt (Vorschau)
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0 - 2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x),
+             mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+}
+
+void main(){
+  // Hoehe ueber dem Fuss der Wand, in Metern gerechnet
+  float h = clamp((vWorld.y - uBase) / uFade, 0.0, 1.0);
+
+  // Schleier, der nach oben zieht
+  vec2 q = vec2(vUv.x * 26.0, vWorld.y * 0.045 - uTime * 0.16);
+  float n = noise(q) * 0.58 + noise(q * 2.6) * 0.28 + noise(q * 6.3) * 0.14;
+
+  // senkrechte Streifen, vom Rauschen leicht verzogen
+  float st = 0.5 + 0.5 * sin(vUv.x * uBands + n * 5.0 - uTime * 0.5);
+
+  // dichter unten, nach oben immer duenner
+  float body = pow(1.0 - h, 1.7);
+  float a = uOpacity * body * (0.40 + 0.60 * n) * (0.62 + 0.38 * st);
+
+  // heller Saum genau dort, wo die Wand aus dem Boden kommt
+  a += uOpacity * 1.9 * smoothstep(0.055, 0.0, h) * (0.7 + 0.3 * st);
+
+  // gestrichelt fuer die Vorschau der naechsten Zone
+  if (uDash > 0.5){
+    float d = step(0.5, fract(vUv.x * 90.0));
+    a *= d * smoothstep(0.30, 0.0, h);
+  }
+
+  vec3 col = mix(uColA, uColB, h * 0.75 + n * 0.25);
+  gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+}`;
+
+function makeStormWall(opts){
+  const geo = new THREE.CylinderGeometry(1, 1, 620, 128, 1, true);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:    { value: 0 },
+      uColA:    { value: new THREE.Color(0x6f4bff) },
+      uColB:    { value: new THREE.Color(0xc8b4ff) },
+      uOpacity: { value: opts.opacity },
+      uBase:    { value: -55 },
+      uFade:    { value: opts.fade },
+      uBands:   { value: opts.bands },
+      uDash:    { value: opts.dash ? 1 : 0 }
+    },
+    vertexShader: STORM_VERT,
+    fragmentShader: STORM_FRAG,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,        // von innen wie von aussen sichtbar
+    blending: THREE.NormalBlending
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.frustumCulled = false;
+  m.renderOrder = 5;
+  return m;
+}
+
+/* Farbe nach Gefaehrlichkeit: fruehe Zonen kuehl und blau, spaete heiss
+   und rot. Man sieht der Wand an, wie sehr sie weh tut. */
+const STORM_COLORS = [
+  [0x3f6bff, 0x9fd0ff], [0x6a4bff, 0xc0b0ff], [0x9b3bff, 0xe0b0ff],
+  [0xd12ee0, 0xffb0f0], [0xff2f8a, 0xffb4cf], [0xff3a3a, 0xffc0a0]
+];
+
 function initStorm(){
   const s = G.storm;
   s.cx = 0; s.cz = 0; s.r = BR.islandRadius; s.targetR = BR.islandRadius;
   s.phase = 0; s.state = 'hold'; s.timer = BR.phases[0].hold; s.dps = 0;
   s.nextCx = 0; s.nextCz = 0;
 
-  // Hoch genug, damit man die Zone schon beim Absprung aus 380 m sieht
-  const geo = new THREE.CylinderGeometry(1, 1, 900, 96, 1, true);
-  const mat = new THREE.MeshBasicMaterial({
-    color:0x7b5cff, transparent:true, opacity:0.16, side:THREE.BackSide, depthWrite:false });
-  stormMesh = new THREE.Mesh(geo, mat);
-  stormMesh.renderOrder = 5;
+  pickNextCentre(0);
+
+  stormMesh = makeStormWall({ opacity:0.30, fade:210, bands:200, dash:false });
   scene.add(stormMesh);
 
-  const ringGeo = new THREE.TorusGeometry(1, 0.35, 8, 128);
-  stormRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color:0x9d86ff, transparent:true, opacity:.55 }));
-  stormRing.rotation.x = Math.PI/2;
+  // Vorschau auf die naechste Zone — niedrig, gestrichelt, blass
+  stormRing = makeStormWall({ opacity:0.55, fade:26, bands:120, dash:true });
+  stormRing.material.uniforms.uColA.value.setHex(0xffffff);
+  stormRing.material.uniforms.uColB.value.setHex(0xdfe8ff);
+  stormRing.renderOrder = 6;
   scene.add(stormRing);
+
   applyStormMesh();
 }
+/** Mitte der naechsten Zone auswuerfeln. Passiert jetzt schon zu Beginn
+    einer Ruhephase statt erst beim Losziehen — nur so laesst sich vorher
+    anzeigen, wohin es geht. Aus dem gesetzten Strom, damit alle Rechner
+    dieselbe Vorschau sehen. */
+function pickNextCentre(phase){
+  const s = G.storm;
+  const ph = BR.phases[Math.min(phase, BR.phases.length-1)];
+  const room = Math.max(0, s.r - phaseRadius(ph));
+  const a = seedRand()*Math.PI*2, d = Math.sqrt(seedRand())*room*0.75;
+  s.nextCx = s.cx + Math.cos(a)*d;
+  s.nextCz = s.cz + Math.sin(a)*d;
+  s.nextR  = phaseRadius(ph);
+}
+
 function applyStormMesh(){
   const s = G.storm;
-  if (stormMesh){ stormMesh.scale.set(s.r, 1, s.r); stormMesh.position.set(s.cx, 320, s.cz); }
-  if (stormRing){ stormRing.scale.set(s.r, s.r, 1); stormRing.position.set(s.cx, 1.2, s.cz); }
+  const done = s.phase >= BR.phases.length;
+  const ci = clamp(s.phase, 0, STORM_COLORS.length-1);
+  const [ca, cb] = STORM_COLORS[ci];
+
+  if (stormMesh){
+    stormMesh.scale.set(Math.max(1, s.r), 1, Math.max(1, s.r));
+    stormMesh.position.set(s.cx, 255, s.cz);
+    const u = stormMesh.material.uniforms;
+    u.uColA.value.setHex(ca);
+    u.uColB.value.setHex(cb);
+    // Je enger die Zone, desto dichter und drohender die Wand
+    u.uOpacity.value = 0.26 + 0.22 * (s.phase / BR.phases.length);
+    // Streifenzahl an den Umfang koppeln, sonst werden sie bei kleinem
+    // Radius zu Brei und bei grossem zu Latten
+    u.uBands.value = clamp(s.r * 0.9, 90, 420);
+  }
+  if (stormRing){
+    const show = !done && s.state === 'hold' && s.nextR > 2;
+    stormRing.visible = show;
+    if (show){
+      stormRing.scale.set(s.nextR, 1, s.nextR);
+      stormRing.position.set(s.nextCx, 255, s.nextCz);
+    }
+  }
+}
+
+/** Wird jedes Bild gerufen: nur die Zeit im Shader weiterdrehen. */
+function animateStorm(dt){
+  if (stormMesh) stormMesh.material.uniforms.uTime.value += dt;
+  if (stormRing) stormRing.material.uniforms.uTime.value += dt;
 }
 function updateStorm(dt){
   const s = G.storm;
   if (s.phase >= BR.phases.length) { applyStormMesh(); return; }
   const ph = BR.phases[s.phase];
   s.timer -= dt;
+  /* Ein einziger Wert fuer beide Zustaende. Wer draussen steht, nimmt
+     Schaden — ob die Wand gerade wandert oder steht, spielt keine Rolle. */
+  s.dps = ph.dps;
+
   if (s.state === 'hold'){
-    s.dps = s.phase > 0 ? BR.phases[s.phase-1].dps : 1;
     if (s.timer <= 0){
       s.state = 'shrink'; s.timer = ph.shrink;
       s.fromR = s.r; s.fromCx = s.cx; s.fromCz = s.cz;
-      // Neue Mitte irgendwo innerhalb der jetzigen Zone
-      const room = Math.max(0, s.r - phaseRadius(ph));
-      const a = Math.random()*Math.PI*2, d = Math.sqrt(Math.random())*room*0.75;
-      s.nextCx = s.cx + Math.cos(a)*d; s.nextCz = s.cz + Math.sin(a)*d;
       feed('<b>Die Zone zieht sich zusammen</b>');
     }
   } else {
@@ -3511,11 +3672,13 @@ function updateStorm(dt){
     s.r = lerp(s.fromR, phaseRadius(ph), t);
     s.cx = lerp(s.fromCx, s.nextCx, t);
     s.cz = lerp(s.fromCz, s.nextCz, t);
-    s.dps = ph.dps;
     if (s.timer <= 0){
       s.r = phaseRadius(ph); s.cx = s.nextCx; s.cz = s.nextCz;
       s.phase++; s.state = 'hold';
       s.timer = s.phase < BR.phases.length ? BR.phases[s.phase].hold : 99999;
+      // Ziel der naechsten Runde sofort festlegen, damit es angezeigt wird
+      if (s.phase < BR.phases.length) pickNextCentre(s.phase);
+      else { s.nextR = 0; }
     }
   }
   applyStormMesh();
@@ -5300,6 +5463,11 @@ const sfx = {
   hurt(){ blip('sawtooth', 300, 90, 0.16, 0.11); },
   die(){ blip('sawtooth', 220, 50, 0.6, 0.13); },
   zone(){ blip('sine', 180, 120, 0.5, 0.07); },
+  /** Ticken, solange man in der Zone steht. Wird mit der Phase haerter. */
+  zoneHurt(k){
+    nburst(1900 + k*1400, 260, 0.09 + k*0.06, 0.045 + k*0.075, { q:1.4 });
+    blip('sawtooth', 240 - k*70, 70, 0.13 + k*0.09, 0.030 + k*0.055);
+  },
   hover(){ blip('sine', 520, 700, 0.05, 0.035); },
   go(){ blip('sine', 340, 880, 0.16, 0.09); blip('triangle', 170, 440, 0.20, 0.05); }
 };
@@ -5500,7 +5668,8 @@ vmScene.add(new THREE.HemisphereLight(0xffffff, 0x556066, 2.4));
 const vmKey = new THREE.DirectionalLight(0xffffff, 1.6); vmKey.position.set(1,2,2); vmScene.add(vmKey);
 const vmRoot = new THREE.Group(); vmScene.add(vmRoot);
 let viewWeapon = null;
-const vmState = { bob:0, recoil:0, recoilV:0, rl:0, flash:0, punchAt:-9, sway:new THREE.Vector2() };
+const vmState = { bob:0, amp:0.004, recoil:0, recoilV:0, rl:0, flash:0,
+                  punchAt:-9, sway:new THREE.Vector2() };
 let muzzleFlash = null, fistModel = null;
 
 /** Schlichte Faust für die Ego-Perspektive, wenn man nichts trägt. */
@@ -5564,10 +5733,34 @@ function recoil(W){
   kick.pitch += W.recoilPitch * (0.8 + Math.random()*0.4);
   kick.yaw   += rnd(-1, 1) * W.recoilYaw;
 }
-function updateViewmodel(dt, moving){
+/* Das Wiegen der Waffe haengt am Tempo, nicht mehr an einem Ja/Nein.
+   Vorher gab es genau zwei Zustaende: 9.5 im Gehen, 1.6 im Stehen — geduckt
+   schwang die Waffe also genauso hektisch wie beim normalen Laufen, obwohl
+   man nur halb so schnell unterwegs ist. Jetzt folgt der Takt der
+   tatsaechlichen Geschwindigkeit, und beim Ducken kommt ein zusaetzlicher
+   Daempfer dazu: man geht bedacht, die Waffe bleibt ruhig am Koerper.
+
+   Nebenbei faellt der Sprint dadurch von allein staerker aus, ohne dass es
+   irgendwo gesondert eingetragen werden muesste. */
+function updateViewmodel(dt, speed){
   if (!viewWeapon) return;
-  vmState.bob += dt * (moving ? 9.5 : 1.6);
-  const amp = moving ? 0.014 : 0.004;
+  const crouch = !!(G.me && G.me.crouch);
+  const moving = speed > 0.6;
+
+  let rate, ampWant;
+  if (!moving){
+    rate = 1.6; ampWant = 0.004;                 // Atmen im Stand
+  } else {
+    const k = clamp(speed / SPEED_WALK, 0.25, 1.7);   // 1 = normales Gehen
+    rate    = 9.5 * clamp(k, 0.35, 1.3);
+    ampWant = 0.014 * clamp(0.55 + k*0.5, 0.5, 1.25);
+    if (crouch){ rate *= 0.55; ampWant *= 0.62; }
+  }
+  vmState.bob += dt * rate;
+  /* Der Ausschlag wird nachgezogen statt gesetzt — sonst springt die Waffe
+     in dem Bild, in dem man sich hinhockt oder losspurtet. */
+  vmState.amp = damp(vmState.amp ?? ampWant, ampWant, 8, dt);
+  const amp = vmState.amp;
 
   // --- Faust: eigener Ablauf, kein Rückstoss, kein Nachladen ---
   if (viewWeapon.userData.isFist){
@@ -6286,8 +6479,22 @@ function simulate(dt){
       me.hp -= G.storm.dps*dt;     // Anzeige lokal, Wahrheit kommt vom Host
       if (me.hp < 0) me.hp = 0;
     }
-    const inStorm = me && !inArena(me) && outsideStorm(me);
-    $('stormVig').style.opacity = inStorm ? 1 : 0;
+    /* Draussen zu stehen soll sich unangenehm anfuehlen, nicht nur die
+       Leiste langsam leeren. Der Rand pulsiert im Sekundentakt, dazu ein
+       kurzes Ticken — beides haengt an der Staerke der aktuellen Phase. */
+    const inStorm = me && me.alive && !me.dropping && !inArena(me) && outsideStorm(me);
+    if (inStorm){
+      const beat = 0.62 + 0.38*Math.sin(G.time*5.2);
+      $('stormVig').style.opacity = String(0.55 + 0.45*beat);
+      stormTick -= dt;
+      if (stormTick <= 0){
+        stormTick = clamp(1.6 - G.storm.dps*0.045, 0.45, 1.6);
+        sfx.zoneHurt(clamp(G.storm.dps/28, 0.25, 1));
+      }
+    } else {
+      $('stormVig').style.opacity = 0;
+      stormTick = 0;
+    }
   }
   G.time += dt;
 }
@@ -6509,10 +6716,32 @@ function drawMinimap(){
     mm.fillStyle = 'rgba(255,77,61,' + alpha.toFixed(2) + ')';
     mm.beginPath(); mm.arc(x, z, 4.5, 0, 7); mm.fill();
   }
+  /* Ausrichtung des Pfeils.
+     Die Karte zeigt Norden oben: canvas +x ist Welt +x, canvas +y (nach
+     unten) ist Welt +z. Ungedreht zeigt der Pfeil nach canvas -y, also nach
+     Welt -z. Vorwaerts ist im Spiel (-sin yaw, 0, -cos yaw), bei yaw = 0
+     also genau Welt -z — die Drehung muss bei yaw = 0 folglich null sein
+     und danach der Blickrichtung entgegenlaufen, weil die canvas-Drehung
+     bei nach unten zeigender y-Achse im Uhrzeigersinn arbeitet.
+
+     Richtig ist damit -camYaw. Vorher stand hier PI - camYaw, und das ist
+     in jeder Richtung genau die Gegenrichtung: wer nach Norden lief, sah
+     den Pfeil nach Sueden zeigen. */
   const [px,pz] = toPx(me.position.x, me.position.z);
-  mm.save(); mm.translate(px,pz); mm.rotate(Math.PI - camYaw);
+  mm.save();
+  mm.translate(px,pz);
+  mm.rotate(-camYaw);
+
+  // Sichtkegel — macht die Blickrichtung auf einen Blick eindeutig
+  mm.fillStyle = 'rgba(255,176,32,.16)';
+  mm.beginPath();
+  mm.moveTo(0,0);
+  mm.arc(0, 0, 34, -Math.PI/2 - 0.52, -Math.PI/2 + 0.52);
+  mm.closePath(); mm.fill();
+
   mm.fillStyle = '#FFB020';
-  mm.beginPath(); mm.moveTo(0,-8); mm.lineTo(6,7); mm.lineTo(-6,7); mm.closePath(); mm.fill();
+  mm.beginPath(); mm.moveTo(0,-9); mm.lineTo(6.5,7); mm.lineTo(0,4); mm.lineTo(-6.5,7);
+  mm.closePath(); mm.fill();
   mm.restore();
 }
 
@@ -6931,7 +7160,8 @@ function snapshot(){
   return {
     t:'snap', q:snapSeq, time:G.time,
     storm: { cx:G.storm.cx, cz:G.storm.cz, r:G.storm.r, phase:G.storm.phase,
-             state:G.storm.state, timer:G.storm.timer, dps:G.storm.dps },
+             state:G.storm.state, timer:G.storm.timer, dps:G.storm.dps,
+             nextCx:G.storm.nextCx, nextCz:G.storm.nextCz, nextR:G.storm.nextR },
     a: G.actors.map(a=>({
       i:a.id, x:+a.position.x.toFixed(2), y:+a.position.y.toFixed(2), z:+a.position.z.toFixed(2),
       w:+a.yaw.toFixed(3), p:+a.pitch.toFixed(3), h:Math.ceil(a.hp), s:Math.ceil(a.shield),
@@ -7047,6 +7277,7 @@ function loop(){
   requestAnimationFrame(loop);
   const dt = Math.min(0.25, clock.getDelta());
   updateRematch();
+  animateStorm(dt);          // Schleier wandert weiter, auch im Menue
 
   if (G.phase === 'play' && !G.paused){
     G.accumulator += dt;
@@ -7080,8 +7311,8 @@ function loop(){
     updateHUD(dt);
     updateDebugHelpers();
     updateDebugPanel(dt);
-    const mv = G.me && G.me.ctrl ? Math.hypot(G.me.ctrl.velocity.x, G.me.ctrl.velocity.z) > 1 : false;
-    updateViewmodel(dt, mv);
+    const spd = G.me && G.me.ctrl ? Math.hypot(G.me.ctrl.velocity.x, G.me.ctrl.velocity.z) : 0;
+    updateViewmodel(dt, spd);
   }
 
   renderer.autoClear = true;
@@ -7193,7 +7424,11 @@ function syncBots(){
 function buildMapChips(){
   const box = $('mapChips');
   box.innerHTML = '';
-  for (const m of MAP_SETS){
+  const list = selectableMaps();
+  // Gibt es nur eine Karte, ist die Auswahl keine Auswahl mehr — dann steht
+  // dort schlicht, worauf gespielt wird.
+  box.classList.toggle('single', list.length < 2);
+  for (const m of list){
     const b = document.createElement('button');
     b.className = 'mchip'; b.type = 'button';
     b.setAttribute('aria-pressed', m.id === mapSetId ? 'true' : 'false');
@@ -7608,7 +7843,15 @@ document.addEventListener('fullscreenchange', ()=>{
 loadSettings();
 syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
-if (SETTINGS.map && MAP_SETS.some(m=>m.id === SETTINGS.map)) mapSetId = SETTINGS.map;
+/* Wer zuletzt auf der Drift-Insel gespielt hat, hat sie noch gespeichert.
+   Sie ist aber nicht mehr waehlbar, also wird der Eintrag verworfen statt
+   eine Karte zu laden, die in der Lobby gar nicht auftaucht. */
+if (SETTINGS.map && selectableMaps().some(m=>m.id === SETTINGS.map)){
+  mapSetId = SETTINGS.map;
+} else {
+  mapSetId = defaultMapId();
+  if (SETTINGS.map !== mapSetId){ SETTINGS.map = mapSetId; saveSettings(); }
+}
 if (typeof SETTINGS.bots !== 'number') SETTINGS.bots = 11;
 SETTINGS.bots = clamp(SETTINGS.bots|0, 0, 39);
 buildMapChips();
