@@ -5029,6 +5029,7 @@ function rbApply(m){
        Arena. Jetzt schaut man den Lebenden zu, bis ein Gegner da ist. */
     a.alive = false;
     a.rbState = 'queued';
+    a.hasUsedRebirth = true;      // ab dem Anstellen verbraucht
     a.arenaId = null;
     a.rbUntil = 0;
     a.rbOpp = null; a.rbFreeze = false;
@@ -5334,8 +5335,14 @@ function rbHostTick(dt){
     if (!a || a.rbState !== 'queued') removeFromQueue(id);
   }
   if (G.rbQueue.length === 1){
-    const aliveOnMap = G.actors.filter(x => x.alive && !inArena(x)).length;
-    if (aliveOnMap <= 1){
+    const onMap = G.actors.filter(x => x.alive && !inArena(x));
+    /* Wer koennte theoretisch noch fallen UND dann anstellen? Nur wer lebt,
+       nicht schon in einer Arena steht und seine Chance noch hat. Sind das
+       null, wartet der Letzte in der Schlange auf jemanden, der nie kommen
+       kann. Dasselbe gilt, wenn nur noch einer auf der Karte steht: dessen
+       Tod wuerde die Runde beenden, nicht die Schlange fuellen. */
+    const possible = onMap.filter(x => !x.hasUsedRebirth).length;
+    if (onMap.length <= 1 || possible === 0){
       const a = G.actors.find(x=>x.id === G.rbQueue[0]);
       if (a) rbHostLucky(a);
     }
@@ -6253,16 +6260,20 @@ function updateRebirthUI(dt){
   const num = $('rbNum');
 
   if (RBUI.mode === 'queue'){
-    /* Statt eines ablaufenden Zaehlers steht dort, wie viele noch auf der
-       Karte sind — also wie wahrscheinlich es ist, dass gleich jemand
-       dazukommt. Die Punkte zeigen, dass weiter gewartet wird. */
-    const onMap = G.actors.filter(a => a.alive && !inArena(a)).length;
-    const wait  = G.actors.filter(a => a.rbState === 'queued').length;
-    num.textContent = onMap;
-    num.classList.remove('urgent');
+    /* Die Zahl zeigt nicht, wie viele noch leben, sondern wie viele davon
+       ueberhaupt noch als Gegner in Frage kommen — nur wer seine Chance
+       noch hat, kann nachruecken. Steht dort null, ist die Sache gleich
+       entschieden und der Rebirth kommt geschenkt. */
+    const onMap = G.actors.filter(a => a.alive && !inArena(a));
+    const possible = onMap.filter(a => !a.hasUsedRebirth).length;
+    const wait = G.actors.filter(a => a.rbState === 'queued').length;
+    num.textContent = possible;
+    num.classList.toggle('urgent', possible === 0);
     const dots = '·'.repeat(1 + (Math.floor(RBUI.t*2) % 3));
-    $('rbSub').textContent = (wait > 1 ? `${wait} WARTEN` : 'WAITING FOR OPPONENT')
-      + ' · ' + onMap + ' IM SPIEL ' + dots;
+    $('rbSub').textContent = possible === 0
+      ? 'NO OPPONENT POSSIBLE · FREE REBIRTH ' + dots
+      : (wait > 1 ? `${wait} WARTEN` : 'WAITING FOR OPPONENT')
+        + ' · ' + possible + ' MÖGLICHE GEGNER ' + dots;
     return;
   }
   if (RBUI.mode === 'ready'){
