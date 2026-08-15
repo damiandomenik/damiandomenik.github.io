@@ -801,7 +801,8 @@ const SPECTATE = { dist: 5.6, height: 1.15, sens: 1.0, lerp: 9.0 };
    Reichweite jeder Kugel, ausserhalb des Sturms, fuer die anderen unsichtbar. */
 const REBIRTH = {
   waitTime:   30,        // Sekunden in der Warteschlange
-  countdown:  3,         // 3 · 2 · 1 · FIGHT
+  countdown:  5,         // Zeit zum Aufstellen, bevor die Wand faellt
+  minPlayers: 3,         // ab hier gibt es keinen Rebirth mehr
   arenaSize:  34,        // Kantenlaenge der quadratischen Arena
   wallHeight: 6,
   origin:     new THREE.Vector3(6000, -3000, 0),   // erste Arena
@@ -2196,10 +2197,16 @@ class CharacterController {
       const top = w.bounds.max.y + 20;
       const hit = w.groundBelow(this.position.x, top, this.position.z, top - w.bounds.min.y + 200);
       if (hit) cands.push(new THREE.Vector3(this.position.x, hit.point.y + 0.06, this.position.z));
-      const mid = w.groundBelow(0, top, 0, top - w.bounds.min.y + 200);
-      if (mid) cands.push(new THREE.Vector3(0, mid.point.y + 0.06, 0));
+      /* Mitte der aktuellen Welt, nicht des Weltkoordinatensystems. Die
+         Arena liegt weit ausserhalb des Nullpunkts — ein Rueckfall auf
+         (0,0,0) haette dort ins Nichts gefuehrt. */
+      const c = w.bounds.getCenter(new THREE.Vector3());
+      const mid = w.groundBelow(c.x, top, c.z, top - w.bounds.min.y + 200);
+      if (mid) cands.push(new THREE.Vector3(c.x, mid.point.y + 0.06, c.z));
+      cands.push(new THREE.Vector3(c.x, w.bounds.min.y + 5, c.z));
+    } else {
+      cands.push(new THREE.Vector3(0, 5, 0));
     }
-    cands.push(new THREE.Vector3(0, 5, 0));
     for (const c of cands){
       if (this.isFree(c) || c === cands[cands.length-1]){
         this.position.copy(c);
@@ -2731,7 +2738,12 @@ class WeaponLibrary {
       return c;
     });
     const m = new THREE.Mesh(geo, mats.length > 1 ? mats : mats[0]);
-    m.castShadow = true; m.frustumCulled = false;
+    m.castShadow = true;
+    /* Frueher stand hier frustumCulled = false. Das galt dann auch fuer
+       jedes Stueck Beute auf dem Boden — alle wurden in jedem Bild
+       gezeichnet, ob im Blickfeld oder hinter dem Ruecken. In der Hand und
+       im Sichtmodell wird die Abschaltung gezielt gesetzt, dort ist sie
+       noetig (Knochen als Elternteil bzw. eigene Kamera). */
     return m;
   }
 
@@ -2784,7 +2796,7 @@ class PickupLibrary {
         inner.scale.setScalar(k);
         root.traverse(m=>{
           if (!m.isMesh) return;
-          m.castShadow = true; m.receiveShadow = false; m.frustumCulled = false;
+          m.castShadow = true; m.receiveShadow = false;
           const mats = Array.isArray(m.material) ? m.material : [m.material];
           mats.forEach(mm=>{
             if (!mm) return;
@@ -2824,14 +2836,11 @@ class PickupLibrary {
     body.rotation.x = cfg.tilt;
     holder.add(body);
 
-    const beam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.26, 0.13, 1.9, 10, 1, true),
-      new THREE.MeshBasicMaterial({ color:cfg.color, transparent:true, opacity:0.12,
-        side:THREE.DoubleSide, depthWrite:false }));
+    const beam = new THREE.Mesh(lootBeamGeo(), lootBeamMat(cfg.color));
+    beam.scale.set(0.87, 0.79, 0.87);
     beam.position.y = 0.85;
     holder.add(beam);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.016, 4, 22),
-      new THREE.MeshBasicMaterial({ color:cfg.color }));
+    const ring = new THREE.Mesh(lootRingGeo(), lootRingMat(cfg.color));
     ring.rotation.x = Math.PI/2; ring.position.y = -cfg.lift + 0.06;
     holder.add(ring);
     holder.userData.spinner = body;
@@ -3205,6 +3214,39 @@ const G = {
 
 let stormMesh = null, stormRing = null, stormTick = 0;
 
+let dropDotMat = null;
+function dropDotMaterial(){
+  if (dropDotMat) return dropDotMat;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32,32,0, 32,32,32);
+  grd.addColorStop(0,   'rgba(255,226,178,0.95)');
+  grd.addColorStop(0.38,'rgba(255,176,32,0.55)');
+  grd.addColorStop(1,   'rgba(255,176,32,0)');
+  g.fillStyle = grd; g.fillRect(0,0,64,64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  // sizeAttenuation false: die Marke bleibt in jeder Entfernung gleich gross
+  dropDotMat = new THREE.SpriteMaterial({ map:tex, transparent:true,
+    depthWrite:false, sizeAttenuation:false });
+  return dropDotMat;
+}
+
+function setDropMarker(a, on){
+  if (on){
+    if (!a.dropDot){
+      a.dropDot = new THREE.Sprite(dropDotMaterial());
+      a.dropDot.scale.set(0.030, 0.030, 1);
+      a.dropDot.renderOrder = 4;
+      scene.add(a.dropDot);
+    }
+    a.dropDot.visible = true;
+    a.dropDot.position.set(a.position.x, a.position.y + (a.chuteOpen ? 2.6 : 1.4), a.position.z);
+  } else if (a.dropDot){
+    a.dropDot.visible = false;
+  }
+}
+
 /* ==========================================================================
    14 — DEBUG-ANSICHTEN
    ========================================================================== */
@@ -3339,12 +3381,21 @@ function clearWorld(){
   if (G.mapGroup){ scene.remove(G.mapGroup); disposeTree(G.mapGroup); G.mapGroup = null; }
   if (G.sky){ scene.remove(G.sky.group); disposeTree(G.sky.group); G.sky = null; }
   if (G.world && G.world.debugMesh){ scene.remove(G.world.debugMesh); }
-  for (const a of G.actors) if (a.view) scene.remove(a.view.obj);
+  for (const a of G.actors){
+    if (a.view) scene.remove(a.view.obj);
+    if (a.dropDot){ scene.remove(a.dropDot); a.dropDot = null; }
+  }
   G.actors.length = 0; G.me = null;
   for (const p of G.pickups) scene.remove(p.mesh);
   G.pickups.length = 0;
-  if (stormMesh){ scene.remove(stormMesh); stormMesh = null; }
-  if (stormRing){ scene.remove(stormRing); stormRing = null; }
+  for (const m of [stormMesh, stormRing]){
+    if (!m) continue;
+    scene.remove(m);
+    m.geometry.dispose();
+    m.material.dispose();
+  }
+  stormMesh = null; stormRing = null;
+  G.rbReturns.length = 0;
 }
 function disposeTree(o){
   o.traverse(x=>{
@@ -3530,7 +3581,11 @@ void main(){
 
   // Schleier, der nach oben zieht
   vec2 q = vec2(vUv.x * 26.0, vWorld.y * 0.045 - uTime * 0.16);
-  float n = noise(q) * 0.58 + noise(q * 2.6) * 0.28 + noise(q * 6.3) * 0.14;
+  /* Zwei Lagen statt drei. Die Wand ueberdeckt bei DoubleSide den halben
+     Bildschirm doppelt; jede eingesparte Lage sind vier Hash-Rechnungen je
+     Bildpunkt. Der Unterschied ist im Bild nicht zu sehen, auf schwaecheren
+     Geraeten aber deutlich zu spueren. */
+  float n = noise(q) * 0.66 + noise(q * 2.9) * 0.34;
 
   // senkrechte Streifen, vom Rauschen leicht verzogen
   float st = 0.5 + 0.5 * sin(vUv.x * uBands + n * 5.0 - uTime * 0.5);
@@ -4073,6 +4128,7 @@ function buildRebirthArena(id){
 
   scene.add(group);
   group.updateMatrixWorld(true);
+  group.visible = false;          // erst sichtbar, wenn jemand darin steht
 
   /* Zwei Kollisionswelten: eine mit Trennwand fuer das Warten und den
      Countdown, eine ohne fuer den Kampf. Umgehaengt wird mit einem
@@ -4112,7 +4168,9 @@ function dropDivider(ar){
 /** Laeuft auf jedem Rechner, nicht nur beim Host — das ist reine Anzeige. */
 function updateArenas(dt){
   for (const ar of G.arenas){
-    if (!ar.divider) continue;
+    const inUse = ar.state !== 'free';
+    if (ar.group.visible !== inUse) ar.group.visible = inUse;
+    if (!inUse || !ar.divider) continue;
     if (ar.divT < 1 && ar.divT > 0){
       ar.divT = Math.max(0, ar.divT - dt/REBIRTH.wallSink);
       const k = ar.divT;
@@ -4181,6 +4239,33 @@ function inArena(a){
    und verschwand bei niemandem gleichzeitig. */
 let lootSeq = 0;
 
+/* Geteilte Bauteile fuer Beute. Der Schluessel ist die Farbe; Seltenheiten
+   und Aufsammelarten haben nur eine Handvoll davon. */
+const lootGfx = { beam:null, ring:null, beamMat:new Map(), ringMat:new Map() };
+function lootBeamGeo(){
+  if (!lootGfx.beam)
+    lootGfx.beam = new THREE.CylinderGeometry(0.30, 0.16, 2.4, 10, 1, true);
+  return lootGfx.beam;
+}
+function lootRingGeo(){
+  if (!lootGfx.ring) lootGfx.ring = new THREE.TorusGeometry(0.34, 0.018, 4, 24);
+  return lootGfx.ring;
+}
+function lootBeamMat(col){
+  let m = lootGfx.beamMat.get(col);
+  if (!m){
+    m = new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.13,
+          side:THREE.DoubleSide, depthWrite:false });
+    lootGfx.beamMat.set(col, m);
+  }
+  return m;
+}
+function lootRingMat(col){
+  let m = lootGfx.ringMat.get(col);
+  if (!m){ m = new THREE.MeshBasicMaterial({ color:col }); lootGfx.ringMat.set(col, m); }
+  return m;
+}
+
 /** Eine Waffe auf den Boden legen — als Beute oder wenn eine ersetzt wird. */
 function spawnLoot(id, at, jitter = 0, nid = null, rand = null){
   const W = WEAPONS[id]; if (!W) return null;
@@ -4191,13 +4276,10 @@ function spawnLoot(id, at, jitter = 0, nid = null, rand = null){
   mesh.rotation.z = 0.35;
   const col = RARITY[W.rarity].color;
   // Ein schmaler Lichtkegel macht Beute auch aus der Ferne sichtbar
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.16, 2.4, 10, 1, true),
-    new THREE.MeshBasicMaterial({ color:col, transparent:true, opacity:0.13,
-      side:THREE.DoubleSide, depthWrite:false }));
+  const beam = new THREE.Mesh(lootBeamGeo(), lootBeamMat(col));
   beam.position.y = 1.0;
   holder.add(beam);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.34, 0.018, 4, 24),
-    new THREE.MeshBasicMaterial({ color:col }));
+  const ring = new THREE.Mesh(lootRingGeo(), lootRingMat(col));
   ring.rotation.x = Math.PI/2; ring.position.y = -0.16;
   holder.add(ring);
   holder.position.copy(at);
@@ -4271,16 +4353,35 @@ function findLoot(nid){
   return null;
 }
 
+/* Beute, die weit weg ist, muss sich weder drehen noch schweben — und
+   gezeichnet werden muss sie erst recht nicht. Bei knapp 200 verteilten
+   Stuecken spart das je Bild rund 400 Matrixberechnungen und ebenso viele
+   Zeichenaufrufe, ohne dass irgendwo etwas fehlt: 150 m weit ist ein
+   Lichtkegel keine zwei Bildpunkte breit. */
+const LOOT_ANIM_RANGE = 95;
+const LOOT_DRAW_RANGE = 165;
+
 function updatePickups(dt){
   const me = G.me;
+  const mePos = me ? me.position : null;
   for (const p of G.pickups){
     if (p.taken) continue;
-    // Ausstehende Bestaetigung laeuft nach einer Sekunde ab — sonst bliebe
-    // ein Stueck unsichtbar liegen, wenn eine Nachricht verloren geht.
+
+    /* Ausstehende Bestaetigung laeuft nach einer Sekunde ab — sonst bliebe
+       ein Stueck unsichtbar liegen, wenn eine Nachricht verloren geht. Das
+       muss VOR der Entfernungspruefung stehen: wer im selben Augenblick
+       weggeholt wird (Rebirth, Rettungsnetz), wuerde die Frist sonst nie
+       ablaufen sehen. */
     if (p.pending){
       p.pendingT = (p.pendingT || 0) + dt;
       if (p.pendingT > 1.0){ p.pending = false; p.pendingT = 0; p.mesh.visible = true; }
       continue;
+    }
+    if (mePos){
+      const d2 = p.mesh.position.distanceToSquared(mePos);
+      const draw = d2 < LOOT_DRAW_RANGE*LOOT_DRAW_RANGE;
+      if (p.mesh.visible !== draw) p.mesh.visible = draw;
+      if (d2 > LOOT_ANIM_RANGE*LOOT_ANIM_RANGE) continue;   // zu weit fuer alles Weitere
     }
     const spin = p.spin || (p.kind === 'gun' ? 0.9 : 1.4);
     if (p.spinner) p.spinner.rotation.y += dt*spin*1.4;
@@ -4492,6 +4593,19 @@ function rayCapsule(origin, dir, a, b, r, maxDist){
   return { t: Math.max(0, t), point: _o1.clone() };
 }
 
+/** Schuss eines fremden Schuetzen hoerbar machen. Entfernung und Waffe
+    kommen aus dem Netz; ueber Bereichsgrenzen hinweg bleibt es still. */
+function playRemoteShot(a){
+  const me = G.me;
+  if (!me || !a || a === me) return;
+  if (!sameRealm(a, me)) return;
+  const d = a.position.distanceTo(me.position);
+  if (d > 150) return;
+  const att = clamp(1 - d/150, 0, 1);
+  if (d < 30) sfx.shot(a.weapon, att*att*0.8);
+  else        sfx.shotFar(a.weapon, att*att);
+}
+
 /** Eine Leuchtspur je Kugel. Bei einläufigen Waffen ist das genau eine,
     bei Schrot faechert sich der Schuss sichtbar auf. */
 function drawPellets(from, ends){
@@ -4586,13 +4700,7 @@ function fire(actor){
     if (G.me){
       const d = actor.position.distanceTo(G.me.position);
       if (d < 200){ drawPellets(actorMuzzle(actor, _trA), pelletEnds); muzzleSpark(actor); }
-      /* Entfernte Schuetzen sind leiser und dumpfer. Bis 30 m hoert man den
-         Knall, danach nur noch das Grollen — bei 150 m gar nichts mehr. */
-      if (d < 150){
-        const att = clamp(1 - d/150, 0, 1);
-        if (d < 30) sfx.shot(actor.weapon, att*att*0.75);
-        else sfx.shotFar(actor.weapon, att*att);
-      }
+      playRemoteShot(actor);
     }
   }
   if (actor.view) actor.view.play('shoot', { once:true, fade:0.05 });
@@ -4633,6 +4741,9 @@ function setHandWeapon(a, id){
   if (a.handWeapon){ a.view.hand.remove(a.handWeapon); a.handWeapon = null; }
   if (!id) return;
   const w = gunLib.spawn(id);
+  // An einem Knochen haengend stimmt die Huellkugel nicht — hier muss die
+  // Sichtbarkeitspruefung aus bleiben, sonst blinkt die Waffe weg.
+  w.traverse(o=>{ if (o.isMesh) o.frustumCulled = false; });
   w.position.set(0.02, 0.02, 0.10);
   w.rotation.set(0, Math.PI, 0);
   a.view.hand.add(w);
@@ -4795,7 +4906,15 @@ function canRebirth(a){
   if (!a) return false;
   if (G.mode !== 'br' || G.phase !== 'play') return false;
   if (a.hasUsedRebirth) return false;             // hoechstens einmal je Runde
-  if (a.rbState === 'queued' || a.rbState === 'arena') return false;
+  if (RB_IN_ARENA[a.rbState]) return false;       // schon in der Schlange oder Arena
+
+  /* Endphase: sind ausser dem Gefallenen nur noch zwei im Rennen, ist
+     Schluss mit zweiten Chancen. Sonst zoege sich das Finale endlos, und
+     ein Duell weit unter der Karte waehrend des letzten Gefechts auf der
+     Insel waere ohnehin niemandem zu erklaeren. Gezaehlt wird nach dem
+     Tod, der Gefallene ist also nicht mehr dabei. */
+  const left = G.actors.filter(x => x.alive || RB_IN_ARENA[x.rbState]).length;
+  if (left < REBIRTH.minPlayers) return false;
   return true;
 }
 
@@ -4842,6 +4961,9 @@ function placeInArena(a, ar, side){
     a.ctrl.grounded = true;
     a.ctrl.fallTimer = 0; a.ctrl.buriedTimer = 0;
   }
+  /* Die Sterbeanimation laeuft sonst weiter — die Figur wuerde beim
+     Betreten der Arena auf dem Boden liegen, bis sie sich bewegt. */
+  if (a.view) a.view.play('idle', { fade:0.05 });
   if (a === G.me){
     camYaw = a.yaw; camPitch = 0;
     leaveSpectate();
@@ -4859,24 +4981,21 @@ function rbApply(m){
 
   if (m.op === 'queue'){
     if (!a) return;
-    /* Gewartet wird ab jetzt IN der Arena, nicht als Leiche auf der Insel.
-       Man steht hinter der Trennwand, kann sich bewegen und die Waffe
-       ausprobieren — und sieht sofort, wo es gleich losgeht. */
-    const ar = ensureArena(m.arena);
-    ar.state = 'waiting';
-    ar.a = a; ar.b = null;
-    raiseDivider(ar);
+    /* Wartezeit heisst zuschauen. Die Arena erst beim Warten zu betreten
+       hiess, allein hinter einer Wand zu stehen und nichts vom Spiel
+       mitzubekommen — und sie brauchte fuer jeden Wartenden eine eigene
+       Arena. Jetzt schaut man den Lebenden zu, bis ein Gegner da ist. */
+    a.alive = false;
     a.rbState = 'queued';
-    a.arenaId = m.arena;
+    a.arenaId = null;
     a.rbUntil = G.time + (m.secs || REBIRTH.waitTime);
     a.rbOpp = null; a.rbFreeze = false;
-    a.alive = true;                       // in der Arena lebt man wieder
-    a.hp = a.maxHp; a.shield = 0;
-    stripActor(a);
-    giveArenaLoadout(a);
-    if (a.view) a.view.obj.visible = true;
-    placeInArena(a, ar, 0);
-    if (a === G.me) rbUI('queue', { secs: m.secs || REBIRTH.waitTime });
+    if (a === G.me){
+      rbUI('queue', { secs: m.secs || REBIRTH.waitTime });
+      setTimeout(()=>{
+        if (G.phase === 'play' && G.me && G.me.rbState === 'queued') enterSpectate();
+      }, 1100);
+    }
     return;
   }
 
@@ -4921,6 +5040,7 @@ function rbApply(m){
     if (ar){
       ar.state = 'fight';
       dropDivider(ar);                     // jetzt erst wird der Weg frei
+      if (ar.a === G.me || ar.b === G.me) sfx.kill && sfx.kill();
       if (ar.a) ar.a.rbFreeze = false;
       if (ar.b) ar.b.rbFreeze = false;
       if (ar.a === G.me || ar.b === G.me) rbUI('fight');
@@ -5095,10 +5215,8 @@ function removeFromQueue(id){
 function rbHostEnqueue(a){
   if (!G.isHost || !canRebirth(a)) return false;
   if (G.rbQueue.includes(a.id)) return false;   // nie doppelt
-  const ar = acquireArena();                     // eigene Arena zum Warten
-  ar.state = 'waiting'; ar.a = a; ar.b = null;
   G.rbQueue.push(a.id);                          // FIFO: hinten anstellen
-  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime, arena:ar.id });
+  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime });
   return true;
 }
 
@@ -5112,9 +5230,11 @@ function rbHostMatch(){
     // Zwischenzeitlich ausgestiegen? Den jeweils anderen wieder anstellen.
     if (!a || a.rbState !== 'queued'){ if (b && b.rbState === 'queued') G.rbQueue.unshift(idb); continue; }
     if (!b || b.rbState !== 'queued'){ G.rbQueue.unshift(ida); continue; }
-    /* Gekaempft wird in der Arena des laenger Wartenden — der zweite zieht
-       zu ihm um, seine eigene wird frei. */
-    const ar = (a.arenaId !== null && G.arenas.find(x=>x.id === a.arenaId)) || acquireArena();
+    /* Jede Paarung bekommt ihre eigene Arena. Sterben vier Leute fast
+       gleichzeitig, laufen also zwei Duelle nebeneinander — jedes in einer
+       eigenen Halle mit eigener Kollisionswelt, 400 m auseinander. Sie
+       stoeren einander nicht, weder beim Schiessen noch beim Hoeren. */
+    const ar = acquireArena();
     ar.state = 'countdown';
     ar.timer = REBIRTH.countdown;
     rbSend({ op:'match', arena:ar.id, a:a.id, b:b.id, id:a.id, cd:REBIRTH.countdown });
@@ -6026,9 +6146,10 @@ function rbUI(mode, opts){
     RBUI.cd = opts.cd || REBIRTH.countdown;
     RBUI.name = opts.name || '';
     $('rbTitle').textContent = 'OPPONENT FOUND';
-    $('rbSub').textContent = 'GET READY · ' + String(RBUI.name).toUpperCase()
-      + ' · POSITION YOURSELF';
+    $('rbSub').textContent = String(RBUI.name).toUpperCase() + ' · TAKE YOUR SIDE';
     $('rbNum').style.display = '';
+    // Beim Aufstellen sitzt die Anzeige oben, sonst verdeckt sie die Haelfte
+    box.classList.add('compact');
     sfx.zone();
   } else if (mode === 'fight'){
     $('rbTitle').textContent = 'FIGHT!';
@@ -6218,10 +6339,23 @@ function updateSpectateCamera(){
    ========================================================================== */
 const fx = [];
 function addFx(obj, life, fn){ scene.add(obj); fx.push({ obj, t:0, life, fn }); }
+
+/** Einen Effekt abraeumen. `userData.shared` schuetzt Bauteile, die sich
+    viele Effekte teilen — die duerfen nur beim Beenden der Runde fallen. */
+function disposeFx(obj){
+  scene.remove(obj);
+  if (obj.userData && obj.userData.shared) return;
+  if (obj.geometry && !(obj.userData && obj.userData.sharedGeoOnly)) obj.geometry.dispose();
+  if (obj.material){
+    const ms = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const m of ms) m && m.dispose && m.dispose();
+  }
+}
+
 function updateFx(dt){
   for (let i=fx.length-1;i>=0;i--){
     const f = fx[i]; f.t += dt;
-    if (f.t >= f.life){ scene.remove(f.obj); if (f.obj.geometry) f.obj.geometry.dispose(); fx.splice(i,1); continue; }
+    if (f.t >= f.life){ disposeFx(f.obj); fx.splice(i,1); continue; }
     f.fn && f.fn(f.obj, f.t/f.life);
   }
 }
@@ -6257,9 +6391,12 @@ function muzzleSpark(a){
   addFx(m, 0.06, (o,t)=>{ o.scale.setScalar(1 + t*1.6); o.material.opacity = 1-t; });
 }
 
+let impactGeo = null;
 function impact(p){
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
-    new THREE.MeshBasicMaterial({ color:0xffe0a8 }));
+  if (!impactGeo) impactGeo = new THREE.SphereGeometry(0.07, 6, 5);
+  const m = new THREE.Mesh(impactGeo,
+    new THREE.MeshBasicMaterial({ color:0xffe0a8, transparent:true }));
+  m.userData.sharedGeoOnly = true;
   m.position.copy(p);
   addFx(m, 0.18, (o,t)=>{ o.scale.setScalar(1 + t*2.4); o.material.opacity = 1-t; o.material.transparent = true; });
 }
@@ -6423,9 +6560,18 @@ function simulate(dt){
         input.jumpEdge = false;
       } else {
         const res = me.ctrl.step(dt, me.wish, inp.jump);
-        if (res === 'rescued') toast(me.ctrl.lastRescue === 'unter der Karte'
-          ? 'Unter der Karte — zurück auf festen Boden'
-          : 'Zurück auf sicheren Boden');
+        if (res === 'rescued'){
+          const ar = inArena(me) ? G.arenas.find(x=>x.id === me.arenaId) : null;
+          if (ar){
+            // In der Arena gehoert man an den eigenen Startpunkt zurueck
+            placeInArena(me, ar, ar.b === me ? 1 : 0);
+            toast('Zurück in die Arena');
+          } else {
+            toast(me.ctrl.lastRescue === 'unter der Karte'
+              ? 'Unter der Karte — zurück auf festen Boden'
+              : 'Zurück auf sicheren Boden');
+          }
+        }
         me.position.copy(me.ctrl.position);
         input.jumpEdge = false;
       }
@@ -6549,8 +6695,9 @@ function renderActors(dt){
     obj.rotation.set(0, a.yaw + Math.PI, 0);   // Quaternius-Figuren schauen nach +Z
     /* Der eigene Körper ist unsichtbar — ausser beim Absprung und im
        Zuschauermodus, wo man auf sich selbst blicken koennte. */
-    obj.visible = (a !== G.me)
-      || (a.dropping && G.drop && G.drop.playerState !== 'plane');
+    obj.visible = ((a !== G.me)
+      || (a.dropping && G.drop && G.drop.playerState !== 'plane'))
+      && a.rbState !== 'queued';     // Wartende sind vorerst aus der Welt
     if (a.handWeapon) a.handWeapon.visible = a.alive && !a.dropping;
 
     /* Im freien Fall wird die Figur nicht animiert, sondern gestellt: waagrecht
@@ -6572,8 +6719,10 @@ function renderActors(dt){
       }
       a.view.play('idle', { fade:0.25, speed: a.chuteOpen ? 1 : 0.35 });
       a.view.update(dt);
+      setDropMarker(a, a !== G.me);
       continue;
     }
+    if (a.dropDot) setDropMarker(a, false);
     obj.rotation.order = 'XYZ';
 
     // Animation nach Bewegung wählen
@@ -6684,8 +6833,13 @@ function updateHUD(dt){
   }
   if (toastT > 0){ toastT -= dt; if (toastT <= 0) $('toast').textContent = ''; }
   if (boardOn) renderBoard();
-  drawMinimap();
+  /* Die Minikarte loescht und zeichnet eine 360x360-Flaeche. Bei 144 Bildern
+     je Sekunde ist das reine Verschwendung — sie zeigt Kreise und Punkte,
+     kein Bild braucht den naechsten. 20-mal je Sekunde reicht voellig. */
+  mmAcc += dt;
+  if (mmAcc >= 1/20){ mmAcc = 0; drawMinimap(); }
 }
+let mmAcc = 99;
 function drawMinimap(){
   const me = G.me; if (!me) return;
   const W = 360, R = BR.islandRadius + 40;
@@ -7015,7 +7169,12 @@ function onHostData(c, d){
     a.climbT = (typeof d.cl === 'number') ? d.cl : 0;
     a.airborne = !!d.ai;
     a.dropping = !!d.dp;
-    if (d.sh) a.lastShotAt = G.time;
+    /* Auch der Host muss die Schuesse seiner Gaeste hoeren und sehen —
+       er bekommt sie ueber deren Zustandspakete, nicht ueber fire(). */
+    if (d.sh){
+      if (G.time - a.lastShotAt > 0.12){ muzzleSpark(a); playRemoteShot(a); }
+      a.lastShotAt = G.time;
+    }
     if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
     return;
   }
@@ -7211,7 +7370,7 @@ function applySnapshot(s){
     if ((d.g || null) !== a.weapon){ a.weapon = d.g || null; setHandWeapon(a, a.weapon); }
     if (!!d.c !== !!a.chuteOpen) setActorChute(a, !!d.c);
     if (d.f){
-      if (G.time - a.lastShotAt > 0.12) muzzleSpark(a);
+      if (G.time - a.lastShotAt > 0.12){ muzzleSpark(a); playRemoteShot(a); }
       a.lastShotAt = G.time;
     }
     pushNetSample(a, d.x, d.y, d.z, d.w);
