@@ -552,7 +552,8 @@ button:disabled{cursor:not-allowed}
     </div>
 
     <div class="lb-foot">
-      <span>WASD laufen · <b style="color:var(--amber)">Shift sprinten</b> · C ducken ·
+      <span>WASD laufen · <b style="color:var(--amber)">Shift sprinten</b> ·
+        <b style="color:var(--amber)">C halten / Strg umschalten</b> ducken ·
         Leertaste springen/klettern · Linksklick schießen ·
         <b style="color:var(--amber)">E aufheben</b> · R nachladen · 1/2 Waffe ·
         F abspringen · U festgesteckt · Tab Punktestand · Esc Menü</span>
@@ -3957,6 +3958,7 @@ function updateDrop(dt){
     return;
   }
   const act = input.dropAction; input.dropAction = false;
+  crouchLatch = false;              // in der Luft duckt sich niemand
 
   if (d.playerState === 'plane'){
     d.pos.copy(d.planePos);
@@ -5647,6 +5649,8 @@ const sfx = {
    21 — EINGABE
    ========================================================================== */
 const keys = Object.create(null);
+/* Umschaltzustand fuer das Ducken auf Strg. C haelt, Strg rastet ein. */
+let crouchLatch = false;
 const input = { mx:0, mz:0, jump:false, jumpEdge:false, crouch:false, sprint:false,
                 fire:false, fireEdge:false, reload:false, dropAction:false,
                 pickup:false, ads:false, specNext:false, specPrev:false, specView:false };
@@ -5658,12 +5662,32 @@ function clearKeys(){
   for (const k in keys) keys[k] = false;
   input.fire = false; input.fireEdge = false; input.ads = false;
   input.jumpEdge = false; input.sprint = false;
+  /* Diese drei fehlten. Ein aus dem Menue mitgeschlepptes F hat die Figur
+     im ersten Bild aus dem Flugzeug geworfen. */
+  input.dropAction = false; input.reload = false; input.pickup = false;
+  input.specNext = false; input.specPrev = false; input.specView = false;
+  crouchLatch = false;
   showBoard(false);
 }
 addEventListener('blur', clearKeys);
 
 addEventListener('keydown', e=>{
-  /* Kombinationen mit Strg, Alt oder Cmd gehören dem Browser. Früher hat
+  /* Anschläge in Eingabefeldern gehören dem Feld, nicht dem Spiel. Ohne
+     diese Zeile tippt man sich beim Namen eintragen Spielbefehle mit ein. */
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
+  /* Ducken auf Strg — als Umschalter, nicht zum Halten. Wer Strg gedrückt
+     hält und dabei W tippt, schliesst in den meisten Browsern den Tab, und
+     Strg+W lässt sich nicht abfangen. Einmal drücken duckt, nochmal drücken
+     richtet wieder auf; die Finger verlassen Strg dazwischen. C bleibt
+     zusätzlich als Halten-Taste. */
+  if (e.code === 'ControlLeft' || e.code === 'ControlRight'){
+    if (!e.repeat && G.phase === 'play' && !pauseOpen) crouchLatch = !crouchLatch;
+    return;
+  }
+
+  /* Übrige Kombinationen mit Strg, Alt oder Cmd gehören dem Browser. Früher hat
      Strg (Ducken) zusammen mit A die Seite markiert, mit W sogar den Tab
      geschlossen — und Strg+W lässt sich nicht abfangen. Also fassen wir
      solche Anschläge gar nicht erst an. */
@@ -5698,6 +5722,8 @@ addEventListener('keydown', e=>{
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', e=>{
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
   keys[e.code] = false;
   if (e.code === 'Tab'){ e.preventDefault(); showBoard(false); }
 });
@@ -5743,8 +5769,11 @@ function readInput(){
   input.mz = (keys.KeyW||keys.ArrowUp ? 1:0) - (keys.KeyS||keys.ArrowDown ? 1:0);
   input.mx = (keys.KeyD||keys.ArrowRight ? 1:0) - (keys.KeyA||keys.ArrowLeft ? 1:0);
   input.jump = !!keys.Space;
-  input.crouch = !!(keys.KeyC || keys.KeyX);
   input.sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+  // Wer losspurtet, richtet sich von selbst auf — sonst stünde der
+  // Umschalter dem Sprint stumm im Weg
+  if (input.sprint && crouchLatch) crouchLatch = false;
+  input.crouch = !!(keys.KeyC || keys.KeyX) || crouchLatch;
   return input;
 }
 
@@ -6581,8 +6610,8 @@ async function setupMatch(roster, spawns){
     initStorm();
     // Mehr Figuren, mehr Beute — sonst steht die halbe Runde mit Fäusten da
     const heads = G.actors.length;
-    scatterWeapons(clamp(Math.round(heads*4.8), 40, 115));
-    scatterPickups(clamp(Math.round(heads*3.4), 30, 80));
+    scatterWeapons(clamp(Math.round(heads*7.2), 70, 190));
+    scatterPickups(clamp(Math.round(heads*5.2), 55, 140));
     await startDropPhase(pts);
   } else {
     G.drop = null;
