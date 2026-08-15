@@ -263,6 +263,11 @@ button:disabled{cursor:not-allowed}
 /* ---------- Rebirth ---------- */
 #rebirth{position:fixed;inset:0;z-index:32;display:flex;align-items:center;
   justify-content:center;pointer-events:none;text-align:center}
+#rebirth.compact{align-items:flex-start;padding-top:86px}
+#rebirth.compact .rb-box{padding:12px 26px;min-width:250px}
+#rebirth.compact #rbTitle{font-size:clamp(15px,2vw,20px)}
+#rebirth.compact #rbSub{font-size:10px;margin-top:6px}
+#rebirth.compact #rbNum{font-size:clamp(24px,3.6vw,34px);margin-top:6px}
 #rebirth .rb-box{padding:26px 44px;border:1px solid var(--line);
   background:rgba(6,12,13,.78);backdrop-filter:blur(2px);min-width:340px}
 #rbTitle{font-family:'Chakra Petch',sans-serif;font-weight:700;
@@ -359,20 +364,6 @@ button:disabled{cursor:not-allowed}
 #resTitle{font-size:clamp(34px,7vw,68px);font-weight:700;text-transform:uppercase;line-height:1}
 #resSub{color:var(--dim);font-size:13px;margin:14px 0 26px;letter-spacing:.1em}
 
-#armory .wrap{width:min(1020px,100%);display:grid;gap:14px;align-content:start}
-#armBody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;
-  margin-top:18px;min-height:0}
-#armList{display:grid;gap:6px;align-content:start;max-height:56vh;overflow:auto}
-#armList button{text-align:left;padding:10px 13px;border:1px solid var(--line);
-  background:rgba(0,0,0,.3);color:var(--bone);font:inherit;font-size:13px;cursor:pointer;
-  display:flex;justify-content:space-between;gap:12px;align-items:baseline}
-#armList button small{color:var(--dim);font-size:10.5px;letter-spacing:.1em}
-#armList button[aria-pressed=true]{border-color:var(--amber);color:var(--amber);
-  background:rgba(255,176,32,.1)}
-#armPreview{position:relative;min-height:240px;border:1px solid var(--line);
-  background:rgba(0,0,0,.32)}
-#armPreview canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-@media (max-width:820px){#armBody{grid-template-columns:1fr}}
 #lobbyList{font-size:12px;line-height:2;color:var(--dim);max-height:180px;overflow:auto}
 #code{font-family:'Chakra Petch',sans-serif;font-size:38px;font-weight:700;letter-spacing:.3em;color:var(--amber)}
 @media (max-width:820px){#pickBody{grid-template-columns:1fr}#preview{min-height:180px}#minimap{display:none}}
@@ -540,7 +531,6 @@ button:disabled{cursor:not-allowed}
         <button id="btHost">Runde hosten</button><i></i>
         <button id="btJoinS">Beitreten</button><i></i>
         <button id="btChar">Figur wechseln</button><i></i>
-        <button id="btArm">Waffenkammer</button><i></i>
         <button id="btTest">Testkammer</button>
       </nav>
 
@@ -596,38 +586,6 @@ button:disabled{cursor:not-allowed}
         <div style="display:grid;gap:12px;align-content:start;min-height:0">
           <div id="preview"><canvas id="previewCv"></canvas></div>
           <div class="card"><h3 id="pvName">—</h3><p id="pvInfo">Figur antippen, um sie hier zu drehen.</p></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Waffenkammer: Modelle den Waffen zuordnen -->
-  <section class="screen hidden" id="armory">
-    <div class="wrap">
-      <div class="row" style="justify-content:space-between;align-items:flex-end">
-        <div><div class="eyebrow">Waffenkammer</div>
-          <h2 style="font-size:26px">Modelle zuordnen</h2></div>
-        <div class="row">
-          <button class="btn" id="btArmAuto">Automatisch</button>
-          <button class="btn primary" id="btArmDone">Fertig</button>
-        </div>
-      </div>
-      <p class="sub" style="font-size:12px;max-width:70ch">
-        Die Sammeldatei <b>polygon_guns.glb</b> benennt ihre Teile nur mit Nummern.
-        Links eine Waffe wählen, rechts mit ◂ ▸ durch die Modelle blättern —
-        die Zuordnung wird sofort übernommen und im Browser gespeichert.</p>
-      <div id="armBody">
-        <div id="armList"></div>
-        <div style="display:grid;gap:12px;align-content:start;min-height:0">
-          <div id="armPreview"><canvas id="armCv"></canvas></div>
-          <div class="card">
-            <h3 id="armName">—</h3>
-            <p id="armInfo">Waffe links wählen.</p>
-            <div class="row" style="margin-top:10px">
-              <button class="btn" id="btArmPrev">◂ Modell</button>
-              <button class="btn" id="btArmNext">Modell ▸</button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -837,7 +795,9 @@ const REBIRTH = {
   origin:     new THREE.Vector3(6000, -3000, 0),   // erste Arena
   spacing:    400,       // Abstand weiterer Arenen
   loadout:    { id:'ar', reserve: 120 },           // gleiche Waffe fuer beide
-  returnAlt:  null       // null = DROP.altitude
+  returnAlt:  null,      // null = DROP.altitude
+  wallHalf:   4.6,       // Hoehe der Trennwand in der Mitte
+  wallSink:   0.45       // wie lange sie beim Startsignal im Boden versinkt
 };
 
 /* ---- Trefferzonen ----
@@ -2603,27 +2563,21 @@ class WeaponModel {
    gewehr, dazwischen in der Reihenfolge der Ziellaengen aus WEAPONS.len.
    Damit stimmen die Groessenverhaeltnisse in jedem Fall.
 
-   Wo die Automatik daneben liegt (eine Schrotflinte ist ungefaehr so lang
-   wie ein Sturmgewehr — das kann kein Messwert unterscheiden), laesst sich
-   in der Waffenkammer im Startbildschirm von Hand zuordnen. Die Zuordnung
-   wird im Browser gespeichert und ueberstimmt die Automatik.
+   Zwei Waffen aehnlicher Laenge koennen dabei die Plaetze tauschen (eine
+   Schrotflinte ist ungefaehr so lang wie ein Sturmgewehr). Das faellt im
+   Spiel kaum auf, solange nichts verkehrt herum in der Hand liegt — und
+   genau dafuer sorgt die einheitliche Ausrichtung weiter unten.
    ========================================================================== */
 const GUN_MAP = {};                 // Waffenkuerzel -> Meshname
-let GUN_OVERRIDE = {};              // von Hand gesetzt, gespeichert
 
-function loadGunOverride(){
-  try {
-    const j = localStorage.getItem('holdout.gunmesh');
-    GUN_OVERRIDE = j ? JSON.parse(j) : {};
-  } catch(e){ GUN_OVERRIDE = {}; }
-}
-function saveGunOverride(){
-  try { localStorage.setItem('holdout.gunmesh', JSON.stringify(GUN_OVERRIDE)); } catch(e){}
-}
+/* Ein frueherer Stand hat die Zuordnung im Browser gespeichert und von Hand
+   setzen lassen. Das ist raus — die Zuordnung entsteht jetzt beim Laden.
+   Alte Eintraege werden einmal weggeraeumt, sonst wuerde eine gespeicherte
+   Fehlzuordnung ewig weiterleben. */
+try { localStorage.removeItem('holdout.gunmesh'); } catch(e){}
 
-/** Ein Mesh vermessen: laengste Achse, Laenge darauf, und ob die Muendung
-    nach hinten zeigt. Letzteres ueber die Dicke: das duenne Ende ist der
-    Lauf, das dicke der Schaft mit Griff und Magazin. */
+/** Ein Mesh vermessen: Ausdehnung je Achse und Punktzahl. Welche Achse
+    "vorne" ist, wird NICHT je Mesh entschieden — siehe gunAxisOf(). */
 function measureGunMesh(src){
   const g = src.geometry;
   const pos = g.attributes && g.attributes.position;
@@ -2634,64 +2588,57 @@ function measureGunMesh(src){
   geo.computeBoundingBox();
   const bb = geo.boundingBox;
   const size = bb.getSize(new THREE.Vector3());
+  geo.dispose();
   const dims = [size.x, size.y, size.z];
   let axis = 0;
   if (dims[1] > dims[axis]) axis = 1;
   if (dims[2] > dims[axis]) axis = 2;
-  const len = dims[axis];
-  if (len < 0.02) { geo.dispose(); return null; }
+  if (dims[axis] < 0.02) return null;
 
-  // Dicke je Haelfte entlang der Langachse
-  const p = geo.attributes.position;
-  const mid = (bb.min.getComponent(axis) + bb.max.getComponent(axis)) / 2;
-  const o1 = (axis + 1) % 3, o2 = (axis + 2) % 3;
-  const c1 = (bb.min.getComponent(o1) + bb.max.getComponent(o1)) / 2;
-  const c2 = (bb.min.getComponent(o2) + bb.max.getComponent(o2)) / 2;
-  let sLow = 0, nLow = 0, sHigh = 0, nHigh = 0;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < p.count; i++){
-    v.fromBufferAttribute(p, i);
-    const a = v.getComponent(axis);
-    const d = Math.hypot(v.getComponent(o1) - c1, v.getComponent(o2) - c2);
-    if (a < mid){ sLow += d; nLow++; } else { sHigh += d; nHigh++; }
-  }
-  geo.dispose();
-  const thinLow  = nLow  ? sLow/nLow   : 0;
-  const thinHigh = nHigh ? sHigh/nHigh : 0;
-
-  /* Nach dem Drehen zeigt die urspruengliche +Achse auf -Z, also nach
-     vorne. Ist die obere Haelfte die dickere, sitzt der Schaft vorne und
-     das Teil muss noch einmal herum. */
-  const flip = thinHigh > thinLow * 1.06;
-
-  return { axis, len, size:size.clone(), verts:pos.count, flip,
-           thin: Math.min(thinLow, thinHigh) };
+  return { size, dims, longAxis: axis, verts: pos.count };
 }
 
-/** GUN_MAP fuellen: erst die gespeicherte Handzuordnung, den Rest der
-    Groesse nach. */
+/* Die Sammeldatei ist aus einem Guss: alle Waffen liegen darin gleich
+   ausgerichtet. Genau das war der Fehler im letzten Versuch — dort wurde
+   je Modell einzeln entschieden, welche Achse nach vorne zeigt, und bei
+   fast quadratischen Teilen fiel die Entscheidung falsch aus. Ergebnis:
+   ein Teil der Waffen wurde verkehrt herum getragen.
+
+   Jetzt wird EINMAL fuer die ganze Datei abgestimmt: welche Achse ist bei
+   den meisten Modellen die laengste? Diese Achse gilt dann fuer alle. */
+let GUN_AXIS = 2;                 // 0 = X, 1 = Y, 2 = Z (Vorgabe wie bisher)
+
+function decideGunAxis(parts){
+  const votes = [0,0,0];
+  for (const p of parts) votes[p.longAxis]++;
+  let a = 2;                       // bei Gleichstand bleibt es bei Z
+  if (votes[0] > votes[a]) a = 0;
+  if (votes[1] > votes[a]) a = 1;
+  GUN_AXIS = a;
+}
+
+/** Laenge eines Teils entlang der fuer die Datei gueltigen Achse. */
+const gunLength = p => p.dims[GUN_AXIS];
+
+/** GUN_MAP fuellen: der Groesse nach, kurze Waffe auf kurzes Teil.
+    Damit ist eine Pistole nie ein MG und ein Revolver nie eine MP. */
 function resolveGunMap(parts){
   for (const id in WEAPONS) delete GUN_MAP[id];
-  const used = new Set();
+  if (!parts || !parts.length) return;
 
-  // 1. von Hand gesetzt
-  for (const id in WEAPONS){
-    const name = GUN_OVERRIDE[id];
-    if (name && parts.some(p=>p.name === name)){ GUN_MAP[id] = name; used.add(name); }
-  }
+  /* Nur Teile, die ueberhaupt wie eine Waffe aussehen: laenglich entlang
+     der Dateiachse und nicht bloss ein Splitter. Sonst landet ein
+     Magazindeckel als "Pistole" in der Hand. */
+  let cand = parts.filter(p =>
+    p.longAxis === GUN_AXIS && p.verts >= 40 && gunLength(p) > 0.05);
+  if (cand.length < Object.keys(WEAPONS).length) cand = parts.slice();
+  cand.sort((a,b)=> gunLength(a) - gunLength(b));
 
-  // 2. der Rest nach Groesse: kurze Waffe -> kurzes Teil
-  const free = parts.filter(p=>!used.has(p.name));
-  const open = Object.keys(WEAPONS)
-    .filter(id=>!GUN_MAP[id])
-    .sort((a,b)=> WEAPONS[a].len - WEAPONS[b].len);
-  if (free.length && open.length){
-    for (let i = 0; i < open.length; i++){
-      // gleichmaessig ueber die vorhandenen Teile verteilen
-      const k = open.length === 1 ? 0
-        : Math.round(i * (free.length - 1) / (open.length - 1));
-      GUN_MAP[open[i]] = free[clamp(k, 0, free.length-1)].name;
-    }
+  const ids = Object.keys(WEAPONS).sort((a,b)=> WEAPONS[a].len - WEAPONS[b].len);
+  for (let i = 0; i < ids.length; i++){
+    const k = ids.length === 1 ? 0
+      : Math.round(i * (cand.length - 1) / (ids.length - 1));
+    GUN_MAP[ids[i]] = cand[clamp(k, 0, cand.length-1)].name;
   }
 }
 
@@ -2718,7 +2665,8 @@ class WeaponLibrary {
       const info = measureGunMesh(by[name]);
       if (info) this.parts.push(Object.assign({ name }, info));
     }
-    this.parts.sort((a,b)=> a.len - b.len);
+    decideGunAxis(this.parts);                 // einmal fuer die ganze Datei
+    this.parts.sort((a,b)=> gunLength(a) - gunLength(b));
     resolveGunMap(this.parts);
 
     for (const id in WEAPONS){
@@ -2746,18 +2694,15 @@ class WeaponLibrary {
     const ctr = bb.getCenter(new THREE.Vector3());
     geo.translate(-ctr.x, -ctr.y, -ctr.z);
 
-    /* Frueher wurde stur die Z-Ausdehnung als Laenge genommen und stur um
-       180 Grad gedreht. Liegt ein Teil in der Datei aber entlang X oder Y
-       (und das tun in polygon_guns.glb mehrere), kam eine voellig falsche
-       Groesse heraus und der Lauf zeigte zur Seite. Jetzt wird die laengste
-       Achse gesucht und auf -Z gedreht. */
-    if (info.axis === 0)      geo.rotateY(Math.PI/2);      // +X  -> -Z
-    else if (info.axis === 1) { geo.rotateX(Math.PI/2); geo.rotateY(Math.PI); }
-    else                      geo.rotateY(Math.PI);        // +Z  -> -Z
-    // Zeigt die Muendung nach hinten? Dann herumdrehen.
-    if (info.flip) geo.rotateY(Math.PI);
+    /* Ausrichtung: fuer ALLE Teile gleich, nach der einmal bestimmten
+       Dateiachse. Die Modelle liegen mit der Muendung auf +Achse, gebraucht
+       wird -Z. Nichts wird je Modell einzeln entschieden — genau daran ist
+       der letzte Versuch gescheitert. */
+    if (GUN_AXIS === 0)      geo.rotateY(Math.PI/2);       // +X -> -Z
+    else if (GUN_AXIS === 1){ geo.rotateX(Math.PI/2); geo.rotateY(Math.PI); }
+    else                     geo.rotateY(Math.PI);         // +Z -> -Z
 
-    const k = W.len / Math.max(0.01, info.len);
+    const k = W.len / Math.max(0.01, gunLength(info));
     geo.scale(k, k, k);
     geo.computeVertexNormals();
 
@@ -3920,16 +3865,78 @@ function buildRebirthArena(id){
   glow.position.set(0, H-1.2, 0);
   group.add(glow);
 
+  /* Trennwand quer durch die Mitte, ueber die volle Breite.
+     Ohne sie steht man beim Startsignal frei im Schussfeld und kann schon
+     waehrend des Countdowns auf den Kopf des anderen zielen — das Duell
+     waere entschieden, bevor es beginnt. Die Wand faellt erst mit "FIGHT!"
+     in den Boden. */
+  const matSplit = new THREE.MeshStandardMaterial({ color:0x1f2a2e, roughness:.85,
+                                                    emissive:0x2a1c04, emissiveIntensity:.5 });
+  const divider = new THREE.Mesh(box(S + T*2, REBIRTH.wallHalf, 1.0), matSplit);
+  divider.position.set(0, REBIRTH.wallHalf/2, 0);
+  divider.name = 'arena_divider';
+  divider.castShadow = false; divider.receiveShadow = true;
+  group.add(divider);
+  // Warnstreifen auf beiden Seiten, damit klar ist: hier geht es gleich los
+  for (const zz of [-0.55, 0.55]){
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(S + T*2, 0.35),
+      new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.55,
+                                    side:THREE.DoubleSide }));
+    strip.position.set(0, REBIRTH.wallHalf - 0.4, zz);
+    if (zz < 0) strip.rotation.y = Math.PI;
+    divider.add(strip);
+  }
+
   scene.add(group);
   group.updateMatrixWorld(true);
-  const world = new CollisionWorld().build(parts.map(m=>({ mesh:m, tag:'arena' })));
+
+  /* Zwei Kollisionswelten: eine mit Trennwand fuer das Warten und den
+     Countdown, eine ohne fuer den Kampf. Umgehaengt wird mit einem
+     Zeiger — kein Neuaufbau mitten im Gefecht. */
+  const entries = parts.map(m=>({ mesh:m, tag:'arena' }));
+  const worldOpen   = new CollisionWorld().build(entries);
+  const worldClosed = new CollisionWorld().build(entries.concat([{ mesh:divider, tag:'arena' }]));
 
   return {
-    id, group, world, origin:o,
+    id, group, origin:o, divider,
+    worldOpen, worldClosed, world: worldClosed,
+    divT: 1,                    // 1 = steht, 0 = versenkt
     spawns: [ new THREE.Vector3(o.x, o.y + 0.05, o.z - S*0.38),
               new THREE.Vector3(o.x, o.y + 0.05, o.z + S*0.38) ],
     a:null, b:null, state:'free', timer:0
   };
+}
+
+/** Trennwand wieder aufstellen — beim Freigeben einer Arena. */
+function raiseDivider(ar){
+  if (!ar) return;
+  ar.divT = 1;
+  ar.world = ar.worldClosed;
+  if (ar.divider){ ar.divider.visible = true; ar.divider.scale.y = 1;
+                   ar.divider.position.y = REBIRTH.wallHalf/2; }
+  for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
+}
+
+/** Trennwand faellt: Kollision sofort frei, das Bild zieht in 0.45 s nach. */
+function dropDivider(ar){
+  if (!ar || ar.divT < 1) return;
+  ar.divT = 0.999;
+  ar.world = ar.worldOpen;
+  for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
+}
+
+/** Laeuft auf jedem Rechner, nicht nur beim Host — das ist reine Anzeige. */
+function updateArenas(dt){
+  for (const ar of G.arenas){
+    if (!ar.divider) continue;
+    if (ar.divT < 1 && ar.divT > 0){
+      ar.divT = Math.max(0, ar.divT - dt/REBIRTH.wallSink);
+      const k = ar.divT;
+      ar.divider.scale.y = Math.max(0.001, k);
+      ar.divider.position.y = REBIRTH.wallHalf*k/2;
+      if (k <= 0) ar.divider.visible = false;
+    }
+  }
 }
 
 /** Arena mit dieser Nummer besorgen — bauen, falls es sie noch nicht gibt.
@@ -3960,18 +3967,24 @@ function disposeArenas(){
    Minikarte), fragt ab jetzt zuerst, ob beide ueberhaupt im selben Bereich
    stehen. Ohne das wuerde ein Schuss auf der Insel jemanden in der Arena
    treffen und umgekehrt. */
+/* Wartende stehen inzwischen selbst in einer Arena — sie gehoeren also
+   genauso wenig zur Insel wie die Kaempfenden. */
+const RB_IN_ARENA = { arena:1, queued:1, returning:1 };
 function realmOf(a){
-  return (a && a.rbState === 'arena' && a.arenaId !== null) ? ('a' + a.arenaId) : 'map';
+  return (a && a.arenaId !== null && a.arenaId !== undefined &&
+          RB_IN_ARENA[a.rbState]) ? ('a' + a.arenaId) : 'map';
 }
 function sameRealm(a, b){ return realmOf(a) === realmOf(b); }
 function worldOf(a){
-  if (a && a.rbState === 'arena' && a.arenaId !== null){
+  if (a && a.arenaId !== null && RB_IN_ARENA[a.rbState]){
     const ar = G.arenas.find(x=>x.id === a.arenaId);
     if (ar) return ar.world;
   }
   return G.world;
 }
-function inArena(a){ return !!a && a.rbState === 'arena'; }
+function inArena(a){
+  return !!a && a.arenaId !== null && a.arenaId !== undefined && !!RB_IN_ARENA[a.rbState];
+}
 
 /* ==========================================================================
    17 — AUFSAMMELBARES
@@ -4511,13 +4524,16 @@ function applyDamage(target, dmg, src, head){
     feed(`<b>${esc(src?src.name:'Die Zone')}</b> ${head?'⌖':'✕'} ${esc(target.name)}`);
 
     /* Noch eine Chance? Dann wandert die Figur in die Warteschlange statt
-       endgueltig auszuscheiden. Das entscheidet allein der Host. */
-    let toQueue = false;
-    if (!wasArena && G.isHost && canRebirth(target)) toQueue = rbHostEnqueue(target);
-
+       endgueltig auszuscheiden. Das entscheidet allein der Host.
+       Wichtig ist die Reihenfolge: erst die Todesmeldung, dann der
+       Rebirth. Andersherum wuerde die Todesmeldung den frisch in die Arena
+       gesetzten Spieler beim Gast sofort wieder umlegen. */
+    const willQueue = !wasArena && G.isHost && canRebirth(target);
     if (G.isNet && G.isHost) broadcast({ t:'kill', by:src?src.id:null, victim:target.id,
                                          head:!!head, place:target.placement,
-                                         rb: (toQueue || wasArena) ? 1 : 0 });
+                                         rb: (willQueue || wasArena) ? 1 : 0 });
+    let toQueue = false;
+    if (willQueue) toQueue = rbHostEnqueue(target);
     if (target === G.me && !toQueue && !wasArena) onLocalDeath();
     if (!wasArena) checkVictory();
   }
@@ -4528,7 +4544,12 @@ function checkVictory(){
   /* Wer in der Warteschlange steht oder gerade sein Duell kaempft, ist noch
      im Rennen — sonst waere die Runde vorbei, waehrend zwei Leute unten in
      der Arena um ihre Rueckkehr schiessen. */
-  const alive = G.actors.filter(a=>a.alive || a.rbState === 'queued');
+  if (G.actors.length < 2) return;      // Testlauf ohne Gegner endet nie von selbst
+  /* Auch wer gerade auf seine Rueckkehr wartet, ist noch im Rennen. Ohne
+     diese Zeile waere die Runde in genau der Sekunde vorbei, in der der
+     Vorletzte sein Duell gewinnt. */
+  const alive = G.actors.filter(a=>
+    a.alive || a.rbState === 'queued' || G.rbReturns.some(e=>e.id === a.id));
   if (alive.length <= 1){
     const w = alive.find(a=>a.alive && !inArena(a)) || alive[0] || null;
     if (w) w.placement = 1;
@@ -4584,6 +4605,15 @@ function stripActor(a){
   if (a === G.me) attachViewmodel(null);
 }
 
+/** Beide bekommen exakt dasselbe: Waffe, volles Magazin, gleiche Reserve. */
+function giveArenaLoadout(a){
+  const id = REBIRTH.loadout.id;
+  giveWeapon(a, id, { reserve: REBIRTH.loadout.reserve, dropOld:false });
+  a.ammo[id] = WEAPONS[id].mag;
+  a.reserve[id] = REBIRTH.loadout.reserve;
+  a.nextShot = 0; a.nextMelee = 0;
+}
+
 /** Figur in eine Arena setzen (Seite 0 oder 1). */
 function placeInArena(a, ar, side){
   const p = ar.spawns[side];
@@ -4619,22 +4649,41 @@ function rbApply(m){
 
   if (m.op === 'queue'){
     if (!a) return;
-    a.alive = false;
+    /* Gewartet wird ab jetzt IN der Arena, nicht als Leiche auf der Insel.
+       Man steht hinter der Trennwand, kann sich bewegen und die Waffe
+       ausprobieren — und sieht sofort, wo es gleich losgeht. */
+    const ar = ensureArena(m.arena);
+    ar.state = 'waiting';
+    ar.a = a; ar.b = null;
+    raiseDivider(ar);
     a.rbState = 'queued';
+    a.arenaId = m.arena;
     a.rbUntil = G.time + (m.secs || REBIRTH.waitTime);
-    a.arenaId = null; a.rbOpp = null; a.rbFreeze = false;
-    // Aus der Welt nehmen: nicht sichtbar, nicht treffbar, nicht im Weg
-    if (a.view) a.view.obj.visible = false;
+    a.rbOpp = null; a.rbFreeze = false;
+    a.alive = true;                       // in der Arena lebt man wieder
+    a.hp = a.maxHp; a.shield = 0;
+    stripActor(a);
+    giveArenaLoadout(a);
+    if (a.view) a.view.obj.visible = true;
+    placeInArena(a, ar, 0);
     if (a === G.me) rbUI('queue', { secs: m.secs || REBIRTH.waitTime });
     return;
   }
 
   if (m.op === 'match'){
     const ar = ensureArena(m.arena);
-    ar.state = 'countdown';
     const pa = G.actors.find(x=>x.id === m.a);
     const pb = G.actors.find(x=>x.id === m.b);
+    // Die zweite Wartearena wird frei — beide kaempfen in derselben
+    for (const p of [pa, pb]){
+      if (p && p.arenaId !== null && p.arenaId !== m.arena){
+        const old = G.arenas.find(x=>x.id === p.arenaId);
+        if (old){ old.a = null; old.b = null; old.state = 'free'; raiseDivider(old); }
+      }
+    }
+    ar.state = 'countdown';
     ar.a = pa || null; ar.b = pb || null;
+    raiseDivider(ar);                      // Wand steht waehrend des 3-2-1
     for (const [p, side] of [[pa,0],[pb,1]]){
       if (!p) continue;
       p.rbState = 'arena';
@@ -4645,11 +4694,7 @@ function rbApply(m){
       p.hp = p.maxHp; p.shield = 0;
       // Gleiches Loadout fuer beide — kein altes Inventar, kein Loot
       stripActor(p);
-      giveWeapon(p, REBIRTH.loadout.id, { reserve: REBIRTH.loadout.reserve, dropOld:false });
-      // Beide starten mit vollem Magazin und derselben Reserve
-      p.ammo[REBIRTH.loadout.id] = WEAPONS[REBIRTH.loadout.id].mag;
-      p.reserve[REBIRTH.loadout.id] = REBIRTH.loadout.reserve;
-      p.nextShot = 0; p.nextMelee = 0;
+      giveArenaLoadout(p);
       if (p.view) p.view.obj.visible = true;
       placeInArena(p, ar, side);
     }
@@ -4665,6 +4710,7 @@ function rbApply(m){
     const ar = G.arenas.find(x=>x.id === m.arena);
     if (ar){
       ar.state = 'fight';
+      dropDivider(ar);                     // jetzt erst wird der Weg frei
       if (ar.a) ar.a.rbFreeze = false;
       if (ar.b) ar.b.rbFreeze = false;
       if (ar.a === G.me || ar.b === G.me) rbUI('fight');
@@ -4675,9 +4721,14 @@ function rbApply(m){
   if (m.op === 'lucky'){
     if (!a) return;
     a.hasUsedRebirth = true;
-    a.rbState = 'spent';
+    a.rbState = 'returning';        // noch in der Arena, bis der Absprung kommt
+    a.rbFreeze = true;
     a.rbUntil = 0;
     removeFromQueue(a.id);
+    if (a.arenaId !== null && a.arenaId !== undefined){
+      const ar = G.arenas.find(x=>x.id === a.arenaId);
+      if (ar){ ar.a = a; ar.b = null; ar.state = 'cooldown'; }
+    }
     if (a === G.me) rbUI('lucky');
     return;
   }
@@ -4686,17 +4737,19 @@ function rbApply(m){
     const ar = G.arenas.find(x=>x.id === m.arena);
     const win = G.actors.find(x=>x.id === m.win);
     const los = G.actors.find(x=>x.id === m.lose);
+    const los2 = m.lose2 ? G.actors.find(x=>x.id === m.lose2) : null;
     if (win){
-      win.hasUsedRebirth = true; win.rbState = 'spent';
-      win.arenaId = null; win.rbOpp = null; win.rbFreeze = false;
-      if (win.ctrl) win.ctrl.setWorld(G.world);
+      /* Bis zum Absprung bleibt er stehen, wo er gewonnen hat. */
+      win.hasUsedRebirth = true;
+      win.rbState = 'returning';
+      win.rbOpp = null; win.rbFreeze = true;
       if (win === G.me) rbUI('win');
     }
     if (los){
       los.hasUsedRebirth = true; los.rbState = 'spent';
-      los.arenaId = null; los.rbOpp = null; los.rbFreeze = false;
+      los.rbOpp = null; los.rbFreeze = false;
       los.alive = false; los.hp = 0;
-      if (los.ctrl) los.ctrl.setWorld(G.world);
+      los.placement = G.actors.filter(a=>a.alive || a.rbState === 'queued').length + 1;
       stripActor(los);
       if (los.view){ los.view.obj.visible = true; los.view.play('die', { once:true }); }
       if (los === G.me){
@@ -4705,13 +4758,41 @@ function rbApply(m){
         setTimeout(()=>{ if (G.phase === 'play') enterSpectate(); }, 1600);
       }
     }
-    if (ar){ ar.a = null; ar.b = null; ar.state = 'free'; }
+    /* Die Arena bleibt gesperrt, bis der Sieger abgesprungen ist — sonst
+       koennte sie fuer ein neues Duell vergeben werden, waehrend er noch
+       darin steht. */
+    if (ar){
+      ar.a = win || null; ar.b = null;
+      ar.state = win ? 'cooldown' : 'free';
+      if (!win) raiseDivider(ar);
+    }
+    if (los2){
+      // Doppel-K.o.: keiner kehrt zurueck, beide sind endgueltig raus
+      los2.hasUsedRebirth = true; los2.rbState = 'spent';
+      los2.rbOpp = null; los2.rbFreeze = false;
+      los2.alive = false; los2.hp = 0;
+      los2.placement = G.actors.filter(x=>x.alive || x.rbState === 'queued').length + 1;
+      stripActor(los2);
+      if (los2.view){ los2.view.obj.visible = true; los2.view.play('die', { once:true }); }
+      if (los2 === G.me){
+        rbUI('lose');
+        setTimeout(()=>{ if (G.phase === 'play') enterSpectate(); }, 1600);
+      }
+    }
     if (win && los) feed(`<b>${esc(win.name)}</b> ⟲ ${esc(los.name)} · Rebirth`);
+    else if (los && los2) feed(`<b>${esc(los.name)}</b> ✕ ${esc(los2.name)} · beide raus`);
     return;
   }
 
   if (m.op === 'return'){
     if (!a) return;
+    // Arena freigeben, jetzt verlaesst er sie wirklich
+    if (a.arenaId !== null && a.arenaId !== undefined){
+      const ar = G.arenas.find(x=>x.id === a.arenaId);
+      if (ar && (ar.a === a || ar.b === a || ar.state === 'cooldown')){
+        ar.a = null; ar.b = null; ar.state = 'free'; raiseDivider(ar);
+      }
+    }
     a.rbState = 'spent';
     a.hasUsedRebirth = true;
     a.alive = true;
@@ -4737,6 +4818,9 @@ function startRebirthDrop(a, pos){
   a.chuteOpen = false;
   a.dropPhase = 0;
   setActorChute(a, false);
+  /* Ein waehrend des Wartens gedruecktes F darf nicht liegenbleiben —
+     sonst reisst der Schirm im ersten Bild des Sturzflugs auf. */
+  input.dropAction = false;
 
   if (a === G.me){
     G.drop = {
@@ -4745,7 +4829,10 @@ function startRebirthDrop(a, pos){
       dir: new THREE.Vector3(0, 0, -1),
       planeObj: null, planePos: pos.clone(),
       playerState: 'freefall',
-      vel: new THREE.Vector3(0, -6, 0),
+      /* Erst Sturzflug, dann Schirm — genau wie beim Absprung aus der
+         Maschine. Der Schirm oeffnet weiter unten von selbst, sobald
+         DROP.autoChuteAGL unterschritten wird (oder frueher mit F). */
+      vel: new THREE.Vector3(0, -22, 0),
       pos: pos.clone(),
       agl: DROP.altitude, done: false,
       rebirth: true
@@ -4756,9 +4843,9 @@ function startRebirthDrop(a, pos){
     $('dropHud').classList.remove('hidden');
     $('cross').style.opacity = 0;
     $('ammo').style.opacity = 0;
-    camPitch = -0.35;
+    camPitch = -0.55;                   // Blick nach unten in den Sturzflug
     sfx.zone();
-    toast('Wiedereinstieg — F öffnet den Schirm');
+    toast('Sturzflug — der Schirm öffnet automatisch');
   } else if (a.kind === 'bot'){
     /* Bots bekommen keinen eigenen Fallschirmflug: sie wuerden dafuer eine
        zweite Absprungphase brauchen. Sie setzen unten am Rand der Zone auf,
@@ -4798,8 +4885,10 @@ function removeFromQueue(id){
 function rbHostEnqueue(a){
   if (!G.isHost || !canRebirth(a)) return false;
   if (G.rbQueue.includes(a.id)) return false;   // nie doppelt
+  const ar = acquireArena();                     // eigene Arena zum Warten
+  ar.state = 'waiting'; ar.a = a; ar.b = null;
   G.rbQueue.push(a.id);                          // FIFO: hinten anstellen
-  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime });
+  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime, arena:ar.id });
   return true;
 }
 
@@ -4813,7 +4902,9 @@ function rbHostMatch(){
     // Zwischenzeitlich ausgestiegen? Den jeweils anderen wieder anstellen.
     if (!a || a.rbState !== 'queued'){ if (b && b.rbState === 'queued') G.rbQueue.unshift(idb); continue; }
     if (!b || b.rbState !== 'queued'){ G.rbQueue.unshift(ida); continue; }
-    const ar = acquireArena();
+    /* Gekaempft wird in der Arena des laenger Wartenden — der zweite zieht
+       zu ihm um, seine eigene wird frei. */
+    const ar = (a.arenaId !== null && G.arenas.find(x=>x.id === a.arenaId)) || acquireArena();
     ar.state = 'countdown';
     ar.timer = REBIRTH.countdown;
     rbSend({ op:'match', arena:ar.id, a:a.id, b:b.id, id:a.id, cd:REBIRTH.countdown });
@@ -4829,10 +4920,12 @@ function rbHostLucky(a){
 }
 
 /** Duell entschieden. */
-function rbHostResolve(ar, win, los){
+function rbHostResolve(ar, win, los, los2){
   if (!G.isHost || !ar || ar.state === 'free') return;
   ar.state = 'free';
-  rbSend({ op:'result', arena:ar.id, win: win?win.id:null, lose: los?los.id:null, id: win?win.id:(los?los.id:null) });
+  rbSend({ op:'result', arena:ar.id,
+           win: win?win.id:null, lose: los?los.id:null, lose2: los2?los2.id:null,
+           id: win?win.id:(los?los.id:null) });
   if (win) rbHostReturn(win, 2.2);
 }
 
@@ -4866,24 +4959,23 @@ function rbHostTick(dt){
     if (G.time >= a.rbUntil) rbHostLucky(a);
   }
 
-  // 3. Arenen: Countdown und Abbruchfaelle
+  /* 3. Arenen. Nur 'countdown' und 'fight' werden ausgewertet — eine
+     wartende Arena hat absichtlich nur einen Belegten, und eine im
+     Nachlauf ('cooldown') gehoert dem Sieger, bis er abspringt. */
   for (const ar of G.arenas){
     if (ar.state === 'countdown'){
       ar.timer -= dt;
-      if (ar.timer <= 0) rbSend({ op:'fight', arena:ar.id, id: ar.a?ar.a.id:null });
+      if (ar.timer <= 0){ rbSend({ op:'fight', arena:ar.id, id: ar.a?ar.a.id:null }); continue; }
     }
-    if (ar.state !== 'free'){
-      const a = ar.a, b = ar.b;
-      // Weggefallen (Verbindungsabbruch): der Verbliebene gewinnt
-      const aGone = !a || !G.actors.includes(a);
-      const bGone = !b || !G.actors.includes(b);
-      if (aGone && bGone){ ar.a = ar.b = null; ar.state = 'free'; }
-      else if (aGone) rbHostResolve(ar, b, null);
-      else if (bGone) rbHostResolve(ar, a, null);
-      else if (!a.alive && !b.alive) rbHostResolve(ar, null, null);
-      else if (!a.alive) rbHostResolve(ar, b, a);
-      else if (!b.alive) rbHostResolve(ar, a, b);
-    }
+    if (ar.state !== 'countdown' && ar.state !== 'fight') continue;
+    const a = ar.a, b = ar.b;
+    if (!a && !b){ ar.state = 'free'; raiseDivider(ar); continue; }
+    // Weggefallen (Verbindungsabbruch): der Verbliebene gewinnt kampflos
+    if (!a){ rbHostResolve(ar, b, null); continue; }
+    if (!b){ rbHostResolve(ar, a, null); continue; }
+    if (!a.alive && !b.alive) rbHostResolve(ar, null, a, b);
+    else if (!a.alive) rbHostResolve(ar, b, a);
+    else if (!b.alive) rbHostResolve(ar, a, b);
   }
 
   // 4. Faellige Rueckkehrer
@@ -4905,9 +4997,9 @@ function rbHostTick(dt){
 function rbShutdown(){
   G.rbQueue.length = 0;
   G.rbReturns.length = 0;
-  for (const ar of G.arenas){ ar.a = null; ar.b = null; ar.state = 'free'; }
+  for (const ar of G.arenas){ ar.a = null; ar.b = null; ar.state = 'free'; raiseDivider(ar); }
   for (const a of G.actors){
-    if (a.rbState === 'arena' || a.rbState === 'queued'){
+    if (RB_IN_ARENA[a.rbState]){
       a.rbState = 'spent';
       a.rbFreeze = false;
       a.arenaId = null;
@@ -5485,19 +5577,22 @@ function rbUI(mode, opts){
   const box = $('rebirth');
   if (!mode){ box.classList.add('hidden'); box.classList.remove('danger','good'); return; }
   box.classList.remove('hidden');
-  box.classList.remove('danger','good');
+  box.classList.remove('danger','good','compact');
 
   if (mode === 'queue'){
     RBUI.until = performance.now() + (opts.secs || REBIRTH.waitTime)*1000;
     $('rbTitle').textContent = 'REBIRTH AVAILABLE';
     $('rbSub').textContent = 'WAITING FOR OPPONENT…';
     $('rbNum').style.display = '';
+    // Beim Warten laeuft man in der Arena herum — die Anzeige rueckt nach
+    // oben, damit sie nicht mitten im Blickfeld steht
+    box.classList.add('compact');
     sfx.pick();
   } else if (mode === 'ready'){
     RBUI.cd = opts.cd || REBIRTH.countdown;
     RBUI.name = opts.name || '';
     $('rbTitle').textContent = 'OPPONENT FOUND';
-    $('rbSub').textContent = 'GET READY · ' + esc(RBUI.name).toUpperCase();
+    $('rbSub').textContent = 'GET READY · ' + String(RBUI.name).toUpperCase();
     $('rbNum').style.display = '';
     sfx.zone();
   } else if (mode === 'fight'){
@@ -5930,6 +6025,7 @@ function simulate(dt){
 
   // --- Rebirth: Warteschlange, Countdowns, Duelle, Rueckkehr ---
   rbHostTick(dt);
+  updateArenas(dt);          // Trennwand versinkt — reine Anzeige, ueberall
 
   // --- Sturm & Schaden ---
   if (G.mode === 'br'){
@@ -6000,9 +6096,8 @@ function renderActors(dt){
     obj.rotation.set(0, a.yaw + Math.PI, 0);   // Quaternius-Figuren schauen nach +Z
     /* Der eigene Körper ist unsichtbar — ausser beim Absprung und im
        Zuschauermodus, wo man auf sich selbst blicken koennte. */
-    obj.visible = ((a !== G.me)
-      || (a.dropping && G.drop && G.drop.playerState !== 'plane'))
-      && a.rbState !== 'queued';       // Wartende sind aus der Welt genommen
+    obj.visible = (a !== G.me)
+      || (a.dropping && G.drop && G.drop.playerState !== 'plane');
     if (a.handWeapon) a.handWeapon.visible = a.alive && !a.dropping;
 
     /* Im freien Fall wird die Figur nicht animiert, sondern gestellt: waagrecht
@@ -6381,6 +6476,12 @@ function dropConn(c, why){
   if (a){
     removeFromQueue(a.id);
     a.hasUsedRebirth = true;
+    if (a.rbState === 'queued' && a.arenaId !== null){
+      // Wartearena wieder freigeben, sonst bleibt sie fuer immer belegt
+      const ar = G.arenas.find(x=>x.id === a.arenaId);
+      if (ar){ ar.a = null; ar.b = null; ar.state = 'free'; raiseDivider(ar); }
+      a.arenaId = null;
+    }
     if (a.rbState === 'arena'){
       const ar = G.arenas.find(x=>x.id === a.arenaId);
       const other = ar ? (ar.a === a ? ar.b : ar.a) : null;
@@ -6625,8 +6726,6 @@ function applySnapshot(s){
       setHandWeapon(a, null);
     }
     if (d.l && !a.alive){ a.alive = true; }     // Wiedereinstieg nach Neustart
-    // Wartende sind aus der Welt genommen und bleiben unsichtbar
-    if (a.view) a.view.obj.visible = (d.rb !== 1);
     a.pitch = d.p;
     a.dropping = !!d.dr;
     a.crouch = !!d.cr;
@@ -6882,151 +6981,6 @@ function buildCharGrid(){
   });
 }
 
-/* ==========================================================================
-   30b — WAFFENKAMMER
-   Eine eigene kleine Szene mit einem einzigen Objekt darin. Links steht,
-   welche Waffe gerade gemeint ist, rechts blaettert man durch alle Teile
-   aus polygon_guns.glb, bis das richtige im Bild steht.
-   ========================================================================== */
-let armRenderer = null, armScene = null, armCam = null, armObj = null;
-let armWeapon = null;
-
-function initArmory(){
-  if (armRenderer) return;
-  const cv = $('armCv');
-  armRenderer = new THREE.WebGLRenderer({ canvas: cv, antialias:true, alpha:true });
-  armRenderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  armRenderer.outputColorSpace = THREE.SRGBColorSpace;
-  armScene = new THREE.Scene();
-  armScene.add(new THREE.HemisphereLight(0xcfe4f0, 0x33302a, 2.3));
-  const k = new THREE.DirectionalLight(0xffffff, 1.7); k.position.set(2,3,3); armScene.add(k);
-  const f = new THREE.DirectionalLight(0xffffff, 0.6); f.position.set(-2,1,-2); armScene.add(f);
-  armCam = new THREE.PerspectiveCamera(32, 1, 0.01, 20);
-  const tick = ()=>{
-    requestAnimationFrame(tick);
-    if ($('armory').classList.contains('hidden')) return;
-    const w = cv.clientWidth, h = cv.clientHeight;
-    if (w && h && (cv.width !== Math.round(w*armRenderer.getPixelRatio()) ||
-                   cv.height !== Math.round(h*armRenderer.getPixelRatio()))){
-      armRenderer.setSize(w, h, false);
-      armCam.aspect = w/h; frameArmory();
-    }
-    if (armObj) armObj.rotation.y += 0.012;
-    armRenderer.render(armScene, armCam);
-  };
-  tick();
-}
-
-function frameArmory(){
-  if (!armCam) return;
-  let L = 0.8, H = 0.3;
-  if (armObj){
-    armObj.updateMatrixWorld(true);
-    const b = new THREE.Box3().setFromObject(armObj);
-    if (isFinite(b.min.x) && b.max.x > b.min.x){
-      L = Math.max(b.max.z - b.min.z, b.max.x - b.min.x);
-      H = Math.max(0.05, b.max.y - b.min.y);
-    }
-  }
-  const vFov = THREE.MathUtils.degToRad(armCam.fov);
-  const d = Math.max(H/2/Math.tan(vFov/2), L*0.62/Math.tan(vFov/2*armCam.aspect)) * 1.7 + 0.25;
-  armCam.position.set(d*0.55, d*0.35, d*0.8);
-  armCam.lookAt(0, 0, 0);
-  armCam.updateProjectionMatrix();
-}
-
-function buildArmoryList(){
-  const box = $('armList');
-  box.innerHTML = '';
-  for (const id in WEAPONS){
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.dataset.w = id;
-    b.setAttribute('aria-pressed', id === armWeapon ? 'true' : 'false');
-    b.innerHTML = '<span>' + esc(WEAPONS[id].name) + '</span><small>' +
-                  esc(GUN_MAP[id] || 'kein Modell') + '</small>';
-    b.onclick = ()=> selectArmoryWeapon(id);
-    box.appendChild(b);
-  }
-}
-
-function selectArmoryWeapon(id){
-  armWeapon = id;
-  for (const el of $('armList').children)
-    el.setAttribute('aria-pressed', el.dataset.w === id ? 'true' : 'false');
-  showArmoryModel();
-}
-
-function showArmoryModel(){
-  if (!armWeapon) return;
-  if (armObj){ armScene.remove(armObj); armObj = null; }
-  const m = gunLib.buildOne(armWeapon);
-  if (m){
-    armObj = m;
-    armObj.castShadow = false;
-    armScene.add(armObj);
-  }
-  const name = GUN_MAP[armWeapon];
-  const part = (gunLib.parts||[]).find(p=>p.name === name);
-  $('armName').textContent = WEAPONS[armWeapon].name;
-  $('armInfo').textContent = name
-    ? `Modell ${name} · Rohlänge ${part ? part.len.toFixed(2) : '?'} · ` +
-      `im Spiel auf ${WEAPONS[armWeapon].len.toFixed(2)} m normiert` +
-      (GUN_OVERRIDE[armWeapon] ? ' · von Hand gesetzt' : ' · automatisch')
-    : 'Kein Modell gefunden — polygon_guns.glb prüfen.';
-  frameArmory();
-}
-
-/** Ein Teil weiter oder zurueck. Die Reihenfolge ist die der Laenge nach,
-    damit man nicht wild springt. */
-function cycleArmory(dir){
-  if (!armWeapon || !gunLib.parts || !gunLib.parts.length) return;
-  const names = gunLib.parts.map(p=>p.name);
-  let i = names.indexOf(GUN_MAP[armWeapon]);
-  if (i < 0) i = 0;
-  i = (i + dir + names.length) % names.length;
-  GUN_OVERRIDE[armWeapon] = names[i];
-  GUN_MAP[armWeapon] = names[i];
-  saveGunOverride();
-  gunLib.rebuild();
-  buildArmoryList();
-  for (const el of $('armList').children)
-    el.setAttribute('aria-pressed', el.dataset.w === armWeapon ? 'true' : 'false');
-  showArmoryModel();
-}
-
-function openArmory(){
-  initArmory();
-  if (!armWeapon) armWeapon = Object.keys(WEAPONS)[0];
-  buildArmoryList();
-  selectArmoryWeapon(armWeapon);
-  show('armory');
-}
-
-/* Ueber die Konsole geht es auch — praktisch, um schnell nachzusehen,
-   was ueberhaupt in der Datei steckt. */
-window.guns = {
-  list(){
-    const rows = (gunLib.parts||[]).map(p=>({
-      Modell:p.name, Laenge:+p.len.toFixed(3), Achse:'xyz'[p.axis], Punkte:p.verts,
-      zugeordnet:Object.keys(GUN_MAP).filter(id=>GUN_MAP[id]===p.name).join(', ')
-    }));
-    console.table(rows);
-    return rows.length + ' Teile in ' + GUNS_FILE;
-  },
-  set(id, meshName){
-    if (!WEAPONS[id]) return 'Unbekannte Waffe: ' + id;
-    GUN_OVERRIDE[id] = meshName; GUN_MAP[id] = meshName;
-    saveGunOverride(); gunLib.rebuild();
-    return id + ' -> ' + meshName;
-  },
-  auto(){
-    GUN_OVERRIDE = {}; saveGunOverride();
-    resolveGunMap(gunLib.parts||[]); gunLib.rebuild();
-    return 'Zuordnung wieder automatisch';
-  }
-};
-
 function refreshLobby(){
   /* Als Gast steht der Host nicht in G.lobby — seine Zeile kommt mit der
      Lobby-Nachricht. Frueher hat sich hier jeder Gast selbst als "Host"
@@ -7043,7 +6997,7 @@ function refreshLobby(){
    anstossen — sonst laufen zwei Ladevorgänge nebeneinander, der Balken springt
    zurück und am Ende steht die Welt doppelt in der Szene. */
 let starting = false;
-const LOBBY_BTNS = ['btPlay','btHost','btJoinS','btChar','btArm','btTest','btGear','btStart'];
+const LOBBY_BTNS = ['btPlay','btHost','btJoinS','btChar','btTest','btGear','btStart'];
 function setLobbyBusy(on){
   for (const id of LOBBY_BTNS){ const b = $(id); if (b) b.disabled = on; }
   $('menu').classList.toggle('busy', on);
@@ -7327,18 +7281,6 @@ function launch(kind){
 $('btPlay').onclick = ()=> launch('solo');
 $('btTest').onclick = ()=> launch('test');
 $('btChar').onclick = ()=>{ if (!starting) show('pick'); };
-$('btArm').onclick = ()=>{ if (!starting) openArmory(); };
-$('btArmDone').onclick = ()=> show('menu');
-$('btArmPrev').onclick = ()=> cycleArmory(-1);
-$('btArmNext').onclick = ()=> cycleArmory(1);
-$('btArmAuto').onclick = ()=>{
-  GUN_OVERRIDE = {}; saveGunOverride();
-  resolveGunMap(gunLib.parts || []);
-  gunLib.rebuild();
-  buildArmoryList();
-  if (armWeapon) selectArmoryWeapon(armWeapon);
-  toast('Zuordnung wieder automatisch');
-};
 $('btGear').onclick = ()=> openPause(true);
 $('btPlay').onmouseenter = ()=>{ if (AC) sfx.hover(); };
 $('botCount').oninput = e=>{
@@ -7418,7 +7360,6 @@ document.addEventListener('fullscreenchange', ()=>{
 });
 
 loadSettings();
-loadGunOverride();
 syncSettingsUI();
 $('buildTag').textContent = 'Build ' + BUILD;
 if (SETTINGS.map && MAP_SETS.some(m=>m.id === SETTINGS.map)) mapSetId = SETTINGS.map;
