@@ -572,7 +572,7 @@ button:disabled{cursor:not-allowed}
       <div id="lobbyList"></div>
       <div class="row"><button class="btn primary" id="btStart">Runde starten</button>
         <button class="btn" id="btLobbyBack">Abbrechen</button></div>
-      <p class="sub" style="font-size:11.5px">Alle wählen erst ihre Figur, dann startet der Host.</p>
+      <p class="sub" style="font-size:11.5px" id="lobbyHint">Alle wählen erst ihre Figur, dann startet der Host.</p>
     </div>
   </section>
 
@@ -4908,12 +4908,11 @@ function canRebirth(a){
   if (a.hasUsedRebirth) return false;             // hoechstens einmal je Runde
   if (RB_IN_ARENA[a.rbState]) return false;       // schon in der Schlange oder Arena
 
-  /* Endphase: sind ausser dem Gefallenen nur noch zwei im Rennen, ist
-     Schluss mit zweiten Chancen. Sonst zoege sich das Finale endlos, und
-     ein Duell weit unter der Karte waehrend des letzten Gefechts auf der
-     Insel waere ohnehin niemandem zu erklaeren. Gezaehlt wird nach dem
-     Tod, der Gefallene ist also nicht mehr dabei. */
-  const left = G.actors.filter(x => x.alive || RB_IN_ARENA[x.rbState]).length;
+  /* Endphase: gezaehlt wird der Stand VOR diesem Tod — der Gefallene ist
+     zu diesem Zeitpunkt schon auf tot gesetzt, zaehlt hier also selbst
+     wieder mit. Erst wenn nur noch zwei im Rennen waren, ist Schluss mit
+     zweiten Chancen: dann ist es ein Zweikampf und keine Runde mehr. */
+  const left = G.actors.filter(x => x.alive || RB_IN_ARENA[x.rbState]).length + 1;
   if (left < REBIRTH.minPlayers) return false;
   return true;
 }
@@ -7773,10 +7772,7 @@ function resetMatchState(){
   G.drop = null;
   G.time = 0; G.accumulator = 0;
   G.killfeed.length = 0; $('feed').innerHTML = '';
-  for (let i = fx.length-1; i >= 0; i--){
-    scene.remove(fx[i].obj);
-    if (fx[i].obj.geometry) fx[i].obj.geometry.dispose();
-  }
+  for (let i = fx.length-1; i >= 0; i--) disposeFx(fx[i].obj);
   fx.length = 0;
   attachViewmodel(null);
   adsT = 0;
@@ -7860,48 +7856,69 @@ function endMatch(winner, place){
         ? `Niemand hat es überstanden · ${k} Ausschaltungen`
         : `Platz ${place || (G.me?G.me.placement:'—')} von ${G.actors.length} · ${k} Ausschaltungen`);
   $('resSub').textContent = resultLine;
+  $('btAgain').textContent = G.isNet ? 'Zum Warteraum' : 'Neue Runde';
   show('result');
   scheduleRematch();
 }
 
-/* ---------- Dieselbe Karte noch einmal ----------
-   Nach jeder Runde wird automatisch wieder auf derselben Karte geladen —
-   mit neuem Startwert, also neuer Beute und neuer Flugbahn, aber demselben
-   Gelaende. Der Host gibt den Takt vor; die Gaeste folgen seiner Nachricht.
-   Wer nicht warten will, drueckt "Neue Runde"; wer aussteigen will,
-   "Zum Start" — beides bricht den Zaehler ab. */
+/* ---------- Nach der Runde ----------
+   Frueher lud sich dieselbe Karte von selbst neu. Das nahm allen die
+   Gelegenheit, kurz durchzuatmen, die Figur zu wechseln oder zu sehen, wer
+   ueberhaupt noch da ist. Stattdessen geht es zurueck in den Warteraum:
+   dieselbe Ansicht wie vor der ersten Runde, mit Code, Teilnehmerliste und
+   dem Startknopf beim Host. Die Verbindung bleibt dabei bestehen — niemand
+   muss sich neu verbinden.
+
+   Im Einzelspiel gibt es keinen Warteraum, dort fuehrt derselbe Weg zurueck
+   ins Hauptmenue. */
 let resultLine = '';
 const REMATCH_DELAY = 9;
+
 function scheduleRematch(){
   if (G.mode !== 'br'){ G.rematchAt = 0; return; }
-  if (G.isNet && !G.isHost){ G.rematchAt = -1; return; }   // wartet auf den Host
   G.rematchAt = performance.now() + REMATCH_DELAY*1000;
 }
 function cancelRematch(){ G.rematchAt = 0; }
 
 function updateRematch(){
   if (G.phase !== 'over') return;
-  if (G.rematchAt === -1){
-    $('resSub').textContent = resultLine + ' · Der Host startet gleich dieselbe Karte neu';
-    return;
-  }
   if (!G.rematchAt) return;
   const left = Math.ceil((G.rematchAt - performance.now())/1000);
   if (left > 0){
-    $('resSub').textContent = resultLine + ` · ${mapSet().name} startet in ${left} s neu`;
+    $('resSub').textContent = resultLine +
+      (G.isNet ? ` \u00B7 Warteraum in ${left}\u00A0s` : ` \u00B7 Zur\u00FCck zum Men\u00FC in ${left}\u00A0s`);
     return;
   }
   G.rematchAt = 0;
-  restartSameMap();
+  goToWaitingRoom();
+}
+
+/** Zurueck in den Warteraum, ohne die Verbindung zu kappen. */
+function goToWaitingRoom(){
+  cancelRematch();
+  resetMatchState();
+  setLoad(0, '');
+  if (!G.isNet){ show('menu'); return; }
+
+  show('lobby');
+  setLobbyBusy(false);
+  $('code').textContent = G.code || '----';
+  // Starten darf nur der Host \u2014 bei den Gaesten bleibt der Knopf weg
+  $('btStart').classList.toggle('hidden', !G.isHost);
+  $('lobbyHint').textContent = G.isHost
+    ? 'Runde vorbei. Alle sind noch verbunden \u2014 starte, wenn du bereit bist.'
+    : 'Runde vorbei. Der Host startet die n\u00E4chste.';
+  if (G.isHost) broadcastLobby();          // frische Liste an alle
+  else refreshLobby();
 }
 
 function restartSameMap(){
   if (starting) return;
   if (G.isNet && !G.isHost) return;
-  // mapSetId bleibt unangetastet — genau darum geht es
   flow = G.isNet ? 'host' : (flow === 'test' ? 'test' : 'solo');
   guardedStart();
 }
+
 
 const BOT_NAMES = ['Renz','Oda','Kimura','Vasquez','Brandt','Okoro','Lind','Petrov','Halvorsen',
                    'Mbeki','Saito','Ferrer','Duval','Novak','Reyes','Ahmadi'];
@@ -7938,8 +7955,7 @@ $('btLobbyBack').onclick = ()=>{ closeNet(); show('menu'); };
 $('btMenu').onclick = ()=>{ cancelRematch(); returnToLobby(); };
 $('btAgain').onclick = ()=>{
   cancelRematch();
-  if (G.isNet && !G.isHost){ toast('Der Host startet die naechste Runde'); return; }
-  if (G.isNet){ restartSameMap(); return; }   // Verbindung bleibt bestehen
+  if (G.isNet){ goToWaitingRoom(); return; }   // Verbindung bleibt bestehen
   resetMatchState();
   launch(flow === 'test' ? 'test' : 'solo');
 };
