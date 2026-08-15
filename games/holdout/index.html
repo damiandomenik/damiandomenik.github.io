@@ -950,7 +950,11 @@ const WEAPONS = {
     range:180, falloff:[90,180,0.85],
     spreadBase:0.0009, bloom:0.0140, spreadMax:0.050,
     moveSpread:0.014, airSpread:0.050, crouchMul:0.50,
-    recoilPitch:0.0140, recoilYaw:0.0030
+    recoilPitch:0.0140, recoilYaw:0.0030,
+    /* Zielfernrohr wie beim Scharfschuetzengewehr, nur schwaecher: 3.2-fach
+       statt 5-fach. Das Marksman ist die Waffe fuer mittlere Entfernungen —
+       mit vollem Zoom waere es ein zweites Scharfschuetzengewehr. */
+    scoped:true, zoom:3.2, adsMul:0.26
   },
   sniper: {
     name:'Scharfschützengewehr', mesh:'Object_77', len:1.20, rarity:'epic', weight:1,
@@ -969,8 +973,8 @@ const RARITY = {
 };
 /* Ohne Waffe ist man nicht wehrlos, aber deutlich im Nachteil. */
 const MELEE = { name:'Fäuste', dmg:26, range:2.3, cooldown:0.55, headMul:1.4 };
-/* Rechtsklick wirkt ausschliesslich bei Waffen mit `scoped:true` — im ganzen
-   Spiel ist das nur das Scharfschützengewehr. Alle anderen Waffen schiesst man
+/* Rechtsklick wirkt ausschliesslich bei Waffen mit `scoped:true` — das sind
+   das Scharfschützengewehr und das Marksman. Alle anderen Waffen schiesst man
    aus der Hüfte, ohne Zoom und ohne Tempoverlust. */
 const ADS = { adsMul:0.30, moveMul:0.55, speed:13 };
 const LOOT = { guns:58, supplies:40, pickRange:2.6 };
@@ -6517,10 +6521,13 @@ function showHurtDir(fx, fz){
 
 /* Ein Ort fuer alles, was passiert, wenn man getroffen wird — egal ob der
    Schaden lokal entstanden ist oder vom Host gemeldet wurde. */
-let lastHurtAt = -99;
+let lastHurtAt = -1e9;
 function onTookDamage(amount, fx, fz){
-  if (G.time - lastHurtAt < 0.08) return;    // ein Schrotschuss ist ein Treffer
-  lastHurtAt = G.time;
+  /* Mit performance.now() statt G.time: die Spielzeit springt bei jeder
+     neuen Runde auf null zurueck, die Uhr des Browsers nicht. */
+  const now = performance.now();
+  if (now - lastHurtAt < 80) return;         // ein Schrotschuss ist ein Treffer
+  lastHurtAt = now;
   flashDamage(amount);
   showHurtDir(fx, fz);
   sfx.hurt(clamp((amount||18)/42, 0.3, 1));
@@ -6528,12 +6535,14 @@ function onTookDamage(amount, fx, fz){
   kick.pitch -= 0.012 * clamp((amount||18)/30, 0.4, 1.6);
 }
 let toastT = 0;
-let lastToastMsg = '', lastToastAt = -99;
+let lastToastMsg = '', lastToastAt = -1e9;
 function toast(t){
-  /* Dieselbe Meldung nicht mehrfach je Sekunde. Wenn doch einmal etwas im
-     Sekundentakt ausloest, soll die Zeile nicht dreissigmal blinken. */
-  if (t === lastToastMsg && G.time - lastToastAt < 1.2) return;
-  lastToastMsg = t; lastToastAt = G.time;
+  /* Dieselbe Meldung nicht mehrfach je Sekunde. Auch hier die Uhr des
+     Browsers — mit der Spielzeit haette die Sperre nach einem Rundenwechsel
+     alles geschluckt. */
+  const now = performance.now();
+  if (t === lastToastMsg && now - lastToastAt < 1200) return;
+  lastToastMsg = t; lastToastAt = now;
   $('toast').textContent = t; toastT = 2.2;
 }
 function feed(html){
@@ -7929,6 +7938,7 @@ function resetMatchState(){
   suppressPause = false;
   leaveSpectate();
   cancelRematch();
+  lastHurtAt = -1e9; lastToastAt = -1e9; lastToastMsg = '';
   lastSnapSeq = -1; snapSeq = 0; netStateSeq = 0;
   lootSeq = 0;
   G.rbQueue.length = 0; G.rbReturns.length = 0;
@@ -8016,16 +8026,20 @@ function endMatch(winner, place){
   $('hud').classList.remove('on');
   const won = winner && winner === G.me;
   const nobody = !winner;
-  $('resTitle').textContent = won ? 'Letzte Figur steht'
+  /* Wer gewonnen hat, gehoert oben hin — und zwar mit Namen. Vorher stand
+     dort nur "Ausgeschieden", und niemand erfuhr, wer die Runde geholt hat. */
+  $('resTitle').textContent = won ? 'Du hast gewonnen'
     : (G.mode === 'test' ? 'Test beendet'
-    : (nobody ? 'Alle gefallen' : 'Ausgeschieden'));
+    : (nobody ? 'Alle gefallen' : `${winner.name} hat gewonnen`));
   $('resTitle').style.color = won ? 'var(--amber)' : 'var(--bone)';
   const k = G.me ? G.me.kills : 0;
+  const kills = winner ? winner.kills : 0;
   resultLine = won
     ? `${k} Ausschaltungen · Insel gehalten`
     : (nobody
         ? `Niemand hat es überstanden · ${k} Ausschaltungen`
-        : `Platz ${place || (G.me?G.me.placement:'—')} von ${G.actors.length} · ${k} Ausschaltungen`);
+        : `${winner.name}: ${kills} Ausschaltungen · du: Platz ` +
+          `${place || (G.me?G.me.placement:'—')} von ${G.actors.length}, ${k} Ausschaltungen`);
   $('resSub').textContent = resultLine;
   $('btAgain').textContent = G.isNet ? 'Zum Warteraum' : 'Neue Runde';
   show('result');
