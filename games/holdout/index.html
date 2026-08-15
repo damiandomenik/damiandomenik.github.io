@@ -301,7 +301,15 @@ button:disabled{cursor:not-allowed}
 #cross,#ammo{transition:opacity .25s}
 #toast{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);font-size:12.5px;
   letter-spacing:.1em;color:var(--amber);text-transform:uppercase}
-#dmgFlash{position:absolute;inset:0;box-shadow:inset 0 0 190px rgba(255,77,61,.85);opacity:0;transition:opacity .28s}
+#dmgFlash{position:absolute;inset:0;opacity:0;
+  box-shadow:inset 0 0 150px rgba(255,40,30,.95), inset 0 0 420px rgba(200,0,0,.45)}
+/* Richtungsanzeige: ein Bogen am Bildrand, der zum Schuetzen zeigt */
+#hurtDir{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .35s}
+#hurtDir i{position:absolute;left:50%;top:50%;width:0;height:0;display:block;
+  transform-origin:0 0}
+#hurtDir i:before{content:'';position:absolute;left:-46px;top:-136px;width:92px;height:26px;
+  background:radial-gradient(ellipse at 50% 100%, rgba(255,60,45,.95), rgba(255,60,45,0) 72%);
+  clip-path:polygon(0% 100%, 50% 0%, 100% 100%)}
 #stormVig{position:absolute;inset:0;opacity:0;transition:opacity .18s;
   box-shadow:inset 0 0 210px rgba(150,70,255,.62), inset 0 0 60px rgba(255,60,140,.28)}
 #minimap{position:absolute;left:26px;top:22px;width:180px;height:180px;border:1px solid var(--line);
@@ -414,6 +422,7 @@ button:disabled{cursor:not-allowed}
   </div>
   <div id="toast"></div>
   <div id="dmgFlash"></div>
+  <div id="hurtDir"><i></i></div>
   <div id="stormVig"></div>
 </div>
 <!-- Rebirth: zweite Chance ueber ein 1-gegen-1 -->
@@ -803,7 +812,10 @@ const SPECTATE = { dist: 5.6, height: 1.15, sens: 1.0, lerp: 9.0 };
    eine zweite Spiel-Logik sauber getrennt — eigene Kollisionswelt, ausser
    Reichweite jeder Kugel, ausserhalb des Sturms, fuer die anderen unsichtbar. */
 const REBIRTH = {
-  waitTime:   30,        // Sekunden in der Warteschlange
+  /* Kein Zeitlimit. Man wartet, bis wirklich ein Gegner da ist. Aufgeloest
+     wird nur die Sackgasse: steht genau einer in der Schlange und lebt auf
+     der Karte hoechstens noch einer, kann kein zweiter mehr dazukommen —
+     dann gibt es den Rebirth geschenkt, sonst koennte die Runde nie enden. */
   countdown:  5,         // Zeit zum Aufstellen, bevor die Wand faellt
   minPlayers: 3,         // ab hier gibt es keinen Rebirth mehr
   arenaSize:  34,        // Kantenlaenge der quadratischen Arena
@@ -4840,7 +4852,17 @@ function applyDamage(target, dmg, src, head){
   }
   target.hp -= d;
   target.hitFlash = 0.25;
-  if (target === G.me) flashDamage();
+  if (target === G.me) onTookDamage(dmg, src ? src.position.x : null,
+                                         src ? src.position.z : null);
+  /* Gaeste rechnen ihren Schaden nicht selbst aus — sie erfahren ihn erst
+     ueber den naechsten Zustand vom Host, und der enthaelt nur noch die
+     Restpunkte. Deshalb geht eine eigene Meldung an den Getroffenen. */
+  if (G.isNet && G.isHost && target !== G.me){
+    const c = G.conns.find(x => x.peer === target.id);
+    if (c) send(c, { t:'hurt', d:Math.round(dmg),
+                     fx: src ? +src.position.x.toFixed(1) : null,
+                     fz: src ? +src.position.z.toFixed(1) : null });
+  }
   if (target.hp <= 0){
     target.alive = false; target.hp = 0;
     const wasArena = inArena(target);
@@ -5003,10 +5025,10 @@ function rbApply(m){
     a.alive = false;
     a.rbState = 'queued';
     a.arenaId = null;
-    a.rbUntil = G.time + (m.secs || REBIRTH.waitTime);
+    a.rbUntil = 0;
     a.rbOpp = null; a.rbFreeze = false;
     if (a === G.me){
-      rbUI('queue', { secs: m.secs || REBIRTH.waitTime });
+      rbUI('queue');
       setTimeout(()=>{
         if (G.phase === 'play' && G.me && G.me.rbState === 'queued') enterSpectate();
       }, 1100);
@@ -5231,7 +5253,7 @@ function rbHostEnqueue(a){
   if (!G.isHost || !canRebirth(a)) return false;
   if (G.rbQueue.includes(a.id)) return false;   // nie doppelt
   G.rbQueue.push(a.id);                          // FIFO: hinten anstellen
-  rbSend({ op:'queue', id:a.id, secs:REBIRTH.waitTime });
+  rbSend({ op:'queue', id:a.id });
   return true;
 }
 
@@ -5297,11 +5319,21 @@ function rbHostTick(dt){
   // 1. Paarungen bilden (aelteste zuerst)
   rbHostMatch();
 
-  // 2. Ablaufende Wartezeiten -> Lucky Rebirth
+  /* 2. Karteileichen aus der Schlange nehmen — und nur die Sackgasse
+     aufloesen. Ein Zeitlimit gibt es nicht mehr: wer wartet, wartet, bis
+     ein Gegner kommt. Kommt aber keiner mehr in Frage, weil auf der Karte
+     hoechstens noch einer steht, bekommt der Wartende seinen Rebirth
+     geschenkt. Ohne diese Ausnahme koennte die Runde nie enden. */
   for (const id of G.rbQueue.slice()){
     const a = G.actors.find(x=>x.id === id);
-    if (!a || a.rbState !== 'queued'){ removeFromQueue(id); continue; }
-    if (G.time >= a.rbUntil) rbHostLucky(a);
+    if (!a || a.rbState !== 'queued') removeFromQueue(id);
+  }
+  if (G.rbQueue.length === 1){
+    const aliveOnMap = G.actors.filter(x => x.alive && !inArena(x)).length;
+    if (aliveOnMap <= 1){
+      const a = G.actors.find(x=>x.id === G.rbQueue[0]);
+      if (a) rbHostLucky(a);
+    }
   }
 
   /* 3. Arenen. Nur 'countdown' und 'fight' werden ausgewertet — eine
@@ -5595,7 +5627,11 @@ const sfx = {
   magIn(){  blip('square', 170, 300, 0.07, 0.09); blip('triangle', 520, 260, 0.05, 0.05); },
   bolt(){   blip('square', 620, 240, 0.05, 0.10); blip('sawtooth', 260, 120, 0.06, 0.05); },
   pick(){ blip('sine', 620, 1180, 0.14, 0.09); },
-  hurt(){ blip('sawtooth', 300, 90, 0.16, 0.11); },
+  hurt(k){
+    const v = k ?? 0.6;
+    nburst(1500 + v*900, 220, 0.10 + v*0.05, 0.055 + v*0.075, { q:1.1 });
+    blip('sawtooth', 250 - v*70, 85, 0.16 + v*0.08, 0.075 + v*0.06);
+  },
   die(){ blip('sawtooth', 220, 50, 0.6, 0.13); },
   zone(){ blip('sine', 180, 120, 0.5, 0.07); },
   /** Ticken, solange man in der Zone steht. Wird mit der Phase haerter. */
@@ -6149,7 +6185,6 @@ function rbUI(mode, opts){
   box.classList.remove('danger','good','compact');
 
   if (mode === 'queue'){
-    RBUI.until = performance.now() + (opts.secs || REBIRTH.waitTime)*1000;
     $('rbTitle').textContent = 'REBIRTH AVAILABLE';
     $('rbSub').textContent = 'WAITING FOR OPPONENT…';
     $('rbNum').style.display = '';
@@ -6201,9 +6236,16 @@ function updateRebirthUI(dt){
   const num = $('rbNum');
 
   if (RBUI.mode === 'queue'){
-    const left = Math.max(0, Math.ceil((RBUI.until - performance.now())/1000));
-    num.textContent = left;
-    num.classList.toggle('urgent', left <= 5);
+    /* Statt eines ablaufenden Zaehlers steht dort, wie viele noch auf der
+       Karte sind — also wie wahrscheinlich es ist, dass gleich jemand
+       dazukommt. Die Punkte zeigen, dass weiter gewartet wird. */
+    const onMap = G.actors.filter(a => a.alive && !inArena(a)).length;
+    const wait  = G.actors.filter(a => a.rbState === 'queued').length;
+    num.textContent = onMap;
+    num.classList.remove('urgent');
+    const dots = '·'.repeat(1 + (Math.floor(RBUI.t*2) % 3));
+    $('rbSub').textContent = (wait > 1 ? `${wait} WARTEN` : 'WAITING FOR OPPONENT')
+      + ' · ' + onMap + ' IM SPIEL ' + dots;
     return;
   }
   if (RBUI.mode === 'ready'){
@@ -6427,12 +6469,50 @@ function showHitmark(kind){
   else if (kind === 'head') sfx.hitHead();
   else sfx.hit();
 }
-function flashDamage(){
+/* Der Blitz springt sofort auf volle Staerke und blendet dann aus. Eine
+   Ueberblendung nach oben wuerde ihn genau um die Zeit bringen, in der er
+   wirken soll. Die Staerke haengt am Schaden — ein Streifschuss sieht
+   anders aus als ein Treffer aus dem Scharfschuetzengewehr. */
+function flashDamage(amount){
   const el = $('dmgFlash');
-  el.style.opacity = 1;
-  clearTimeout(flashDamage._t);
-  flashDamage._t = setTimeout(()=>{ el.style.opacity = 0; }, 130);
-  sfx.hurt();
+  const k = clamp((amount || 18) / 42, 0.40, 1);
+  el.style.transition = 'none';
+  el.style.opacity = String(k);
+  void el.offsetWidth;                       // Sprung erzwingen
+  el.style.transition = 'opacity .34s';
+  el.style.opacity = 0;
+}
+
+/** Woher kam der Schuss? Der Bogen zeigt in die Richtung, aus der der
+    Schaden kam — gerechnet gegen die eigene Blickrichtung. */
+function showHurtDir(fx, fz){
+  const me = G.me;
+  const el = $('hurtDir');
+  if (!me || fx === undefined || fx === null){ el.style.opacity = 0; return; }
+  const dx = fx - me.position.x, dz = fz - me.position.z;
+  if (Math.hypot(dx, dz) < 0.5){ el.style.opacity = 0; return; }
+  // Winkel zwischen Blickrichtung und Schuetze, 0 = genau voraus
+  const world = Math.atan2(-dx, -dz);
+  const rel = world - me.yaw;
+  el.firstElementChild.style.transform = 'rotate(' + (-rel) + 'rad)';
+  el.style.transition = 'none';
+  el.style.opacity = '1';
+  void el.offsetWidth;
+  el.style.transition = 'opacity .9s';
+  el.style.opacity = '0';
+}
+
+/* Ein Ort fuer alles, was passiert, wenn man getroffen wird — egal ob der
+   Schaden lokal entstanden ist oder vom Host gemeldet wurde. */
+let lastHurtAt = -99;
+function onTookDamage(amount, fx, fz){
+  if (G.time - lastHurtAt < 0.08) return;    // ein Schrotschuss ist ein Treffer
+  lastHurtAt = G.time;
+  flashDamage(amount);
+  showHurtDir(fx, fz);
+  sfx.hurt(clamp((amount||18)/42, 0.3, 1));
+  // Ein kleiner Ruck: man wird sichtbar aus der Bahn gebracht
+  kick.pitch -= 0.012 * clamp((amount||18)/30, 0.4, 1.6);
 }
 let toastT = 0;
 let lastToastMsg = '', lastToastAt = -99;
@@ -7296,6 +7376,7 @@ async function onClientData(d){
     netPing = performance.now() - (netPingSent[d.s] || performance.now());
     return;
   }
+  if (d.t === 'hurt'){ onTookDamage(d.d, d.fx, d.fz); return; }
   if (d.t === 'kicked'){
     toast('Vom Host getrennt: ' + (d.why || 'Verbindung'));
     setNetWarn('Verbindung verloren');
@@ -7406,7 +7487,14 @@ function applySnapshot(s){
     const a = G.actors.find(x=>x.id === d.i);
     if (!a) continue;
     if (a === G.me){                       // eigene Position bleibt lokal
+      /* Auffangnetz, falls die Treffermeldung verlorengeht: sinkt die
+         Summe aus Leben und Panzerung merklich, hat es uns erwischt.
+         Sturmschaden ist ausgenommen, der hat seine eigene Anzeige. */
+      const before = a.hp + a.shield;
+      const inZone = G.mode === 'br' && !inArena(a) && outsideStorm(a);
       a.hp = d.h; a.shield = d.s; a.kills = d.k;
+      if (a.alive && !inZone && before - (a.hp + a.shield) > 1.5)
+        onTookDamage(before - (a.hp + a.shield));
       /* Der Rebirth setzt einen wieder auf lebendig. Ohne diese Zeile
          bliebe man beim Gast tot, obwohl der Host einen laengst
          zurueckgeholt hat. */
@@ -7855,6 +7943,7 @@ function resetMatchState(){
   $('hud').classList.remove('on');
   $('stormVig').style.opacity = 0;
   $('dmgFlash').style.opacity = 0;
+  $('hurtDir').style.opacity = 0;
   toastT = 0; $('toast').textContent = '';
   clearKeys();
   try { document.exitPointerLock(); } catch(e){}
