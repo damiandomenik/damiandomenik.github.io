@@ -2171,6 +2171,14 @@ class CharacterController {
     // --- 1. waagrecht ---
     const hd = _v1.set(this.velocity.x*dt, 0, this.velocity.z*dt);
     if (hd.lengthSq() > 1e-10){
+      /* Auf begehbarer Schraege der Flaeche folgen statt dagegen zu laufen.
+         Die Laenge bleibt erhalten, das Tempo also auch. */
+      const gn = this.groundNormal;
+      if (wasGrounded && gn.y > 0.05 && gn.y < 0.9995){
+        const len = hd.length();
+        hd.addScaledVector(gn, -hd.dot(gn));
+        if (hd.lengthSq() > 1e-12) hd.setLength(len);
+      }
       const start = _v2.copy(this.position);
       this.contactCount += this._sweep(hd, { noLift:true });
       if (this._groundY !== null){ groundY = this._groundY; groundNormal = this._groundN; }
@@ -2187,11 +2195,25 @@ class CharacterController {
           if (this._groundY !== null){ groundY = this._groundY; groundNormal = this._groundN; }
         }
       }
-      // Geschwindigkeit an den getroffenen Flächen abgleiten lassen
+      /* Geschwindigkeit an den getroffenen Flaechen abgleiten lassen.
+         Waren es ausschliesslich begehbare Flaechen — also eine Rampe und
+         keine Wand —, wird das waagrechte Tempo danach wieder auf den
+         alten Wert gebracht. An Waenden bremst es weiterhin, sonst
+         schoesse man in jeder Ecke davon. */
+      const h0 = Math.hypot(this.velocity.x, this.velocity.z);
+      let onlyWalkable = this._normalCount > 0;
       for (let i=0;i<this._normalCount;i++){
         const n = this._normals[i];
+        if (n.y < this.cosSlope) onlyWalkable = false;
         const into = this.velocity.dot(n);
         if (into < 0) this.velocity.addScaledVector(n, -into);
+      }
+      if (onlyWalkable && h0 > 0.05){
+        const h1 = Math.hypot(this.velocity.x, this.velocity.z);
+        if (h1 > 1e-4 && h1 < h0){
+          const k = h0 / h1;
+          this.velocity.x *= k; this.velocity.z *= k;
+        }
       }
     }
 
@@ -4302,8 +4324,7 @@ function buildRebirthArena(id){
   group.visible = false;          // erst sichtbar, wenn jemand darin steht
 
   const entries = parts.map(m=>({ mesh:m, tag:'arena' }));
-  const worldOpen   = new CollisionWorld().build(entries);
-  const worldClosed = new CollisionWorld().build(entries.concat([{ mesh:divider, tag:'arena' }]));
+  const worldOpen = new CollisionWorld().build(entries);
 
   /* Startpunkte: an beiden Enden der langen Achse, und die Hoehe wird
      GEMESSEN statt geraten — die Karte hat erhoehte Plattformen, ein fest
@@ -4344,7 +4365,8 @@ function buildRebirthArena(id){
 
   return {
     id, group, origin:o, divider,
-    worldOpen, worldClosed, world: worldClosed,
+    worldOpen, world: worldOpen,
+    divZ: o.z + midZ,          // Weltposition der Trennebene
     divT: 1, spawns,
     a:null, b:null, state:'free', timer:0
   };
@@ -4387,19 +4409,15 @@ function buildFallbackArenaBoxes(group, parts){
 function raiseDivider(ar){
   if (!ar) return;
   ar.divT = 1;
-  ar.world = ar.worldClosed;
   if (ar.divider){ ar.divider.visible = true; ar.divider.scale.y = 1;
                    ar.divider.position.y = ar.divider.userData.baseY; }
   if (ar.group) ar.group.updateMatrixWorld(true);
-  for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
 }
 
 /** Trennwand faellt: Kollision sofort frei, das Bild zieht in 0.45 s nach. */
 function dropDivider(ar){
   if (!ar || ar.divT < 1) return;
   ar.divT = 0.999;
-  ar.world = ar.worldOpen;
-  for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
 }
 
 /** Laeuft auf jedem Rechner, nicht nur beim Host — das ist reine Anzeige. */
@@ -4432,7 +4450,11 @@ function ensureArena(id){
 /** Freie Arena fuer ein neues Duell (nur der Host vergibt). */
 function acquireArena(){
   for (const ar of G.arenas) if (ar.state === 'free') return ar;
-  return ensureArena(G.rbNextArena++);
+  // Naechste freie Nummer suchen — Arena 0 wird beim Laden vorgebaut
+  let id = 0;
+  while (G.arenas.some(x=>x.id === id)) id++;
+  G.rbNextArena = id + 1;
+  return ensureArena(id);
 }
 
 function disposeArenas(){
@@ -4464,8 +4486,32 @@ function worldOf(a){
   }
   return G.world;
 }
+/** Solange die Trennwand steht, bleibt jeder auf seiner Seite. Das ersetzt
+    die zweite Kollisionswelt — geschossen wird waehrend des Countdowns
+    ohnehin nicht, es geht nur um den Uebertritt. */
+function keepInHalf(a){
+  if (!a || !a.ctrl || a.arenaId === null || a.arenaId === undefined) return;
+  const ar = G.arenas.find(x=>x.id === a.arenaId);
+  if (!ar || ar.divT < 1) return;
+  const m = PLAYER.radius + REBIRTH.map.wallDepth*0.5 + 0.12;
+  const south = (ar.b === a);
+  const lim = south ? ar.divZ + m : ar.divZ - m;
+  if (south ? a.position.z < lim : a.position.z > lim){
+    a.position.z = lim;
+    a.ctrl.position.z = lim;
+    if (a.ctrl.velocity.z * (south ? -1 : 1) > 0) a.ctrl.velocity.z = 0;
+  }
+}
+
 function inArena(a){
   return !!a && a.arenaId !== null && a.arenaId !== undefined && !!RB_IN_ARENA[a.rbState];
+}
+
+/** Die erste Rebirth-Arena schon beim Laden aufbauen statt mitten im Spiel.
+    Weitere entstehen nur, wenn wirklich mehrere Duelle gleichzeitig laufen. */
+function prebuildArena(){
+  if (G.mode !== 'br') return;
+  try { ensureArena(0); } catch(e){ console.warn('Arena nicht vorgebaut:', e); }
 }
 
 /* ==========================================================================
@@ -7194,6 +7240,7 @@ function simulate(dt){
           }
         }
         me.position.copy(me.ctrl.position);
+        keepInHalf(me);
         input.jumpEdge = false;
 
         /* An eine Wand gedrueckt zu stehen ist erlaubt und haeufig. IN der
@@ -7238,6 +7285,7 @@ function simulate(dt){
       tickReload(a);
       a.ctrl.step(dt, a.wish, a.jump);
       a.position.copy(a.ctrl.position);
+      keepInHalf(a);
     }
   }
 
@@ -8428,6 +8476,8 @@ async function beginMatch(){
                 spawns: pts.map(p=>[p.x,p.y,p.z]) });
   }
   await setupMatch(roster, pts.map(p=>[p.x,p.y,p.z]));
+  setLoad(98, 'Arena wird vorbereitet');
+  prebuildArena();
   setLoad(100, 'Los');
   G.phase = 'play';
   suppressPause = false;
@@ -8469,6 +8519,8 @@ async function startFromRoster(roster, spawns, seed){
   }
   setLoad(90, 'Figuren werden geladen');
   await setupMatch(list, spawns);
+  setLoad(98, 'Arena wird vorbereitet');
+  prebuildArena();
   setLoad(100, 'Los');
   G.phase = 'play'; suppressPause = false; G.time = 0; clock.getDelta();
   show(null); canvas.requestPointerLock();
