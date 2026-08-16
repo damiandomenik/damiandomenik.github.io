@@ -708,7 +708,7 @@ const MAP_SETS = [
        deshalb dort auf, wo die Stadt aufhoert. */
     radius:140, spawnR:95, fogNear:110, fogFar:620,
     sky:{ top:0x2b5f9e, horizon:0xd2c9d8, ground:0x6f6a72,
-          water:0x24506b, plate:0x4b4750, ridge:0x3a3d4a },
+          water:0x24506b, plate:0x46543c, ridge:0x3a3d4a },
     pieces:[
       /* Die Datei kommt schon in Metern: 488 x 488 m Grundflaeche, hoechstes
          Haus 44 m. Deshalb weder `fit` noch `scale` — beides wuerde eine
@@ -1711,6 +1711,48 @@ class GLBMapLoader {
   /** Dominante Bodenhöhe: Histogramm über nach oben zeigende Dreiecksfläche.
       Robuster als bbox.min.y, weil Sockel, Wurzeln und Kellerböden sonst
       die ganze Karte anheben. */
+  /** Tiefste begehbare Fläche der Karte.
+      Gezählt wird nur, was nennenswert gross ist — ein einzelnes Dreieck
+      tief unten (etwa an einer Kellertreppe oder am Rand des Modells) darf
+      die Platte nicht um Meter nach unten ziehen. Deshalb die Schwelle von
+      einem Prozent der grössten Ebene, und ein Deckel von drei Metern
+      unter dem Hauptboden. */
+  static lowestWalkableY(root){
+    root.updateMatrixWorld(true);
+    const bins = new Map();
+    const BIN = 0.25;
+    let bestArea = 0;
+    root.traverse(o=>{
+      if (!o.isMesh || !o.geometry) return;
+      const pos = o.geometry.attributes.position; if (!pos) return;
+      const index = o.geometry.index, count = index?index.count:pos.count;
+      const stride = Math.max(3, Math.floor(count/3/500)*3);
+      const M = o.matrixWorld;
+      for (let i=0;i+2<count;i+=stride){
+        const i0=index?index.getX(i):i, i1=index?index.getX(i+1):i+1, i2=index?index.getX(i+2):i+2;
+        _a.fromBufferAttribute(pos,i0).applyMatrix4(M);
+        _b.fromBufferAttribute(pos,i1).applyMatrix4(M);
+        _c.fromBufferAttribute(pos,i2).applyMatrix4(M);
+        _ab.subVectors(_b,_a); _ac.subVectors(_c,_a); _n.crossVectors(_ab,_ac);
+        const area=_n.length()*0.5; if(area<1e-7) continue;
+        if (_n.y/(area*2) < 0.75) continue;
+        const k = Math.round(((_a.y+_b.y+_c.y)/3)/BIN);
+        const v = (bins.get(k)||0)+area;
+        bins.set(k,v);
+        if (v > bestArea) bestArea = v;
+      }
+    });
+    if (!bins.size) return 0;
+    const floor = MapLoader.estimateFloorY(root);
+    let low = floor;
+    for (const [k,v] of bins){
+      if (v < bestArea*0.01) continue;        // Splitter zaehlen nicht
+      const y = k*BIN;
+      if (y < low) low = y;
+    }
+    return Math.max(low, floor - 3);
+  }
+
   static estimateFloorY(root){
     root.updateMatrixWorld(true);
     const bins = new Map();
@@ -1831,15 +1873,21 @@ class GLBMapLoader {
       if (p) pieces.push(p);
     }
 
-    // Basisplatte: garantiert, dass niemand ins Nichts fällt, auch wenn eine
-    // GLB Löcher hat. Sie ist Teil der Kollisionswelt.
+    /* Basisplatte: garantiert, dass niemand ins Nichts fällt, auch wenn eine
+       GLB Löcher hat. Sie ist Teil der Kollisionswelt.
+
+       Ihre Höhe wird gemessen, nicht gesetzt: sie muss unter die TIEFSTE
+       begehbare Fläche der Karte, sonst deckt sie Rasen, Parks oder
+       abgesenkte Höfe zu. Zwei Zentimeter unter Null reichten dafür nicht. */
     const R = BR.islandRadius + 60;
+    const lowY = MapLoader.lowestWalkableY(group);
+    const topY = Math.min(-0.02, lowY - 0.18);
     const baseGeo = new THREE.CylinderGeometry(R, R*0.92, 12, 64, 1);
     const set = (typeof mapSet === 'function') ? mapSet() : null;
     const baseCol = (set && set.sky && set.sky.plate) ? set.sky.plate : 0x3f4a3a;
     const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({
       color:baseCol, roughness:1, metalness:0 }));
-    base.position.y = -6.02;                 // Deckel exakt bei y = -0.02
+    base.position.y = topY - 6;              // Deckel exakt bei topY
     base.receiveShadow = true;
     base.name = 'IslandBase';
     group.add(base);
