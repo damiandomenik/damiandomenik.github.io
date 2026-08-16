@@ -281,6 +281,13 @@ button:disabled{cursor:not-allowed}
 #rbNum.urgent{color:var(--hazard)}
 #rebirth.danger #rbTitle{color:var(--hazard)}
 #rebirth.good #rbTitle{color:#37D67A}
+#crashBox{position:fixed;left:50%;top:24px;transform:translateX(-50%);z-index:90;
+  max-width:min(760px,92vw);padding:14px 18px;background:rgba(28,10,10,.96);
+  border:1px solid var(--hazard);color:#ffd9d2;font-size:12.5px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;display:none}
+#crashBox b{display:block;color:var(--hazard);font-family:'Chakra Petch',sans-serif;
+  font-size:14px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+#crashBox i{display:block;margin-top:8px;font-style:normal;color:var(--dim);font-size:11px}
 #netWarn{position:absolute;left:50%;top:76px;transform:translateX(-50%);font-size:10.5px;
   letter-spacing:.18em;text-transform:uppercase;color:var(--hazard);
   background:rgba(10,18,20,.85);border:1px solid var(--hazard);padding:5px 13px}
@@ -434,6 +441,7 @@ button:disabled{cursor:not-allowed}
   </div>
 </div>
 
+<div id="crashBox"><b>Fehler</b><span id="crashMsg"></span><i>Bitte diesen Text melden.</i></div>
 <div id="dbg" class="hidden"></div>
 
 <!-- Punktestand, solange Tab gehalten wird -->
@@ -1743,7 +1751,7 @@ class GLBMapLoader {
       }
     });
     if (!bins.size) return 0;
-    const floor = MapLoader.estimateFloorY(root);
+    const floor = GLBMapLoader.estimateFloorY(root);
     let low = floor;
     for (const [k,v] of bins){
       if (v < bestArea*0.01) continue;        // Splitter zaehlen nicht
@@ -1880,7 +1888,7 @@ class GLBMapLoader {
        begehbare Fläche der Karte, sonst deckt sie Rasen, Parks oder
        abgesenkte Höfe zu. Zwei Zentimeter unter Null reichten dafür nicht. */
     const R = BR.islandRadius + 60;
-    const lowY = MapLoader.lowestWalkableY(group);
+    const lowY = GLBMapLoader.lowestWalkableY(group);
     const topY = Math.min(-0.02, lowY - 0.18);
     const baseGeo = new THREE.CylinderGeometry(R, R*0.92, 12, 64, 1);
     const set = (typeof mapSet === 'function') ? mapSet() : null;
@@ -3562,7 +3570,9 @@ function updateDebugHelpers(){
 /* ==========================================================================
    15 — WELT LADEN
    ========================================================================== */
+let lastLoadStep = '';
 function setLoad(pct, txt){
+  if (txt) lastLoadStep = Math.round(pct) + ' % · ' + txt;
   $('lbLoad').classList.toggle('on', pct > 0 && pct < 100);
   $('bar').firstElementChild.style.width = clamp(pct,0,100) + '%';
   if (txt) $('loadTxt').textContent = txt;
@@ -8475,13 +8485,20 @@ async function guardedStart(){
   if (starting) return;
   starting = true;
   setLobbyBusy(true);
+  /* Wachhund: bleibt der Ladebalken stehen, sagt das Spiel wo. Ohne ihn
+     sieht man nur einen Knopf, der nichts tut. */
+  const watchdog = setTimeout(()=>{
+    showCrash('Laden haengt seit 25 s bei: ' + (lastLoadStep || '—'),
+      new Error('Zeitueberschreitung'));
+    setLobbyBusy(false);
+  }, 25000);
   try { await beginMatch(); }
   catch(e){
-    console.error(e);
+    showCrash('Runde konnte nicht geladen werden', e);
     returnToLobby();
     toast('Laden fehlgeschlagen');
   }
-  finally { starting = false; setLobbyBusy(false); }
+  finally { clearTimeout(watchdog); starting = false; setLobbyBusy(false); }
 }
 
 async function beginMatch(){
@@ -8858,6 +8875,20 @@ document.addEventListener('fullscreenchange', ()=>{
   if (!document.fullscreenElement && SETTINGS.fullscreen) return;
   $('setFull').checked = !!document.fullscreenElement;
 });
+
+/* Alles, was das Laden abbricht, landet sichtbar auf dem Bildschirm —
+   nicht nur in der Konsole. */
+function showCrash(where, err){
+  try {
+    const box = $('crashBox');
+    const msg = (err && (err.stack || err.message)) || String(err);
+    $('crashMsg').textContent = where + '\n' + msg;
+    box.style.display = 'block';
+  } catch(e){}
+  console.error(where, err);
+}
+addEventListener('error', e=> showCrash('Skriptfehler', e.error || e.message));
+addEventListener('unhandledrejection', e=> showCrash('Ladefehler', e.reason));
 
 loadSettings();
 syncSettingsUI();
