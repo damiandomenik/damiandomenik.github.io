@@ -4269,26 +4269,29 @@ function buildRebirthArena(id){
   /* Trennwand quer ueber die kurze Achse, von unter dem Boden bis ueber
      das hoechste Dach. Halbdurchsichtig, weil sie mitten durch Haeuser
      laeuft — undurchsichtig wuerde die Karte zerschnitten aussehen. */
-  const matSplit = new THREE.MeshBasicMaterial({
-    color:0xFFB020, transparent:true, opacity:0.30,
-    side:THREE.DoubleSide, depthWrite:false });
+  const matSplit = new THREE.MeshStandardMaterial({
+    color:0x18201f, roughness:0.92, metalness:0.04,
+    emissive:0x2a1c04, emissiveIntensity:0.55,
+    side:THREE.DoubleSide });
   const wallH = topY - lo.y + 1.2;
   const divider = new THREE.Mesh(
     new THREE.BoxGeometry(halfX*2 + T*2, wallH, C.wallDepth), matSplit);
   divider.position.set(midX, lo.y + wallH/2 - 0.6, midZ);
   divider.name = 'arena_divider';
-  divider.castShadow = false; divider.receiveShadow = false;
+  divider.castShadow = false;      // 16 m Wand wuerde die halbe Arena verdunkeln
+  divider.receiveShadow = true;
   divider.userData.baseY = divider.position.y;
   divider.userData.height = wallH;
   divider.userData.footY  = divider.position.y - wallH/2;
   group.add(divider);
   // Zwei Warnstreifen auf Augenhoehe, damit die Wand auch von nahem auffaellt
+  const stripMat = new THREE.MeshBasicMaterial({ color:0xFFB020, side:THREE.DoubleSide });
   for (const zz of [-C.wallDepth/2 - 0.02, C.wallDepth/2 + 0.02]){
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(halfX*2, 0.5),
-      new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.7,
-                                    side:THREE.DoubleSide, depthWrite:false }));
-    strip.position.set(0, -wallH/2 + 1.7, zz);
-    divider.add(strip);
+    for (const yy of [1.7, 3.4]){
+      const strip = new THREE.Mesh(new THREE.PlaneGeometry(halfX*2, 0.35), stripMat);
+      strip.position.set(0, -wallH/2 + yy, zz);
+      divider.add(strip);
+    }
   }
   const glow = new THREE.PointLight(0xfff0d4, 1.2, Math.max(halfX,halfZ)*2.2, 2);
   glow.position.set(midX, lo.y + 6, midZ);
@@ -4306,12 +4309,37 @@ function buildRebirthArena(id){
      GEMESSEN statt geraten — die Karte hat erhoehte Plattformen, ein fest
      eingetippter Wert liesse die Figur in der Luft oder im Boden starten. */
   const spawns = [];
+  const _up = new THREE.Vector3(0,1,0), _o = new THREE.Vector3();
+  /** Steht hier genug Platz fuer eine Figur? Zwei Meter Luft reichen. */
+  const headroom = (x, y, z)=>{
+    _o.set(x, y + 0.25, z);
+    const h = worldOpen.raycast(_o, _up, 2.0, {});
+    return !h;
+  };
   for (const sgn of [-1, 1]){
-    const sx = o.x + midX;
-    const sz = o.z + midZ + sgn*Math.min(C.spawnZ, halfZ - 2.5);
-    const from = o.y + topY + 2;
-    const hit = worldOpen.groundBelow(sx, from, sz, from - (o.y + lo.y) + 20);
-    spawns.push(new THREE.Vector3(sx, hit ? hit.point.y + 0.12 : o.y + lo.y + 0.12, sz));
+    const cx0 = o.x + midX;
+    const cz0 = o.z + midZ + sgn*Math.min(C.spawnZ, halfZ - 2.5);
+    /* Von drei Metern ueber dem tiefsten Punkt nach unten tasten. Hoeher
+       anzufangen hiesse, die unsichtbare Decke zu treffen — und genau daran
+       ist es vorher gescheitert. */
+    const from = o.y + lo.y + 3.0;
+    let found = null;
+    search:
+    for (let ring = 0; ring <= 4 && !found; ring++){
+      const n = ring === 0 ? 1 : 8;
+      for (let i = 0; i < n; i++){
+        const a = (i/n)*Math.PI*2 + ring*0.4;
+        const x = cx0 + Math.cos(a)*ring*1.8;
+        const z = cz0 + Math.sin(a)*ring*1.8;
+        const hit = worldOpen.groundBelow(x, from, z, 10);
+        if (!hit) continue;
+        const y = hit.point.y + 0.12;
+        if (!headroom(x, y, z)) continue;
+        found = new THREE.Vector3(x, y, z);
+        break search;
+      }
+    }
+    spawns.push(found || new THREE.Vector3(cx0, o.y + lo.y + 0.15, cz0));
   }
 
   return {
