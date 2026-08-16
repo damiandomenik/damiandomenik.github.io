@@ -722,25 +722,6 @@ const MAP_SETS = [
       { file:'low_poly_city.glb', at:[59.6, 0, -6.4], rotY:0, label:'Neonstadt' }
     ]
   }
-  ,{
-    id:'brisbane', name:'South Brisbane', note:'Minecraft-Diorama · dicht bebaut, 1.37 Mio Dreiecke',
-    radius:195, spawnR:125, fogNear:105, fogFar:700,
-    sky:{ top:0x3a72b4, horizon:0xc9d8e2, ground:0x7d8478,
-          water:0x2a5d78, plate:0x4a5346, ridge:0x3b4a52 },
-    pieces:[
-      /* Die Datei kommt in Metern, deshalb weder `fit` noch `scale`.
-
-         `at` verschiebt um 131 m: die Huellquader-Mitte liegt weit neben dem
-         bebauten Kern, weil ein paar versprengte Objekte den Quader nach
-         Westen ziehen. Ohne die Verschiebung saesse die Zone ueber leerem
-         Gelaende.
-
-         ACHTUNG, die schwerste Karte im Spiel: 1.37 Millionen Dreiecke,
-         rund 130 MB Kollisionsspeicher. Auf schwaecheren Geraeten dauert
-         der Aufbau mehrere Sekunden. Bei Problemen `hidden:true` setzen. */
-      { file:'south_brisbane_city.glb', at:[-130.8, 0, -0.5], rotY:0, label:'South Brisbane' }
-    ]
-  }
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
@@ -882,8 +863,22 @@ const REBIRTH = {
   spacing:    400,       // Abstand weiterer Arenen
   loadout:    { id:'ar', reserve: 120 },           // gleiche Waffe fuer beide
   returnAlt:  null,      // null = DROP.altitude
-  wallHalf:   4.6,       // Hoehe der Trennwand in der Mitte
-  wallSink:   0.45       // wie lange sie beim Startsignal im Boden versinkt
+  wallSink:   0.45,      // wie lange die Trennwand beim Startsignal versinkt
+
+  /* Die Arena ist eine echte Karte, keine Kiste aus Boxen mehr.
+     Maßstab 3: die Datei kommt in einer eigenen Einheit, in der ein
+     Stockwerk 1.05 misst — mal drei sind das 3.15 m, und die umlaufende
+     Mauer wird 6 m hoch. Damit stimmen die Groessenverhaeltnisse zur Figur.
+     Ergebnis: 25.6 x 49.2 m, hoechster Punkt 12 m. */
+  map: {
+    file:      'arena_tdm.glb',
+    scale:     3.0,
+    spawnZ:    20.5,     // Startpunkte auf der langen Achse, je Seite
+    wallTop:   13.5,     // Oberkante der Trennwand
+    wallDepth: 0.6,      // Dicke der Trennwand
+    ceiling:   14.5,     // unsichtbare Decke, damit niemand herausspringt
+    margin:    0.8       // Abstand der unsichtbaren Aussenhuelle
+  }
 };
 
 /* ---- Trefferzonen ----
@@ -4180,24 +4175,159 @@ function updateDrop(dt){
    sie deshalb unabhaengig voneinander identisch — es muss nichts uebertragen
    werden ausser der Nummer.
    ========================================================================== */
+/* Das Arenamodell wird einmal geladen und danach je Arena geklont. Klone
+   teilen sich Geometrie und Material — der Speicher waechst also kaum,
+   auch wenn mehrere Duelle nebeneinander laufen. */
+const arenaAsset = { scene:null, tried:false };
+async function loadArenaAsset(){
+  if (arenaAsset.tried) return arenaAsset.scene;
+  arenaAsset.tried = true;
+  try {
+    const g = await gltfLoader.loadAsync(ASSETS.maps + REBIRTH.map.file);
+    const root = g.scene;
+    root.traverse(m=>{
+      if (!m.isMesh) return;
+      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = true;
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      mats.forEach(mm=>{
+        if (!mm) return;
+        if (mm.map) mm.map.colorSpace = THREE.SRGBColorSpace;
+        // Einseitige Waende sieht man von innen sonst nicht
+        mm.side = THREE.DoubleSide;
+        if (mm.transparent && mm.opacity >= 0.99){ mm.transparent = false; mm.depthWrite = true; }
+      });
+    });
+    arenaAsset.scene = root;
+  } catch(e){
+    console.warn('Arenakarte fehlt, es wird die einfache Kiste gebaut:', e);
+    arenaAsset.scene = null;
+  }
+  return arenaAsset.scene;
+}
+
 function arenaOrigin(id){
   return new THREE.Vector3(REBIRTH.origin.x + id*REBIRTH.spacing,
                            REBIRTH.origin.y, REBIRTH.origin.z);
 }
 
 function buildRebirthArena(id){
-  const S = REBIRTH.arenaSize, H = REBIRTH.wallHeight, T = 1.0;
   const o = arenaOrigin(id);
   const group = new THREE.Group();
   group.name = 'RebirthArena_' + id;
   group.position.copy(o);
 
+  const parts = [];          // alles, was fest ist
+  const C = REBIRTH.map;
+
+  if (arenaAsset.scene){
+    /* Die Karte selbst. clone(true) haengt eine eigene Knotenhierarchie auf,
+       teilt sich aber Geometrie und Material mit dem Original. */
+    const map = arenaAsset.scene.clone(true);
+    map.scale.setScalar(C.scale);
+    group.add(map);
+    group.updateMatrixWorld(true);
+    map.traverse(m=>{ if (m.isMesh && m.geometry) parts.push(m); });
+  } else {
+    // Ersatz, falls die Datei fehlt: die alte Kiste, damit nichts abstuerzt
+    buildFallbackArenaBoxes(group, parts);
+    group.updateMatrixWorld(true);
+  }
+
+  /* Ausdehnung in Weltkoordinaten messen — daraus leiten sich Huelle,
+     Trennwand und Startpunkte ab. Nichts davon ist fest eingetippt: eine
+     andere Karte an derselben Stelle wuerde von selbst passen. */
+  const box = new THREE.Box3();
+  for (const m of parts) box.expandByObject(m);
+  const lo = box.min.clone().sub(o), hi = box.max.clone().sub(o);   // lokal
+  const halfX = Math.max(4, (hi.x - lo.x)/2 + C.margin);
+  const halfZ = Math.max(4, (hi.z - lo.z)/2 + C.margin);
+  const midX  = (hi.x + lo.x)/2, midZ = (hi.z + lo.z)/2;
+  const topY  = Math.max(hi.y + 2.0, C.ceiling);
+
+  /* Unsichtbare Huelle: vier Waende und eine Decke. Die Karte ist zwar
+     umzaeunt, aber ihre Mauer ist nur 6 m hoch — von einem Dach aus kaeme
+     man darueber, und ein Duell, aus dem einer herausspaziert, ist keins. */
+  const invis = new THREE.MeshBasicMaterial({ visible:false });
+  const shell = (w,h,d,x,y,z,name)=>{
+    const q = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), invis);
+    q.position.set(x,y,z); q.name = name;
+    q.castShadow = false; q.receiveShadow = false;
+    group.add(q); parts.push(q);
+  };
+  const T = 1.0, H = topY - lo.y + 4;
+  const cy = lo.y + H/2 - 2;
+  shell(halfX*2 + T*2, T, halfZ*2 + T*2, midX, topY, midZ, 'arena_ceiling');
+  shell(halfX*2 + T*2, H, T, midX, cy, midZ - halfZ - T/2, 'arena_shell_n');
+  shell(halfX*2 + T*2, H, T, midX, cy, midZ + halfZ + T/2, 'arena_shell_s');
+  shell(T, H, halfZ*2, midX - halfX - T/2, cy, midZ, 'arena_shell_w');
+  shell(T, H, halfZ*2, midX + halfX + T/2, cy, midZ, 'arena_shell_e');
+  // Boden unter der Karte, falls irgendwo eine Luecke ist
+  shell(halfX*2 + T*2, T, halfZ*2 + T*2, midX, lo.y - T/2 - 0.05, midZ, 'arena_underfloor');
+
+  group.updateMatrixWorld(true);
+
+  /* Trennwand quer ueber die kurze Achse, von unter dem Boden bis ueber
+     das hoechste Dach. Halbdurchsichtig, weil sie mitten durch Haeuser
+     laeuft — undurchsichtig wuerde die Karte zerschnitten aussehen. */
+  const matSplit = new THREE.MeshBasicMaterial({
+    color:0xFFB020, transparent:true, opacity:0.30,
+    side:THREE.DoubleSide, depthWrite:false });
+  const wallH = topY - lo.y + 1.2;
+  const divider = new THREE.Mesh(
+    new THREE.BoxGeometry(halfX*2 + T*2, wallH, C.wallDepth), matSplit);
+  divider.position.set(midX, lo.y + wallH/2 - 0.6, midZ);
+  divider.name = 'arena_divider';
+  divider.castShadow = false; divider.receiveShadow = false;
+  divider.userData.baseY = divider.position.y;
+  divider.userData.height = wallH;
+  divider.userData.footY  = divider.position.y - wallH/2;
+  group.add(divider);
+  // Zwei Warnstreifen auf Augenhoehe, damit die Wand auch von nahem auffaellt
+  for (const zz of [-C.wallDepth/2 - 0.02, C.wallDepth/2 + 0.02]){
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(halfX*2, 0.5),
+      new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.7,
+                                    side:THREE.DoubleSide, depthWrite:false }));
+    strip.position.set(0, -wallH/2 + 1.7, zz);
+    divider.add(strip);
+  }
+  const glow = new THREE.PointLight(0xfff0d4, 1.2, Math.max(halfX,halfZ)*2.2, 2);
+  glow.position.set(midX, lo.y + 6, midZ);
+  group.add(glow);
+
+  scene.add(group);
+  group.updateMatrixWorld(true);
+  group.visible = false;          // erst sichtbar, wenn jemand darin steht
+
+  const entries = parts.map(m=>({ mesh:m, tag:'arena' }));
+  const worldOpen   = new CollisionWorld().build(entries);
+  const worldClosed = new CollisionWorld().build(entries.concat([{ mesh:divider, tag:'arena' }]));
+
+  /* Startpunkte: an beiden Enden der langen Achse, und die Hoehe wird
+     GEMESSEN statt geraten — die Karte hat erhoehte Plattformen, ein fest
+     eingetippter Wert liesse die Figur in der Luft oder im Boden starten. */
+  const spawns = [];
+  for (const sgn of [-1, 1]){
+    const sx = o.x + midX;
+    const sz = o.z + midZ + sgn*Math.min(C.spawnZ, halfZ - 2.5);
+    const from = o.y + topY + 2;
+    const hit = worldOpen.groundBelow(sx, from, sz, from - (o.y + lo.y) + 20);
+    spawns.push(new THREE.Vector3(sx, hit ? hit.point.y + 0.12 : o.y + lo.y + 0.12, sz));
+  }
+
+  return {
+    id, group, origin:o, divider,
+    worldOpen, worldClosed, world: worldClosed,
+    divT: 1, spawns,
+    a:null, b:null, state:'free', timer:0
+  };
+}
+
+/** Ersatzbau aus Boxen — nur, wenn die Arenakarte nicht geladen werden kann. */
+function buildFallbackArenaBoxes(group, parts){
+  const S = 34, T = 1.0, H = 6, SINK = 0.40;
   const matFloor = new THREE.MeshStandardMaterial({ color:0x2f3a3d, roughness:.95 });
   const matWall  = new THREE.MeshStandardMaterial({ color:0x1b2529, roughness:.9 });
   const matBox   = new THREE.MeshStandardMaterial({ color:0x54606b, roughness:.85 });
-  const matLine  = new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.5 });
-
-  const parts = [];
   const add = (geo, m, x, y, z, name)=>{
     const q = new THREE.Mesh(geo, m);
     q.position.set(x,y,z); q.name = name;
@@ -4205,108 +4335,24 @@ function buildRebirthArena(id){
     group.add(q); parts.push(q); return q;
   };
   const box = (w,h,d)=> new THREE.BoxGeometry(w,h,d);
-
-  /* SINK: so tief steht alles im Boden. Nichts, worauf man laufen kann,
-     teilt sich dadurch noch eine Ebene mit der Standflaeche. */
-  const SINK = 0.40;
-  /** Ein Block, dessen Oberkante bei `h` liegt und der unten im Boden steckt. */
-  const stand = (w, h, d, x, z, name, mat)=>
-    add(box(w, h + SINK, d), mat || matBox, x, (h + SINK)/2 - SINK, z, name);
-
-  // Boden reicht ueber den Waendekranz hinaus — keine gemeinsame Kante
-  add(box(S + T*4, T, S + T*4), matFloor, 0, -T/2 - 0.001, 0, 'arena_floor');
-  const roof = add(box(S+T*2, T, S+T*2), matWall, 0, H, 0, 'arena_roof');
-  roof.castShadow = false;      // sonst liegt die Arena im eigenen Schatten
-  stand(S+T*2, H, T, 0, -S/2 - T/2, 'arena_wall_n', matWall);
-  stand(S+T*2, H, T, 0,  S/2 + T/2, 'arena_wall_s', matWall);
-  stand(T, H, S, -S/2 - T/2, 0, 'arena_wall_w', matWall);
-  stand(T, H, S,  S/2 + T/2, 0, 'arena_wall_e', matWall);
-
-  /* Deckung. Punktsymmetrisch aufgebaut: was die eine Seite hat, hat die
-     andere auch, nur gespiegelt. Drei Hoehen, damit es etwas zu entscheiden
-     gibt — hohe Bloecke decken im Stehen, mittlere zwingen zum Ducken, die
-     flachen lassen sich uebersteigen und taugen als Absatz.
-
-     `mirror` legt jedes Stueck zweimal an, einmal je Haelfte. Beim
-     mittleren Riegel entfaellt das, der steht ohnehin auf der Achse. */
-  const mirror = (w,h,d, x,z, name)=>{
-    stand(w, h, d,  x,  z, name+'_a');
-    stand(w, h, d, -x, -z, name+'_b');
-  };
-
-  /* Zwanzig Bloecke, paarweise punktsymmetrisch: was die eine Seite hat,
-     hat die andere gespiegelt. Vier Hoehen, damit es etwas zu entscheiden
-     gibt — 2.6 m Pfeiler decken vollstaendig, 2.1 m Bloecke auch im Stehen,
-     1.1–1.3 m Riegel nur im Ducken, und die 0.7 m Kisten lassen sich
-     uebersteigen oder als Absatz zum Hochziehen nutzen.
-
-     Die Masse sind gegengerechnet: nichts ueberschneidet sich, nichts ragt
-     in die Aussenwand, um beide Startpunkte bleibt 1.2 m frei, und im
-     Streifen um die Mittelachse steht nichts — dort faehrt die Trennwand
-     in den Boden. */
-  mirror(2.6, 2.1, 2.6,   6.8,  7.6, 'arena_high');    // Kern-Deckung
-  mirror(2.6, 2.1, 2.6,  -6.8,  7.6, 'arena_high2');
-  mirror(1.2, 2.6, 1.2,  13.2, 12.6, 'arena_pillar');  // Ecken zum Umlaufen
-  mirror(1.2, 2.6, 1.2, -13.2, 12.6, 'arena_pillar2');
-  mirror(6.4, 1.1, 1.0,   4.6,  3.4, 'arena_bar');     // erste Deckung nach dem Startsignal
-  mirror(6.4, 1.1, 1.0,  -4.6,  3.4, 'arena_bar2');
-  mirror(1.6, 0.7, 1.6,  10.6,  4.6, 'arena_crate');   // uebersteigbar
-  mirror(1.6, 0.7, 1.6,  -3.2, 10.4, 'arena_crate2');
-  mirror(1.0, 2.3, 4.4,   9.6, 10.4, 'arena_slab');    // bricht die lange Sichtachse
-  mirror(4.6, 1.3, 1.2,  11.8,  2.2, 'arena_ledge');   // Absatz an der Flanke
-
-  // Zwei Markierungen auf dem Boden, damit man sofort sieht, wo man steht
-  for (const zz of [-S*0.38, S*0.38]){
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.05, 4, 28), matLine);
-    ring.rotation.x = Math.PI/2; ring.position.set(0, 0.03, zz);
-    group.add(ring);
-  }
-  const glow = new THREE.PointLight(0xfff0d4, 1.5, S*1.4, 2);
-  glow.position.set(0, H-1.2, 0);
-  group.add(glow);
-
-  /* Trennwand quer durch die Mitte, ueber die volle Breite.
-     Ohne sie steht man beim Startsignal frei im Schussfeld und kann schon
-     waehrend des Countdowns auf den Kopf des anderen zielen — das Duell
-     waere entschieden, bevor es beginnt. Die Wand faellt erst mit "FIGHT!"
-     in den Boden. */
-  const matSplit = new THREE.MeshStandardMaterial({ color:0x1f2a2e, roughness:.85,
-                                                    emissive:0x2a1c04, emissiveIntensity:.5 });
-  const divider = new THREE.Mesh(box(S + T*2, REBIRTH.wallHalf + SINK, 1.0), matSplit);
-  divider.position.set(0, (REBIRTH.wallHalf + SINK)/2 - SINK, 0);
-  divider.name = 'arena_divider';
-  divider.castShadow = false; divider.receiveShadow = true;
-  divider.userData.baseY = divider.position.y;
-  group.add(divider);
-  // Warnstreifen auf beiden Seiten, damit klar ist: hier geht es gleich los
-  for (const zz of [-0.55, 0.55]){
-    const strip = new THREE.Mesh(new THREE.PlaneGeometry(S + T*2, 0.35),
-      new THREE.MeshBasicMaterial({ color:0xFFB020, transparent:true, opacity:.55,
-                                    side:THREE.DoubleSide }));
-    strip.position.set(0, REBIRTH.wallHalf - 0.4, zz);
-    if (zz < 0) strip.rotation.y = Math.PI;
-    divider.add(strip);
-  }
-
-  scene.add(group);
-  group.updateMatrixWorld(true);
-  group.visible = false;          // erst sichtbar, wenn jemand darin steht
-
-  /* Zwei Kollisionswelten: eine mit Trennwand fuer das Warten und den
-     Countdown, eine ohne fuer den Kampf. Umgehaengt wird mit einem
-     Zeiger — kein Neuaufbau mitten im Gefecht. */
-  const entries = parts.map(m=>({ mesh:m, tag:'arena' }));
-  const worldOpen   = new CollisionWorld().build(entries);
-  const worldClosed = new CollisionWorld().build(entries.concat([{ mesh:divider, tag:'arena' }]));
-
-  return {
-    id, group, origin:o, divider,
-    worldOpen, worldClosed, world: worldClosed,
-    divT: 1,                    // 1 = steht, 0 = versenkt
-    spawns: [ new THREE.Vector3(o.x, o.y + 0.10, o.z - S*0.38),
-              new THREE.Vector3(o.x, o.y + 0.10, o.z + S*0.38) ],
-    a:null, b:null, state:'free', timer:0
-  };
+  const stand = (w,h,d,x,z,name,mat)=>
+    add(box(w, h+SINK, d), mat||matBox, x, (h+SINK)/2 - SINK, z, name);
+  add(box(S+T*4, T, S+T*4), matFloor, 0, -T/2-0.001, 0, 'arena_floor');
+  stand(S+T*2, H, T, 0, -S/2-T/2, 'arena_wall_n', matWall);
+  stand(S+T*2, H, T, 0,  S/2+T/2, 'arena_wall_s', matWall);
+  stand(T, H, S, -S/2-T/2, 0, 'arena_wall_w', matWall);
+  stand(T, H, S,  S/2+T/2, 0, 'arena_wall_e', matWall);
+  const mir = (w,h,d,x,z,n)=>{ stand(w,h,d,x,z,n+'_a'); stand(w,h,d,-x,-z,n+'_b'); };
+  mir(2.6,2.1,2.6,  6.8,  7.6,'arena_high');
+  mir(2.6,2.1,2.6, -6.8,  7.6,'arena_high2');
+  mir(1.2,2.6,1.2, 13.2, 12.6,'arena_pillar');
+  mir(1.2,2.6,1.2,-13.2, 12.6,'arena_pillar2');
+  mir(6.4,1.1,1.0,  4.6,  3.4,'arena_bar');
+  mir(6.4,1.1,1.0, -4.6,  3.4,'arena_bar2');
+  mir(1.6,0.7,1.6, 10.6,  4.6,'arena_crate');
+  mir(1.6,0.7,1.6, -3.2, 10.4,'arena_crate2');
+  mir(1.0,2.3,4.4,  9.6, 10.4,'arena_slab');
+  mir(4.6,1.3,1.2, 11.8,  2.2,'arena_ledge');
 }
 
 /** Trennwand wieder aufstellen — beim Freigeben einer Arena. */
@@ -4316,6 +4362,7 @@ function raiseDivider(ar){
   ar.world = ar.worldClosed;
   if (ar.divider){ ar.divider.visible = true; ar.divider.scale.y = 1;
                    ar.divider.position.y = ar.divider.userData.baseY; }
+  if (ar.group) ar.group.updateMatrixWorld(true);
   for (const p of [ar.a, ar.b]) if (p && p.ctrl) p.ctrl.setWorld(ar.world);
 }
 
@@ -4336,9 +4383,11 @@ function updateArenas(dt){
     if (ar.divT < 1 && ar.divT > 0){
       ar.divT = Math.max(0, ar.divT - dt/REBIRTH.wallSink);
       const k = ar.divT;
+      /* Die Wand faehrt nach unten aus dem Bild. Ihr Fusspunkt bleibt dabei
+         stehen, sie schrumpft also nach unten weg statt zu rutschen. */
+      const h = ar.divider.userData.height || 6;
       ar.divider.scale.y = Math.max(0.001, k);
-      ar.divider.position.y = ar.divider.userData.baseY * k
-                            - (1 - k) * REBIRTH.wallHalf * 0.5;
+      ar.divider.position.y = ar.divider.userData.footY + h*k/2;
       if (k <= 0) ar.divider.visible = false;
     }
   }
@@ -5395,7 +5444,10 @@ function giveArenaLoadout(a){
 function placeInArena(a, ar, side){
   const p = ar.spawns[side];
   a.position.copy(p);
-  a.yaw = side === 0 ? 0 : Math.PI;       // beide schauen zur Mitte
+  /* Vorwaerts ist (-sin yaw, 0, -cos yaw). Seite 0 liegt auf der Minusseite
+     der langen Achse und muss nach +z blicken, also yaw = PI. Vorher war es
+     vertauscht — beide starrten die Aussenwand an. */
+  a.yaw = side === 0 ? Math.PI : 0;
   a.pitch = 0;
   a.dropping = false;
   a.chuteOpen = false;
@@ -8313,7 +8365,11 @@ async function beginMatch(){
   setLoad(3, 'Waffenkammer wird geöffnet');
   await gunLib.load();
   await pickupLib.load();
-  if (flow !== 'test'){ setLoad(5, 'Maschine wird betankt'); await loadDropAssets(); }
+  if (flow !== 'test'){
+    setLoad(5, 'Maschine wird betankt');
+    await loadDropAssets();
+    await loadArenaAsset();
+  }
   await loadWorld(flow === 'test' ? 'test' : 'br');
   attachViewmodel(null);
 
@@ -8371,6 +8427,7 @@ async function startFromRoster(roster, spawns, seed){
   await pickupLib.load();
   setLoad(8, 'Maschine wird betankt');
   await loadDropAssets();
+  await loadArenaAsset();
   await loadWorld('br');
   attachViewmodel(null);
   const list = roster.map(r=>({
