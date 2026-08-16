@@ -722,6 +722,25 @@ const MAP_SETS = [
       { file:'low_poly_city.glb', at:[59.6, 0, -6.4], rotY:0, label:'Neonstadt' }
     ]
   }
+  ,{
+    id:'brisbane', name:'South Brisbane', note:'Minecraft-Diorama · dicht bebaut, 1.37 Mio Dreiecke',
+    radius:195, spawnR:125, fogNear:105, fogFar:700,
+    sky:{ top:0x3a72b4, horizon:0xc9d8e2, ground:0x7d8478,
+          water:0x2a5d78, plate:0x4a5346, ridge:0x3b4a52 },
+    pieces:[
+      /* Die Datei kommt in Metern, deshalb weder `fit` noch `scale`.
+
+         `at` verschiebt um 131 m: die Huellquader-Mitte liegt weit neben dem
+         bebauten Kern, weil ein paar versprengte Objekte den Quader nach
+         Westen ziehen. Ohne die Verschiebung saesse die Zone ueber leerem
+         Gelaende.
+
+         ACHTUNG, die schwerste Karte im Spiel: 1.37 Millionen Dreiecke,
+         rund 130 MB Kollisionsspeicher. Auf schwaecheren Geraeten dauert
+         der Aufbau mehrere Sekunden. Bei Problemen `hidden:true` setzen. */
+      { file:'south_brisbane_city.glb', at:[-130.8, 0, -0.5], rotY:0, label:'South Brisbane' }
+    ]
+  }
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
