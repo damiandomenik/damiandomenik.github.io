@@ -1950,7 +1950,7 @@ class CharacterController {
     let bestGroundY = -1, groundHit = false;
     this._groundN = null;
 
-    for (let it = 0; it < 4; it++){
+    for (let it = 0; it < 6; it++){
       this._syncCapsule(pos);
       this._off.set(0,0,0);
       let any = 0;
@@ -2018,8 +2018,8 @@ class CharacterController {
   _sweep(disp, opts){
     const len = disp.length();
     if (len < 1e-8) { this._resolve(this.position, opts); return 0; }
-    const maxStepLen = this.radius * 0.5;
-    const steps = Math.min(24, Math.max(1, Math.ceil(len / maxStepLen)));
+    const maxStepLen = this.radius * 0.28;
+    const steps = Math.min(40, Math.max(1, Math.ceil(len / maxStepLen)));
     const inc = this._inc.copy(disp).divideScalar(steps);
     let contacts = 0;
     for (let i = 0; i < steps; i++){
@@ -2164,7 +2164,7 @@ class CharacterController {
     const vd = _v1.set(0, this.velocity.y*dt, 0);
     if (Math.abs(vd.y) > 1e-9){
       const beforeY = this.position.y;
-      this.contactCount += this._sweep(vd, { noLift:false });
+      this.contactCount += this._sweep(vd, { noLift: this.velocity.y > 0 });
       if (this._groundY !== null){ groundY = this._groundY; groundNormal = this._groundN; }
       const movedY = this.position.y - beforeY;
       if (this.velocity.y < 0 && movedY > vd.y + 1e-4){      // von unten gestoppt
@@ -2193,7 +2193,7 @@ class CharacterController {
     }
     if (startedFree && this.isBuried(this.position)){
       this.position.copy(this._frameStart);
-      this.velocity.x = 0; this.velocity.z = 0;
+      this.velocity.set(0, Math.min(0, this.velocity.y), 0);
       this.grounded = wasGrounded;
     }
 
@@ -2331,7 +2331,7 @@ class CharacterController {
   isBuried(pos){
     this._syncCapsule(pos);
     let deep = false;
-    this.world.capsuleOverlap(this._p, this._q, this.radius*0.55, ()=>{ deep = true; });
+    this.world.capsuleOverlap(this._p, this._q, this.radius*0.72, ()=>{ deep = true; });
     return deep;
   }
 
