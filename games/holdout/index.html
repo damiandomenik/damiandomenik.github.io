@@ -702,8 +702,11 @@ const MAP_SETS = [
     ]
   }
   ,{
-    id:'lowcity', name:'Neonstadt', note:'Low-Poly-Grossstadt · 488 × 488 m',
-    radius:235, spawnR:150, fogNear:135, fogFar:820,
+    id:'lowcity', name:'Neonstadt', note:'Low-Poly-Grossstadt · bebauter Kern 280 m',
+    /* Der Huellquader misst 488 m, bebaut ist aber nur die Mitte. Jenseits
+       von rund 140 m gibt es keinen modellierten Boden mehr — die Zone hoert
+       deshalb dort auf, wo die Stadt aufhoert. */
+    radius:140, spawnR:95, fogNear:110, fogFar:620,
     sky:{ top:0x2b5f9e, horizon:0xd2c9d8, ground:0x6f6a72,
           water:0x24506b, plate:0x4b4750, ridge:0x3a3d4a },
     pieces:[
@@ -1726,7 +1729,12 @@ class GLBMapLoader {
         _c.fromBufferAttribute(pos,i2).applyMatrix4(M);
         _ab.subVectors(_b,_a); _ac.subVectors(_c,_a); _n.crossVectors(_ab,_ac);
         const area=_n.length()*0.5; if(area<1e-7) continue;
-        if (Math.abs(_n.y)/(area*2) < 0.75) continue;
+        /* Nur nach OBEN zeigende Flaechen. Mit Math.abs zaehlte die
+           Unterseite einer Karte mit — und bei einem Modell auf einer
+           durchgehenden Bodenplatte ist die groesser als alle Strassen
+           zusammen. Der Lader hielt dann die Unterseite fuer den Boden und
+           hob die ganze Karte darueber an. */
+        if (_n.y/(area*2) < 0.75) continue;
         any = true;
         const y = (_a.y+_b.y+_c.y)/3;
         const k = Math.round(y/BIN);
@@ -1827,8 +1835,10 @@ class GLBMapLoader {
     // GLB Löcher hat. Sie ist Teil der Kollisionswelt.
     const R = BR.islandRadius + 60;
     const baseGeo = new THREE.CylinderGeometry(R, R*0.92, 12, 64, 1);
+    const set = (typeof mapSet === 'function') ? mapSet() : null;
+    const baseCol = (set && set.sky && set.sky.plate) ? set.sky.plate : 0x3f4a3a;
     const base = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({
-      color:0x3f4a3a, roughness:1, metalness:0 }));
+      color:baseCol, roughness:1, metalness:0 }));
     base.position.y = -6.02;                 // Deckel exakt bei y = -0.02
     base.receiveShadow = true;
     base.name = 'IslandBase';
