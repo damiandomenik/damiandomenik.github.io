@@ -757,6 +757,24 @@ const MAP_SETS = [
       { file:'battle_royale_map.glb', at:[-24, 28.5, 16], rotY:0, label:'Wildlands' }
     ]
   }
+  ,{
+    id:'nightshift', name:'Nachtschicht', note:'500 × 500 m · Nacht, Flusstal und Steinbruch',
+    radius:220, spawnR:155, fogNear:70, fogFar:430,
+    /* Nachtstimmung: dunkler Himmel, kaltes Bodenlicht. Der enge Nebel ist
+       hier Absicht — er macht die Nacht spürbar und hält zugleich die Zahl
+       der gezeichneten Dreiecke unten. Die einzigen hellen Flächen der
+       Karte sind Fenster, Laternen, Signale und Leuchtreklame. */
+    sky:{ top:0x070b16, horizon:0x1b2436, ground:0x0c1016,
+          water:0x061019, plate:0x0a0f0c, ridge:0x141a24 },
+    /* at[1] gleicht aus, was estimateFloorY hier findet (4.0 m — die weite
+       Sumpfebene). Ohne den Ausgleich säcke die Karte um vier Meter ab und
+       der Wasserspiegel läge im Gelände. */
+    pieces:[
+      { file:'night_map.glb', at:[-37, 4.0, 16], rotY:0, label:'Nachtschicht' }
+    ],
+    /* Dieselbe Rebirth-Halle wie Wildlands. */
+    arena:{ file:'arena_neon.glb', scale:1.6, rotY:Math.PI/2, spawnZ:30.0 }
+  }
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
