@@ -733,6 +733,30 @@ const MAP_SETS = [
       { file:'low_poly_city.glb', at:[59.6, 0, -6.4], rotY:0, label:'Neonstadt' }
     ]
   }
+  ,{
+    id:'wildlands', name:'Wildlands', note:'500 × 500 m · Küste, Berg, fünf Ortschaften',
+    /* 95 % des Landes liegen innerhalb von 235 m um den Landschwerpunkt.
+       Die Zone bleibt darunter, damit sie nicht über dem Meer endet. */
+    radius:215, spawnR:150, fogNear:150, fogFar:900,
+    sky:{ top:0x3f7fc4, horizon:0xd9e2e8, ground:0x54633f,
+          water:0x1a5a78, plate:0x3f4a30, ridge:0x5a6250 },
+    /* Eigene Rebirth-Halle. Die Datei misst 46 x 22 Einheiten bei 5.2 Höhe;
+       ein Stockwerk sind 1.9 Einheiten, mal 1.6 also 3.0 m. Ergebnis
+       74 x 35 m. Ihre lange Achse liegt auf X, der Aufbau erwartet sie auf
+       Z — daher die Vierteldrehung. */
+    arena:{ file:'arena_neon.glb', scale:1.6, rotY:Math.PI/2, spawnZ:30.0 },
+    pieces:[
+      /* at[1] = 28.5 hebt auf, was estimateFloorY hier ausrechnet: die Karte
+         hat keine eine dominante Ebene, sondern lauter Hänge, und die
+         größte Einzelhöhe liegt zufällig bei 28.5 m. Ohne den Ausgleich
+         würde die ganze Insel um 28 m absacken und der Meeresspiegel läge
+         mitten im Berg.
+
+         at[0] und at[2] schieben den Landschwerpunkt in den Ursprung — die
+         Bucht im Süden zieht die Hüllquader-Mitte sonst aufs Wasser. */
+      { file:'battle_royale_map.glb', at:[-24, 28.5, 16], rotY:0, label:'Wildlands' }
+    ]
+  }
   /* Eigene Karte? Entweder als Stück in einen bestehenden Satz oder als
      eigener Eintrag hier — der Name taucht dann automatisch in der Lobby auf. */
 ];
@@ -881,9 +905,15 @@ const REBIRTH = {
      Stockwerk 1.05 misst — mal drei sind das 3.15 m, und die umlaufende
      Mauer wird 6 m hoch. Damit stimmen die Groessenverhaeltnisse zur Figur.
      Ergebnis: 25.6 x 49.2 m, hoechster Punkt 12 m. */
+  /* Vorgabe fuer alle Karten. Ein Kartensatz kann sie mit einem eigenen
+     `arena`-Eintrag ueberschreiben — so hat jede Welt ihre passende Halle,
+     ohne dass hier etwas umgestellt werden muesste. */
   map: {
     file:      'arena_tdm.glb',
+    /* Maßstab 3: in dieser Datei misst ein Stockwerk 1.05 Einheiten, mal
+       drei sind das 3.15 m. Ergebnis: 25.5 x 49.2 m. */
     scale:     3.0,
+    rotY:      0,
     spawnZ:    20.5,     // Startpunkte auf der langen Achse, je Seite
     wallTop:   13.5,     // Oberkante der Trennwand
     wallDepth: 0.6,      // Dicke der Trennwand
@@ -4268,12 +4298,27 @@ function updateDrop(dt){
 /* Das Arenamodell wird einmal geladen und danach je Arena geklont. Klone
    teilen sich Geometrie und Material — der Speicher waechst also kaum,
    auch wenn mehrere Duelle nebeneinander laufen. */
-const arenaAsset = { scene:null, tried:false };
+/* Welche Arena gehoert zur gewaehlten Karte? Vorgabe aus REBIRTH.map,
+   ueberschrieben von dem, was der Kartensatz mitbringt. Das Ergebnis wird
+   gemerkt, weil es in jedem Bild abgefragt wird. */
+let _arenaCfg = null, _arenaCfgFor = null;
+function arenaCfg(){
+  if (_arenaCfgFor !== mapSetId){
+    _arenaCfgFor = mapSetId;
+    _arenaCfg = Object.assign({}, REBIRTH.map, mapSet().arena || {});
+  }
+  return _arenaCfg;
+}
+
+const arenaAsset = { scene:null, file:null };
 async function loadArenaAsset(){
-  if (arenaAsset.tried) return arenaAsset.scene;
-  arenaAsset.tried = true;
+  const cfg = arenaCfg();
+  // Schon geladen? Nur neu holen, wenn eine andere Karte eine andere Halle will
+  if (arenaAsset.file === cfg.file) return arenaAsset.scene;
+  arenaAsset.file = cfg.file;
+  arenaAsset.scene = null;
   try {
-    const g = await gltfLoader.loadAsync(ASSETS.maps + REBIRTH.map.file);
+    const g = await gltfLoader.loadAsync(ASSETS.maps + cfg.file);
     const root = g.scene;
     root.traverse(m=>{
       if (!m.isMesh) return;
@@ -4289,7 +4334,7 @@ async function loadArenaAsset(){
     });
     arenaAsset.scene = root;
   } catch(e){
-    console.warn('Arenakarte fehlt, es wird die einfache Kiste gebaut:', e);
+    console.warn('Arenakarte fehlt, es wird die einfache Kiste gebaut:', cfg.file, e);
     arenaAsset.scene = null;
   }
   return arenaAsset.scene;
@@ -4307,13 +4352,14 @@ function buildRebirthArena(id){
   group.position.copy(o);
 
   const parts = [];          // alles, was fest ist
-  const C = REBIRTH.map;
+  const C = arenaCfg();
 
   if (arenaAsset.scene){
     /* Die Karte selbst. clone(true) haengt eine eigene Knotenhierarchie auf,
        teilt sich aber Geometrie und Material mit dem Original. */
     const map = arenaAsset.scene.clone(true);
     map.scale.setScalar(C.scale);
+    if (C.rotY) map.rotation.y = C.rotY;
     group.add(map);
     group.updateMatrixWorld(true);
     map.traverse(m=>{ if (m.isMesh && m.geometry) parts.push(m); });
@@ -4561,7 +4607,7 @@ function keepInHalf(a){
   if (!a || !a.ctrl || a.arenaId === null || a.arenaId === undefined) return;
   const ar = G.arenas.find(x=>x.id === a.arenaId);
   if (!ar || ar.divT < 1) return;
-  const m = PLAYER.radius + REBIRTH.map.wallDepth*0.5 + 0.12;
+  const m = PLAYER.radius + arenaCfg().wallDepth*0.5 + 0.12;
   const south = (ar.b === a);
   const lim = south ? ar.divZ + m : ar.divZ - m;
   if (south ? a.position.z < lim : a.position.z > lim){
