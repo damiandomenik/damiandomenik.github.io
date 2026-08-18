@@ -4628,6 +4628,18 @@ function prebuildArena(){
   try { ensureArena(0); } catch(e){ console.warn('Arena nicht vorgebaut:', e); }
 }
 
+/** Alle Shader uebersetzen, solange der Ladebalken noch laeuft. */
+function warmShaders(){
+  const hidden = [];
+  for (const ar of G.arenas){
+    if (ar.group && !ar.group.visible){ ar.group.visible = true; hidden.push(ar.group); }
+  }
+  try {
+    renderer.compile(scene, camera);
+  } catch(e){ console.warn('Shader nicht vorbereitet:', e); }
+  for (const gr of hidden) gr.visible = false;
+}
+
 /* ==========================================================================
    16d — VERSORGUNGSABWURF
 
@@ -7075,6 +7087,11 @@ function addFx(obj, life, fn){ scene.add(obj); fx.push({ obj, t:0, life, fn }); 
     viele Effekte teilen — die duerfen nur beim Beenden der Runde fallen. */
 function disposeFx(obj){
   scene.remove(obj);
+  /* Aus dem Vorrat geliehen: zurueckgeben statt wegwerfen. */
+  if (obj.userData && obj.userData.pool){
+    if (obj.userData.pool.length < 48) obj.userData.pool.push(obj);
+    return;
+  }
   if (obj.userData && obj.userData.shared) return;
   if (obj.geometry && !(obj.userData && obj.userData.sharedGeoOnly)) obj.geometry.dispose();
   if (obj.material){
@@ -7092,15 +7109,27 @@ function updateFx(dt){
 }
 /** Leuchtspur als kurzer Streifen, der die Strecke abfliegt — statt einer
     Linie, die eine Sechzigstelsekunde lang in voller Länge dasteht. */
+const tracerPool = [];
+function takeTracer(){
+  const l = tracerPool.pop();
+  if (l) return l;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const o = new THREE.Line(g, new THREE.LineBasicMaterial({
+    color:0xffd489, transparent:true, opacity:.9 }));
+  o.frustumCulled = false;
+  o.userData.pool = tracerPool;
+  return o;
+}
+
 function tracer(from, to){
   const a = from.clone(), b = to.clone();
   const dir = new THREE.Vector3().subVectors(b, a);
   const dist = dir.length();
   if (dist < 0.05) return;
   dir.divideScalar(dist);
-  const g = new THREE.BufferGeometry().setFromPoints([a.clone(), a.clone()]);
-  const l = new THREE.Line(g, new THREE.LineBasicMaterial({
-    color:0xffd489, transparent:true, opacity:.9 }));
+  const l = takeTracer();
+  l.material.opacity = 0.9;
   const SPEED = 560, TAIL = 11;
   const life = clamp(dist/SPEED, 0.05, 0.34);
   addFx(l, life, (o, t)=>{
@@ -8597,8 +8626,10 @@ async function beginMatch(){
                 spawns: pts.map(p=>[p.x,p.y,p.z]) });
   }
   await setupMatch(roster, pts.map(p=>[p.x,p.y,p.z]));
-  setLoad(98, 'Arena wird vorbereitet');
+  setLoad(97, 'Arena wird vorbereitet');
   prebuildArena();
+  setLoad(99, 'Bilder werden vorbereitet');
+  warmShaders();
   setLoad(100, 'Los');
   G.phase = 'play';
   suppressPause = false;
@@ -8640,8 +8671,10 @@ async function startFromRoster(roster, spawns, seed){
   }
   setLoad(90, 'Figuren werden geladen');
   await setupMatch(list, spawns);
-  setLoad(98, 'Arena wird vorbereitet');
+  setLoad(97, 'Arena wird vorbereitet');
   prebuildArena();
+  setLoad(99, 'Bilder werden vorbereitet');
+  warmShaders();
   setLoad(100, 'Los');
   G.phase = 'play'; suppressPause = false; G.time = 0; clock.getDelta();
   show(null); canvas.requestPointerLock();
