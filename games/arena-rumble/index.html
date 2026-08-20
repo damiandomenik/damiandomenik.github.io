@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Arena Rumble - a private 1v1 elimination arena show for up to 8 friends." />
+    <title>Arena Rumble</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <!-- three.js renders here, all UI is regular DOM on top of it -->
+    <div id="viewport"></div>
+    <div id="ui-root"></div>
+
+    <noscript>
+      <p style="color: #e6eaf2; font-family: sans-serif; padding: 2rem">
+        Arena Rumble needs JavaScript. Enable it and reload the page.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
