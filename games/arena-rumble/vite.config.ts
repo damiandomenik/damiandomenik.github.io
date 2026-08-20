@@ -6,7 +6,7 @@ import { defineConfig } from 'vite';
  * Nothing in the codebase may rely on the site living at "/".
  */
 export default defineConfig({
-  base: '/games/arenarumble/',
+  base: '/games/arena-rumble/',
   build: {
     target: 'es2020',
     outDir: 'dist',
