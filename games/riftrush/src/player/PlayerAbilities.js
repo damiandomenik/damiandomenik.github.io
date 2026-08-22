@@ -50,6 +50,11 @@ export class AbilityManager {
     const p = game.localPlayer;
     const s = p.state;
     const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
+    // Animation lokal abspielen und an alle senden, damit der Schlag
+    // auch bei den anderen Spielern sichtbar ist
+    p.punch();
+    game.network.sendEvent({ t: 'punch' });
+
     const ox = s.pos.x + fx * 0.9, oy = s.pos.y + s.height * 0.62, oz = s.pos.z + fz * 0.9;
     game.fx.burst(ox, oy, oz, p.character.palette.visor, 10,
       { speed: 3.0, size: 0.13, life: 0.3, up: 0.35, gravity: 0.4 });

@@ -55,16 +55,20 @@ export class PlayerController {
   updateCamera(dt) {
     const s = this.player.state;
     const headY = s.pos.y + s.height * 0.85 + 0.15;
-    this.target.x = damp(this.target.x, s.pos.x, C.CAM_LERP, dt);
-    this.target.y = damp(this.target.y, headY, C.CAM_LERP * 0.75, dt);
-    this.target.z = damp(this.target.z, s.pos.z, C.CAM_LERP, dt);
+    /* Die Kamera hängt STARR an der Figur (wie in WoW): X und Z werden nicht
+     * gedämpft, sonst wandert der Charakter beim Strafen aus der Bildmitte und
+     * das Movement wirkt schwammig. Nur die Höhe wird geglättet, damit Stufen
+     * und Landungen die Kamera nicht ruckeln lassen. */
+    this.target.x = s.pos.x;
+    this.target.z = s.pos.z;
+    this.target.y = damp(this.target.y, headY, C.CAM_FOLLOW_Y, dt);
 
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const dirX = -Math.sin(this.yaw) * cp;
     const dirY = sp;
     const dirZ = -Math.cos(this.yaw) * cp;
 
-    // Distanz leicht mit Speed erhöhen
+    // Distanz leicht mit Speed erhöhen (nur Zoom, keine seitliche Verschiebung)
     const wanted = C.CAM_DISTANCE + Math.min(s.speed, 26) * 0.045;
     let dist = wanted;
 

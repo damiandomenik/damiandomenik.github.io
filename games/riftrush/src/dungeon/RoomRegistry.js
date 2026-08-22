@@ -85,8 +85,8 @@ export const ROOMS = [
     build(c, rng) {
       entryPad(c);
       // Schacht-Wände (Wallrun)
-      c.wall(-7.5, -2, -16, 1.2, 34, 26);
-      c.wall(7.5, -2, -16, 1.2, 34, 26);
+      c.runWall(-7.5, -2, -16, 1.2, 34, 26);
+      c.runWall(7.5, -2, -16, 1.2, 34, 26);
       c.wall(0, -2, -29.5, 15, 21.4, 1.2);   // Oberkante = Ausgangshöhe, sonst versiegelt die Wand den Room
       pit(c, 30, 18, -8);
       let y = 1.6, side = -1;
@@ -103,19 +103,35 @@ export const ROOMS = [
   },
 
   {
-    id: 'wall_corridor', name: 'Wallrun Corridor', length: 62, exitY: 0, weight: 3,
-    build(c, rng) {
-      entryPad(c); pit(c, 62, 20, -5);
-      c.wall(-4.6, -1, -34, 1.2, 12, 52);
-      c.wall(4.6, -1, -34, 1.2, 12, 52);
-      c.plat(0, 0, -12, 6, 6, 'solid');
-      const zs = [-20, -28, -36, -44];
-      for (let i = 0; i < zs.length; i++) {
-        const s = i % 2 === 0 ? -1 : 1;
-        c.plat(s * 2.6, rng.range(0.4, 2.2), zs[i], 2.6, 3.0, 'accent');
-      }
-      c.plat(0, 0, -54, 7, 6, 'solid');
-      c.light(0, 6, -32, 0x38f2c8, 1.5, 34);
+    id: 'wall_corridor', name: 'Wallrun Corridor', length: 60, exitY: 0, weight: 2,
+    build(c) {
+      entryPad(c); pit(c, 60, 22, -5);
+      // Zwei Abschnitte à ~20 m über dem Abgrund: nur per Wallrun zu schaffen.
+      c.runWall(-5.2, -1, -17, 1.3, 12, 24);
+      c.runWall(5.2, -1, -17, 1.3, 12, 24);
+      c.plat(0, 0.6, -26, 5.5, 5, 'accent');          // Zwischenlandung
+      c.runWall(-5.2, -0.4, -39, 1.3, 12, 24);
+      c.runWall(5.2, -0.4, -39, 1.3, 12, 24);
+      c.plat(0, 0, -52, 7, 7, 'solid');
+      c.light(0, 6, -20, 0xb388ff, 1.6, 32);
+      c.light(0, 6, -42, 0xb388ff, 1.6, 32);
+      exitPad(c, 0, -60);
+    },
+  },
+
+  // ------------------------------------------------------ WALLRUN: SEITENWAHL
+  {
+    id: 'wall_gap', name: 'Rift Span', length: 62, exitY: 0, weight: 2,
+    build(c) {
+      entryPad(c); pit(c, 62, 32, -6);
+      // Links ODER rechts — die Zwischentritte liegen versetzt, man muss
+      // also mindestens einmal die Seite wechseln.
+      c.runWall(-6.0, -1, -30, 1.3, 13, 42);
+      c.runWall(6.0, -1, -30, 1.3, 13, 42);
+      c.plat(-4.4, 1.2, -24, 2.4, 2.4, 'accent');
+      c.plat(4.4, 1.5, -36, 2.4, 2.4, 'accent');
+      c.plat(0, 0, -54, 8, 8, 'solid');
+      c.light(0, 7, -30, 0xb388ff, 1.8, 36);
       exitPad(c, 0, -62);
     },
   },

@@ -99,7 +99,9 @@ export class Input {
   get crouch() { return this.down('ControlLeft') || this.down('KeyC') || this.down('ControlRight'); }
   get jumpPressed() { return this.hit('Space'); }
   get jumpHeld() { return this.down('Space'); }
-  get dashPressed() { return this.hit('KeyQ') || this.doubleTapSprint || this.hit('Mouse2'); }
+  // Dash bewusst NICHT auf Shift-Doppeltipp: beim Sprinten tippt man Shift
+  // ständig nach und würde ungewollt dashen.
+  get dashPressed() { return this.hit('KeyQ') || this.hit('Mouse2'); }
   get punchPressed() { return this.hit('Mouse0') || this.hit('KeyF'); }
   get crouchPressed() { return this.hit('ControlLeft') || this.hit('KeyC') || this.hit('ControlRight'); }
 

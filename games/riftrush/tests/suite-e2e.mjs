@@ -88,6 +88,28 @@ ok(document.getElementById('hud-time').textContent !== '00:00.00', 'Timer läuft
 ok(document.getElementById('hud-board').textContent.includes('Damian'), 'Leaderboard leer');
 ok(game.localPlayer.checkpoint >= 0, 'Checkpoint-Tracking kaputt');
 
+console.log('=== 4a. Figur bleibt in der Bildmitte (WoW-Stil) ===');
+{
+  const THREE = await import('three');
+  const v = new THREE.Vector3();
+  let maxOff = 0;
+  const sample = (keys, frames) => {
+    step(frames, keys);
+    game.camera.updateMatrixWorld(true);
+    const p = game.localPlayer.state.pos;
+    v.set(p.x, p.y + 0.9, p.z).project(game.camera);
+    maxOff = Math.max(maxOff, Math.abs(v.x));
+  };
+  for (let i = 0; i < 6; i++) {
+    sample(['KeyW', 'KeyD', 'ShiftLeft'], 12);   // vorwärts + strafe rechts
+    sample(['KeyW', 'KeyA', 'ShiftLeft'], 12);   // Richtungswechsel
+    sample(['KeyA'], 10);
+    sample(['KeyD'], 10);
+  }
+  ok(maxOff < 0.09, `Figur wandert beim Strafen aus der Mitte (max ${maxOff.toFixed(3)} NDC)`);
+  console.log(`  maximale Abweichung: ${(maxOff * 50).toFixed(1)} % der halben Bildbreite`);
+}
+
 console.log('=== 4b. Kamera überschlägt sich nicht bei Yaw + Pitch ===');
 {
   let maxRoll = 0;

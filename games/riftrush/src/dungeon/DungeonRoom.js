@@ -30,6 +30,17 @@ export class RoomContext {
 
   wall(x, y, z, w, h, d, kind = 'solid') { return this.box(x, y, z, w, h, d, kind); }
 
+  /**
+   * Wallrun-Wand: nur an diesen Flächen kann der Spieler laufen.
+   * Sie sind auch optisch markiert (eigenes Material + Leuchtstreifen),
+   * damit sofort erkennbar ist, wo Wallrun vorgesehen ist.
+   */
+  runWall(x, y, z, w, h, d) {
+    const col = this.box(x, y, z, w, h, d, 'runwall');
+    col.runnable = true;
+    return col;
+  }
+
   hazard(x, y, z, w, h, d) {
     const wx = x + this.origin.x, wy = y + this.origin.y, wz = z + this.origin.z;
     this.dungeon.boxes.push({ x: wx, y: wy, z: wz, w, h, d, kind: 'hazard' });

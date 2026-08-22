@@ -11,6 +11,7 @@ export class Collider {
     this.kind = kind;                 // solid | hazard | trigger
     this.solid = kind === 'solid';
     this.active = true;
+    this.runnable = false;      // nur markierte Wände erlauben Wallrun
     this.dynamic = false;
     this.delta = { x: 0, y: 0, z: 0 };
     this.userData = null;
@@ -106,6 +107,7 @@ export class PhysicsWorld {
     info.ceiling = false;
     info.wallX = 0; info.wallZ = 0;
     info.wall = false;
+    info.wallCol = null;
     info.ground = null;
     info.stepped = false;
 
@@ -122,6 +124,7 @@ export class PhysicsWorld {
         if (dx > 0) { p.x = c.minX - r; info.wallX = -1; }
         else { p.x = c.maxX + r; info.wallX = 1; }
         info.wall = true;
+        info.wallCol = c;
       }
     }
 
@@ -138,6 +141,7 @@ export class PhysicsWorld {
         if (dz > 0) { p.z = c.minZ - r; info.wallZ = -1; }
         else { p.z = c.maxZ + r; info.wallZ = 1; }
         info.wall = true;
+        info.wallCol = c;
       }
     }
 

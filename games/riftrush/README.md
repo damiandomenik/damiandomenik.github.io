@@ -125,9 +125,13 @@ Abgedeckt:
   Snapshot-Tickrate, gerichtete Treffer-Events, Full Mesh mit 3 Peers, Broadcast,
   sauberes Leave (genau ein Event), Verhalten bei Paketverlust, Reconnect sowie der
   komplette manuelle Copy-&-Paste-Modus
-* **Spielerfigur**: Aufbau und Teilezahl, Proportionen gegen die Hitbox, Animation über
-  alle zehn Bewegungszustände (keine NaN, Gliedmaßen bewegen sich wirklich), Farbsystem,
-  Partikel-Pool inkl. Überlauf und Aufräumen, Namensschild-Skalierung
+* **Spielerfigur**: Aufbau und Teilezahl, Proportionen gegen die Hitbox für alle drei
+  Statur-Presets, Animation über alle zehn Bewegungszustände (keine NaN, Gliedmaßen
+  bewegen sich wirklich), Arme dürfen nie durch den Körper drehen, Wallrun-Drehrichtung,
+  sichtbarer Schlag, Farbsystem, Partikel-Pool inkl. Überlauf, Namensschild-Skalierung
+* **Wallrun-Regeln**: nur markierte Wände erlauben Wallrun, unmarkierte nicht, und die
+  Wallrun-Räume sind für einen Geradeaus-Bot nachweislich nicht passierbar
+* **Kamera**: Figur bleibt beim Strafen in der Bildmitte
 * **Kamera**: kein Roll/Überschlag bei beliebigen Yaw-/Pitch-Kombinationen
 * **End-to-End** (jsdom): Menü → Solo-Lobby → Countdown → Bewegung → Pause/Resume →
   Ziel → Ergebnisse → Rematch → Verlassen, inklusive Speicherprüfung bei
@@ -141,10 +145,10 @@ Abgedeckt:
 |---|---|
 | `W A S D` | Bewegung |
 | `SHIFT` | Sprint |
-| `SHIFT SHIFT` (Doppeltipp), `Q` oder `RMB` | Dash |
+| `RMB` oder `Q` | Dash |
 | `SPACE` | Jump / Double Jump / Walljump |
 | `STRG` / `C` | Crouch, im Lauf → Slide |
-| Wand anlaufen (in der Luft, mit Speed) | Wallrun |
+| **Violett markierte** Wand anlaufen (in der Luft, mit Speed) | Wallrun |
 | `LMB` / `F` | Punch (Knockback) |
 | `R` | Respawn am letzten Checkpoint |
 | `ESC` | Pause |
@@ -152,6 +156,15 @@ Abgedeckt:
 Desktop only — Touch-Steuerung gibt es (noch) nicht, Tastatur und Maus sind erforderlich.
 
 Kombo-Beispiel: `Sprint → Jump → Wallrun → Walljump → Dash → Slide → Jump`.
+
+**Wallrun geht nur an markierten Wänden.** Sie sind violett und haben waagerechte
+Leuchtstreifen. Dafür ist er dort auch zwingend nötig: die Räume `Wallrun Corridor`
+und `Rift Span` bestehen aus Abgründen, die man ohne Wallrun nicht überquert — im
+`Rift Span` liegen die Zwischentritte links und rechts versetzt, man muss also die
+Seite wechseln. An allen anderen Wänden klebt man nicht fest.
+
+Die Kamera ist starr an der Figur verankert (WoW-Stil): sie bleibt immer in der
+Bildmitte, auch beim Strafen und bei Richtungswechseln. Nur die Höhe wird geglättet.
 
 ---
 
@@ -226,11 +239,21 @@ character.updateAnimation(dt, {
 }, camera);
 ```
 
-Aufbau aus ~31 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
-für den segmentierten Bodenring), ca. 1.570 Dreiecke, Körperhöhe 1,79 m — passend zur
+Statur umschaltbar über drei Presets — `runner` (schlank, langbeinig, Standard),
+`agile` (noch schlanker, kaum Panzerung) und `heavy` (massiver Exo-Anzug):
+
+```js
+RIFTRUSH.setBuild('heavy');      // wirkt sofort, auch für alle Mitspieler-Figuren
+RIFT_CONFIG.CHARACTER_BUILD = 'agile';   // Standard für neue Figuren
+```
+
+Aufbau aus ~34 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
+für den segmentierten Bodenring), ca. 1.610 Dreiecke, Körperhöhe ~1,75 m — passend zur
 Hitbox. Animation ist komplett prozedural: Laufzyklus für Arme, Beine und Torso,
-Vorlage beim Sprint, Körperneigung zur Wand beim Wallrun, gestreckte Pose beim Dash,
-Atmen im Idle. Effekte (Dash-Trail, Wallrun-Funken, Lande- und Sprungstaub, Punch)
+Vorlage beim Sprint, gestreckte Pose beim Dash, Atmen im Idle. Beim Wallrun neigt sich
+der Körper zur Wand, dreht sich aber von ihr **weg**, sodass der Blick nach vorne geht,
+während der wandseitige Arm danach greift. Der Punch ist eine sichtbare Schlaganimation
+(Faust nach vorn, Gegenarm zurück, Körperdrehung) — auch bei allen Mitspielern. Effekte (Dash-Trail, Wallrun-Funken, Lande- und Sprungstaub, Punch)
 laufen über ein einziges InstancedMesh für alle Spieler.
 
 Remote-Spieler nutzen exakt dasselbe Modell — nur Farbe und Name unterscheiden sich,

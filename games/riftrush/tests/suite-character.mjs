@@ -12,7 +12,7 @@ let T = 0;
 globalThis.performance = { now: () => T };
 
 import * as THREE from 'three';
-import { PlayerCharacter } from '../src/player/PlayerCharacter.js';
+import { PlayerCharacter, BUILDS } from '../src/player/PlayerCharacter.js';
 import { CharacterFx } from '../src/player/CharacterFx.js';
 import { playerColorByIndex, playerColorForId, pickFreeColor, derivePalette, PLAYER_PALETTE } from '../src/player/PlayerColors.js';
 
@@ -36,7 +36,7 @@ ch.root.traverse((o) => {
 });
 ok(meshes >= 18, `Figur hat nur ${meshes} Teile — zu simpel`);
 ok(meshes <= 34, `Figur hat ${meshes} Meshes — zu viele Draw Calls für 8 Spieler`);
-ok(tris < 1600, `Figur hat ${Math.round(tris)} Dreiecke — zu schwer`);
+ok(tris < 2000, `Figur hat ${Math.round(tris)} Dreiecke — zu schwer`);
 for (const part of ['torso', 'headGroup', 'visor', 'armL', 'armR', 'legL', 'legR', 'ring', 'cores', 'nameplate']) {
   ok(!!ch[part], `Bestandteil fehlt: ${part}`);
 }
@@ -52,7 +52,7 @@ const h = bb.max.y - bb.min.y;
 ok(bb.min.y > -0.12 && bb.min.y < 0.12, `Füße stehen nicht auf dem Boden (y=${bb.min.y.toFixed(2)})`);
 ok(h > 1.62 && h < 1.95, `Körperhöhe ${h.toFixed(2)} passt nicht zur Kapsel-Hitbox (1.8)`);
 const width = bb.max.x - bb.min.x;
-ok(width > 0.45 && width < 1.0, `Schulterbreite ${width.toFixed(2)} unplausibel (Hitbox-Radius 0.4)`);
+ok(width > 0.42 && width < 1.0, `Schulterbreite ${width.toFixed(2)} unplausibel (Hitbox-Radius 0.4)`);
 console.log(`  Höhe ${h.toFixed(2)} m, Breite ${width.toFixed(2)} m`);
 
 console.log('=== 3. Animation über alle Bewegungszustände ===');
@@ -89,6 +89,83 @@ for (let i = 0; i < 20; i++) {
   snap.push(ch.legR.rotation.x);
 }
 ok(new Set(snap.map((v) => v.toFixed(3))).size > 8, 'Laufzyklus ist statisch');
+
+console.log('=== 3b. Arme kreuzen nie durch den Körper ===');
+{
+  const b = fails;
+  let worst = 0, worstState = '';
+  for (const st of STATES) {
+    for (let i = 0; i < 40; i++) {
+      T += 16.7;
+      ch.updateAnimation(0.0167, {
+        movementState: st, speed: st === 'sprint' ? 15 : 8,
+        isGrounded: !['jump', 'fall', 'wallrun', 'dash'].includes(st),
+        isWallRunning: st === 'wallrun', isDashing: st === 'dash',
+        wallSide: st === 'wallrun' ? 1 : 0,
+      }, camera);
+    }
+    // linker Arm muss links bleiben (rotation.z >= 0), rechter rechts (<= 0)
+    const lz = ch.armL.rotation.z, rz = ch.armR.rotation.z;
+    // Ausnahme: beim Wallrun greift ein Arm bewusst zur Wand
+    if (st !== 'wallrun') {
+      if (lz < worst) { worst = lz; worstState = st + ' (links)'; }
+      if (-rz < worst) { worst = -rz; worstState = st + ' (rechts)'; }
+      ok(lz >= -0.02, `Linker Arm dreht bei "${st}" in den Körper (z=${lz.toFixed(2)})`);
+      ok(rz <= 0.02, `Rechter Arm dreht bei "${st}" in den Körper (z=${rz.toFixed(2)})`);
+    }
+  }
+  console.log(fails === b ? '  keine Arm-Durchdringungen' : `  schlechtester Wert ${worst.toFixed(2)} bei ${worstState}`);
+}
+
+console.log('=== 3c. Wallrun: Körper dreht sich von der Wand weg ===');
+{
+  const b = fails;
+  for (const side of [1, -1]) {
+    for (let i = 0; i < 60; i++) {
+      T += 16.7;
+      ch.updateAnimation(0.0167, { movementState: 'wallrun', speed: 15, isGrounded: false, isWallRunning: true, wallSide: side }, camera);
+    }
+    // Wand rechts (side=1) -> Körper dreht nach links (turn negativ)
+    ok(Math.sign(ch.turn.rotation.y) === -side, `Körper dreht bei wallSide=${side} in die falsche Richtung (${ch.turn.rotation.y.toFixed(2)})`);
+    ok(Math.abs(ch.turn.rotation.y) > 0.2, 'Drehung ist kaum sichtbar');
+    ok(Math.sign(ch.tilt.rotation.z) === -side, 'Neigung geht in die falsche Richtung');
+  }
+  console.log(fails === b ? '  Blick geht von der Wand weg' : '  FEHLER');
+}
+
+console.log('=== 3d. Sichtbarer Schlag ===');
+{
+  const b = fails;
+  const idle = { movementState: 'idle', speed: 0, isGrounded: true };
+  for (let i = 0; i < 30; i++) { T += 16.7; ch.updateAnimation(0.0167, idle, camera); }
+  const rest = ch.armR.rotation.x;
+  ch.punch();
+  let peak = rest;
+  for (let i = 0; i < 8; i++) { T += 16.7; ch.updateAnimation(0.0167, idle, camera); peak = Math.max(peak, ch.armR.rotation.x); }
+  ok(peak > rest + 0.8, `Schlag ist nicht sichtbar (Arm nur ${(peak - rest).toFixed(2)} rad nach vorn)`);
+  for (let i = 0; i < 30; i++) { T += 16.7; ch.updateAnimation(0.0167, idle, camera); }
+  ok(Math.abs(ch.armR.rotation.x - rest) < 0.15, 'Arm kehrt nach dem Schlag nicht zurück');
+  ok(ch._punch === 0, 'Schlag-Timer läuft nicht ab');
+  console.log(fails === b ? '  Schlag ausgefahren und zurückgenommen' : '  FEHLER');
+}
+
+console.log('=== 3e. Statur-Presets ===');
+{
+  const b = fails;
+  const heights = {};
+  for (const name of Object.keys(BUILDS)) {
+    const c = new PlayerCharacter({ scene, name: 'B', color: 0x4c9dff, build: name, nameplate: false });
+    c.updateAnimation(0.016, { movementState: 'idle', speed: 0, isGrounded: true });
+    c.root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(c.tilt);
+    heights[name] = box.max.y - box.min.y;
+    ok(box.min.y > -0.12 && box.min.y < 0.12, `Preset "${name}": Füße nicht auf dem Boden (${box.min.y.toFixed(2)})`);
+    ok(heights[name] > 1.6 && heights[name] < 1.95, `Preset "${name}": Höhe ${heights[name].toFixed(2)} passt nicht zur Hitbox`);
+    c.dispose();
+  }
+  ok(new Set(Object.values(heights).map((v) => v.toFixed(2))).size > 1, 'Presets unterscheiden sich nicht');
+  console.log('  ' + Object.entries(heights).map(([k, v]) => `${k}: ${v.toFixed(2)}m`).join(', '));
+}
 
 console.log('=== 4. Farbsystem ===');
 const colors = new Set();

@@ -1,7 +1,7 @@
 import { CONFIG as C } from '../core/Config.js';
 import { PhysicsWorld } from '../core/Physics.js';
 
-const info = { grounded: false, ceiling: false, wallX: 0, wallZ: 0, wall: false, ground: null, stepped: false };
+const info = { grounded: false, ceiling: false, wallX: 0, wallZ: 0, wall: false, wallCol: null, ground: null, stepped: false };
 
 /**
  * Arcade-Parkour-Movement.
@@ -260,7 +260,10 @@ export class PlayerMovement {
       if (nl > 0) { nx /= nl; nz /= nl; }
       const speedNow = Math.hypot(s.vel.x, s.vel.z);
       const into = (-nx) * wx + (-nz) * wz;
-      if (!s.grounded && !s.wallrunning && !s.dashing && s.wallCooldown <= 0 &&
+      // Wallrun nur an dafür markierten Flächen — sonst könnte man überall
+      // an jeder Wand kleben und das Level-Design wäre bedeutungslos.
+      const runnable = info.wallCol ? info.wallCol.runnable : false;
+      if (runnable && !s.grounded && !s.wallrunning && !s.dashing && s.wallCooldown <= 0 &&
           speedNow > C.WALLRUN_MIN_SPEED && hasInput && into > 0.15 && s.vel.y < 6 && !wantCrouch) {
         s.wallrunning = true;
         s.wallTimer = C.WALLRUN_MAX_TIME;
@@ -277,6 +280,7 @@ export class PlayerMovement {
     }
 
     // ---- State für Netzwerk / Animation ----
+    s.nearRunWall = !!(info.wallCol && info.wallCol.runnable);
     s.speed = Math.hypot(s.vel.x, s.vel.z);
     s.state = s.dashing ? 'dash'
       : s.wallrunning ? 'wallrun'

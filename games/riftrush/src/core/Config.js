@@ -66,6 +66,7 @@ export const CONFIG = {
   CAM_DISTANCE: 5.4,       // näher dran: die Figur soll lesbar animiert sein
   CAM_HEIGHT: 1.55,
   CAM_LERP: 14,
+  CAM_FOLLOW_Y: 16,        // nur die Höhe wird geglättet; X/Z folgen starr
   CAM_MIN_DISTANCE: 1.1,
   CAM_FOV: 72,
   CAM_FOV_SPRINT: 84,
@@ -91,6 +92,7 @@ export const CONFIG = {
   // sonst sind die Lichter faktisch unsichtbar.
   LIGHT_POWER: 25,
   MAX_POINT_LIGHTS: 10,
+  CHARACTER_BUILD: 'runner',  // 'runner' | 'agile' | 'heavy'
   SHADOWS: true,           // weiche Schatten (RIFT_CONFIG.SHADOWS + game.setShadows())
 
   // ---------- Debug ----------

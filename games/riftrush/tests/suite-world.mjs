@@ -114,6 +114,52 @@ console.log('=== 1d. Materialien überleben mehrfaches Neubauen ===');
   console.log(fails === b1d ? '  keine Material-Verluste' : '  FEHLER');
 }
 
+console.log('=== 1e. Wallrun nur an markierten Wänden ===');
+{
+  const b1e = fails;
+  let runnable = 0, plain = 0, roomsWithRunWall = 0;
+  for (let s = 0; s < 20; s++) {
+    dg.generate((s * 8191 + 3) >>> 0, 9);
+    const r = physics.statics.filter((c) => c.runnable).length;
+    runnable += r;
+    plain += physics.statics.filter((c) => c.solid && !c.runnable).length;
+    if (r > 0) roomsWithRunWall++;
+    // markierte Wände müssen hoch genug zum Laufen sein
+    for (const c of physics.statics.filter((x) => x.runnable)) {
+      ok(c.maxY - c.minY >= 6, `Laufwand nur ${(c.maxY - c.minY).toFixed(1)} m hoch`);
+    }
+  }
+  ok(runnable > 0, 'Es gibt gar keine Wallrun-Wände');
+  ok(roomsWithRunWall === 20, `Nur ${roomsWithRunWall}/20 Dungeons enthalten Wallrun-Passagen`);
+  ok(plain > runnable * 2, 'Fast jede Wand ist eine Laufwand — dann ist die Markierung sinnlos');
+  console.log(`  ${(runnable / 20).toFixed(1)} Laufwände vs. ${(plain / 20).toFixed(0)} normale Wände pro Dungeon`);
+}
+
+console.log('=== 1f. Wallrun-Räume sind ohne Wallrun nicht passierbar ===');
+{
+  const b1f = fails;
+  dg.generate(4242, 9);
+  // Bot ohne Wallrun-Fähigkeit muss im wall_gap scheitern
+  const room = dg.rooms.find((r) => r.def.id === 'wall_gap') || dg.rooms.find((r) => r.def.id === 'wall_corridor');
+  ok(!!room, 'Kein Wallrun-Raum in der Route');
+  if (room) {
+    const mv = new PlayerMovement(physics);
+    const st = PlayerMovement.createState();
+    st.pos = { x: 0, y: room.origin.y + 0.4, z: room.origin.z - 2 };
+    const cmd = { mx: 0, mz: 1, yaw: 0, sprint: true, crouch: false, jump: false, dash: false };
+    let deepest = st.pos.z;
+    for (let f = 0; f < 400; f++) {
+      cmd.jump = f % 25 === 0;
+      mv.update(st, cmd, 1 / 60);
+      deepest = Math.min(deepest, st.pos.z);
+      if (st.pos.y < room.origin.y - 20) break;      // abgestürzt = Absicht
+    }
+    const reachedEnd = deepest < room.origin.z - room.length + 6;
+    ok(!reachedEnd, 'Geradeaus-Bot kommt ohne Wallrun durch — die Passage ist zu einfach');
+  }
+  console.log(fails === b1f ? '  Wallrun ist dort wirklich nötig' : '  FEHLER');
+}
+
 console.log('=== 2. Movement-Features ===');
 const before = fails;
 dg.generate(7, 9);
@@ -148,7 +194,9 @@ ok(peak > y1+1.2, `Double Jump hebt nicht (${(peak-y1).toFixed(2)}m)`);
 const w = new PhysicsWorld();
 const { Collider } = await import('../src/core/Physics.js');
 w.add(new Collider(0,-1,0, 60,1,60,'solid'));      // Boden
-w.add(new Collider(4,0,0, 1,10,40,'solid'));       // Wand rechts
+const runWall = new Collider(4, 0, 0, 1, 10, 40, 'solid');
+runWall.runnable = true;                            // markierte Laufwand
+w.add(runWall);
 w.build();
 const mv2 = new PlayerMovement(w);
 s = fresh(0,0,0); cmd = CMD(); cmd.mz=1; cmd.sprint=true;
@@ -163,6 +211,23 @@ if (wr) {
   cmd.jump = true; mv2.update(s,cmd,dt); cmd.jump=false;
   ok(s.vel.y > 8 && s.vel.x < -6, `Walljump falsch (vy=${s.vel.y.toFixed(1)} vx=${s.vel.x.toFixed(1)})`);
 }
+// Gegenprobe: an einer NICHT markierten Wand darf kein Wallrun starten
+{
+  const w2 = new PhysicsWorld();
+  w2.add(new Collider(0, -1, 0, 60, 1, 60, 'solid'));
+  w2.add(new Collider(4, 0, 0, 1, 10, 40, 'solid'));   // gewöhnliche Wand
+  w2.build();
+  const mv3 = new PlayerMovement(w2);
+  const s3 = fresh(0, 0, 0);
+  const c3 = CMD(); c3.mz = 1; c3.sprint = true;
+  for (let i = 0; i < 40; i++) mv3.update(s3, c3, dt);
+  c3.jump = true; mv3.update(s3, c3, dt); c3.jump = false;
+  c3.mx = 1;
+  let wr2 = false;
+  for (let i = 0; i < 60; i++) { mv3.update(s3, c3, dt); if (s3.wallrunning) wr2 = true; }
+  ok(!wr2, 'Wallrun funktioniert auch an unmarkierten Wänden');
+}
+
 // Dash-Cooldown
 s = fresh(); cmd = CMD(); cmd.dash=true; mv.update(s,cmd,dt);
 ok(s.dashing, 'Dash startet nicht');

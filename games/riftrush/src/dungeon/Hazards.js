@@ -18,6 +18,7 @@ export function createMaterials() {
     safe:   new THREE.MeshPhongMaterial({ color: 0x15374c, specular: 0x3f7fa5, shininess: 34, emissive: COLORS.safe, emissiveIntensity: 0.16 }),
     risk:   new THREE.MeshPhongMaterial({ color: 0x3d2a12, specular: 0x9a7430, shininess: 34, emissive: COLORS.risk, emissiveIntensity: 0.22 }),
     goal:   new THREE.MeshPhongMaterial({ color: 0x3d3417, specular: 0xb09040, shininess: 46, emissive: COLORS.goal, emissiveIntensity: 0.42 }),
+    runwall: new THREE.MeshPhongMaterial({ color: 0x2a1c46, specular: 0x7a5ad0, shininess: 44, emissive: COLORS.accent2, emissiveIntensity: 0.30 }),
     blink:  new THREE.MeshPhongMaterial({ color: 0x1d2b46, specular: 0x5a6fa8, shininess: 38, emissive: COLORS.accent2, emissiveIntensity: 0.3 }),
     door:   new THREE.MeshPhongMaterial({ color: 0x2a1c3a, specular: 0x6a4a8a, shininess: 30, emissive: COLORS.switchOff, emissiveIntensity: 0.3 }),
   };
@@ -39,6 +40,7 @@ export function createRimMaterials() {
     goal:   B(COLORS.goal, 0.95),
     switch: B(COLORS.switchOff, 0.9),
     blink:  B(COLORS.accent2, 0.85),
+    runwall: B(COLORS.accent2, 0.95),
   };
 }
 

@@ -2,34 +2,63 @@ import * as THREE from 'three';
 import { derivePalette } from './PlayerColors.js';
 
 /* ==========================================================================
+ * Statur-Presets.
+ * Alle Maße in Metern; die Summe hip = thigh + shin + foot hält die Füße
+ * exakt auf dem Boden, die Gesamthöhe bleibt bei ~1,8 m (Hitbox).
+ * Umschalten: RIFT_CONFIG.CHARACTER_BUILD bzw. RIFTRUSH.setBuild('heavy').
+ * ======================================================================== */
+export const BUILDS = {
+  // schlanker, langbeiniger Free-Runner (Standard)
+  runner: {
+    hip: 0.97, thigh: 0.45, shin: 0.42, foot: 0.10,
+    torso: 0.46, torsoW: 0.86, torsoD: 0.74, limb: 0.86,
+    shoulderX: 0.182, pad: 0.72, arm: 0.25, head: 0.84, helmet: 0.90, pack: 0.72,
+  },
+  // sehr schlank, maximal beweglich, kaum Panzerung
+  agile: {
+    hip: 1.02, thigh: 0.47, shin: 0.45, foot: 0.10,
+    torso: 0.41, torsoW: 0.76, torsoD: 0.68, limb: 0.76,
+    shoulderX: 0.150, pad: 0.42, arm: 0.25, head: 0.78, helmet: 0.84, pack: 0.55,
+  },
+  // massiver Exo-Anzug
+  heavy: {
+    hip: 0.84, thigh: 0.39, shin: 0.37, foot: 0.08,
+    torso: 0.57, torsoW: 1.18, torsoD: 0.94, limb: 1.14,
+    shoulderX: 0.215, pad: 1.20, arm: 0.25, head: 1.0, helmet: 1.06, pack: 1.15,
+  },
+};
+
+/* ==========================================================================
  * Gemeinsame Geometrien — einmal erzeugt, von allen Figuren benutzt.
- * Alles bewusst low-poly: 8 Spieler gleichzeitig müssen problemlos laufen.
- * Blickrichtung ist -Z (wie im Movement), "vorne" heißt also negatives Z.
+ * Blickrichtung ist -Z, "vorne" heißt also negatives Z.
  * ======================================================================== */
 const G = {
-  pelvis:   new THREE.BoxGeometry(0.30, 0.16, 0.21),
-  torso:    new THREE.CapsuleGeometry(0.155, 0.24, 3, 10),
-  chest:    new THREE.BoxGeometry(0.30, 0.20, 0.10),
-  pack:     new THREE.BoxGeometry(0.22, 0.24, 0.11),
-  core:     new THREE.IcosahedronGeometry(0.052, 0),
-  coreBig:  new THREE.IcosahedronGeometry(0.062, 0),
-  neck:     new THREE.CylinderGeometry(0.05, 0.055, 0.09, 6),
-  head:     new THREE.IcosahedronGeometry(0.105, 0),
-  helmet:   new THREE.SphereGeometry(0.126, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.62),
-  visor:    new THREE.BoxGeometry(0.19, 0.062, 0.05),
-  visorFin: new THREE.BoxGeometry(0.035, 0.05, 0.10),
-  antenna:  new THREE.CylinderGeometry(0.008, 0.012, 0.16, 4),
-  shoulder: new THREE.BoxGeometry(0.12, 0.10, 0.16),
-  shoulderBig: new THREE.BoxGeometry(0.14, 0.12, 0.18),
-  upperArm: new THREE.CapsuleGeometry(0.048, 0.17, 2, 6),
-  foreArm:  new THREE.CapsuleGeometry(0.042, 0.15, 2, 6),
-  hand:     new THREE.BoxGeometry(0.075, 0.09, 0.062),
-  thigh:    new THREE.CapsuleGeometry(0.065, 0.27, 2, 6),
-  shin:     new THREE.CapsuleGeometry(0.052, 0.276, 2, 6),
-  foot:     new THREE.BoxGeometry(0.11, 0.08, 0.24),
-  belt:     new THREE.BoxGeometry(0.32, 0.05, 0.23),
-  waistMod: new THREE.BoxGeometry(0.09, 0.12, 0.08),
+  pelvis:   new THREE.BoxGeometry(0.26, 0.15, 0.19),
+  torso:    new THREE.CapsuleGeometry(0.145, 0.26, 3, 10),   // Gesamtlänge 0.55
+  chest:    new THREE.BoxGeometry(0.27, 0.19, 0.09),
+  collar:   new THREE.BoxGeometry(0.30, 0.07, 0.15),
+  pack:     new THREE.BoxGeometry(0.19, 0.22, 0.10),
+  core:     new THREE.IcosahedronGeometry(0.05, 0),
+  coreBig:  new THREE.IcosahedronGeometry(0.058, 0),
+  neck:     new THREE.CylinderGeometry(0.042, 0.05, 0.09, 6),
+  head:     new THREE.IcosahedronGeometry(0.10, 0),
+  helmet:   new THREE.SphereGeometry(0.118, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.58),
+  crest:    new THREE.BoxGeometry(0.045, 0.055, 0.20),
+  visor:    new THREE.BoxGeometry(0.175, 0.055, 0.05),
+  visorFin: new THREE.BoxGeometry(0.032, 0.045, 0.09),
+  antenna:  new THREE.CylinderGeometry(0.007, 0.011, 0.15, 4),
+  shoulder: new THREE.BoxGeometry(0.11, 0.085, 0.14),
+  upperArm: new THREE.CapsuleGeometry(0.042, 0.18, 2, 6),    // Gesamtlänge 0.264
+  foreArm:  new THREE.CapsuleGeometry(0.036, 0.162, 2, 6),   // Gesamtlänge 0.234
+  hand:     new THREE.BoxGeometry(0.065, 0.085, 0.055),
+  thigh:    new THREE.CapsuleGeometry(0.058, 0.284, 2, 6),   // Gesamtlänge 0.40
+  shin:     new THREE.CapsuleGeometry(0.046, 0.288, 2, 6),   // Gesamtlänge 0.38
+  foot:     new THREE.BoxGeometry(0.10, 0.075, 0.23),
+  belt:     new THREE.BoxGeometry(0.28, 0.045, 0.21),
+  waistMod: new THREE.BoxGeometry(0.075, 0.11, 0.07),
+  knee:     new THREE.BoxGeometry(0.085, 0.07, 0.075),
 };
+const LEN = { torso: 0.55, upper: 0.264, fore: 0.234, thigh: 0.40, shin: 0.38, foot: 0.075 };
 
 /** Segmentierter Bodenring als eine einzige BufferGeometry (liegt in XZ). */
 function segmentedRing(inner, outer, segments = 4, fill = 0.6) {
@@ -51,47 +80,48 @@ function segmentedRing(inner, outer, segments = 4, fill = 0.6) {
   g.computeVertexNormals();
   return g;
 }
-G.ring = segmentedRing(0.40, 0.50, 4, 0.6);
+G.ring = segmentedRing(0.38, 0.47, 4, 0.6);
 G.arrow = (() => {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(
-    [0, 0, -0.30, -0.11, 0, -0.12, 0.11, 0, -0.12], 3));
+    [0, 0, -0.30, -0.10, 0, -0.13, 0.10, 0, -0.13], 3));
   g.computeVertexNormals();
   return g;
 })();
 
-/** Von allen Figuren geteiltes dunkles Material (Anzug, Gelenke, Sohlen). */
-const MAT_DARK = new THREE.MeshStandardMaterial({ color: 0x151b29, metalness: 0.5, roughness: 0.62, flatShading: true });
-const MAT_METAL = new THREE.MeshStandardMaterial({ color: 0x2b3346, metalness: 0.75, roughness: 0.38, flatShading: true });
+/** Von allen Figuren geteilte Materialien. */
+const MAT_DARK = new THREE.MeshStandardMaterial({ color: 0x141a27, metalness: 0.45, roughness: 0.66, flatShading: true });
+const MAT_METAL = new THREE.MeshStandardMaterial({ color: 0x2a3247, metalness: 0.78, roughness: 0.34, flatShading: true });
 
 const _v = new THREE.Vector3();
 const damp = (a, b, l, dt) => a + (b - a) * (1 - Math.exp(-l * dt));
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 /* ==========================================================================
- * PlayerCharacter
- * Rein visuell: bekommt einen Bewegungszustand und interpretiert ihn selbst.
- * Kennt weder Netzwerk noch Physik.
+ * PlayerCharacter — rein visuell, kennt weder Netzwerk noch Physik.
  * ======================================================================== */
 export class PlayerCharacter {
-  /**
-   * @param {object} opts { scene, fx, name, color, isLocal, nameplate }
-   */
-  constructor({ scene, fx = null, name = 'Runner', color = 0x4c9dff, isLocal = false, nameplate = true }) {
+  constructor({ scene, fx = null, name = 'Runner', color = 0x4c9dff, isLocal = false, nameplate = true, build = 'runner' }) {
     this.scene = scene;
     this.fx = fx;
     this.name = name;
     this.isLocal = isLocal;
+    this.buildName = BUILDS[build] ? build : 'runner';
+    this.B = BUILDS[this.buildName];
 
     this.root = new THREE.Group();
-    this.tilt = new THREE.Group();          // Lean / Roll des ganzen Körpers
-    this.hips = new THREE.Group();          // Hüfte: trägt Oberkörper und Beine
-    this.hips.position.y = 0.86;
-    this.tilt.add(this.hips);
+    this.tilt = new THREE.Group();        // Neigung/Roll des ganzen Körpers
+    this.turn = new THREE.Group();        // zusätzliche Körperdrehung (Wallrun)
+    this.hips = new THREE.Group();
+    this.hips.position.y = this.B.hip;
+    this.turn.add(this.hips);
+    this.tilt.add(this.turn);
     this.root.add(this.tilt);
     scene.add(this.root);
 
     this.materials = {};
+    this.parts = [];
+    this.shadowParts = [];
     this.setColor(color);
 
     this.createBody();
@@ -104,11 +134,11 @@ export class PlayerCharacter {
     this.createGroundIndicator();
     if (nameplate) this.createNameplate(name);
 
-    // Animationszustand
     this.phase = 0;
     this.t = 0;
     this.pose = {
-      lean: 0, roll: 0, crouch: 0, bob: 0, swing: 0, spread: 0, reach: 0, twist: 0,
+      lean: 0, roll: 0, turn: 0, crouch: 0, swing: 0,
+      armX: 0, armOut: 0.13, elbow: 0.35, legSplit: 0, reach: 0,
     };
     this.st = {
       movementState: 'idle', speed: 0, isGrounded: true,
@@ -120,6 +150,7 @@ export class PlayerCharacter {
     this._dashTimer = 0;
     this._sparkTimer = 0;
     this._visorPulse = 0;
+    this._punch = 0;
   }
 
   // ------------------------------------------------------------------ Farbe
@@ -128,10 +159,8 @@ export class PlayerCharacter {
     this.color = color;
     this.palette = p;
     if (!this.materials.suit) {
-      this.materials.suit = new THREE.MeshStandardMaterial({ metalness: 0.35, roughness: 0.5, flatShading: true });
-      this.materials.visor = new THREE.MeshStandardMaterial({
-        color: 0x05070d, metalness: 0.2, roughness: 0.15, emissiveIntensity: 1,
-      });
+      this.materials.suit = new THREE.MeshStandardMaterial({ metalness: 0.32, roughness: 0.48, flatShading: true });
+      this.materials.visor = new THREE.MeshStandardMaterial({ color: 0x05070d, metalness: 0.2, roughness: 0.15 });
       this.materials.core = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 });
       this.materials.ring = new THREE.MeshBasicMaterial({
         transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
@@ -148,120 +177,152 @@ export class PlayerCharacter {
     if (this.nameplate) this._paintNameplate();
   }
 
-  // ------------------------------------------------------------------ Körper
-  createBody() {
-    const suit = this.materials.suit;
-    const pelvis = new THREE.Mesh(G.pelvis, MAT_DARK);
-    pelvis.position.y = 0.02;
+  _add(parent, mesh, shadow = false) {
+    parent.add(mesh);
+    this.parts.push(mesh);
+    if (shadow) this.shadowParts.push(mesh);
+    return mesh;
+  }
 
-    const torso = new THREE.Mesh(G.torso, suit);
-    torso.position.y = 0.30;
-    torso.scale.set(1.16, 1, 0.86);
+  // ------------------------------------------------------------------ Rumpf
+  createBody() {
+    const B = this.B;
+    this.chestGroup = new THREE.Group();
+
+    const pelvis = new THREE.Mesh(G.pelvis, MAT_DARK);
+    pelvis.position.y = 0.03;
+    pelvis.scale.set(B.torsoW, 1, B.torsoD);
+
+    const torso = new THREE.Mesh(G.torso, this.materials.suit);
+    torso.position.y = B.torso * 0.55;
+    torso.scale.set(B.torsoW, B.torso / LEN.torso, B.torsoD);
 
     const chest = new THREE.Mesh(G.chest, MAT_METAL);
-    chest.position.set(0, 0.34, -0.09);
+    chest.position.set(0, B.torso * 0.68, -0.085 * B.torsoD);
     chest.rotation.x = -0.12;
+    chest.scale.set(B.torsoW, 1, 1);
+
+    const collar = new THREE.Mesh(G.collar, MAT_METAL);
+    collar.position.y = B.torso * 0.95;
+    collar.scale.set(B.torsoW, 1, B.torsoD);
 
     const belt = new THREE.Mesh(G.belt, MAT_METAL);
-    belt.position.y = 0.10;
+    belt.position.y = 0.13;
+    belt.scale.set(B.torsoW, 1, B.torsoD);
 
-    // asymmetrisches Hüftmodul (Silhouette!)
+    // asymmetrisches Hüftmodul für die Silhouette
     const waist = new THREE.Mesh(G.waistMod, MAT_METAL);
-    waist.position.set(0.19, 0.06, 0.02);
+    waist.position.set(0.145 * B.torsoW + 0.02, 0.09, 0.01);
     waist.rotation.z = -0.2;
 
     this.torso = torso;
-    this.chestGroup = new THREE.Group();
-    this.chestGroup.add(torso, chest, belt, waist, pelvis);
+    this._add(this.chestGroup, pelvis, true);
+    this._add(this.chestGroup, torso, true);
+    this._add(this.chestGroup, chest, true);
+    this._add(this.chestGroup, collar);
+    this._add(this.chestGroup, belt);
+    this._add(this.chestGroup, waist);
     this.hips.add(this.chestGroup);
-    this.parts = [pelvis, torso, chest, belt, waist];
-    // Kleinteile (Finnen, Antenne, Hände, Kern) werfen keinen Schatten —
-    // der Shadow-Pass kostet pro Mesh, und man sieht den Unterschied nicht.
-    this.shadowParts = [pelvis, torso, chest];
   }
 
   createBackpack() {
+    const B = this.B;
     const pack = new THREE.Mesh(G.pack, MAT_DARK);
-    pack.position.set(0, 0.34, 0.135);
-    const fin = new THREE.Mesh(G.visorFin, MAT_METAL);
-    fin.position.set(-0.13, 0.40, 0.14);
-    fin.rotation.z = 0.35;
-    this.chestGroup.add(pack, fin);
-    this.parts.push(pack, fin);
-    this.shadowParts.push(pack);
+    pack.position.set(0, B.torso * 0.72, 0.115 * B.torsoD + 0.02);
+    pack.scale.setScalar(B.pack);
+    this._add(this.chestGroup, pack, true);
   }
 
   createEnergyCore() {
+    const B = this.B;
     const back = new THREE.Mesh(G.coreBig, this.materials.core);
-    back.position.set(0, 0.36, 0.20);
+    back.position.set(0, B.torso * 0.76, 0.115 * B.torsoD + 0.09 * B.pack);
     const front = new THREE.Mesh(G.core, this.materials.core);
-    front.position.set(0, 0.35, -0.145);
+    front.position.set(0, B.torso * 0.72, -0.135 * B.torsoD);
     this.cores = [back, front];
     this.chestGroup.add(back, front);
   }
 
   createHead() {
+    const B = this.B;
     this.headGroup = new THREE.Group();
-    this.headGroup.position.y = 0.72;
+    this.headGroup.position.y = B.torso + 0.16;
 
     const neck = new THREE.Mesh(G.neck, MAT_DARK);
-    neck.position.y = -0.11;
+    neck.position.y = -0.10;
     const head = new THREE.Mesh(G.head, MAT_DARK);
-    head.scale.set(1, 1.05, 1.05);
+    head.scale.setScalar(B.head);
     const helmet = new THREE.Mesh(G.helmet, this.materials.suit);
     helmet.position.y = 0.012;
-    helmet.scale.set(1, 0.96, 1.08);
+    helmet.scale.set(B.helmet, B.helmet * 0.94, B.helmet * 1.06);
+    // Helmkamm: klare Silhouette von der Seite
+    const crest = new THREE.Mesh(G.crest, MAT_METAL);
+    crest.position.set(0, 0.10 * B.helmet, 0.005);
+    crest.scale.setScalar(B.helmet);
     // asymmetrische Antenne
     const ant = new THREE.Mesh(G.antenna, MAT_METAL);
-    ant.position.set(0.085, 0.11, 0.03);
-    ant.rotation.z = -0.42;
-    ant.rotation.x = 0.2;
+    ant.position.set(0.08 * B.helmet, 0.10, 0.04);
+    ant.rotation.set(0.18, 0, -0.45);
 
-    this.headGroup.add(neck, head, helmet, ant);
+    this._add(this.headGroup, neck);
+    this._add(this.headGroup, head, true);
+    this._add(this.headGroup, helmet, true);
+    this._add(this.headGroup, crest);
+    this._add(this.headGroup, ant);
     this.hips.add(this.headGroup);
-    this.parts.push(neck, head, helmet, ant);
-    this.shadowParts.push(head, helmet);
   }
 
   createVisor() {
+    const B = this.B;
     const visor = new THREE.Mesh(G.visor, this.materials.visor);
-    visor.position.set(0, -0.005, -0.098);
+    visor.position.set(0, -0.004, -0.092 * B.helmet - 0.008);
     visor.rotation.x = -0.14;
+    visor.scale.set(B.helmet, 1, 1);
     const finL = new THREE.Mesh(G.visorFin, this.materials.visor);
-    finL.position.set(-0.098, 0.01, -0.05);
-    finL.rotation.y = 0.25;
+    finL.position.set(-0.092 * B.helmet, 0.012, -0.045);
+    finL.rotation.y = 0.28;
     const finR = finL.clone();
-    finR.position.x = 0.098;
-    finR.rotation.y = -0.25;
+    finR.position.x = 0.092 * B.helmet;
+    finR.rotation.y = -0.28;
     this.visor = visor;
-    this.headGroup.add(visor, finL, finR);
-    this.parts.push(visor, finL, finR);
+    this._add(this.headGroup, visor);
+    this._add(this.headGroup, finL);
+    this._add(this.headGroup, finR);
   }
 
   // ------------------------------------------------------------------ Arme
   _buildArm(side) {
-    const arm = new THREE.Group();                 // Pivot = Schulter
-    arm.position.set(0.20 * side, 0.47, 0);
-
-    const pad = new THREE.Mesh(side < 0 ? G.shoulderBig : G.shoulder, this.materials.suit);
-    pad.position.set(0.02 * side, 0.02, 0);
-    pad.rotation.z = -0.25 * side;
+    const B = this.B;
+    const arm = new THREE.Group();
+    arm.position.set(B.shoulderX * side, B.torso * 0.88, 0);
 
     const upper = new THREE.Mesh(G.upperArm, MAT_DARK);
-    upper.position.y = -0.115;
+    upper.position.y = -B.arm / 2;
+    upper.scale.set(B.limb, B.arm / LEN.upper, B.limb);
 
-    const fore = new THREE.Group();                // Pivot = Ellbogen
-    fore.position.y = -0.235;
+    const fore = new THREE.Group();
+    fore.position.y = -B.arm;
     const foreMesh = new THREE.Mesh(G.foreArm, this.materials.suit);
-    foreMesh.position.y = -0.11;
+    foreMesh.position.y = -B.arm * 0.47;
+    foreMesh.scale.set(B.limb, B.arm / LEN.fore * 0.94, B.limb);
     const hand = new THREE.Mesh(G.hand, MAT_METAL);
-    hand.position.y = -0.225;
+    hand.position.y = -B.arm * 0.95;
+    hand.scale.setScalar(B.limb);
     fore.add(foreMesh, hand);
 
-    arm.add(pad, upper, fore);
+    arm.add(upper, fore);
     this.hips.add(arm);
-    this.parts.push(pad, upper, foreMesh, hand);
+    this.parts.push(upper, foreMesh, hand);
     this.shadowParts.push(upper, foreMesh);
+
+    // Schulterpanzer bleibt am Rumpf, nicht am Arm — sonst schwingt er mit
+    const pad = new THREE.Mesh(G.shoulder, this.materials.suit);
+    pad.position.set(B.shoulderX * side * 1.06, B.torso * 0.90, 0);
+    pad.rotation.z = -0.28 * side;
+    pad.scale.setScalar(B.pad);
+    if (side < 0) pad.scale.multiplyScalar(1.22);     // Asymmetrie
+    this._add(this.chestGroup, pad);                  // kein Schattenwerfer: Budget
+
     return { arm, fore };
   }
 
@@ -274,23 +335,30 @@ export class PlayerCharacter {
 
   // ------------------------------------------------------------------ Beine
   _buildLeg(side) {
-    const leg = new THREE.Group();                 // Pivot = Hüftgelenk
-    leg.position.set(0.093 * side, -0.02, 0);
+    const B = this.B;
+    const leg = new THREE.Group();
+    leg.position.set(0.082 * side * B.torsoW + 0.012 * side, 0, 0);
 
     const thigh = new THREE.Mesh(G.thigh, this.materials.suit);
-    thigh.position.y = -0.20;
+    thigh.position.y = -B.thigh / 2;
+    thigh.scale.set(B.limb, B.thigh / LEN.thigh, B.limb);
 
-    const shin = new THREE.Group();                // Pivot = Knie
-    shin.position.y = -0.40;
+    const shin = new THREE.Group();
+    shin.position.y = -B.thigh;
+    const knee = new THREE.Mesh(G.knee, MAT_METAL);
+    knee.position.y = -0.02;
+    knee.scale.setScalar(B.limb);
     const shinMesh = new THREE.Mesh(G.shin, MAT_DARK);
-    shinMesh.position.y = -0.19;
+    shinMesh.position.y = -B.shin / 2;
+    shinMesh.scale.set(B.limb, B.shin / LEN.shin, B.limb);
     const foot = new THREE.Mesh(G.foot, MAT_METAL);
-    foot.position.set(0, -0.42, -0.035);
-    shin.add(shinMesh, foot);
+    foot.position.set(0, -B.shin - B.foot / 2, -0.035);
+    foot.scale.set(B.limb, B.foot / LEN.foot, 1);
+    shin.add(knee, shinMesh, foot);
 
     leg.add(thigh, shin);
     this.hips.add(leg);
-    this.parts.push(thigh, shinMesh, foot);
+    this.parts.push(thigh, knee, shinMesh, foot);
     this.shadowParts.push(thigh, shinMesh);
     return { leg, shin, foot };
   }
@@ -308,7 +376,6 @@ export class PlayerCharacter {
     this.ring.position.y = 0.03;
     this.ring.renderOrder = 2;
     this.root.add(this.ring);
-
     if (this.isLocal) {
       this.arrow = new THREE.Mesh(G.arrow, this.materials.ring);
       this.arrow.position.y = 0.03;
@@ -342,18 +409,14 @@ export class PlayerCharacter {
     if (!ctx || typeof ctx.clearRect !== 'function') return;
     const accent = '#' + new THREE.Color(this.palette.rim).getHexString();
     ctx.clearRect(0, 0, cv.width, cv.height);
-    // Hintergrund
     ctx.fillStyle = 'rgba(6,10,18,0.66)';
     if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(14, 14, 292, 50, 12); ctx.fill(); }
     else ctx.fillRect(14, 14, 292, 50);
-    // Akzentlinie in Spielerfarbe
     ctx.fillStyle = accent;
     ctx.fillRect(14, 60, 292, 4);
-    // Zeiger nach unten
     ctx.beginPath();
     ctx.moveTo(148, 66); ctx.lineTo(172, 66); ctx.lineTo(160, 82); ctx.closePath();
     ctx.fill();
-    // Text
     ctx.font = 'bold 30px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -368,7 +431,6 @@ export class PlayerCharacter {
   }
 
   // ------------------------------------------------------------------ Zustand
-  /** @param {object} s { movementState, speed, isGrounded, isWallRunning, isDashing, wallSide, velocityY } */
   setState(s) {
     const t = this.st;
     t.movementState = s.movementState ?? t.movementState;
@@ -396,7 +458,7 @@ export class PlayerCharacter {
     const ms = s.movementState;
     const p = this.pose;
 
-    // ---- Ereignisse (Landung, Sprung, Dash) ----
+    // ---- Ereignisse ----
     if (!s.isGrounded) this._fallSpeed = Math.min(this._fallSpeed, s.velocityY);
     if (s.isGrounded && !this._prevGrounded) this._onLand();
     if (!s.isGrounded && this._prevGrounded && ms === 'jump') this._emitJump();
@@ -404,101 +466,140 @@ export class PlayerCharacter {
     this._prevGrounded = s.isGrounded;
     this._prevState = ms;
 
-    // ---- Zielpose je nach Bewegungszustand ----
+    /* ---- Zielpose ----------------------------------------------------
+     * armX  : Grundstellung der Arme (+ nach vorne, − nach hinten)
+     * armOut: Abspreizen, NIE negativ (sonst kreuzen die Arme im Körper)
+     * elbow : Ellbogenbeugung
+     */
     const spd = s.speed;
-    let lean = 0, roll = 0, crouch = 0, swing = 0, spread = 0, reach = 0, twist = 0;
-    let cycle = 0;
+    let lean = 0, roll = 0, turn = 0, crouch = 0, swing = 0, cycle = 0;
+    let armX = 0, armOut = 0.13, elbow = 0.35, legSplit = 0, reach = 0;
 
     switch (ms) {
       case 'sprint':
         lean = -0.30 - clamp((spd - 12) * 0.012, 0, 0.12);
-        swing = 1.0; cycle = 1; break;
+        swing = 1.05; cycle = 1; armOut = 0.10; elbow = 0.75; break;
       case 'run':
-        lean = -0.16; swing = 0.78; cycle = 1; break;
+        lean = -0.16; swing = 0.8; cycle = 1; armOut = 0.12; elbow = 0.5; break;
       case 'crouch':
-        crouch = 1; lean = -0.22; swing = 0.35; cycle = spd > 1 ? 1 : 0; break;
+        crouch = 1; lean = -0.22; swing = 0.35; cycle = spd > 1 ? 1 : 0;
+        armOut = 0.20; elbow = 0.9; break;
       case 'slide':
-        crouch = 1; lean = -0.5; spread = -0.5; twist = 0.25; break;
+        crouch = 1; lean = -0.46; armX = -0.85; armOut = 0.30; elbow = 0.55;
+        legSplit = 1; break;
       case 'jump':
-        lean = -0.1; spread = 0.55; break;
+        lean = -0.08; armX = 0.75; armOut = 0.35; elbow = 0.9; legSplit = -0.6; break;
       case 'fall':
-        lean = 0.05; spread = 0.95; break;
+        lean = 0.06; armX = -0.15; armOut = 1.0; elbow = 0.25; legSplit = -0.25; break;
       case 'wallrun':
-        roll = -0.38 * (s.wallSide || 1);
-        lean = -0.22; swing = 0.9; cycle = 1; reach = 1; break;
+        // Körper dreht sich von der Wand weg — der Blick geht nach vorne/außen
+        roll = -0.34 * (s.wallSide || 1);
+        turn = -0.42 * (s.wallSide || 1);
+        lean = -0.20; swing = 0.95; cycle = 1; reach = 1; armOut = 0.12; elbow = 0.6; break;
       case 'dash':
-        lean = -0.62; spread = -0.75; twist = 0.1; break;
+        lean = -0.58; armX = -1.15; armOut = 0.12; elbow = 0.2; legSplit = -0.35; break;
       case 'respawn':
       case 'idle':
       default:
-        lean = 0; swing = 0; break;
+        armOut = 0.14; elbow = 0.3; break;
     }
 
-    // ---- Laufzyklus ----
     if (cycle) this.phase += dt * (4.2 + Math.min(spd, 22) * 0.62);
     else this.phase = damp(this.phase % (Math.PI * 2), 0, 6, dt);
 
     const k = 10;
     p.lean = damp(p.lean, lean, k, dt);
     p.roll = damp(p.roll, roll, k * 0.8, dt);
+    p.turn = damp(p.turn, turn, k * 0.8, dt);
     p.crouch = damp(p.crouch, crouch, k * 1.2, dt);
     p.swing = damp(p.swing, swing, k, dt);
-    p.spread = damp(p.spread, spread, k, dt);
+    p.armX = damp(p.armX, armX, k, dt);
+    p.armOut = damp(p.armOut, Math.max(0, armOut), k, dt);
+    p.elbow = damp(p.elbow, elbow, k, dt);
+    p.legSplit = damp(p.legSplit, legSplit, k, dt);
     p.reach = damp(p.reach, reach, k, dt);
-    p.twist = damp(p.twist, twist, k, dt);
 
     const sw = Math.sin(this.phase) * p.swing;
-    const swB = Math.sin(this.phase + Math.PI) * p.swing;
+    const swB = -sw;
     const breathe = Math.sin(this.t * 1.9) * 0.012;
 
     // ---- Rumpf ----
     this.tilt.rotation.x = p.lean;
     this.tilt.rotation.z = p.roll;
-    this.tilt.rotation.y = p.twist * 0.6;
+    this.turn.rotation.y = p.turn;
     const bob = cycle ? Math.abs(Math.sin(this.phase)) * 0.045 * p.swing : 0;
-    this.hips.position.y = 0.86 - p.crouch * 0.30 + bob + (cycle ? 0 : breathe);
+    this.hips.position.y = this.B.hip - p.crouch * 0.32 + bob + (cycle ? 0 : breathe);
     this.chestGroup.rotation.y = -sw * 0.16;
     this.chestGroup.scale.y = 1 + (cycle ? 0 : breathe * 1.6);
 
-    // ---- Kopf: schaut leicht gegen die Körperneigung (stabilisiert den Blick)
+    // ---- Kopf: stabilisiert den Blick, schaut beim Wallrun nach vorne ----
     this.headGroup.rotation.x = -p.lean * 0.55 + (cycle ? Math.sin(this.phase * 2) * 0.03 : 0);
-    this.headGroup.rotation.z = -p.roll * 0.35;
+    this.headGroup.rotation.z = -p.roll * 0.4;
+    this.headGroup.rotation.y = -p.turn * 0.55;
 
-    // ---- Arme ----
-    const armIdle = 0.06 + Math.sin(this.t * 1.4) * 0.02;
-    this.armL.rotation.x = sw * 1.05 + armIdle - p.spread * 0.15;
-    this.armR.rotation.x = swB * 1.05 + armIdle - p.spread * 0.15;
-    this.armL.rotation.z = 0.12 + p.spread * 0.85;
-    this.armR.rotation.z = -0.12 - p.spread * 0.85;
-    this.foreL.rotation.x = -0.35 - Math.max(0, sw) * 0.9 - p.spread * 0.25;
-    this.foreR.rotation.x = -0.35 - Math.max(0, swB) * 0.9 - p.spread * 0.25;
+    /* ---- Arme: erst Zielwinkel berechnen, dann EINMAL setzen.
+     * (Vorher wurde der Wallrun-Arm nach dem Setzen nochmal überschrieben,
+     *  was sichtbares Zittern erzeugt hat.) */
+    const idleSway = cycle ? 0 : Math.sin(this.t * 1.4) * 0.03;
+    let lX = p.armX + sw * 1.0 + idleSway;
+    let rX = p.armX + swB * 1.0 + idleSway;
+    let lZ = p.armOut, rZ = -p.armOut;
+    let lE = -p.elbow - Math.max(0, sw) * 0.85;
+    let rE = -p.elbow - Math.max(0, swB) * 0.85;
 
-    // Wallrun: der wandseitige Arm greift zur Wand
     if (p.reach > 0.01) {
       const side = s.wallSide || 1;
-      const reachArm = side > 0 ? this.armR : this.armL;
-      const reachFore = side > 0 ? this.foreR : this.foreL;
-      reachArm.rotation.x = damp(reachArm.rotation.x, -0.5, 12, dt);
-      reachArm.rotation.z = damp(reachArm.rotation.z, -1.15 * side, 12, dt);
-      reachFore.rotation.x = damp(reachFore.rotation.x, -0.25, 12, dt);
+      const w = p.reach;
+      if (side > 0) {                       // Wand rechts -> rechter Arm greift
+        rX = rX * (1 - w) + (-0.55) * w;
+        rZ = rZ * (1 - w) + (-1.05) * w;
+        rE = rE * (1 - w) + (-0.2) * w;
+      } else {
+        lX = lX * (1 - w) + (-0.55) * w;
+        lZ = lZ * (1 - w) + (1.05) * w;
+        lE = lE * (1 - w) + (-0.2) * w;
+      }
     }
+    // ---- Schlag: überschreibt den rechten Arm für ~0.35 s ----
+    if (this._punch > 0) {
+      this._punch = Math.max(0, this._punch - dt / 0.35);
+      const u = 1 - this._punch;                 // 0 -> 1 über die Dauer
+      // schnelles Ausfahren, langsameres Zurücknehmen
+      const ext = u < 0.35 ? u / 0.35 : 1 - (u - 0.35) / 0.65;
+      const e = ext * ext * (3 - 2 * ext);       // smoothstep
+      rX = rX * (1 - e) + 1.45 * e;              // Arm nach vorne
+      rZ = rZ * (1 - e) - 0.18 * e;
+      rE = rE * (1 - e) + 0.02 * e;              // Ellbogen durchgestreckt
+      lX = lX * (1 - e) + (-0.55) * e;           // Gegenarm zurück
+      lE = lE * (1 - e) + (-1.15) * e;
+      this.chestGroup.rotation.y = -0.42 * e;    // Körper dreht mit
+      this.turn.rotation.y = p.turn - 0.16 * e;
+    }
+
+    this.armL.rotation.set(lX, 0, lZ);
+    this.armR.rotation.set(rX, 0, rZ);
+    this.foreL.rotation.x = lE;
+    this.foreR.rotation.x = rE;
 
     // ---- Beine ----
     const crouchBend = p.crouch * 0.95;
-    this.legL.rotation.x = swB * 0.85 - crouchBend * 0.9 + p.spread * 0.12;
-    this.legR.rotation.x = sw * 0.85 - crouchBend * 0.9 + p.spread * 0.12;
-    this.shinL.rotation.x = Math.max(0, -swB) * 1.25 + crouchBend * 1.7 + p.spread * 0.35;
-    this.shinR.rotation.x = Math.max(0, -sw) * 1.25 + crouchBend * 1.7 + p.spread * 0.35;
-    this.footL.rotation.x = -this.legL.rotation.x * 0.35 - this.shinL.rotation.x * 0.3;
-    this.footR.rotation.x = -this.legR.rotation.x * 0.35 - this.shinR.rotation.x * 0.3;
-    this.legL.rotation.z = p.spread * 0.12;
-    this.legR.rotation.z = -p.spread * 0.12;
+    const split = p.legSplit;
+    // legSplit > 0: Beine in Schrittstellung (Slide), < 0: angezogen (Sprung)
+    const lLeg = swB * 0.85 - crouchBend * 0.9 + split * 0.85 + Math.max(0, -split) * 0.5;
+    const rLeg = sw * 0.85 - crouchBend * 0.9 - split * 0.35 + Math.max(0, -split) * 0.5;
+    this.legL.rotation.x = lLeg;
+    this.legR.rotation.x = rLeg;
+    this.shinL.rotation.x = Math.max(0, -swB) * 1.25 + crouchBend * 1.7 + Math.max(0, -split) * 1.1;
+    this.shinR.rotation.x = Math.max(0, -sw) * 1.25 + crouchBend * 1.7 + Math.max(0, split) * 1.3 + Math.max(0, -split) * 1.1;
+    this.footL.rotation.x = -lLeg * 0.3 - this.shinL.rotation.x * 0.3;
+    this.footR.rotation.x = -rLeg * 0.3 - this.shinR.rotation.x * 0.3;
+    this.legL.rotation.z = Math.max(0, split) * 0.06 + Math.max(0, -split) * 0.1;
+    this.legR.rotation.z = -Math.max(0, split) * 0.06 - Math.max(0, -split) * 0.1;
 
-    // ---- Visor / Kern pulsieren ----
+    // ---- Visor / Kern ----
     this._visorPulse = damp(this._visorPulse, s.isDashing ? 1 : 0, 8, dt);
     const base = this.isLocal ? 2.6 : 1.9;
-    this.materials.visor.emissiveIntensity =
-      base + this._visorPulse * 2.2 + Math.sin(this.t * 2.4) * 0.12;
+    this.materials.visor.emissiveIntensity = base + this._visorPulse * 2.2 + Math.sin(this.t * 2.4) * 0.12;
     const coreScale = 1 + Math.sin(this.t * 3.1) * 0.08 + this._visorPulse * 0.35;
     this.cores[0].scale.setScalar(coreScale);
     this.cores[1].scale.setScalar(coreScale);
@@ -506,20 +607,15 @@ export class PlayerCharacter {
     // ---- Bodenring ----
     const ringTarget = s.isGrounded ? (this.isLocal ? 0.55 : 0.4) : 0.12;
     this.materials.ring.opacity = damp(this.materials.ring.opacity, ringTarget, 8, dt);
-    const rs = 1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25);
-    this.ring.scale.setScalar(rs);
+    this.ring.scale.setScalar(1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25));
     this.ring.rotation.y += dt * 0.6;
-    if (this.arrow) this.arrow.rotation.y = 0;
 
-    // ---- laufende Effekte ----
     this._updateFx(dt, s);
 
     // ---- Namensschild ----
     if (this.nameplate && camera) {
       _v.setFromMatrixPosition(this.nameplate.matrixWorld);
       const d = camera.position.distanceTo(_v);
-      // wächst mit der Distanz, aber gedeckelt -> aus der Ferne lesbar,
-      // aus der Nähe nicht riesig
       const k2 = clamp(Math.pow(Math.max(d, 1), 0.72) * 0.36, 0.85, 2.6);
       this.nameplate.scale.set(1.55 * k2, 0.46 * k2, 1);
       this.nameplate.visible = d > 2.2 && d < 140;
@@ -531,7 +627,6 @@ export class PlayerCharacter {
     if (!this.fx) return;
     const px = this.root.position.x, py = this.root.position.y, pz = this.root.position.z;
 
-    // Dash-Trail
     if (s.isDashing) {
       this._dashTimer -= dt;
       if (this._dashTimer <= 0) {
@@ -543,7 +638,6 @@ export class PlayerCharacter {
       }
     }
 
-    // Wallrun-Funken an den Füßen
     if (s.isWallRunning) {
       this._sparkTimer -= dt;
       if (this._sparkTimer <= 0) {
@@ -571,21 +665,20 @@ export class PlayerCharacter {
   _emitJump() {
     if (!this.fx) return;
     const p = this.root.position;
-    this.fx.burst(p.x, p.y, p.z, this.palette.core, 5,
-      { speed: 1.8, size: 0.09, life: 0.3, up: 0.3, gravity: 1.2 });
+    this.fx.burst(p.x, p.y, p.z, this.palette.core, 5, { speed: 1.8, size: 0.09, life: 0.3, up: 0.3, gravity: 1.2 });
   }
 
   _emitDash() {
     if (!this.fx) return;
     const p = this.root.position;
-    this.fx.burst(p.x, p.y + 0.8, p.z, this.palette.visor, 10,
-      { speed: 3.4, size: 0.13, life: 0.35, up: 0.2, gravity: 0.1 });
+    this.fx.burst(p.x, p.y + 0.8, p.z, this.palette.visor, 10, { speed: 3.4, size: 0.13, life: 0.35, up: 0.2, gravity: 0.1 });
   }
 
-  /** Kurzes Aufleuchten (Treffer). */
   flash() { this._visorPulse = 1.6; }
 
-  // -------------------------------------------------------------- Schatten
+  /** Sichtbarer Schlag: kurzer Ausfallschritt mit Faust nach vorne. */
+  punch() { this._punch = 1; }
+
   setShadows(enabled) {
     for (const m of this.parts) { m.castShadow = false; m.receiveShadow = false; }
     for (const m of this.shadowParts) m.castShadow = enabled;

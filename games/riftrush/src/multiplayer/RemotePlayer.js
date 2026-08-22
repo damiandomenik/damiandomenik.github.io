@@ -18,8 +18,10 @@ export class RemotePlayer {
     this.color = color || 0xffffff;
     this.scene = scene;
 
+    this.fx = fx;
     this.character = new PlayerCharacter({
       scene, fx, name: this.name, color: this.color, isLocal: false, nameplate: true,
+      build: C.CHARACTER_BUILD,
     });
 
     this.buffer = [];
@@ -123,6 +125,14 @@ export class RemotePlayer {
     // Verbindung verloren -> ausblenden
     const silence = performance.now() - this.lastPacket;
     this.character.setVisible(silence < 4000);
+  }
+
+  rebuildCharacter(build) {
+    this.character.dispose();
+    this.character = new PlayerCharacter({
+      scene: this.scene, fx: this.fx, name: this.name, color: this.color,
+      isLocal: false, nameplate: true, build,
+    });
   }
 
   flash() { this.character.flash(); }

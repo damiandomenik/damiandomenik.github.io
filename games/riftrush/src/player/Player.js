@@ -17,8 +17,9 @@ export class LocalPlayer {
     this.movement = new PlayerMovement(physics);
     this.state = PlayerMovement.createState();
 
+    this.fx = fx;
     this.character = new PlayerCharacter({
-      scene, fx, name, color, isLocal: true, nameplate: false,
+      scene, fx, name, color, isLocal: true, nameplate: false, build: C.CHARACTER_BUILD,
     });
 
     this.checkpoint = 0;
@@ -41,6 +42,18 @@ export class LocalPlayer {
 
   setColor(color) { this.color = color; this.character.setColor(color); }
   setName(name) { this.name = name; this.character.setName(name); }
+  punch() { this.character.punch(); }
+
+  /** Statur zur Laufzeit wechseln (RIFTRUSH.setBuild). */
+  rebuildCharacter(build) {
+    this.character.dispose();
+    this.character = new PlayerCharacter({
+      scene: this.scene, fx: this.fx, name: this.name, color: this.color,
+      isLocal: true, nameplate: false, build,
+    });
+    this.character.setShadows(C.SHADOWS);
+    this.syncCharacter(0);
+  }
 
   reset(spawn) {
     this.spawn = { ...spawn };

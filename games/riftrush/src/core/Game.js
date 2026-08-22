@@ -212,6 +212,10 @@ export class Game {
         this.hud.toast(`${entry?.name || 'Spieler'} im Ziel — ${formatTime(e.time)}`, 2000);
         break;
       }
+      case 'punch': {
+        this.remotePlayers.get(fromId)?.character.punch();
+        break;
+      }
       case 'cp': {
         const rp = this.remotePlayers.get(fromId);
         if (rp) rp.checkpoint = e.i;
@@ -396,6 +400,17 @@ export class Game {
     this.sun.position.set(p.x + 26, p.y + 44, p.z + 18);
     this.sun.target.position.set(p.x, p.y, p.z);
     this.sun.target.updateMatrixWorld();
+  }
+
+  /** Statur aller Figuren umschalten: 'runner' | 'agile' | 'heavy'. */
+  setBuild(name) {
+    C.CHARACTER_BUILD = name;
+    this.localPlayer.rebuildCharacter(name);
+    for (const rp of this.remotePlayers.values()) {
+      rp.rebuildCharacter(name);
+      rp.character.setShadows(C.SHADOWS);
+    }
+    this.hud.toast(`STATUR: ${name.toUpperCase()}`);
   }
 
   /** Schatten zur Laufzeit umschalten (Performance-Notausgang). */

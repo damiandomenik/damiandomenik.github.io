@@ -58,7 +58,7 @@ export class DungeonGenerator {
     for (const r of PLAYABLE_ROOMS) for (let i = 0; i < r.weight; i++) pool.push(r.id);
     const route = ['start'];
     let last = null;
-    const must = ['split_path', 'pvp_arena', 'vertical_shaft'];
+    const must = ['wall_gap', 'split_path', 'pvp_arena', 'vertical_shaft'];
     for (let i = 0; i < count; i++) {
       let id = null;
       // Pflicht-Rooms einstreuen, aber nie zweimal denselben Typ hintereinander
@@ -175,7 +175,20 @@ export class DungeonGenerator {
       if (!mat) continue;
       const bars = [];
       for (const b of list) {
-        if (b.h > 1.8 || b.w < 2.2 || b.d < 2.2) continue;   // nur Plattformen
+        if (kind === 'runwall') {
+          // Waagerechte Leuchtstreifen auf beiden Wandseiten: markieren
+          // unmissverständlich, wo Wallrun vorgesehen ist.
+          const alongZ = b.d > b.w;
+          for (const f of [-1, 1]) {
+            for (const rel of [0.34, 0.5, 0.66]) {
+              const y = b.y + b.h * rel;
+              if (alongZ) bars.push({ x: b.x + f * (b.w / 2 + 0.04), y, z: b.z, w: 0.07, d: b.d - 1.2, h: 0.13 });
+              else bars.push({ x: b.x, y, z: b.z + f * (b.d / 2 + 0.04), w: b.w - 1.2, d: 0.07, h: 0.13 });
+            }
+          }
+          continue;
+        }
+        if (b.h > 1.8 || b.w < 2.2 || b.d < 2.2) continue;   // sonst nur Plattformen
         const top = b.y + b.h;
         bars.push({ x: b.x, y: top, z: b.z - b.d / 2 + IN, w: b.w - IN * 2.4, d: WID });
         bars.push({ x: b.x, y: top, z: b.z + b.d / 2 - IN, w: b.w - IN * 2.4, d: WID });
@@ -190,8 +203,9 @@ export class DungeonGenerator {
       for (let i = 0; i < bars.length; i++) {
         const r = bars[i];
         const e = ((i * 0.6180339887) % 1) * 0.008;
-        _p.set(r.x, r.y - TH * 0.5 + e, r.z);   // Oberkante bündig mit der Plattform
-        _s.set(r.w, TH, r.d);
+        const th = r.h || TH;
+        _p.set(r.x, r.y - (r.h ? 0 : TH * 0.5) + e, r.z);   // Plattformkanten bündig
+        _s.set(r.w, th, r.d);
         _m.compose(_p, _q, _s);
         inst.setMatrixAt(i, _m);
       }
