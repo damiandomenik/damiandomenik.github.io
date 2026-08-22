@@ -22,6 +22,7 @@
   --snow:#BFE9FF;      /* Farbe von MERRY MOUNTAIN GP */
   --cyan:#37E0F5;      /* Farbe von RING OF NAGRAK */
   --zone:#7B5CFF;      /* Farbe von HOLDOUT */
+  --rumble:#F2B544;    /* Farbe von ARENA RUMBLE */
   --mint:#3FEFC0;
   --sign:"Bungee",Impact,sans-serif;
   --body:"Outfit","Helvetica Neue",sans-serif;
@@ -172,6 +173,27 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
 .lastman{animation:steady 4.6s ease-in-out infinite}
 @keyframes steady{0%,70%{opacity:1}80%{opacity:.45}90%,100%{opacity:1}}
 
+/* ARENA RUMBLE-Bildschirm */
+.shot{animation:volley 2.8s ease-in infinite}
+@keyframes volley{0%,22%{transform:translateX(0);opacity:0}
+  26%{opacity:1}52%{transform:translateX(30px);opacity:1}
+  56%,100%{transform:translateX(32px);opacity:0}}
+.spark{animation:impact 2.8s ease-in infinite}
+@keyframes impact{0%,52%{transform:scale(0);opacity:0}
+  58%{transform:scale(1.6);opacity:1}70%,100%{transform:scale(2.4);opacity:0}}
+.struck{animation:recoil 2.8s ease-in infinite}
+@keyframes recoil{0%,53%{transform:translateX(0)}
+  60%{transform:translateX(5px) rotate(7deg)}78%,100%{transform:translateX(0)}}
+.live{animation:blink 1.4s infinite}
+.cheer{animation:cheer 1.9s ease-in-out infinite}
+.cheer.b{animation-delay:.5s}
+.cheer.c{animation-delay:1.05s}
+@keyframes cheer{0%,100%{transform:translateY(0);opacity:.5}
+  50%{transform:translateY(-3px);opacity:1}}
+.flood{animation:flicker 5s ease-in-out infinite}
+.flood.b{animation-delay:-2.4s}
+@keyframes flicker{0%,100%{opacity:.13}50%{opacity:.22}}
+
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
@@ -183,7 +205,7 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
   <header class="marquee">
     <div class="bulbs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
     <h1>SPIELHALLE</h1>
-    <p class="sub">Sieben Automaten stehen bereit. Einwurf ist nicht nötig.</p>
+    <p class="sub">Acht Automaten stehen bereit. Einwurf ist nicht nötig.</p>
   </header>
 
   <main class="hall">
@@ -519,6 +541,107 @@ footer{text-align:center;margin-top:clamp(34px,6vw,56px);color:#7FA3B0;font-size
       <div class="play">SPIELEN <em>Raumcode</em></div>
     </a>
 
+    <!-- ARENA RUMBLE -->
+    <a class="cab" href="/games/arena-rumble/" style="--tint:var(--rumble)">
+      <div class="top"><b>ARENA RUMBLE</b><span>bis 8 Spieler</span></div>
+      <div class="screen">
+        <svg viewBox="0 0 200 150" aria-hidden="true">
+          <defs>
+            <radialGradient id="rumblesky" cx="50%" cy="30%" r="80%">
+              <stop offset="0" stop-color="#1B222E"/><stop offset="1" stop-color="#070A0F"/>
+            </radialGradient>
+            <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3A3F49"/><stop offset="1" stop-color="#23272F"/>
+            </linearGradient>
+            <clipPath id="scr8"><rect width="200" height="150"/></clipPath>
+          </defs>
+          <g clip-path="url(#scr8)">
+            <rect width="200" height="150" fill="url(#rumblesky)"/>
+
+            <!-- Flutlichtmasten -->
+            <g stroke="#2E3644" stroke-width="2.5">
+              <path d="M22 44v34M178 44v34"/>
+            </g>
+            <g fill="#FFF3D0">
+              <rect x="12" y="36" width="20" height="7" rx="2"/>
+              <rect x="168" y="36" width="20" height="7" rx="2"/>
+            </g>
+            <ellipse class="flood" cx="22" cy="52" rx="26" ry="16" fill="#FFE9A8" opacity=".16"/>
+            <ellipse class="flood b" cx="178" cy="52" rx="26" ry="16" fill="#FFE9A8" opacity=".16"/>
+
+            <!-- Tribünenränge, ringsum -->
+            <ellipse cx="100" cy="96" rx="94" ry="42" fill="#161B24" stroke="#0A0D12" stroke-width="2"/>
+            <ellipse cx="100" cy="96" rx="80" ry="35" fill="#1D2431"/>
+            <ellipse cx="100" cy="96" rx="66" ry="28" fill="#242C3B"/>
+
+            <!-- Publikum: Punktreihen auf den Rängen -->
+            <g fill="#4A5468">
+              <circle cx="34" cy="84" r="1.5"/><circle cx="46" cy="76" r="1.5"/>
+              <circle cx="60" cy="70" r="1.5"/><circle cx="76" cy="66" r="1.5"/>
+              <circle cx="100" cy="64" r="1.5"/><circle cx="124" cy="66" r="1.5"/>
+              <circle cx="140" cy="70" r="1.5"/><circle cx="154" cy="76" r="1.5"/>
+              <circle cx="166" cy="84" r="1.5"/>
+              <circle cx="28" cy="98" r="1.5"/><circle cx="172" cy="98" r="1.5"/>
+              <circle cx="40" cy="112" r="1.5"/><circle cx="160" cy="112" r="1.5"/>
+              <circle cx="66" cy="122" r="1.5"/><circle cx="134" cy="122" r="1.5"/>
+              <circle cx="100" cy="126" r="1.5"/>
+            </g>
+            <g fill="#FFB020" opacity=".85">
+              <circle class="cheer" cx="52" cy="88" r="1.7"/>
+              <circle class="cheer b" cx="88" cy="70" r="1.7"/>
+              <circle class="cheer c" cx="148" cy="90" r="1.7"/>
+              <circle class="cheer b" cx="118" cy="124" r="1.7"/>
+            </g>
+
+            <!-- Kampffläche -->
+            <ellipse cx="100" cy="96" rx="52" ry="21" fill="url(#sand)" stroke="#12161D" stroke-width="2"/>
+            <ellipse cx="100" cy="96" rx="52" ry="21" fill="none" stroke="#FFB020" stroke-width="1" opacity=".35"/>
+
+            <!-- Deckung auf der Fläche -->
+            <g fill="#2B323E" stroke="#12161D" stroke-width="1.2">
+              <rect x="72" y="92" width="11" height="9" rx="1"/>
+              <rect x="118" y="94" width="12" height="8" rx="1"/>
+              <rect x="96" y="104" width="9" height="7" rx="1"/>
+            </g>
+
+            <!-- Kämpfer links, feuert -->
+            <g>
+              <circle cx="70" cy="84" r="3.4" fill="#FFB020" stroke="#0A0D12" stroke-width="1.2"/>
+              <rect x="67.5" y="87" width="5" height="9" rx="2" fill="#FFB020" stroke="#0A0D12" stroke-width="1.2"/>
+              <rect x="72" y="89" width="7" height="2" fill="#2B323E"/>
+            </g>
+            <!-- Leuchtspur -->
+            <g class="shot">
+              <rect x="80" y="89" width="20" height="1.6" fill="#FFF3D0"/>
+              <rect x="80" y="88.6" width="12" height="2.4" fill="#FFB020" opacity=".55"/>
+            </g>
+            <!-- Kämpfer rechts, wird getroffen -->
+            <g class="struck">
+              <circle cx="130" cy="86" r="3.4" fill="#E5484D" stroke="#0A0D12" stroke-width="1.2"/>
+              <rect x="127.5" y="89" width="5" height="9" rx="2" fill="#E5484D" stroke="#0A0D12" stroke-width="1.2"/>
+            </g>
+            <circle class="spark" cx="127" cy="89" r="3" fill="#FFF3D0"/>
+
+            <!-- Anzeigetafel mit Serienstand -->
+            <g>
+              <rect x="70" y="14" width="60" height="20" rx="3" fill="#0C1016" stroke="#2E3644" stroke-width="1.5"/>
+              <rect x="70" y="14" width="60" height="3" fill="#FFB020" opacity=".8"/>
+              <text x="100" y="28" text-anchor="middle" font-family="Bungee,Impact,sans-serif"
+                    font-size="9" fill="#F6E7C8">1 – 0</text>
+            </g>
+            <!-- LIVE -->
+            <g>
+              <circle class="live" cx="140" cy="24" r="2.6" fill="#E5484D"/>
+              <text x="147" y="27" font-family="Outfit,sans-serif" font-size="6"
+                    letter-spacing="1.4" fill="#8FA0B4">LIVE</text>
+            </g>
+          </g>
+        </svg>
+        <div class="scanlines"></div><div class="glare"></div>
+      </div>
+      <div class="panel"><span class="stick"></span><span class="keys"><i></i><i></i></span></div>
+      <div class="play">SPIELEN <em>Raumcode</em></div>
+    </a>
 
     <!-- HOLDOUT -->
     <a class="cab" href="/games/holdout/" style="--tint:var(--zone)">
