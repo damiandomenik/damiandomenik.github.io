@@ -1,0 +1,15 @@
+{
+  "name": "riftrush",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Competitive Multiplayer Parkour Dungeon Racer (Three.js + WebRTC, statisch)",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "serve": "npx --yes serve ."
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0",
+    "ws": "^8.17.0"
+  },
+  "type": "module"
+}

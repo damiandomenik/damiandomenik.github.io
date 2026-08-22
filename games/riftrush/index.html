@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>RiftRush — Multiplayer Parkour Dungeon Racer</title>
+<link rel="stylesheet" href="./styles.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div class="brand">RIFT<span>RUSH</span></div>
+    <div id="hud-time">00:00.00</div>
+    <div id="hud-checkpoint">CHECKPOINT 0/0</div>
+  </div>
+
+  <div id="hud-board"></div>
+
+  <div id="hud-abilities">
+    <div class="ab" data-ab="dash"><span class="key">SHIFT</span><span class="lbl">DASH</span><div class="cd"></div></div>
+    <div class="ab" data-ab="punch"><span class="key">LMB</span><span class="lbl">PUNCH</span><div class="cd"></div></div>
+    <div class="ab" data-ab="jump"><span class="key">SPACE</span><span class="lbl">JUMP</span><div class="cd"></div></div>
+  </div>
+
+  <div id="hud-state"></div>
+  <div id="crosshair"></div>
+  <div id="hud-toast"></div>
+  <div id="hud-countdown" class="hidden"></div>
+  <div id="net-badge">P2P: <span id="net-peers">0</span></div>
+</div>
+
+<!-- ============ MENU / LOBBY ============ -->
+<div id="overlay">
+  <div id="screen-menu" class="screen">
+    <h1 class="logo">RIFT<span>RUSH</span></h1>
+    <p class="tagline">Competitive Multiplayer Parkour Dungeon Racer</p>
+
+    <div class="field">
+      <label>Spielername</label>
+      <input id="input-name" maxlength="14" placeholder="Runner" />
+    </div>
+
+    <div class="row">
+      <button id="btn-create" class="primary">Lobby erstellen</button>
+      <button id="btn-solo" class="ghost">Solo / Training</button>
+    </div>
+
+    <div class="field join">
+      <label>Room Code</label>
+      <div class="row">
+        <input id="input-code" maxlength="6" placeholder="ABC123" />
+        <button id="btn-join">Beitreten</button>
+      </div>
+    </div>
+
+    <details class="advanced">
+      <summary>Verbindungs-Einstellungen</summary>
+      <div class="field">
+        <label>Signaling Server (WebSocket URL)</label>
+        <input id="input-signal" placeholder="wss://dein-signaling-server.example" />
+        <small>Leer lassen &rarr; Manueller Modus (Offer/Answer per Copy&amp;Paste, ohne Server).</small>
+      </div>
+    </details>
+
+    <div class="hint">
+      <b>Steuerung</b> — WASD bewegen · SHIFT sprinten (Doppeltipp = Dash) · SPACE springen /
+      Doppelsprung / Walljump · STRG oder C ducken &amp; sliden · Maus umsehen · LMB Punch · R Respawn · ESC Menü
+    </div>
+  </div>
+
+  <div id="screen-lobby" class="screen hidden">
+    <h2>LOBBY</h2>
+    <div class="code-box">
+      ROOM CODE
+      <div id="lobby-code">------</div>
+      <button id="btn-copy-code" class="ghost small">Code kopieren</button>
+    </div>
+    <div id="lobby-transport" class="pill"></div>
+    <div id="lobby-players" class="players"></div>
+    <div class="row">
+      <button id="btn-ready" class="primary">Bereit</button>
+      <button id="btn-start" class="primary hidden">Match starten</button>
+      <button id="btn-leave" class="ghost">Verlassen</button>
+    </div>
+    <div id="manual-signal" class="hidden manual">
+      <p><b>Manueller Modus</b> — kein Signaling-Server konfiguriert.</p>
+      <label>1) Dein Code (an den anderen Spieler schicken)</label>
+      <textarea id="manual-out" readonly rows="4"></textarea>
+      <button id="btn-manual-copy" class="ghost small">Kopieren</button>
+      <label>2) Code des anderen Spielers einfügen</label>
+      <textarea id="manual-in" rows="4" placeholder="Hier einfügen..."></textarea>
+      <button id="btn-manual-apply" class="ghost small">Verbinden</button>
+    </div>
+  </div>
+
+  <div id="screen-results" class="screen hidden">
+    <h2>ERGEBNISSE</h2>
+    <div id="results-list" class="results"></div>
+    <div class="row">
+      <button id="btn-rematch" class="primary">Rematch</button>
+      <button id="btn-to-lobby" class="ghost">Zur Lobby</button>
+    </div>
+  </div>
+
+  <div id="screen-pause" class="screen hidden">
+    <h2>PAUSE</h2>
+    <div class="row">
+      <button id="btn-resume" class="primary">Weiter</button>
+      <button id="btn-quit" class="ghost">Match verlassen</button>
+    </div>
+  </div>
+</div>
+
+<div id="click-to-play" class="hidden">Klicken um zu spielen</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
