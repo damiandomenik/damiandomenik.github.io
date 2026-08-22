@@ -91,7 +91,10 @@ export class PlayerController {
 
     // Wallrun-Roll: lookAt() überschreibt die Rotation, daher eigener
     // gedämpfter Wert, der DANACH auf die lokale Z-Achse gelegt wird.
-    const roll = s.wallrunning ? -s.wallNormal.x * 0.13 - s.wallNormal.z * 0.04 : 0;
+    // Wandseite relativ zur Blickrichtung (1 = Wand rechts). Die Weltnormale
+    // wäre hier falsch: der Roll hinge sonst von der Himmelsrichtung ab.
+    const side = this.player.wallSide;
+    const roll = s.wallrunning ? -0.1 * side : 0;
     this.roll = damp(this.roll, roll, 8, dt);
     this.camera.rotation.z = this.roll;
 

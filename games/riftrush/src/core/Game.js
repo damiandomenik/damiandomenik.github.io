@@ -1,11 +1,13 @@
 import * as THREE from 'three';
-import { CONFIG as C, COLORS, PLAYER_COLORS } from './Config.js';
+import { CONFIG as C, COLORS } from './Config.js';
+import { playerColorForId, pickFreeColor } from '../player/PlayerColors.js';
 import { GameState, Phase } from './GameState.js';
 import { Input, isTyping } from './Input.js';
 import { PhysicsWorld } from './Physics.js';
 import { uid, randomRoomCode, formatTime } from './Utils.js';
 import { DungeonGenerator } from '../dungeon/DungeonGenerator.js';
 import { LocalPlayer } from '../player/Player.js';
+import { CharacterFx } from '../player/CharacterFx.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { AbilityManager } from '../gameplay/AbilityManager.js';
 import { MatchManager } from '../gameplay/MatchManager.js';
@@ -20,7 +22,7 @@ export class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.selfId = uid();
-    this.color = PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)];
+    this.color = playerColorForId(this.selfId);
 
     // ---------- Renderer / Scene ----------
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -30,13 +32,31 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(COLORS.fog, 0.012);
-    this.camera = new THREE.PerspectiveCamera(C.CAM_FOV, innerWidth / innerHeight, 0.1, 500);
+    this.camera = new THREE.PerspectiveCamera(C.CAM_FOV, innerWidth / innerHeight, 0.3, 400);
+    // 'YXZ' ist Pflicht: nur in dieser Reihenfolge ist rotation.z ein echter Roll
+    // um die Blickachse. Mit der Standardordnung 'XYZ' zerstört das Setzen von
+    // rotation.z die von lookAt() berechnete Ausrichtung -> Kamera überschlägt sich.
+    this.camera.rotation.order = 'YXZ';
 
-    const amb = new THREE.AmbientLight(0x5c7ba8, 0.75);
-    const dir = new THREE.DirectionalLight(0xbcd4ff, 1.05);
+    const amb = new THREE.AmbientLight(0x5c7ba8, 0.68);
+    const dir = new THREE.DirectionalLight(0xbcd4ff, 1.15);
     dir.position.set(30, 60, 20);
     const hemi = new THREE.HemisphereLight(0x6f7bff, 0x0a0e18, 0.5);
-    this.scene.add(amb, dir, hemi);
+    this.scene.add(amb, dir, hemi, dir.target);
+    this.sun = dir;
+
+    // Weiche Schatten: die Shadow-Kamera folgt dem Spieler, damit eine kleine
+    // Map über den ganzen (sehr langen) Dungeon reicht.
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.enabled = C.SHADOWS;
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(1024, 1024);
+    const sc = dir.shadow.camera;
+    sc.left = -24; sc.right = 24; sc.top = 24; sc.bottom = -24;
+    sc.near = 1; sc.far = 170;
+    sc.updateProjectionMatrix();
+    dir.shadow.bias = -0.0004;
+    dir.shadow.normalBias = 0.06;
 
     // ---------- Systeme ----------
     this.physics = new PhysicsWorld();
@@ -48,9 +68,11 @@ export class Game {
     this.network = new NetworkManager();
     this.remotePlayers = new Map();
 
+    this.fx = new CharacterFx(this.scene, 320);
     this.localPlayer = new LocalPlayer(this.scene, this.physics, {
       id: this.selfId, name: 'Runner', color: this.color,
-    });
+    }, this.fx);
+    this.localPlayer.character.setShadows(C.SHADOWS);
     this.controller = new PlayerController(this.localPlayer, this.camera, this.input, this.physics);
     this.abilities = new AbilityManager(this);
 
@@ -142,11 +164,13 @@ export class Game {
     const n = this.network;
     n.onPlayerJoin = (id, profile) => {
       let rp = this.remotePlayers.get(id);
+      const color = this._uniqueColor(id, profile.color);
       if (!rp) {
-        rp = new RemotePlayer(this.scene, { id, name: profile.name, color: profile.color });
+        rp = new RemotePlayer(this.scene, { id, name: profile.name, color }, this.fx);
+        rp.character.setShadows(C.SHADOWS);
         this.remotePlayers.set(id, rp);
-      } else rp.setProfile(profile);
-      this.race.add({ id, name: profile.name || 'Runner', color: profile.color || 0x888888 });
+      } else rp.setProfile({ name: profile.name, color });
+      this.race.add({ id, name: profile.name || 'Runner', color });
       this._refreshLobby();
     };
     n.onPlayerLeave = (id) => {
@@ -252,7 +276,7 @@ export class Game {
   }
 
   async _connect({ name, url, code, isHost }) {
-    this.localPlayer.name = name;
+    this.localPlayer.setName(name);
     this.state.solo = false;
     try {
       await this.network.connect({
@@ -280,7 +304,7 @@ export class Game {
   }
 
   startSolo(name) {
-    this.localPlayer.name = name;
+    this.localPlayer.setName(name);
     this.state.solo = true;
     this.network.selfId = this.selfId;
     this.network.isHost = true;
@@ -338,7 +362,7 @@ export class Game {
         this.dungeon.update(dt, st.matchTime, this.localPlayer.state.pos);
 
         const cmd = this.controller.buildCommand(frozen);
-        this.localPlayer.update(dt, cmd, this.dungeon, st.running);
+        this.localPlayer.update(dt, cmd, this.dungeon, st.running, this.camera);
 
         if (st.running && this.input.punchPressed && this.input.locked) {
           const ab = this.abilities.get('punch');
@@ -346,10 +370,14 @@ export class Game {
         }
         this.abilities.update(dt);
         for (const rp of this.remotePlayers.values()) {
-          rp.update(dt);
+          rp.update(dt, this.camera);
           this.race.updateRemote(rp);
         }
+        this.fx.update(dt);
+        this._followSun();
         this.controller.updateCamera(dt);
+        // Kamera an einer Wand ganz nah dran -> sonst steckt sie im eigenen Kopf
+        if (this.controller.camDist < 2.0) this.localPlayer.character.setVisible(false);
 
         if (!st.solo) this.network.tickState(dt, this.localPlayer.netState());
         this.race.updateLocal(this.localPlayer, st.elapsedMs);
@@ -360,6 +388,31 @@ export class Game {
 
     this.input.endFrame();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Schatten-Kamera dem Spieler nachführen. */
+  _followSun() {
+    const p = this.localPlayer.state.pos;
+    this.sun.position.set(p.x + 26, p.y + 44, p.z + 18);
+    this.sun.target.position.set(p.x, p.y, p.z);
+    this.sun.target.updateMatrixWorld();
+  }
+
+  /** Schatten zur Laufzeit umschalten (Performance-Notausgang). */
+  setShadows(on) {
+    C.SHADOWS = !!on;
+    this.renderer.shadowMap.enabled = C.SHADOWS;
+    this.localPlayer.character.setShadows(C.SHADOWS);
+    for (const rp of this.remotePlayers.values()) rp.character.setShadows(C.SHADOWS);
+    this.dungeon.setShadows(C.SHADOWS);
+    this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  }
+
+  /** Verhindert, dass zwei Spieler lokal dieselbe Farbe tragen. */
+  _uniqueColor(id, preferred) {
+    const used = [this.color];
+    for (const [pid, rp] of this.remotePlayers) if (pid !== id) used.push(rp.color);
+    return pickFreeColor(used, preferred);
   }
 
   _updateHud() {

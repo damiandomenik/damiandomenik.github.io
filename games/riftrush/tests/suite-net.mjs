@@ -1,6 +1,10 @@
 // DOM-Stubs für Nameplate-Canvas
-globalThis.document = { createElement: () => ({ width:0, height:0,
-  getContext: () => ({ fillRect(){}, fillText(){}, roundRect(){}, fill(){}, font:'', textAlign:'', textBaseline:'', fillStyle:'' }) }) };
+const ctx2d = () => ({
+  fillRect(){}, clearRect(){}, fillText(){}, roundRect(){}, fill(){}, beginPath(){},
+  moveTo(){}, lineTo(){}, closePath(){}, drawImage(){},
+  font:'', textAlign:'', textBaseline:'', fillStyle:'',
+});
+globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: ctx2d }) };
 let T = 1000;
 globalThis.performance = { now: () => T };
 

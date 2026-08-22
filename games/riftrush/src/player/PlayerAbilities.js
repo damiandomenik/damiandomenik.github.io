@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { CONFIG as C } from '../core/Config.js';
 
 /**
@@ -26,29 +25,9 @@ export class Ability {
   }
 }
 
-/** Kurzlebiger Punch-Effekt (Ring). */
-function spawnPunchFx(scene, x, y, z, color) {
-  const geo = new THREE.SphereGeometry(0.55, 10, 8);
-  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, wireframe: true });
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set(x, y, z);
-  scene.add(m);
-  let life = 0.28;
-  return {
-    update(dt) {
-      life -= dt;
-      m.scale.multiplyScalar(1 + dt * 9);
-      mat.opacity = Math.max(0, life / 0.28) * 0.8;
-      if (life <= 0) { scene.remove(m); geo.dispose(); mat.dispose(); return false; }
-      return true;
-    },
-  };
-}
-
 export class AbilityManager {
   constructor(game) {
     this.game = game;
-    this.fx = [];
     this.abilities = new Map();
 
     this.register(new Ability({
@@ -63,9 +42,6 @@ export class AbilityManager {
 
   update(dt) {
     for (const ab of this.abilities.values()) ab.tick(dt);
-    for (let i = this.fx.length - 1; i >= 0; i--) {
-      if (!this.fx[i].update(dt)) this.fx.splice(i, 1);
-    }
   }
 
   /** Nahkampfangriff: trifft Remote-Spieler im Kegel vor dem Spieler. */
@@ -74,8 +50,9 @@ export class AbilityManager {
     const p = game.localPlayer;
     const s = p.state;
     const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
-    const ox = s.pos.x + fx * 0.6, oy = s.pos.y + s.height * 0.6, oz = s.pos.z + fz * 0.6;
-    this.fx.push(spawnPunchFx(game.scene, ox, oy, oz, p.color));
+    const ox = s.pos.x + fx * 0.9, oy = s.pos.y + s.height * 0.62, oz = s.pos.z + fz * 0.9;
+    game.fx.burst(ox, oy, oz, p.character.palette.visor, 10,
+      { speed: 3.0, size: 0.13, life: 0.3, up: 0.35, gravity: 0.4 });
 
     let hits = 0;
     for (const rp of game.remotePlayers.values()) {

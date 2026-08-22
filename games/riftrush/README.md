@@ -112,6 +112,9 @@ Abgedeckt:
 * **Struktur** (30 Seeds): jeder Room hat Boden am Eingang, keine versiegelten Ausgänge,
   Checkpoint-Reihenfolge, genau ein Finish-Trigger, kein Room-Typ doppelt hintereinander,
   Abstieg pro Room bleibt über der Kill-Plane
+* **Checkpoint-Sicherheit**: 12 s Weltsimulation pro Seed — kein Hazard (auch kein
+  bewegter) darf je einen Respawn-Punkt berühren, sonst entsteht eine Todesschleife
+* **Z-Fighting**: keine überlappenden Boxen mit exakt gleicher Oberkante
 * **Movement**: Slide-Boost & -Ende, Double Jump, Wallrun-Start, Walljump-Impuls,
   Dash-Cooldown, keine NaN
 * **Determinismus**: gleicher Seed erzeugt exakt dieselbe Geometrie
@@ -122,6 +125,10 @@ Abgedeckt:
   Snapshot-Tickrate, gerichtete Treffer-Events, Full Mesh mit 3 Peers, Broadcast,
   sauberes Leave (genau ein Event), Verhalten bei Paketverlust, Reconnect sowie der
   komplette manuelle Copy-&-Paste-Modus
+* **Spielerfigur**: Aufbau und Teilezahl, Proportionen gegen die Hitbox, Animation über
+  alle zehn Bewegungszustände (keine NaN, Gliedmaßen bewegen sich wirklich), Farbsystem,
+  Partikel-Pool inkl. Überlauf und Aufräumen, Namensschild-Skalierung
+* **Kamera**: kein Roll/Überschlag bei beliebigen Yaw-/Pitch-Kombinationen
 * **End-to-End** (jsdom): Menü → Solo-Lobby → Countdown → Bewegung → Pause/Resume →
   Ziel → Ergebnisse → Rematch → Verlassen, inklusive Speicherprüfung bei
   mehrfacher Dungeon-Generierung
@@ -161,7 +168,10 @@ src/
     Utils.js           Seeded RNG, Zeitformat, Lerp/Damp
 
   player/
-    Player.js          LocalPlayer + Avatar (Capsule, Nameplate, State-Posing)
+    Player.js          LocalPlayer: Movement, Race-Fortschritt, Interaktionen
+    PlayerCharacter.js Spielerfigur (Low-Poly-Sci-Fi, prozedurale Animation)
+    PlayerColors.js    Farbpalette + Ableitung von Anzug/Visor/Kern
+    CharacterFx.js     gemeinsames Partikelsystem (Dash, Funken, Landung)
     PlayerMovement.js  komplettes Parkour-Movement (Sprint/Slide/Wallrun/Dash …)
     PlayerController.js Third-Person-Kamera (Collision, dynamisches FOV) + Command
     PlayerAbilities.js modulares Ability-System (Punch; erweiterbar)
@@ -204,11 +214,39 @@ src/
   einzusetzen, ohne Gameplay-Code anzufassen.
 * Voller Mesh bis 8 Spieler.
 
+### Spielerfigur
+
+`PlayerCharacter` ist rein visuell und kennt weder Netzwerk noch Physik — sie bekommt
+nur einen Bewegungszustand und interpretiert ihn selbst:
+
+```js
+character.updateAnimation(dt, {
+  movementState: 'wallrun',   // idle|run|sprint|crouch|slide|jump|fall|wallrun|dash
+  speed, isGrounded, isWallRunning, isDashing, wallSide, velocityY,
+}, camera);
+```
+
+Aufbau aus ~31 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
+für den segmentierten Bodenring), ca. 1.570 Dreiecke, Körperhöhe 1,79 m — passend zur
+Hitbox. Animation ist komplett prozedural: Laufzyklus für Arme, Beine und Torso,
+Vorlage beim Sprint, Körperneigung zur Wand beim Wallrun, gestreckte Pose beim Dash,
+Atmen im Idle. Effekte (Dash-Trail, Wallrun-Funken, Lande- und Sprungstaub, Punch)
+laufen über ein einziges InstancedMesh für alle Spieler.
+
+Remote-Spieler nutzen exakt dasselbe Modell — nur Farbe und Name unterscheiden sich,
+damit im Rennen sofort lesbar ist, was die anderen gerade tun. Farbdopplungen werden
+lokal aufgelöst (`pickFreeColor`).
+
 ### Performance
 
 * Statische Level-Geometrie als **InstancedMesh pro Material** → wenige Draw Calls.
 * Kollision über **AABB + Spatial Hash**, keine Physik-Engine.
 * Keine Objekt-Erzeugung im Frame-Loop (wiederverwendete Scratch-Arrays/Vektoren).
+* Geometrien und dunkle Materialien werden von allen Figuren geteilt; pro Spieler
+  entstehen nur vier eigene Materialien (Anzug, Visor, Kern, Ring).
+* Partikel: ein einziger InstancedMesh-Pool (320 Stück) für sämtliche Effekte.
+* Schatten: eine 1024er Shadow-Map, deren Kamera dem Spieler folgt. Abschaltbar über
+  `RIFT_CONFIG.SHADOWS = false` bzw. `RIFTRUSH.setShadows(false)` in der Konsole.
 * Ziel: 60 FPS auf normalen Desktops.
 
 ---
@@ -250,6 +288,7 @@ Bewusste Design-Entscheidungen (keine Bugs):
 
 Nächste Schritte:
 * Ghost des besten Runs (lokal via `localStorage`)
+* Gesichter/Details der Figur über eigene BufferGeometry statt Primitiven
 * Shockwave- und Trap-Ability (Registry steht bereits)
 * Autoritativer Server statt Host-Autorität
 * Sound, Partikel, weitere Room-Module

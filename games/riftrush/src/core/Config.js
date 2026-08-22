@@ -63,7 +63,7 @@ export const CONFIG = {
   RESPAWN_TIME: 0.7,
 
   // ---------- Kamera ----------
-  CAM_DISTANCE: 6.2,
+  CAM_DISTANCE: 5.4,       // näher dran: die Figur soll lesbar animiert sein
   CAM_HEIGHT: 1.55,
   CAM_LERP: 14,
   CAM_MIN_DISTANCE: 1.1,
@@ -91,6 +91,7 @@ export const CONFIG = {
   // sonst sind die Lichter faktisch unsichtbar.
   LIGHT_POWER: 25,
   MAX_POINT_LIGHTS: 10,
+  SHADOWS: true,           // weiche Schatten (RIFT_CONFIG.SHADOWS + game.setShadows())
 
   // ---------- Debug ----------
   DEBUG: false,
@@ -111,9 +112,7 @@ export const COLORS = {
   safe: 0x4cc9f0,
 };
 
-export const PLAYER_COLORS = [
-  0x38f2c8, 0xff4d6d, 0x6f7bff, 0xffd166,
-  0x4cc9f0, 0xb388ff, 0x7ee787, 0xff9f1c,
-];
+// Spielerfarben liegen in player/PlayerColors.js (PLAYER_PALETTE) —
+// dort auch die Ableitung von Anzug-, Visor- und Kernfarbe.
 
 if (typeof window !== 'undefined') window.RIFT_CONFIG = CONFIG;

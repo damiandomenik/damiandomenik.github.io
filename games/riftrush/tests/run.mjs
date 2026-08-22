@@ -18,7 +18,12 @@ fs.writeFileSync(path.join(tdir, 'package.json'),
 fs.writeFileSync(path.join(tdir, 'index.js'), `export * from './real.js';
 // WebGL steht in Node nicht zur Verfügung -> Renderer-Stub für die Tests
 export class WebGLRenderer {
-  constructor(o = {}) { this.domElement = o.canvas || {}; this._loop = null; this.renders = 0; }
+  constructor(o = {}) {
+    this.domElement = o.canvas || {};
+    this._loop = null; this.renders = 0;
+    this.shadowMap = { enabled: false, type: 0 };
+    this.outputColorSpace = 'srgb';
+  }
   setPixelRatio() {} setSize() {} setClearColor() {} dispose() {}
   setAnimationLoop(fn) { this._loop = fn; }
   render() { this.renders++; }
@@ -28,6 +33,9 @@ export class WebGLRenderer {
 let total = 0;
 console.log('\n########## WELT & MOVEMENT ##########');
 total += (await import('./suite-world.mjs')).default;
+console.log('\n########## SPIELERFIGUR & EFFEKTE ##########');
+total += (await import('./suite-character.mjs')).default;
+
 console.log('\n########## NETZWERK & RACE ##########');
 total += (await import('./suite-net.mjs')).default;
 

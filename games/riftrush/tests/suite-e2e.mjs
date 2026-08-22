@@ -11,6 +11,7 @@ const { window } = dom;
 // --- Browser-Stubs, die jsdom nicht mitbringt ---
 window.HTMLCanvasElement.prototype.getContext = function () {
   return { fillRect(){}, fillText(){}, roundRect(){}, fill(){}, clearRect(){}, drawImage(){},
+           beginPath(){}, moveTo(){}, lineTo(){}, closePath(){},
            font:'', textAlign:'', textBaseline:'', fillStyle:'', measureText:()=>({width:10}) };
 };
 window.HTMLCanvasElement.prototype.requestPointerLock = function(){ 
@@ -86,6 +87,21 @@ ok(game.localPlayer.state.pos.y > -50, 'Spieler durch den Boden gefallen');
 ok(document.getElementById('hud-time').textContent !== '00:00.00', 'Timer läuft nicht');
 ok(document.getElementById('hud-board').textContent.includes('Damian'), 'Leaderboard leer');
 ok(game.localPlayer.checkpoint >= 0, 'Checkpoint-Tracking kaputt');
+
+console.log('=== 4b. Kamera überschlägt sich nicht bei Yaw + Pitch ===');
+{
+  let maxRoll = 0;
+  for (const [yaw, pitch] of [[0,0],[1.2,0.8],[-2.4,-0.9],[3.9,1.0],[-5.5,0.6],[7.2,-1.1]]) {
+    game.controller.yaw = yaw; game.controller.pitch = pitch;
+    step(4);
+    // Rechts-Vektor der Kamera darf keine Y-Komponente haben -> kein Roll
+    const e = game.camera.matrixWorld.elements;
+    maxRoll = Math.max(maxRoll, Math.abs(e[1]));
+  }
+  ok(maxRoll < 0.02, `Kamera rollt/überschlägt sich (max ${maxRoll.toFixed(3)} statt ~0)`);
+  ok(game.camera.rotation.order === 'YXZ', 'Kamera nutzt nicht die Euler-Ordnung YXZ');
+  game.controller.yaw = 0; game.controller.pitch = -0.12; step(4);
+}
 
 console.log('=== 5. Pause / Resume ===');
 window.dispatchEvent(new window.KeyboardEvent('keydown', { code: 'Escape' }));

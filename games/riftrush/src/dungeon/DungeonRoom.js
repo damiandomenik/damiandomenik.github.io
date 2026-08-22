@@ -113,24 +113,37 @@ export class RoomContext {
     return { pad, trg };
   }
 
-  /** Verfolgende Gefahrenwand (lokal, startet wenn der Spieler den Room betritt). */
-  chaseWall(zStart, width, height, speed, zEnd) {
+  /**
+   * Verfolgende Gefahrenwand.
+   * Wichtig: sie parkt HINTER dem Eingang (zStart > 0) und ist inaktiv, bis der
+   * Spieler tief genug im Room ist. Stünde sie auf Höhe des Checkpoints, würde
+   * der Respawn direkt wieder in die Wand setzen — eine Endlos-Todesschleife.
+   */
+  chaseWall(zStart, width, height, speed, zEnd, triggerZ = -12) {
     const col = new Collider(this.origin.x, this.origin.y - 6, this.origin.z + zStart, width, height, 3, 'hazard');
     col.dynamic = true;
+    col.active = false;
     this.dungeon.physics.add(col);
     const originZ = this.origin.z;
     const obj = {
       collider: col, kind: 'hazard', w: width, h: height, d: 3, mesh: null,
       started: false, z: zStart,
       base: { x: this.origin.x, y: this.origin.y - 6, z: originZ + zStart },
-      reset() { obj.started = false; obj.z = zStart; col.moveTo(obj.base.x, obj.base.y, originZ + zStart); },
+      reset() {
+        obj.started = false;
+        obj.z = zStart;
+        col.active = false;
+        col.moveTo(obj.base.x, obj.base.y, originZ + zStart);
+      },
       update(t, dt, player) {
         if (!obj.started) {
-          if (player && player.z < originZ + zStart - 2 && player.z > originZ + zEnd) obj.started = true;
-          else return;
+          if (player && player.z < originZ + triggerZ && player.z > originZ + zEnd) {
+            obj.started = true;
+            col.active = true;
+          } else return;
         }
         obj.z -= speed * dt;
-        if (obj.z < zEnd) obj.reset();
+        if (obj.z < zEnd) { obj.reset(); return; }
         col.moveTo(obj.base.x, obj.base.y, originZ + obj.z);
       },
     };

@@ -244,7 +244,7 @@ export const ROOMS = [
         if (rng.chance(0.5)) c.box(x, 0, z, 2.6, 1.6, 1.2, 'accent');
         else c.hazard(x, 0.05, z, 3.0, 1.0, 1.2);
       }
-      c.chaseWall(-4, 22, 16, 12.5, -70);
+      c.chaseWall(6, 22, 16, 12.5, -70, -12);   // parkt hinter dem Eingang, startet ab z -12
       c.light(0, 6, -20, 0xff4d6d, 1.8, 30);
       exitPad(c, 0, -72);
     },

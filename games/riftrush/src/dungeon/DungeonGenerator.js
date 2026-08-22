@@ -4,7 +4,7 @@ import { CONFIG } from '../core/Config.js';
 import { ROOM_BY_ID, PLAYABLE_ROOMS } from './RoomRegistry.js';
 import { RoomContext, DungeonRoom } from './DungeonRoom.js';
 import { Checkpoint } from './Checkpoint.js';
-import { UNIT_BOX, createMaterials, createDynamicMesh, syncDynamicMesh } from './Hazards.js';
+import { UNIT_BOX, createMaterials, createRimMaterials, createDynamicMesh, syncDynamicMesh } from './Hazards.js';
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -20,6 +20,7 @@ export class DungeonGenerator {
     this.scene = scene;
     this.physics = physics;
     this.materials = createMaterials();
+    this.rimMaterials = createRimMaterials();
     this.group = new THREE.Group();
     this.scene.add(this.group);
     this._reset();
@@ -37,7 +38,7 @@ export class DungeonGenerator {
   }
 
   dispose() {
-    const shared = new Set(Object.values(this.materials));
+    const shared = new Set([...Object.values(this.materials), ...Object.values(this.rimMaterials)]);
     while (this.group.children.length) {
       const c = this.group.children.pop();
       if (c.geometry && c.geometry !== UNIT_BOX) c.geometry.dispose();
@@ -118,24 +119,36 @@ export class DungeonGenerator {
       if (!byKind.has(b.kind)) byKind.set(b.kind, []);
       byKind.get(b.kind).push(b);
     }
+    let gi = 0;   // fortlaufend über ALLE Kinds, sonst bekämen Boxen gleichen
+                  // Index in verschiedenen Materialgruppen denselben Versatz
     for (const [kind, list] of byKind) {
       const mat = this.materials[kind] || this.materials.solid;
       const inst = new THREE.InstancedMesh(UNIT_BOX, mat, list.length);
       inst.frustumCulled = false;
       for (let i = 0; i < list.length; i++) {
         const b = list[i];
-        _p.set(b.x, b.y + b.h / 2, b.z);
-        _s.set(b.w, b.h, b.d);
+        // Räume überlappen sich an den Nahtstellen bewusst (durchgehender Boden).
+        // Exakt koplanare Flächen flimmern aber (Z-Fighting), daher bekommt jede
+        // Box einen deterministischen Mikro-Versatz von wenigen Millimetern.
+        // Rein visuell — die Physik arbeitet weiter mit den exakten Werten.
+        const e = ((gi++ * 0.6180339887) % 1) * 0.012 + 0.001;
+        _p.set(b.x, b.y + (b.h - e) / 2, b.z);
+        _s.set(b.w - e * 0.3, b.h - e, b.d - e * 0.3);
         _m.compose(_p, _q, _s);
         inst.setMatrixAt(i, _m);
       }
       inst.instanceMatrix.needsUpdate = true;
+      inst.receiveShadow = CONFIG.SHADOWS;
       this.group.add(inst);
     }
+
+    // Kantenleuchten auf begehbaren Plattformen (rein visuell, keine Collider)
+    this._buildRims(byKind);
 
     // Dynamische Objekte
     for (const obj of this.dynamics) {
       obj.mesh = createDynamicMesh(obj, this.materials);
+      obj.mesh.receiveShadow = CONFIG.SHADOWS && obj.kind !== 'hazard';
       this.group.add(obj.mesh);
       syncDynamicMesh(obj);
     }
@@ -147,6 +160,50 @@ export class DungeonGenerator {
       pl.position.set(l.x, l.y, l.z);
       this.group.add(pl);
     }
+  }
+
+  /**
+   * Legt auf jede begehbare Plattform vier dünne Leuchtkanten.
+   * Das gibt dem Dungeon die gleiche "Panel + Emissive"-Sprache wie den
+   * Figuren, ohne zusätzliche Draw Calls (ein InstancedMesh je Farbe).
+   */
+  _buildRims(byKind) {
+    const IN = 0.22, TH = 0.075, WID = 0.14;
+    const groups = new Map();
+    for (const [kind, list] of byKind) {
+      const mat = this.rimMaterials[kind];
+      if (!mat) continue;
+      const bars = [];
+      for (const b of list) {
+        if (b.h > 1.8 || b.w < 2.2 || b.d < 2.2) continue;   // nur Plattformen
+        const top = b.y + b.h;
+        bars.push({ x: b.x, y: top, z: b.z - b.d / 2 + IN, w: b.w - IN * 2.4, d: WID });
+        bars.push({ x: b.x, y: top, z: b.z + b.d / 2 - IN, w: b.w - IN * 2.4, d: WID });
+        bars.push({ x: b.x - b.w / 2 + IN, y: top, z: b.z, w: WID, d: b.d - IN * 2.4 });
+        bars.push({ x: b.x + b.w / 2 - IN, y: top, z: b.z, w: WID, d: b.d - IN * 2.4 });
+      }
+      if (bars.length) groups.set(kind, bars);
+    }
+    for (const [kind, bars] of groups) {
+      const inst = new THREE.InstancedMesh(UNIT_BOX, this.rimMaterials[kind], bars.length);
+      inst.frustumCulled = false;
+      for (let i = 0; i < bars.length; i++) {
+        const r = bars[i];
+        const e = ((i * 0.6180339887) % 1) * 0.008;
+        _p.set(r.x, r.y - TH * 0.5 + e, r.z);   // Oberkante bündig mit der Plattform
+        _s.set(r.w, TH, r.d);
+        _m.compose(_p, _q, _s);
+        inst.setMatrixAt(i, _m);
+      }
+      inst.instanceMatrix.needsUpdate = true;
+      this.group.add(inst);
+    }
+  }
+
+  setShadows(on) {
+    this.group.traverse((o) => {
+      if (o.isInstancedMesh || o.isMesh) o.receiveShadow = on && !o.material?.transparent;
+    });
   }
 
   openDoor(id) {
@@ -162,6 +219,11 @@ export class DungeonGenerator {
   }
 
   update(dt, time, localPos) {
+    // Gefahren pulsieren gemeinsam — ein Material, kein Zusatzaufwand
+    this.materials.hazard.emissiveIntensity = 0.62 + Math.sin(time * 4.5) * 0.22;
+    this.materials.switch.emissiveIntensity = 0.5 + Math.sin(time * 2.0) * 0.18;
+    this.materials.goal.emissiveIntensity = 0.42 + Math.sin(time * 1.6) * 0.14;
+
     for (let i = 0; i < this.dynamics.length; i++) {
       const obj = this.dynamics[i];
       obj.update(time, dt, localPos);

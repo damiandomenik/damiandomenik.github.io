@@ -44,6 +44,76 @@ for (let s = 0; s < 30; s++) {
 }
 console.log(fails === 0 ? '  alle Struktur-Checks bestanden' : `  ${fails} Fehler`);
 
+console.log('=== 1b. Checkpoints sind nicht tödlich (inkl. bewegter Hazards) ===');
+{
+  const b1b = fails;
+  for (let s = 0; s < 20; s++) {
+    const seed = (s * 104729 + 7) >>> 0;
+    dg.generate(seed, 9);
+    // Welt über 12 s simulieren: erfasst bewegte Hazards, Blinker und die Chase-Wall
+    for (let t = 0; t <= 12; t += 0.1) {
+      dg.update(0.1, t, { x: 0, y: 0, z: -1e6 });   // "Spieler" weit vorne
+      for (const cp of dg.checkpoints) {
+        const p = cp.position;
+        const box = { minX: p.x - 0.4, maxX: p.x + 0.4, minY: p.y, maxY: p.y + 1.8, minZ: p.z - 0.4, maxZ: p.z + 0.4 };
+        for (const c of [...physics.statics, ...physics.dynamics]) {
+          if (c.kind !== 'hazard' || c.active === false) continue;
+          if (c.maxX > box.minX && c.minX < box.maxX && c.maxY > box.minY &&
+              c.minY < box.maxY && c.maxZ > box.minZ && c.minZ < box.maxZ) {
+            ok(false, `seed ${seed}: Hazard auf Checkpoint ${cp.index} (${dg.rooms[cp.index]?.def.id}) bei t=${t.toFixed(1)}s — Respawn-Todesschleife`);
+            t = 999; break;
+          }
+        }
+        if (t > 900) break;
+      }
+    }
+  }
+  console.log(fails === b1b ? '  alle Checkpoints sicher' : `  ${fails - b1b} Fehler`);
+}
+
+console.log('=== 1c. Kein Z-Fighting: überlappende Boxen sind nicht koplanar ===');
+{
+  const b1c = fails;
+  dg.generate(31337, 9);
+  const inst = dg.group.children.filter((c) => c.isInstancedMesh);
+  const boxes = [];
+  const m = new THREE.Matrix4(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), q = new THREE.Quaternion();
+  for (const im of inst) {
+    for (let i = 0; i < im.count; i++) {
+      im.getMatrixAt(i, m); m.decompose(pos, q, sc);
+      boxes.push({ x: pos.x, z: pos.z, w: sc.x, d: sc.z, top: pos.y + sc.y / 2 });
+    }
+  }
+  let coplanar = 0;
+  for (let i = 0; i < boxes.length; i++) {
+    for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      const overlap = Math.abs(a.x - b.x) < (a.w + b.w) / 2 - 0.05 &&
+                      Math.abs(a.z - b.z) < (a.d + b.d) / 2 - 0.05;
+      if (overlap && Math.abs(a.top - b.top) < 1e-5) coplanar++;
+    }
+  }
+  ok(coplanar === 0, `${coplanar} überlappende Boxenpaare mit identischer Oberkante (flimmern)`);
+  console.log(fails === b1c ? `  ${boxes.length} Boxen geprüft, keine koplanaren Überlappungen` : '  FEHLER');
+}
+
+console.log('=== 1d. Materialien überleben mehrfaches Neubauen ===');
+{
+  const b1d = fails;
+  dg.generate(11, 9);
+  const watched = [...Object.values(dg.materials), ...Object.values(dg.rimMaterials)];
+  let disposed = 0;
+  const names = [];
+  watched.forEach((m, i) => m.addEventListener('dispose', () => { disposed++; names.push(i); }));
+  for (let i = 0; i < 4; i++) dg.generate(500 + i, 9);
+  ok(disposed === 0, `${disposed} gemeinsame Materialien wurden beim Neuaufbau weggeworfen`);
+  // Geteilte Geometrie darf ebenfalls nicht sterben
+  let geoGone = 0;
+  dg.group.traverse((o) => { if (o.isMesh && !o.geometry.attributes.position) geoGone++; });
+  ok(geoGone === 0, 'Geometrie wurde freigegeben, obwohl sie noch benutzt wird');
+  console.log(fails === b1d ? '  keine Material-Verluste' : '  FEHLER');
+}
+
 console.log('=== 2. Movement-Features ===');
 const before = fails;
 dg.generate(7, 9);
