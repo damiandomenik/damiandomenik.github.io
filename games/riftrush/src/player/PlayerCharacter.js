@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { derivePalette } from './PlayerColors.js';
+import { CONFIG as CFG } from '../core/Config.js';
 
 /* ==========================================================================
  * Statur-Presets.
@@ -10,21 +11,21 @@ import { derivePalette } from './PlayerColors.js';
 export const BUILDS = {
   // schlanker, langbeiniger Free-Runner (Standard)
   runner: {
-    hip: 0.97, thigh: 0.45, shin: 0.42, foot: 0.10,
-    torso: 0.46, torsoW: 0.86, torsoD: 0.74, limb: 0.86,
-    shoulderX: 0.182, pad: 0.72, arm: 0.25, head: 0.84, helmet: 0.90, pack: 0.72,
+    hip: 0.80, thigh: 0.37, shin: 0.35, foot: 0.08,
+    torso: 0.58, torsoW: 1.14, torsoD: 0.95, limb: 1.18,
+    shoulderX: 0.215, pad: 1.0, arm: 0.235, head: 0.98, helmet: 1.04, pack: 1.0,
   },
   // sehr schlank, maximal beweglich, kaum Panzerung
   agile: {
-    hip: 1.02, thigh: 0.47, shin: 0.45, foot: 0.10,
-    torso: 0.41, torsoW: 0.76, torsoD: 0.68, limb: 0.76,
-    shoulderX: 0.150, pad: 0.42, arm: 0.25, head: 0.78, helmet: 0.84, pack: 0.55,
+    hip: 0.94, thigh: 0.43, shin: 0.41, foot: 0.10,
+    torso: 0.46, torsoW: 0.88, torsoD: 0.76, limb: 0.88,
+    shoulderX: 0.175, pad: 0.62, arm: 0.25, head: 0.86, helmet: 0.92, pack: 0.7,
   },
   // massiver Exo-Anzug
   heavy: {
-    hip: 0.84, thigh: 0.39, shin: 0.37, foot: 0.08,
-    torso: 0.57, torsoW: 1.18, torsoD: 0.94, limb: 1.14,
-    shoulderX: 0.215, pad: 1.20, arm: 0.25, head: 1.0, helmet: 1.06, pack: 1.15,
+    hip: 0.74, thigh: 0.34, shin: 0.32, foot: 0.08,
+    torso: 0.64, torsoW: 1.32, torsoD: 1.05, limb: 1.38,
+    shoulderX: 0.245, pad: 1.35, arm: 0.225, head: 1.06, helmet: 1.12, pack: 1.25,
   },
 };
 
@@ -95,6 +96,12 @@ const MAT_METAL = new THREE.MeshStandardMaterial({ color: 0x2a3247, metalness: 0
 
 const _v = new THREE.Vector3();
 const damp = (a, b, l, dt) => a + (b - a) * (1 - Math.exp(-l * dt));
+/** Winkel-Dämpfung über den kürzesten Weg (verhindert Sprünge bei ±180°). */
+function dampAngle(a, b, l, dt) {
+  let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return a + d * (1 - Math.exp(-l * dt));
+}
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 /* ==========================================================================
@@ -138,11 +145,11 @@ export class PlayerCharacter {
     this.t = 0;
     this.pose = {
       lean: 0, roll: 0, turn: 0, crouch: 0, swing: 0,
-      armX: 0, armOut: 0.13, elbow: 0.35, legSplit: 0, reach: 0,
+      armX: 0, armOut: 0.13, elbow: 0.35, legSplit: 0, reach: 0, bodyTurn: 0,
     };
     this.st = {
       movementState: 'idle', speed: 0, isGrounded: true,
-      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0,
+      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0, moveAngle: 0,
     };
     this._prevGrounded = true;
     this._prevState = 'idle';
@@ -371,7 +378,12 @@ export class PlayerCharacter {
   }
 
   // ------------------------------------------------- Bodenring / Indikator
+  /**
+   * Bodenindikator ist standardmäßig AUS — die Figur soll für sich stehen.
+   * Über RIFT_CONFIG.GROUND_RING = true wieder einschaltbar.
+   */
   createGroundIndicator() {
+    if (!CFG.GROUND_RING) return;
     this.ring = new THREE.Mesh(G.ring, this.materials.ring);
     this.ring.position.y = 0.03;
     this.ring.renderOrder = 2;
@@ -440,6 +452,8 @@ export class PlayerCharacter {
     t.isDashing = !!s.isDashing;
     t.wallSide = s.wallSide ?? 0;
     t.velocityY = s.velocityY ?? 0;
+    // Laufrichtung relativ zur Blickrichtung: 0 = vorwärts, +PI/2 = rechts
+    t.moveAngle = s.moveAngle ?? 0;
   }
 
   setTransform(x, y, z, yaw) {
@@ -491,10 +505,14 @@ export class PlayerCharacter {
         lean = -0.08; armX = 0.75; armOut = 0.35; elbow = 0.9; legSplit = -0.6; break;
       case 'fall':
         lean = 0.06; armX = -0.15; armOut = 1.0; elbow = 0.25; legSplit = -0.25; break;
-      case 'wallrun':
-        // Körper dreht sich von der Wand weg — der Blick geht nach vorne/außen
-        roll = -0.34 * (s.wallSide || 1);
-        turn = -0.42 * (s.wallSide || 1);
+      case 'wallrun': {
+        /* rotation.y > 0 dreht den Blick nach LINKS, rotation.z > 0 kippt den
+         * Kopf nach LINKS. Bei einer Wand RECHTS (side = +1) muss beides
+         * positiv sein, damit sich die Figur von der Wand wegdreht und -neigt. */
+        const side = s.wallSide || 1;
+        roll = 0.34 * side;
+        turn = 0.40 * side;
+      }
         lean = -0.20; swing = 0.95; cycle = 1; reach = 1; armOut = 0.12; elbow = 0.6; break;
       case 'dash':
         lean = -0.58; armX = -1.15; armOut = 0.12; elbow = 0.2; legSplit = -0.35; break;
@@ -526,16 +544,35 @@ export class PlayerCharacter {
     // ---- Rumpf ----
     this.tilt.rotation.x = p.lean;
     this.tilt.rotation.z = p.roll;
-    this.turn.rotation.y = p.turn;
     const bob = cycle ? Math.abs(Math.sin(this.phase)) * 0.045 * p.swing : 0;
     this.hips.position.y = this.B.hip - p.crouch * 0.32 + bob + (cycle ? 0 : breathe);
-    this.chestGroup.rotation.y = -sw * 0.16;
+    /* ---- Der Körper dreht sich in die tatsächliche Laufrichtung ----
+     * Läuft man nur mit A/D zur Seite, würde die Figur sonst vorwärts laufende
+     * Beine haben und seitlich wegrutschen. Der Unterkörper dreht deshalb in
+     * die Bewegungsrichtung, Brust und Kopf halten dagegen, sodass der Blick
+     * weiterhin dorthin geht, wo die Kamera hinschaut. */
+    let moveTurn = 0;
+    if (!s.isWallRunning && spd > 1.5) {
+      // Vorzeichen: Blickrichtung ist (-sin θ, -cos θ). Damit der Körper nach
+      // rechts (moveAngle = +PI/2) zeigt, muss um -PI/2 gedreht werden.
+      moveTurn = -s.moveAngle * (s.isGrounded ? 1 : 0.5);
+    }
+    if (this._punch > 0) moveTurn *= this._punch;      // beim Schlag zur Front zurück
+    p.bodyTurn = dampAngle(p.bodyTurn, moveTurn, 9, dt);
+    // Auf [-PI, PI] normalisieren: dampAngle nimmt den kürzesten Weg und kann
+    // dabei Vielfache von 2*PI aufsammeln. Die Drehung sähe gleich aus, aber
+    // das Klemmen der Kopf-Gegendrehung würde dann falsch herum wirken.
+    p.bodyTurn = ((p.bodyTurn + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    this.turn.rotation.y = p.turn + p.bodyTurn;
+
+    const counter = clamp(p.bodyTurn, -1.25, 1.25);
+    this.chestGroup.rotation.y = -sw * 0.16 - counter * 0.28;
     this.chestGroup.scale.y = 1 + (cycle ? 0 : breathe * 1.6);
 
     // ---- Kopf: stabilisiert den Blick, schaut beim Wallrun nach vorne ----
     this.headGroup.rotation.x = -p.lean * 0.55 + (cycle ? Math.sin(this.phase * 2) * 0.03 : 0);
     this.headGroup.rotation.z = -p.roll * 0.4;
-    this.headGroup.rotation.y = -p.turn * 0.55;
+    this.headGroup.rotation.y = -p.turn * 0.55 - counter * 0.62;
 
     /* ---- Arme: erst Zielwinkel berechnen, dann EINMAL setzen.
      * (Vorher wurde der Wallrun-Arm nach dem Setzen nochmal überschrieben,
@@ -543,20 +580,23 @@ export class PlayerCharacter {
     const idleSway = cycle ? 0 : Math.sin(this.t * 1.4) * 0.03;
     let lX = p.armX + sw * 1.0 + idleSway;
     let rX = p.armX + swB * 1.0 + idleSway;
-    let lZ = p.armOut, rZ = -p.armOut;
+    /* Vorzeichen: rotation.z > 0 bewegt einen hängenden Arm nach +X (rechts).
+     * Der linke Arm muss also negativ, der rechte positiv abgespreizt werden —
+     * vorher war es umgekehrt und beide Arme drehten durch den Torso. */
+    let lZ = -p.armOut, rZ = p.armOut;
     let lE = -p.elbow - Math.max(0, sw) * 0.85;
     let rE = -p.elbow - Math.max(0, swB) * 0.85;
 
     if (p.reach > 0.01) {
       const side = s.wallSide || 1;
       const w = p.reach;
-      if (side > 0) {                       // Wand rechts -> rechter Arm greift
-        rX = rX * (1 - w) + (-0.55) * w;
-        rZ = rZ * (1 - w) + (-1.05) * w;
+      if (side > 0) {                       // Wand rechts -> rechter Arm greift nach rechts
+        rX = rX * (1 - w) + (-0.45) * w;
+        rZ = rZ * (1 - w) + (1.15) * w;
         rE = rE * (1 - w) + (-0.2) * w;
-      } else {
-        lX = lX * (1 - w) + (-0.55) * w;
-        lZ = lZ * (1 - w) + (1.05) * w;
+      } else {                              // Wand links
+        lX = lX * (1 - w) + (-0.45) * w;
+        lZ = lZ * (1 - w) + (-1.15) * w;
         lE = lE * (1 - w) + (-0.2) * w;
       }
     }
@@ -573,7 +613,7 @@ export class PlayerCharacter {
       lX = lX * (1 - e) + (-0.55) * e;           // Gegenarm zurück
       lE = lE * (1 - e) + (-1.15) * e;
       this.chestGroup.rotation.y = -0.42 * e;    // Körper dreht mit
-      this.turn.rotation.y = p.turn - 0.16 * e;
+      this.turn.rotation.y = p.turn + p.bodyTurn - 0.16 * e;
     }
 
     this.armL.rotation.set(lX, 0, lZ);
@@ -593,8 +633,9 @@ export class PlayerCharacter {
     this.shinR.rotation.x = Math.max(0, -sw) * 1.25 + crouchBend * 1.7 + Math.max(0, split) * 1.3 + Math.max(0, -split) * 1.1;
     this.footL.rotation.x = -lLeg * 0.3 - this.shinL.rotation.x * 0.3;
     this.footR.rotation.x = -rLeg * 0.3 - this.shinR.rotation.x * 0.3;
-    this.legL.rotation.z = Math.max(0, split) * 0.06 + Math.max(0, -split) * 0.1;
-    this.legR.rotation.z = -Math.max(0, split) * 0.06 - Math.max(0, -split) * 0.1;
+    const legOut = Math.max(0, split) * 0.06 + Math.max(0, -split) * 0.1;
+    this.legL.rotation.z = -legOut;
+    this.legR.rotation.z = legOut;
 
     // ---- Visor / Kern ----
     this._visorPulse = damp(this._visorPulse, s.isDashing ? 1 : 0, 8, dt);
@@ -604,11 +645,13 @@ export class PlayerCharacter {
     this.cores[0].scale.setScalar(coreScale);
     this.cores[1].scale.setScalar(coreScale);
 
-    // ---- Bodenring ----
-    const ringTarget = s.isGrounded ? (this.isLocal ? 0.55 : 0.4) : 0.12;
-    this.materials.ring.opacity = damp(this.materials.ring.opacity, ringTarget, 8, dt);
-    this.ring.scale.setScalar(1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25));
-    this.ring.rotation.y += dt * 0.6;
+    // ---- Bodenring (optional) ----
+    if (this.ring) {
+      const ringTarget = s.isGrounded ? (this.isLocal ? 0.55 : 0.4) : 0.12;
+      this.materials.ring.opacity = damp(this.materials.ring.opacity, ringTarget, 8, dt);
+      this.ring.scale.setScalar(1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25));
+      this.ring.rotation.y += dt * 0.6;
+    }
 
     this._updateFx(dt, s);
 

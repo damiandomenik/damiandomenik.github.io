@@ -160,6 +160,62 @@ console.log('=== 1f. Wallrun-Räume sind ohne Wallrun nicht passierbar ===');
   console.log(fails === b1f ? '  Wallrun ist dort wirklich nötig' : '  FEHLER');
 }
 
+console.log('=== 1g. Jeder Raum ist ohne Grenzsprünge durchquerbar ===');
+{
+  const b1g = fails;
+  // Sprunghöhe 2.07 m (einfach) bzw. ~3.8 m (Doppelsprung). Die Hüllkurve
+  // rechnet mit Sicherheitsabstand — Sprünge am Limit gelten als Fehler.
+  const MAX_RISE = 3.2;
+  const gapLimit = (dy) => (dy <= 1.7
+    ? Math.max(2.5, 9.0 - Math.max(0, dy) * 2.6)
+    : Math.max(1.5, 5.2 - (dy - 1.7) * 1.6));
+  const gapOf = (a, b) => Math.hypot(
+    Math.max(0, Math.max(a.minX - b.maxX, b.minX - a.maxX)),
+    Math.max(0, Math.max(a.minZ - b.maxZ, b.minZ - a.maxZ)));
+
+  let unreachable = 0, checked = 0;
+  for (let s = 0; s < 12; s++) {
+    dg.generate((s * 7919 + 13) >>> 0, 9);
+    for (const room of dg.rooms) {
+      const zLo = room.origin.z - room.length - 8, zHi = room.origin.z + 8;
+      const P = [];
+      const collect = (c) => {
+        if (!c || c.kind === 'hazard') return;
+        if (c.minZ > zHi || c.maxZ < zLo) return;
+        if ((c.maxX - c.minX) < 0.8 || (c.maxZ - c.minZ) < 0.8) return;  // dünne Wände
+        P.push({ minX: c.minX, maxX: c.maxX, minZ: c.minZ, maxZ: c.maxZ, top: c.maxY });
+      };
+      physics.statics.forEach(collect);
+      physics.dynamics.forEach(collect);
+      const runWalls = physics.statics.some((c) => c.runnable && c.minZ < room.origin.z && c.maxZ > room.origin.z - room.length);
+      const start = P.filter((p) => p.maxZ > room.origin.z - 6 && p.minZ < room.origin.z + 1 && Math.abs(p.top - room.origin.y) < 0.8);
+      const goalZ = room.origin.z - room.length;
+      const goal = P.filter((p) => p.minZ < goalZ + 7 && p.maxZ > goalZ - 1 && Math.abs(p.top - (room.origin.y + room.exitY)) < 0.8);
+      if (!start.length || !goal.length) continue;
+      checked++;
+      const seen = new Set(start), queue = [...start];
+      while (queue.length) {
+        const a = queue.shift();
+        for (const b of P) {
+          if (seen.has(b)) continue;
+          const dy = b.top - a.top;
+          if (dy > MAX_RISE) continue;
+          const g = gapOf(a, b);
+          const wallHelp = runWalls && Math.abs((a.minX + a.maxX) / 2) < 8 && Math.abs((b.minX + b.maxX) / 2) < 8;
+          if (g > gapLimit(dy) && !(wallHelp && g <= 24)) continue;
+          seen.add(b); queue.push(b);
+        }
+      }
+      if (!goal.some((g) => seen.has(g))) {
+        unreachable++;
+        if (unreachable < 4) ok(false, `Raum "${room.def.id}" (seed ${(s * 7919 + 13) >>> 0}) ist nicht durchquerbar — Sprung zu weit oder zu hoch`);
+      }
+    }
+  }
+  ok(unreachable === 0, `${unreachable} nicht durchquerbare Abschnitte`);
+  console.log(fails === b1g ? `  ${checked} Raumdurchläufe geprüft, alle sicher erreichbar` : '  FEHLER');
+}
+
 console.log('=== 2. Movement-Features ===');
 const before = fails;
 dg.generate(7, 9);

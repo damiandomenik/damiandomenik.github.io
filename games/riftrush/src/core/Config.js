@@ -93,6 +93,7 @@ export const CONFIG = {
   LIGHT_POWER: 25,
   MAX_POINT_LIGHTS: 10,
   CHARACTER_BUILD: 'runner',  // 'runner' | 'agile' | 'heavy'
+  GROUND_RING: false,         // Leuchtring unter der Figur  // 'runner' | 'agile' | 'heavy'
   SHADOWS: true,           // weiche Schatten (RIFT_CONFIG.SHADOWS + game.setShadows())
 
   // ---------- Debug ----------

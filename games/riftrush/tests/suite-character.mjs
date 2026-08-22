@@ -37,7 +37,7 @@ ch.root.traverse((o) => {
 ok(meshes >= 18, `Figur hat nur ${meshes} Teile — zu simpel`);
 ok(meshes <= 34, `Figur hat ${meshes} Meshes — zu viele Draw Calls für 8 Spieler`);
 ok(tris < 2000, `Figur hat ${Math.round(tris)} Dreiecke — zu schwer`);
-for (const part of ['torso', 'headGroup', 'visor', 'armL', 'armR', 'legL', 'legR', 'ring', 'cores', 'nameplate']) {
+for (const part of ['torso', 'headGroup', 'visor', 'armL', 'armR', 'legL', 'legR', 'cores', 'nameplate']) {
   ok(!!ch[part], `Bestandteil fehlt: ${part}`);
 }
 ok(ch.visor.material.emissiveIntensity > 1, 'Visor leuchtet nicht');
@@ -90,47 +90,111 @@ for (let i = 0; i < 20; i++) {
 }
 ok(new Set(snap.map((v) => v.toFixed(3))).size > 8, 'Laufzyklus ist statisch');
 
-console.log('=== 3b. Arme kreuzen nie durch den Körper ===');
+console.log('=== 3b. Arme zeigen im Weltraum nach außen ===');
 {
   const b = fails;
-  let worst = 0, worstState = '';
-  for (const st of STATES) {
+  // Gemessen wird die tatsächliche Handposition relativ zur Schulter — nicht
+  // das Vorzeichen einer Rotation. Genau dieser Denkfehler hatte die Arme
+  // vorher durch den Torso drehen lassen.
+  const handWorld = (armGroup) => {
+    let deepest = armGroup;
+    armGroup.traverse((o) => { if (o.isMesh && o.position.y < deepest.position.y) deepest = o; });
+    ch.root.updateMatrixWorld(true);
+    const v = new THREE.Vector3();
+    armGroup.traverse((o) => { if (o.isMesh) { const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); if (!v.lengthSq() || p.y < v.y) v.copy(p); } });
+    return v;
+  };
+  for (const st of ['idle', 'run', 'fall', 'jump', 'dash', 'slide']) {
     for (let i = 0; i < 40; i++) {
       T += 16.7;
+      ch.setTransform(0, 0, 0, 0);
       ch.updateAnimation(0.0167, {
-        movementState: st, speed: st === 'sprint' ? 15 : 8,
-        isGrounded: !['jump', 'fall', 'wallrun', 'dash'].includes(st),
-        isWallRunning: st === 'wallrun', isDashing: st === 'dash',
-        wallSide: st === 'wallrun' ? 1 : 0,
+        movementState: st, speed: st === 'run' ? 9 : 0,
+        isGrounded: !['jump', 'fall', 'dash'].includes(st), isDashing: st === 'dash',
       }, camera);
     }
-    // linker Arm muss links bleiben (rotation.z >= 0), rechter rechts (<= 0)
-    const lz = ch.armL.rotation.z, rz = ch.armR.rotation.z;
-    // Ausnahme: beim Wallrun greift ein Arm bewusst zur Wand
-    if (st !== 'wallrun') {
-      if (lz < worst) { worst = lz; worstState = st + ' (links)'; }
-      if (-rz < worst) { worst = -rz; worstState = st + ' (rechts)'; }
-      ok(lz >= -0.02, `Linker Arm dreht bei "${st}" in den Körper (z=${lz.toFixed(2)})`);
-      ok(rz <= 0.02, `Rechter Arm dreht bei "${st}" in den Körper (z=${rz.toFixed(2)})`);
-    }
+    ch.root.updateMatrixWorld(true);
+    const shL = new THREE.Vector3().setFromMatrixPosition(ch.armL.matrixWorld);
+    const shR = new THREE.Vector3().setFromMatrixPosition(ch.armR.matrixWorld);
+    const hL = handWorld(ch.armL), hR = handWorld(ch.armR);
+    ok(hL.x <= shL.x + 0.02, `Linke Hand wandert bei "${st}" nach rechts in den Körper (${(hL.x - shL.x).toFixed(2)} m)`);
+    ok(hR.x >= shR.x - 0.02, `Rechte Hand wandert bei "${st}" nach links in den Körper (${(hR.x - shR.x).toFixed(2)} m)`);
+    ok(hL.x < hR.x, `Arme sind bei "${st}" vertauscht`);
   }
-  console.log(fails === b ? '  keine Arm-Durchdringungen' : `  schlechtester Wert ${worst.toFixed(2)} bei ${worstState}`);
+  console.log(fails === b ? '  Hände bleiben außerhalb des Torsos' : '  FEHLER');
 }
 
-console.log('=== 3c. Wallrun: Körper dreht sich von der Wand weg ===');
+console.log('=== 3c. Wallrun: Blick geht von der Wand weg ===');
 {
   const b = fails;
+  const fwd = new THREE.Vector3();
   for (const side of [1, -1]) {
     for (let i = 0; i < 60; i++) {
       T += 16.7;
+      ch.setTransform(0, 0, 0, 0);              // Figur schaut nach -Z
       ch.updateAnimation(0.0167, { movementState: 'wallrun', speed: 15, isGrounded: false, isWallRunning: true, wallSide: side }, camera);
     }
-    // Wand rechts (side=1) -> Körper dreht nach links (turn negativ)
-    ok(Math.sign(ch.turn.rotation.y) === -side, `Körper dreht bei wallSide=${side} in die falsche Richtung (${ch.turn.rotation.y.toFixed(2)})`);
-    ok(Math.abs(ch.turn.rotation.y) > 0.2, 'Drehung ist kaum sichtbar');
-    ok(Math.sign(ch.tilt.rotation.z) === -side, 'Neigung geht in die falsche Richtung');
+    ch.root.updateMatrixWorld(true);
+    // Blickrichtung des Kopfes in Weltkoordinaten
+    fwd.set(0, 0, -1).applyQuaternion(ch.headGroup.getWorldQuaternion(new THREE.Quaternion()));
+    // Wand rechts (side=+1, also +X): Blick muss eine Komponente nach -X haben
+    ok(fwd.x * side < -0.05,
+      `Bei Wand ${side > 0 ? 'rechts' : 'links'} schaut die Figur IN die Wand (fwd.x=${fwd.x.toFixed(2)})`);
+    // Kopf muss sich auch von der Wand wegneigen: Kopf seitlich versetzt zur Hüfte
+    const head = new THREE.Vector3().setFromMatrixPosition(ch.headGroup.matrixWorld);
+    const hip = new THREE.Vector3().setFromMatrixPosition(ch.hips.matrixWorld);
+    ok((head.x - hip.x) * side < -0.02,
+      `Kopf neigt sich zur Wand statt von ihr weg (${(head.x - hip.x).toFixed(2)} m)`);
+    // Der wandseitige Arm muss zur Wand greifen
+    const reachArm = side > 0 ? ch.armR : ch.armL;
+    let hand = new THREE.Vector3();
+    reachArm.traverse((o) => { if (o.isMesh) { const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld); if (!hand.lengthSq() || p.y < hand.y) hand.copy(p); } });
+    const shoulder = new THREE.Vector3().setFromMatrixPosition(reachArm.matrixWorld);
+    ok((hand.x - shoulder.x) * side > 0.05, 'Der wandseitige Arm greift nicht zur Wand');
   }
-  console.log(fails === b ? '  Blick geht von der Wand weg' : '  FEHLER');
+  console.log(fails === b ? '  Blick, Neigung und Greifarm stimmen für beide Seiten' : '  FEHLER');
+}
+
+console.log('=== 3c2. Körper dreht in die Laufrichtung (Strafe) ===');
+{
+  const b = fails;
+  const fwd = new THREE.Vector3();
+  const check = (moveAngle, label) => {
+    for (let i = 0; i < 60; i++) {
+      T += 16.7;
+      ch.setTransform(0, 0, 0, 0.7);      // beliebige Blickrichtung
+      ch.updateAnimation(0.0167, { movementState: 'run', speed: 9, isGrounded: true, moveAngle }, camera);
+    }
+    ch.root.updateMatrixWorld(true);
+    // Vorwärtsachse des Oberkörpers in Weltkoordinaten
+    fwd.set(0, 0, -1).applyQuaternion(ch.turn.getWorldQuaternion(new THREE.Quaternion()));
+    /* Erwartete Weltrichtung der Bewegung.
+     * Blickachse F = (-sin y, -cos y), Rechtsachse R = (cos y, -sin y);
+     * v = cos(a)·F + sin(a)·R  =>  v = ( sin(a-y), -cos(a-y) ). */
+    const y = 0.7;
+    const ex = Math.sin(moveAngle - y), ez = -Math.cos(moveAngle - y);
+    const dot = fwd.x * ex + fwd.z * ez;
+    ok(dot > 0.9, `${label}: Körper zeigt nicht in die Laufrichtung (dot=${dot.toFixed(2)})`);
+    return dot;
+  };
+  check(0, 'vorwärts');
+  check(Math.PI / 2, 'strafe rechts');
+  check(-Math.PI / 2, 'strafe links');
+  check(Math.PI * 0.75, 'rückwärts-diagonal');
+  // Kopf hält dagegen, damit der Blick nach vorne bleibt
+  for (let i = 0; i < 60; i++) { T += 16.7; ch.updateAnimation(0.0167, { movementState: 'run', speed: 9, isGrounded: true, moveAngle: Math.PI / 2 }, camera); }
+  ok(Math.sign(ch.headGroup.rotation.y) !== Math.sign(ch.turn.rotation.y),
+    'Kopf dreht mit dem Körper statt dagegen');
+  ok(Math.abs(ch.headGroup.rotation.y) > 0.3, 'Kopf hält kaum dagegen');
+  // im Stand keine Drehung
+  for (let i = 0; i < 60; i++) { T += 16.7; ch.updateAnimation(0.0167, { movementState: 'idle', speed: 0, isGrounded: true, moveAngle: 0 }, camera); }
+  ok(Math.abs(ch.turn.rotation.y) < 0.05, `Figur bleibt im Stand verdreht (turn=${ch.turn.rotation.y.toFixed(3)})`);
+  // Winkel darf über viele Richtungswechsel nicht aufsummieren
+  for (const a of [1.5, -1.5, 3.0, -3.0, 2.5, -0.5, 3.1, -3.1]) {
+    for (let i = 0; i < 25; i++) { T += 16.7; ch.updateAnimation(0.0167, { movementState: 'run', speed: 9, isGrounded: true, moveAngle: a }, camera); }
+    ok(Math.abs(ch.pose.bodyTurn) <= Math.PI + 0.01, `Drehwinkel läuft weg (${ch.pose.bodyTurn.toFixed(2)})`);
+  }
+  console.log(fails === b ? '  Beine laufen in die tatsächliche Richtung' : '  FEHLER');
 }
 
 console.log('=== 3d. Sichtbarer Schlag ===');
@@ -149,7 +213,7 @@ console.log('=== 3d. Sichtbarer Schlag ===');
   console.log(fails === b ? '  Schlag ausgefahren und zurückgenommen' : '  FEHLER');
 }
 
-console.log('=== 3e. Statur-Presets ===');
+console.log('=== 3e. Statur: kräftig, Beine nicht überlang ===');
 {
   const b = fails;
   const heights = {};
@@ -161,6 +225,12 @@ console.log('=== 3e. Statur-Presets ===');
     heights[name] = box.max.y - box.min.y;
     ok(box.min.y > -0.12 && box.min.y < 0.12, `Preset "${name}": Füße nicht auf dem Boden (${box.min.y.toFixed(2)})`);
     ok(heights[name] > 1.6 && heights[name] < 1.95, `Preset "${name}": Höhe ${heights[name].toFixed(2)} passt nicht zur Hitbox`);
+    const legRatio = BUILDS[name].hip / heights[name];
+    const maxLeg = name === 'agile' ? 0.56 : 0.50;
+    ok(legRatio < maxLeg, `Preset "${name}": Beine machen ${(legRatio * 100).toFixed(0)} % der Höhe aus — zu lang`);
+    const box2 = new THREE.Box3().setFromObject(c.tilt);
+    const slim = (box2.max.x - box2.min.x) / heights[name];
+    ok(slim > 0.27, `Preset "${name}": zu schmal (Breite/Höhe ${slim.toFixed(2)})`);
     c.dispose();
   }
   ok(new Set(Object.values(heights).map((v) => v.toFixed(2))).size > 1, 'Presets unterscheiden sich nicht');
@@ -182,6 +252,7 @@ ok(ch.materials.suit.color.getHex() !== 0x000000, 'setColor setzt die Anzugfarbe
 
 console.log('=== 5. Partikeleffekte ===');
 {
+  ok(!ch.ring, 'Bodenring ist standardmäßig noch aktiv');
   const geoColor = fx.mesh.geometry.getAttribute('color');
   ok(!!geoColor, 'Partikelgeometrie hat kein color-Attribut (Partikel wären schwarz)');
   ok(geoColor && geoColor.array.every((v) => v === 1), 'color-Attribut ist nicht weiß vorbelegt');

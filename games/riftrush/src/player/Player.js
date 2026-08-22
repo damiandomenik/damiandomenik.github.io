@@ -33,7 +33,7 @@ export class LocalPlayer {
     this._triggers = [];
     this._visual = {
       movementState: 'idle', speed: 0, isGrounded: true,
-      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0,
+      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0, moveAngle: 0,
     };
     this.events = {};
   }
@@ -86,6 +86,20 @@ export class LocalPlayer {
     s.stunTimer = C.PUNCH_STUN;
     s.wallrunning = false;
     this.character.flash();
+  }
+
+  /**
+   * Laufrichtung relativ zur Blickrichtung.
+   * 0 = vorwärts, +PI/2 = nach rechts, PI = rückwärts.
+   */
+  get moveAngle() {
+    const s = this.state;
+    const spd = Math.hypot(s.vel.x, s.vel.z);
+    if (spd < 1.5) return 0;
+    const sin = Math.sin(s.yaw), cos = Math.cos(s.yaw);
+    const fwd = s.vel.x * -sin + s.vel.z * -cos;     // Vorwärtsanteil
+    const right = s.vel.x * cos + s.vel.z * -sin;    // Seitenanteil
+    return Math.atan2(right, fwd);
   }
 
   /** Wandseite relativ zur Blickrichtung: 1 = rechts, -1 = links, 0 = keine. */
@@ -161,6 +175,7 @@ export class LocalPlayer {
     v.isDashing = s.dashing;
     v.wallSide = this.wallSide;
     v.velocityY = s.vel.y;
+    v.moveAngle = this.moveAngle;
 
     this.character.setTransform(s.pos.x, s.pos.y, s.pos.z, s.yaw);
     this.character.setVisible(this.respawnTimer <= 0 || Math.sin(performance.now() * 0.03) > 0);

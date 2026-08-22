@@ -40,19 +40,21 @@ export const ROOMS = [
     id: 'parkour_bridges', name: 'Bridge Run', length: 62, exitY: 2, weight: 3,
     build(c, rng) {
       entryPad(c); pit(c, 62);
-      let z = -10, y = 0;
-      let side = rng.chance(0.5) ? 1 : -1;
-      while (z > -54) {
-        const gap = rng.range(4.6, 6.6);
-        z -= gap;
-        y += rng.range(-0.8, 1.6);
-        const x = side * rng.range(0.5, 4.5);
-        const w = rng.range(3.2, 5.0);
-        c.plat(x, y, z, w, rng.range(3.0, 4.6), rng.chance(0.25) ? 'accent' : 'solid');
-        if (rng.chance(0.35)) c.plat(-x * 0.8, y + rng.range(1, 3), z - 2.4, 2.6, 2.6, 'solid');
-        side *= rng.chance(0.65) ? -1 : 1;
+      /* Die seitliche Versetzung ist begrenzt, damit der Sprung zur nächsten
+       * Plattform nie an der Reichweite scheitert: bei 1,1 m Anstieg bleiben
+       * rechnerisch gut 6 m Weite. */
+      let z = -3.5, y = 0, x = 0;   // erste Plattform dicht an der Eingangsfläche
+      while (z > -50) {
+        const rise = rng.range(-0.8, 1.1);
+        const nx = Math.max(-4.2, Math.min(4.2, x + rng.range(-2.6, 2.6)));
+        z -= rng.range(4.2, 5.4) - Math.max(0, rise) + 3.4;
+        y += rise;
+        c.plat(nx, y, z, rng.range(3.8, 5.2), rng.range(3.4, 4.6),
+          rng.chance(0.25) ? 'accent' : 'solid');
+        if (rng.chance(0.3)) c.plat(nx + (nx > 0 ? -2.8 : 2.8), y + rng.range(1.0, 1.8), z - 2.0, 2.6, 2.6, 'solid');
+        x = nx;
       }
-      c.plat(0, 2, -58, 7, 5, 'solid');
+      c.plat(0, 2, -56, 9, 8, 'solid');
       exitPad(c, 2, -62);
     },
   },
@@ -62,17 +64,22 @@ export const ROOMS = [
     build(c, rng) {
       entryPad(c); pit(c, 56, 30, -6);
       // Garantierter Hauptpfad (immer erreichbar)
-      let py = 0.6;
-      for (let i = 0; i < 8; i++) {
-        py = Math.max(0.4, Math.min(3.2, py + rng.range(-1.0, 1.2)));
-        c.box(rng.range(-3, 3), py - 8, -12 - i * 5, 3.0, 8, 3.0, i % 3 === 0 ? 'accent' : 'solid');
+      // Hauptpfad: jede Säule ist von der vorherigen sicher erreichbar
+      let py = 0.6, px = 0;
+      const path = [];
+      for (let i = 0; i < 10; i++) {
+        py = Math.max(0.4, Math.min(2.2, py + rng.range(-0.8, 0.9)));
+        px = Math.max(-3.5, Math.min(3.5, px + rng.range(-2.0, 2.0)));
+        const z = -11 - i * 4.0;
+        c.box(px, py - 8, z, 3.6, 8, 3.6, i % 3 === 0 ? 'accent' : 'solid');
+        path.push({ x: px, y: py, z });
       }
-      // Zusätzliche Säulen als Risiko/Abkürzung
-      for (let i = 0; i < 12; i++) {
-        const z = -10 - i * 3.4 - rng.range(0, 1.2);
-        const x = (rng.chance(0.5) ? 1 : -1) * rng.range(3.5, 6.0);
-        const h = rng.range(1.0, 4.0);
-        c.box(x, h - 8, z, rng.range(1.8, 2.6), 8, rng.range(1.8, 2.6), rng.chance(0.25) ? 'accent' : 'solid');
+      // Nebensäulen als Abkürzung, immer direkt neben dem Hauptpfad
+      for (const node of path) {
+        if (!rng.chance(0.6)) continue;
+        const side = node.x > 0 ? -1 : 1;
+        c.box(node.x + side * rng.range(2.8, 4.0), node.y + rng.range(-0.6, 0.8) - 8,
+          node.z - rng.range(1.0, 2.6), 2.6, 8, 2.6, rng.chance(0.3) ? 'accent' : 'solid');
       }
       c.plat(0, 0, -52, 8, 5, 'solid');
       exitPad(c, 0, -56);
@@ -81,24 +88,26 @@ export const ROOMS = [
 
   // ---------------------------------------------------------------- VERTICAL
   {
-    id: 'vertical_shaft', name: 'Vertical Shaft', length: 30, exitY: 20, weight: 2,
+    id: 'vertical_shaft', name: 'Vertical Shaft', length: 30, exitY: 18, weight: 2,
     build(c, rng) {
       entryPad(c);
       // Schacht-Wände (Wallrun)
       c.runWall(-7.5, -2, -16, 1.2, 34, 26);
       c.runWall(7.5, -2, -16, 1.2, 34, 26);
-      c.wall(0, -2, -29.5, 15, 21.4, 1.2);   // Oberkante = Ausgangshöhe, sonst versiegelt die Wand den Room
+      c.wall(0, -2, -29.5, 15, 19.4, 1.2);   // Oberkante = Ausgangshöhe, sonst versiegelt die Wand den Room
       pit(c, 30, 18, -8);
-      let y = 1.6, side = -1;
-      for (let i = 0; i < 9; i++) {
-        y += rng.range(2.0, 2.9);
-        c.plat(side * rng.range(3.5, 5.5), y, -10 - rng.range(0, 12), rng.range(3.0, 4.2), 3.2,
+      // Stufen moderat: mit Doppelsprung sicher, mit Wallrun schneller.
+      let y = 1.4, side = -1;
+      for (let i = 0; i < 10; i++) {
+        y += rng.range(1.35, 1.75);
+        const z = -9 - ((i * 1.7 + rng.range(0, 1.4)) % 14);
+        c.plat(side * rng.range(2.6, 3.8), y, z, rng.range(3.8, 4.8), 3.8,
           i % 3 === 0 ? 'accent' : 'solid');
         side *= -1;
       }
       c.light(0, 12, -16, 0x6f7bff, 2.0, 34);
-      c.plat(0, 20, -26, 8, 6, 'accent');
-      exitPad(c, 20, -30);
+      c.plat(0, 18, -26, 9, 7, 'accent');
+      exitPad(c, 18, -30);
     },
   },
 
@@ -141,11 +150,11 @@ export const ROOMS = [
     id: 'trap_blinkers', name: 'Phase Traps', length: 56, exitY: 0, weight: 2,
     build(c, rng) {
       entryPad(c); pit(c, 56, 26, -4);
-      for (let i = 0; i < 11; i++) {
-        const z = -11 - i * 3.9;
-        const x = (i % 3 - 1) * 3.4 + rng.range(-0.6, 0.6);
-        c.blinker(x, rng.range(0, 1.4), z, 3.4, 3.4, { period: rng.range(2.6, 4.0), phase: rng(), onRatio: 0.62 });
-        if (i % 4 === 2) c.plat(-x, rng.range(0.5, 2.0), z - 1.5, 2.6, 2.6, 'solid');
+      for (let i = 0; i < 12; i++) {
+        const z = -10 - i * 3.5;
+        const x = (i % 3 - 1) * 2.6 + rng.range(-0.4, 0.4);
+        c.blinker(x, rng.range(0, 1.0), z, 3.8, 3.8, { period: rng.range(2.8, 4.2), phase: rng(), onRatio: 0.68 });
+        if (i % 4 === 2) c.plat(-x * 0.8, rng.range(0.4, 1.4), z - 1.4, 3.0, 3.0, 'solid');
       }
       c.plat(0, 0, -52, 8, 5, 'solid');
       exitPad(c, 0, -56);
@@ -219,32 +228,32 @@ export const ROOMS = [
       c.door(0, 0, -40, 12, 8, 1.2, doorId);
       c.plat(0, 0, -44, 10, 8, 'solid');
       // Schalter oben rechts, kleiner Kletterpfad
-      c.plat(7.5, 1.9, -16, 3.6, 3.6, 'accent');
-      c.plat(9.5, 3.6, -21, 3.4, 3.4, 'accent');
-      c.plat(7.5, 5.2, -26, 4.2, 4.2, 'accent');
-      c.switchPad(7.5, 5.2, -26, doorId);
-      c.light(7.5, 8, -26, 0xff9f1c, 1.6, 24);
+      c.plat(7.5, 1.5, -15, 4.0, 4.0, 'accent');
+      c.plat(9.2, 2.9, -20, 3.8, 3.8, 'accent');
+      c.plat(7.5, 4.2, -25, 4.4, 4.4, 'accent');
+      c.switchPad(7.5, 4.2, -25, doorId);
+      c.light(7.5, 7, -25, 0xff9f1c, 1.6, 24);
       exitPad(c, 0, -52);
     },
   },
 
   // ---------------------------------------------------------------- MOVING
   {
-    id: 'moving_platforms', name: 'Drift Platforms', length: 62, exitY: 4, weight: 3,
+    id: 'moving_platforms', name: 'Drift Platforms', length: 62, exitY: 3.4, weight: 3,
     build(c, rng) {
       entryPad(c); pit(c, 62, 30, -6);
-      for (let i = 0; i < 7; i++) {
-        const z = -13 - i * 6.4;
+      for (let i = 0; i < 8; i++) {
+        const z = -12 - i * 5.4;
         const vertical = i % 3 === 2;
-        c.moving(rng.range(-2, 2), 0.4 + i * 0.55, z, 4.2, 0.7, 4.2, {
+        c.moving(rng.range(-1.5, 1.5), 0.4 + i * 0.42, z, 4.8, 0.7, 4.8, {
           axis: vertical ? 'y' : 'x',
-          amp: vertical ? rng.range(1.6, 3.0) : rng.range(3.0, 5.4),
-          speed: rng.range(0.16, 0.3), phase: rng(),
+          amp: vertical ? rng.range(1.0, 1.8) : rng.range(1.8, 3.2),
+          speed: rng.range(0.14, 0.26), phase: rng(),
         });
       }
-      c.plat(0, 4, -56, 8, 6, 'solid');
+      c.plat(0, 3.4, -56, 9, 8, 'solid');
       c.light(0, 8, -30, 0x6f7bff, 1.4, 34);
-      exitPad(c, 4, -62);
+      exitPad(c, 3.4, -62);
     },
   },
 
@@ -293,7 +302,7 @@ export const ROOMS = [
       pit(c, 46, 22, -26);
       let y = -1.5;
       for (let i = 0; i < 7; i++) {
-        y -= rng.range(1.6, 2.6);
+        y -= rng.range(1.2, 2.0);
         c.plat((i % 2 === 0 ? -1 : 1) * rng.range(1.5, 3.5), y, -10 - i * 4.4, rng.range(3.6, 4.8), 3.8,
           i % 3 === 1 ? 'accent' : 'solid');
       }
@@ -309,14 +318,14 @@ export const ROOMS = [
       entryPad(c); pit(c, 58, 40, -8);
       c.plat(0, 0, -16, 20, 18, 'solid');
       c.box(0, 0, -30, 6, 22, 6, 'accent');           // Kern-Säule
-      for (let i = 0; i < 6; i++) {
-        const a = i * 1.05;
-        c.moving(Math.cos(a) * 6, 1.2 + i * 1.4, -30 + Math.sin(a) * 6, 4.6, 0.7, 4.6, {
-          axis: 'x', amp: 3.4, speed: 0.2 + i * 0.02, phase: i / 6,
+      for (let i = 0; i < 7; i++) {
+        const a = i * 0.78;
+        c.moving(Math.cos(a) * 4.4, 1.0 + i * 0.95, -30 + Math.sin(a) * 4.4, 5.2, 0.7, 5.2, {
+          axis: 'x', amp: 2.0, speed: 0.18 + i * 0.02, phase: i / 7,
         });
       }
       c.moving(0, 3.0, -22, 3.4, 3.4, 1.0, { axis: 'x', amp: 6, speed: 0.35, kind: 'hazard' });
-      c.plat(0, 8, -44, 12, 16, 'accent');
+      c.plat(0, 8, -44, 13, 17, 'accent');
       c.light(0, 10, -30, 0x38f2c8, 2.4, 40);
       exitPad(c, 8, -58);
     },

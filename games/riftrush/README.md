@@ -125,12 +125,20 @@ Abgedeckt:
   Snapshot-Tickrate, gerichtete Treffer-Events, Full Mesh mit 3 Peers, Broadcast,
   sauberes Leave (genau ein Event), Verhalten bei Paketverlust, Reconnect sowie der
   komplette manuelle Copy-&-Paste-Modus
-* **Spielerfigur**: Aufbau und Teilezahl, Proportionen gegen die Hitbox für alle drei
+* **Spielerfigur**: Aufbau und Teilezahl, Proportionen und Beinlänge für alle drei
   Statur-Presets, Animation über alle zehn Bewegungszustände (keine NaN, Gliedmaßen
-  bewegen sich wirklich), Arme dürfen nie durch den Körper drehen, Wallrun-Drehrichtung,
+  bewegen sich wirklich), Handpositionen im Weltraum (Arme dürfen nie durch den Torso
+  drehen), Blickrichtung und Greifarm beim Wallrun für beide Seiten,
   sichtbarer Schlag, Farbsystem, Partikel-Pool inkl. Überlauf, Namensschild-Skalierung
 * **Wallrun-Regeln**: nur markierte Wände erlauben Wallrun, unmarkierte nicht, und die
   Wallrun-Räume sind für einen Geradeaus-Bot nachweislich nicht passierbar
+* **Erreichbarkeit**: 153 Raumdurchläufe über 12 Seeds — jede Plattform muss innerhalb
+  der Sprung-Hüllkurve (2,07 m einfach, ~3,8 m mit Doppelsprung, jeweils mit Reserve)
+  vom Eingang aus erreichbar sein. Fängt genau die „gerade so eben"-Sprünge ab.
+* **Laufrichtung**: der Körper zeigt bei Strafe und Rückwärtslauf wirklich in die
+  Bewegungsrichtung (geprüft über den Weltvektor, nicht über Winkelkonventionen),
+  der Kopf hält dagegen, im Stand richtet sich die Figur wieder aus und der Drehwinkel
+  summiert sich über viele Richtungswechsel nicht auf
 * **Kamera**: Figur bleibt beim Strafen in der Bildmitte
 * **Kamera**: kein Roll/Überschlag bei beliebigen Yaw-/Pitch-Kombinationen
 * **End-to-End** (jsdom): Menü → Solo-Lobby → Countdown → Bewegung → Pause/Resume →
@@ -165,6 +173,20 @@ Seite wechseln. An allen anderen Wänden klebt man nicht fest.
 
 Die Kamera ist starr an der Figur verankert (WoW-Stil): sie bleibt immer in der
 Bildmitte, auch beim Strafen und bei Richtungswechseln. Nur die Höhe wird geglättet.
+
+Die Figur dreht sich in die **tatsächliche Laufrichtung** — mit `A`/`D` läuft sie also
+seitwärts und nicht mit vorwärts stampfenden Beinen. Kopf und Brust halten dagegen
+(bis maximal ~72°), sodass der Blick weiterhin dorthin geht, wo die Kamera hinzeigt:
+
+| Eingabe | Körper | Kopf |
+|---|---|---|
+| `W` | 0° | 0° |
+| `W`+`D` | 45° | 17° |
+| `D` | 90° | 45° |
+| `S` | 180° | 134° |
+
+Bei einem Schlag dreht der Körper kurz zur Front zurück, damit die Faust in die
+Blickrichtung geht.
 
 ---
 
@@ -239,16 +261,21 @@ character.updateAnimation(dt, {
 }, camera);
 ```
 
-Statur umschaltbar über drei Presets — `runner` (schlank, langbeinig, Standard),
-`agile` (noch schlanker, kaum Panzerung) und `heavy` (massiver Exo-Anzug):
+Statur umschaltbar über drei Presets — `runner` (kräftig, gedrungen, Standard),
+`agile` (schlanker, kaum Panzerung) und `heavy` (massiver Exo-Anzug). Die Beine
+machen bei allen unter 50 % der Körperhöhe aus, damit die Proportionen nicht
+staksig wirken:
 
 ```js
 RIFTRUSH.setBuild('heavy');      // wirkt sofort, auch für alle Mitspieler-Figuren
 RIFT_CONFIG.CHARACTER_BUILD = 'agile';   // Standard für neue Figuren
 ```
 
-Aufbau aus ~34 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
-für den segmentierten Bodenring), ca. 1.610 Dreiecke, Körperhöhe ~1,75 m — passend zur
+Ein Bodenring unter der Figur ist standardmäßig **aus** (`RIFT_CONFIG.GROUND_RING = true`
+schaltet ihn ein), ebenso gibt es kein Fadenkreuz.
+
+Aufbau aus ~33 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
+für den segmentierten Bodenring), ca. 1.570 Dreiecke, Körperhöhe ~1,71 m — passend zur
 Hitbox. Animation ist komplett prozedural: Laufzyklus für Arme, Beine und Torso,
 Vorlage beim Sprint, gestreckte Pose beim Dash, Atmen im Idle. Beim Wallrun neigt sich
 der Körper zur Wand, dreht sich aber von ihr **weg**, sodass der Blick nach vorne geht,

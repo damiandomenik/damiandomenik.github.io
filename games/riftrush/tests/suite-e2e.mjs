@@ -138,6 +138,10 @@ ok(!game.input.keys.has('Space'), 'Leertaste im Eingabefeld wird als Sprung gewe
 
 console.log('=== 7. Ziel erreichen -> Ergebnisse ===');
 const fin = game.physics.triggers.find(t => t.userData?.type === 'finish');
+// Wie im echten Spiel: wer im Ziel ankommt, hat alle Checkpoints passiert.
+// Ohne das greift die Kill-Plane, die relativ zum letzten Checkpoint liegt.
+game.localPlayer.checkpoint = game.dungeon.checkpointCount - 1;
+game.localPlayer.respawnTimer = 0;      // sonst ist die Figur beim Teleport evtl. eingefroren
 const p = game.localPlayer.state.pos;
 p.x = (fin.minX+fin.maxX)/2; p.y = fin.minY + 0.5; p.z = (fin.minZ+fin.maxZ)/2;
 game.localPlayer.state.vel = {x:0,y:0,z:0};

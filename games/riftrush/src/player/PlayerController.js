@@ -98,7 +98,7 @@ export class PlayerController {
     // Wandseite relativ zur Blickrichtung (1 = Wand rechts). Die Weltnormale
     // wäre hier falsch: der Roll hinge sonst von der Himmelsrichtung ab.
     const side = this.player.wallSide;
-    const roll = s.wallrunning ? -0.1 * side : 0;
+    const roll = s.wallrunning ? 0.09 * side : 0;   // gleiche Richtung wie die Figur
     this.roll = damp(this.roll, roll, 8, dt);
     this.camera.rotation.z = this.roll;
 

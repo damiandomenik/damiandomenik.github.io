@@ -37,8 +37,10 @@ export class RemotePlayer {
     this.lastPacket = performance.now();
     this._visual = {
       movementState: 'idle', speed: 0, isGrounded: true,
-      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0,
+      isWallRunning: false, isDashing: false, wallSide: 0, velocityY: 0, moveAngle: 0,
     };
+    this.velX = 0;
+    this.velZ = 0;
   }
 
   setProfile({ name, color }) {
@@ -81,6 +83,7 @@ export class RemotePlayer {
         pr = lerpAngle(a.r, b.r, k);
         const src = k > 0.5 ? b : a;
         st = src.st; w = src.w; g = src.g; vy = src.vy;
+        this.velX = src.vx; this.velZ = src.vz;
       } else {
         // Extrapolation (max 250 ms), wenn Pakete fehlen
         const last = buf[buf.length - 1];
@@ -90,12 +93,14 @@ export class RemotePlayer {
           py = last.y + last.vy * ahead;
           pz = last.z + last.vz * ahead;
           pr = last.r; st = last.st; w = last.w; g = last.g; vy = last.vy;
+          this.velX = last.vx; this.velZ = last.vz;
         }
       }
       while (buf.length > 2 && buf[1].t < target - 500) buf.shift();
     } else if (buf.length === 1) {
       const s = buf[0];
       px = s.x; py = s.y; pz = s.z; pr = s.r; st = s.st; w = s.w; g = s.g; vy = s.vy;
+      this.velX = s.vx; this.velZ = s.vz;
     }
 
     const k = 1 - Math.exp(-24 * dt);
@@ -118,6 +123,14 @@ export class RemotePlayer {
     v.isDashing = this.state === 'dash';
     v.wallSide = this.wallSide;
     v.velocityY = this.velocityY;
+    // Laufrichtung aus der übertragenen Geschwindigkeit ableiten —
+    // so drehen sich auch Mitspieler beim Strafen korrekt
+    const spd2 = Math.hypot(this.velX, this.velZ);
+    if (spd2 > 1.5) {
+      const sin = Math.sin(this.render.r), cos = Math.cos(this.render.r);
+      v.moveAngle = Math.atan2(this.velX * cos + this.velZ * -sin,
+                               this.velX * -sin + this.velZ * -cos);
+    } else v.moveAngle = 0;
 
     this.character.setTransform(this.render.x, this.render.y, this.render.z, this.render.r);
     this.character.updateAnimation(dt, v, camera);
