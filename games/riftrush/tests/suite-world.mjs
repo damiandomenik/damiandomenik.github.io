@@ -250,7 +250,7 @@ ok(peak > y1+1.2, `Double Jump hebt nicht (${(peak-y1).toFixed(2)}m)`);
 const w = new PhysicsWorld();
 const { Collider } = await import('../src/core/Physics.js');
 w.add(new Collider(0,-1,0, 60,1,60,'solid'));      // Boden
-const runWall = new Collider(4, 0, 0, 1, 10, 40, 'solid');
+const runWall = new Collider(2.6, 0, 0, 1, 10, 40, 'solid');
 runWall.runnable = true;                            // markierte Laufwand
 w.add(runWall);
 w.build();
@@ -271,7 +271,7 @@ if (wr) {
 {
   const w2 = new PhysicsWorld();
   w2.add(new Collider(0, -1, 0, 60, 1, 60, 'solid'));
-  w2.add(new Collider(4, 0, 0, 1, 10, 40, 'solid'));   // gewöhnliche Wand
+  w2.add(new Collider(2.6, 0, 0, 1, 10, 40, 'solid'));   // gewöhnliche Wand
   w2.build();
   const mv3 = new PlayerMovement(w2);
   const s3 = fresh(0, 0, 0);
@@ -293,6 +293,76 @@ ok(s.dashCooldown > 0.5, 'Dash-Cooldown greift nicht');
 // Keine NaN
 ok(Number.isFinite(s.pos.x+s.pos.y+s.pos.z+s.vel.x+s.vel.y+s.vel.z), 'NaN in Position/Velocity');
 console.log(fails === before ? '  alle Movement-Checks bestanden' : `  ${fails-before} Fehler`);
+
+console.log('=== 2b. Bewegungsbudget: Sprünge müssen knapp sein ===');
+{
+  const b2b = fails;
+  const measure = (dbl, dash, sprint = true) => {
+    const w3 = new PhysicsWorld();
+    w3.add(new Collider(0, -1, 10, 40, 1, 40, 'solid'));
+    w3.build();
+    const m = new PlayerMovement(w3);
+    const st = PlayerMovement.createState();
+    st.pos = { x: 0, y: 0, z: 5 };
+    const cmd = { mx: 0, mz: 1, yaw: 0, sprint, crouch: false, jump: false, dash: false };
+    for (let i = 0; i < 60; i++) m.update(st, cmd, dt);
+    const z0 = st.pos.z;
+    cmd.jump = true; m.update(st, cmd, dt); cmd.jump = false;
+    let u = false, d = false;
+    for (let i = 0; i < 300; i++) {
+      cmd.jump = (dbl && !u && i === 10) ? (u = true) : false;
+      cmd.dash = (dash && !d && i === 20) ? (d = true) : false;
+      m.update(st, cmd, dt);
+      if (i > 4 && st.pos.y <= 0) break;
+    }
+    return z0 - st.pos.z;
+  };
+  const walk = measure(false, false, false);
+  const jump = measure(false, false);
+  const dbl = measure(true, false);
+  const dash = measure(true, true);
+  ok(jump > walk + 1.5, 'Sprinten bringt beim Sprung kaum etwas');
+  ok(dbl > jump + 2.5, 'Doppelsprung bringt zu wenig');
+  ok(dash > dbl + 3, 'Dash bringt zu wenig');
+  ok(jump < 10, `Ein einfacher Sprint-Sprung schafft ${jump.toFixed(1)} m — damit ist jede Lücke trivial`);
+  console.log(`  Gehen ${walk.toFixed(1)} | Sprint ${jump.toFixed(1)} | +Doppel ${dbl.toFixed(1)} | +Dash ${dash.toFixed(1)} m`);
+
+  // Lücken im Level müssen zur Reichweite passen: erreichbar, aber nicht geschenkt
+  let worst = 0, worstRoom = '';
+  for (let s2 = 0; s2 < 20; s2++) {
+    dg.generate((s2 * 7717 + 5) >>> 0, 9);
+    for (const room of dg.rooms) {
+      if (!['parkour_bridges', 'parkour_pillars'].includes(room.def.id)) continue;
+      const z0 = room.origin.z, z1 = room.origin.z - room.length;
+      const tops = dg.boxes.filter((bx) => bx.z < z0 && bx.z > z1 && bx.w >= 2.4 && bx.d >= 2.4)
+        .sort((a, b3) => b3.z - a.z);
+      for (let i = 1; i < tops.length; i++) {
+        const a = tops[i - 1], b3 = tops[i];
+        const gap = Math.max(0, Math.hypot(a.x - b3.x, a.z - b3.z) - (a.d + b3.d) / 4 - (a.w + b3.w) / 4);
+        if (gap > worst) { worst = gap; worstRoom = room.def.id; }
+      }
+    }
+  }
+  ok(worst < jump * 0.9, `Grösste Lücke ${worst.toFixed(1)} m bei ${jump.toFixed(1)} m Reichweite (${worstRoom}) — unfair`);
+  ok(worst > walk, `Grösste Lücke nur ${worst.toFixed(1)} m — man kommt ohne Sprint hinüber`);
+  console.log(`  grösste Lücke ${worst.toFixed(1)} m (${(worst / jump * 100).toFixed(0)} % der Reichweite)`);
+
+  // Dash ist eine Ressource, keine Dauerfähigkeit
+  const w4 = new PhysicsWorld();
+  w4.add(new Collider(0, -1, 0, 40, 1, 40, 'solid'));
+  w4.build();
+  const m4 = new PlayerMovement(w4);
+  const air = PlayerMovement.createState();
+  air.pos = { x: 0, y: 20, z: 0 };
+  const c4 = { mx: 0, mz: 1, yaw: 0, sprint: true, crouch: false, jump: false, dash: true };
+  m4.update(air, c4, dt); c4.dash = false;
+  const cd0 = air.dashCooldown;
+  ok(cd0 > 1.5, 'Dash-Cooldown ist zu kurz');
+  for (let i = 0; i < 60; i++) m4.update(air, c4, dt);
+  ok(air.dashCooldown > cd0 - 0.25, 'Dash lädt in der Luft nach — dann ist er keine Ressource');
+  ok(air.dashCharges === 0, 'Luft-Dash verbraucht keine Ladung');
+  console.log(fails === b2b ? '  Bewegung ist ein Budget, kein Dauerangebot' : `  ${fails - b2b} Fehler`);
+}
 
 console.log('=== 3. Determinismus (gleicher Seed => gleicher Dungeon) ===');
 const b3 = fails;

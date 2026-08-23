@@ -38,6 +38,7 @@
     <div class="b-title">RIFT GUARDIAN</div>
     <div class="b-phase">SCHILD AKTIV</div>
     <div class="b-mech"><span></span><span></span><span></span></div>
+    <div class="b-goal"></div>
     <div class="b-timer hidden">00</div>
   </div>
   <div id="hud-warning"></div>
@@ -70,6 +71,13 @@
         <input id="input-code" maxlength="6" placeholder="ABC123" />
         <button id="btn-join">Beitreten</button>
       </div>
+    </div>
+
+    <div class="field browser">
+      <label>Offene Lobbys <span id="browser-status"></span>
+        <button id="btn-refresh" class="ghost small inline">Aktualisieren</button>
+      </label>
+      <div id="lobby-list" class="lobbies"></div>
     </div>
 
     <details class="advanced">

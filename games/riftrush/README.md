@@ -76,7 +76,7 @@ Im Menü das Feld „Signaling Server" **leer lassen**.
 
 Limitierung: genau 2 Spieler.
 
-### B) WebSocket-Signaling-Server (bis 8 Spieler, Room Codes)
+### B) WebSocket-Signaling-Server (bis 8 Spieler, Lobby-Liste + Room Codes)
 
 ```bash
 cd server
@@ -91,8 +91,19 @@ Im Menü unter „Verbindungs-Einstellungen" die URL eintragen, z. B.
 > `wss://`** — der Server braucht also ein TLS-Zertifikat (Render / Railway / Fly.io /
 > Caddy-Reverse-Proxy liefern das automatisch).
 
-Der Server vermittelt ausschließlich die Verbindung. Das Gameplay läuft danach
-vollständig Peer-to-Peer.
+Mit Server gibt es im Menü eine **Liste offener Lobbys**: wer eine Lobby erstellt,
+taucht bei allen anderen automatisch auf — Hostname, Spielerzahl und ob das Match
+schon läuft. Ein Klick genügt, der Code ist dann optional. Die Liste aktualisiert
+sich von selbst (der Server pusht bei jeder Änderung), es gibt zusätzlich
+`GET /lobbies` als einfachen JSON-Endpunkt.
+
+Ohne Server ist das technisch nicht möglich: WebRTC ist reines Peer-to-Peer und
+kennt nur Gegenstellen, die man bereits kennt. Es braucht immer eine Stelle, die
+weiß, wer gerade offen ist — genau das ist der Signaling-Server. Im manuellen Modus
+bleibt daher nur der Code-Austausch.
+
+Der Server vermittelt ausschließlich Verbindungsaufbau und Lobby-Liste. Das Gameplay
+läuft danach vollständig Peer-to-Peer.
 
 ---
 
@@ -115,16 +126,20 @@ Abgedeckt:
 * **Checkpoint-Sicherheit**: 12 s Weltsimulation pro Seed — kein Hazard (auch kein
   bewegter) darf je einen Respawn-Punkt berühren, sonst entsteht eine Todesschleife
 * **Z-Fighting**: keine überlappenden Boxen mit exakt gleicher Oberkante
-* **Movement**: Slide-Boost & -Ende, Double Jump, Wallrun-Start, Walljump-Impuls,
-  Dash-Cooldown, keine NaN
+* **Movement**: Slide-Boost & -Ende, Double Jump, Wallrun-Start (nur an markierten
+  Wänden), Walljump-Impuls, keine NaN
+* **Bewegungsbudget**: gemessene Reichweiten pro Technik, Abstufung zwischen ihnen,
+  Level-Lücken im Verhältnis zur Reichweite (erreichbar, aber nicht geschenkt),
+  Dash lädt nachweislich nicht in der Luft nach
 * **Determinismus**: gleicher Seed erzeugt exakt dieselbe Geometrie
 * **Netzwerk**: Snapshot-Interpolation bei 12 % Paketverlust und ±20 ms Jitter
   (keine harten Positionssprünge), Leaderboard-Sortierung
 * **Multiplayer** (echter Signaling-Server aus `/server` + Loopback-PeerConnections):
   Verbindungsaufbau, Roster- und Profilabgleich, Ready-Status, Seed-Verteilung,
   Snapshot-Tickrate, gerichtete Treffer-Events, Full Mesh mit 3 Peers, Broadcast,
-  sauberes Leave (genau ein Event), Verhalten bei Paketverlust, Reconnect sowie der
-  komplette manuelle Copy-&-Paste-Modus
+  sauberes Leave (genau ein Event), Verhalten bei Paketverlust, Reconnect, der
+  Lobby-Browser (Lobby erscheint und verschwindet automatisch, Status „läuft",
+  Spielerzahl, Verhalten ohne Server) sowie der komplette manuelle Copy-&-Paste-Modus
 * **Spielerfigur**: Aufbau und Teilezahl, Proportionen und Beinlänge für alle drei
   Statur-Presets, Animation über alle zehn Bewegungszustände (keine NaN, Gliedmaßen
   bewegen sich wirklich), Handpositionen im Weltraum (Arme dürfen nie durch den Torso
@@ -139,6 +154,9 @@ Abgedeckt:
   Bewegungsrichtung (geprüft über den Weltvektor, nicht über Winkelkonventionen),
   der Kopf hält dagegen, im Stand richtet sich die Figur wieder aus und der Drehwinkel
   summiert sich über viele Richtungswechsel nicht auf
+* **Boss-Führung**: Wegweiser zeigt in jeder Phase auf das richtige Ziel und wandert
+  nach erledigtem Mechanismus weiter; nach Ablauf des Countdowns greift der Kollaps,
+  ohne den Fluchtweg zu zerstören
 * **Boss**: Arena in jeder Route korrekt eingebettet, Mechanismen erhöht und Kern hoch
   genug (Parkour zwingend), Phasenfolge 1→2→3, Kern erst in Phase 2 treffbar, Einsturz
   lässt immer einen Weg zum Ausgang, Angriffe treffen am Boden und verfehlen beim Sprung,
@@ -173,6 +191,22 @@ Abgedeckt:
 Desktop only — Touch-Steuerung gibt es (noch) nicht, Tastatur und Maus sind erforderlich.
 
 Kombo-Beispiel: `Sprint → Jump → Wallrun → Walljump → Dash → Slide → Jump`.
+
+**Bewegung ist ein Budget, kein Dauerangebot.** Reichweiten über eine Lücke:
+
+| Technik | Weite |
+|---|---|
+| Gehen | 6,4 m |
+| Sprint-Sprung | 8,9 m |
+| + Doppelsprung | 12,7 m |
+| + Dash | 18,2 m |
+
+Die grössten Lücken im Level liegen bei 6,7 m — also 75 % der Sprint-Reichweite.
+Ein sauberer Anlauf ist Pflicht, Doppelsprung ist die Sicherheit, der Dash die
+Abkürzung. Entscheidend: **der Dash lädt nur bei Bodenkontakt oder im Wallrun nach**
+(2,2 s) und hebt einen nicht mehr an. Wer in der Luft dasht, ist festgelegt, bis er
+wieder etwas berührt — Wandkontakt gibt Sprung und Dash sofort zurück und macht
+Wallrun damit zur eigentlichen Fortbewegung statt zur Zierde.
 
 **Wallrun geht nur an markierten Wänden.** Sie sind violett und haben waagerechte
 Leuchtstreifen. Dafür ist er dort auch zwingend nötig: die Räume `Wallrun Corridor`
@@ -224,6 +258,7 @@ src/
     SignalingManager.js  Interface + WebSocket- und Manual-Implementierung
     WebRTCManager.js     PeerConnections, 2 DataChannels (unreliable/reliable)
     NetworkManager.js    Protokoll: profile | ready | start | event | s(napshot)
+    LobbyBrowser.js      Liste offener Lobbys (eigene, kurzlebige Verbindung)
     RemotePlayer.js      Snapshot-Interpolation (+ kurze Extrapolation)
 
   dungeon/
@@ -336,8 +371,13 @@ es nur über die Route Wallrun → Sprungplattform → Lift → Laufsteg. Angrif
 Laser, stärkere Schockwellen, einstürzende Bodenfelder.
 
 **Phase 3 — Flucht.** Der erste Treffer am Kern startet einen 30-Sekunden-Countdown,
-öffnet die Ausgangstür und lässt die Arena einstürzen. Die mittlere Bodenspur bleibt
-immer stehen, damit der Ausgang erreichbar bleibt.
+öffnet die Ausgangstür und lässt die Arena einstürzen. Läuft der Countdown ab, reisst
+der Boss alles Einstürzbare auf einmal weg und feuert im 1,7-Sekunden-Takt weiter —
+die mittlere Bodenspur bleibt aber immer stehen, der Ausgang ist also weiterhin
+erreichbar. Ablaufen kostet Zeit, nicht den Run.
+
+**Führung.** In jeder Phase markiert eine Lichtsäule das nächste Ziel (nächster
+Mechanismus → Kern → Ausgang), das HUD nennt es im Klartext samt Entfernung.
 
 Der erste Spieler am Kern bekommt eine Zeitgutschrift von 2,5 s (`BOSS_TIME_BONUS`) —
 genug als Belohnung, zu wenig, um das Rennen allein zu entscheiden. Alle anderen laufen

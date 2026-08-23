@@ -135,6 +135,60 @@ try {
   await wait(600);
   ok(A.n.peerCount === 2, `Reconnect scheiterte (${A.n.peerCount} Peers)`);
   ok(A.n.roster.get('idC2')?.name === 'Max2', 'Reconnect-Profil fehlt');
+  console.log('=== 10b. Lobby-Browser: Lobbys ohne Code finden ===');
+  {
+    const { LobbyBrowser } = await import('../src/multiplayer/LobbyBrowser.js');
+    const br = new LobbyBrowser();
+    let updates = 0;
+    br.onUpdate = () => updates++;
+    br.start(URL_);
+    await wait(500);
+    ok(br.status === 'online', `Browser nicht verbunden (${br.status})`);
+    ok(br.rooms.length >= 1, 'Die offene Lobby taucht nicht in der Liste auf');
+    const entry = br.rooms.find((r) => r.code === 'TESTRM');
+    ok(!!entry, `Lobby TESTRM fehlt in der Liste: ${JSON.stringify(br.rooms)}`);
+    ok(entry && entry.host === 'Damian', `Falscher Hostname: ${entry && entry.host}`);
+    ok(entry && entry.players >= 2, `Spielerzahl falsch: ${entry && entry.players}`);
+    ok(entry && entry.state === 'lobby', 'Lobby wird nicht als offen gemeldet');
+    ok(entry && entry.max === 8, 'Maximale Spielerzahl fehlt');
+
+    // Statuswechsel: Match gestartet -> Lobby zeigt "läuft"
+    const before = updates;
+    A.n.setLobbyState('running');
+    await wait(300);
+    ok(updates > before, 'Statusänderung wird nicht an die Browser gepusht');
+    ok(br.rooms.find((r) => r.code === 'TESTRM')?.state === 'running',
+      'Laufendes Match wird weiter als offen angezeigt');
+    A.n.setLobbyState('lobby');
+    await wait(200);
+
+    // Neue Lobby erscheint automatisch, ohne Nachfragen
+    const before2 = br.rooms.length;
+    const F = await makePeer('idF', 'Zweiter', 0x7ee787, true, 'ROOM2');
+    await wait(400);
+    ok(br.rooms.length > before2, 'Neue Lobby erscheint nicht automatisch');
+    ok(!!br.rooms.find((r) => r.code === 'ROOM2'), 'Zweite Lobby fehlt');
+
+    // Beim Verlassen verschwindet sie wieder
+    F.n.disconnect();
+    await wait(500);
+    ok(!br.rooms.find((r) => r.code === 'ROOM2'), 'Leere Lobby bleibt in der Liste stehen');
+
+    br.stop();
+    ok(br.ws === null, 'Browser-Verbindung wird nicht geschlossen');
+  }
+
+  console.log('=== 10c. Ohne Server keine Liste (aber saubere Meldung) ===');
+  {
+    const { LobbyBrowser } = await import('../src/multiplayer/LobbyBrowser.js');
+    const br = new LobbyBrowser();
+    br.start('');
+    ok(br.available === false, 'Leere URL gilt als gültiger Server');
+    ok(br.rooms.length === 0, 'Ohne Server werden Lobbys gemeldet');
+    ok(br.status === 'idle', 'Falscher Status ohne Server');
+    br.stop();
+  }
+
   console.log('=== 11. Manueller Modus (ohne Server, Copy & Paste) ===');
   const mkManual = async (id, name, isHost) => {
     const n = new NetworkManager();

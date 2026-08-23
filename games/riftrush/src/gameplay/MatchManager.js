@@ -17,7 +17,10 @@ export class MatchManager {
     const game = this.game;
     const seed = (Math.random() * 0xffffffff) >>> 0;
     const countdown = C.COUNTDOWN_SECONDS * 1000;
-    if (!game.state.solo) game.network.startMatch(seed, countdown);
+    if (!game.state.solo) {
+      game.network.startMatch(seed, countdown);
+      game.network.setLobbyState('running');
+    }
     this.beginMatch(seed, countdown);
   }
 
@@ -94,6 +97,7 @@ export class MatchManager {
   /** Zurück in die Lobby (Rematch-Vorbereitung). */
   toLobby() {
     const game = this.game;
+    if (!game.state.solo) game.network.setLobbyState('lobby');
     game.state.set(Phase.LOBBY);
     game.input.exitLock();
     game.ui.showLobby();

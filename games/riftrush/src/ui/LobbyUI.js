@@ -17,6 +17,8 @@ export class LobbyUI {
     this.manualIn = root.getElementById('manual-in');
     this.btnStart = root.getElementById('btn-start');
     this.btnReady = root.getElementById('btn-ready');
+    this.listEl = root.getElementById('lobby-list');
+    this.browserStatusEl = root.getElementById('browser-status');
 
     this.handlers = {};
     this._bind();
@@ -50,6 +52,8 @@ export class LobbyUI {
     g('btn-copy-code').onclick = () => navigator.clipboard?.writeText(this.codeEl.textContent);
     g('btn-manual-copy').onclick = () => navigator.clipboard?.writeText(this.manualOut.value);
     g('btn-manual-apply').onclick = () => this._fire('manualPaste', this.manualIn.value);
+    g('btn-refresh').onclick = () => this._fire('refreshLobbies');
+    g('input-signal').addEventListener('change', () => { this._save(); this._fire('signalChanged', url()); });
     g('btn-resume').onclick = () => this._fire('resume');
     g('btn-quit').onclick = () => this._fire('quit');
   }
@@ -67,6 +71,40 @@ export class LobbyUI {
       if (n) this.root.getElementById('input-name').value = n;
       if (s) this.root.getElementById('input-signal').value = s;
     } catch {}
+  }
+
+  /** Liste offener Lobbys im Menü. */
+  setLobbyList(browser) {
+    if (!this.listEl) return;
+    const st = this.browserStatusEl;
+    if (st) {
+      st.className = browser.status === 'online' ? 'online' : browser.status === 'error' ? 'error' : '';
+      st.textContent = browser.status === 'online' ? '· verbunden'
+        : browser.status === 'connecting' ? '· verbinde …'
+        : browser.status === 'error' ? '· Server nicht erreichbar' : '';
+    }
+    if (!browser.available) {
+      this.listEl.innerHTML = '<div class="empty">Für eine Lobby-Liste wird ein Signaling-Server ' +
+        'benötigt — trag ihn oben unter „Verbindungs-Einstellungen“ ein. ' +
+        'Ohne Server funktioniert nur der manuelle Code-Austausch.</div>';
+      return;
+    }
+    if (!browser.rooms.length) {
+      this.listEl.innerHTML = `<div class="empty">${browser.status === 'online'
+        ? 'Gerade ist keine Lobby offen. Erstell einfach eine — sie taucht dann bei den anderen auf.'
+        : 'Warte auf den Server …'}</div>`;
+      return;
+    }
+    this.listEl.innerHTML = browser.rooms.map((r) => `
+      <div class="lob ${r.state === 'running' ? 'running' : ''}" data-code="${escapeHtml(r.code)}">
+        <span class="code">${escapeHtml(r.code)}</span>
+        <span class="who">${escapeHtml(r.host)}</span>
+        <span class="st">${r.state === 'running' ? 'LÄUFT' : 'OFFEN'}</span>
+        <span class="cnt">${r.players}/${r.max}</span>
+      </div>`).join('');
+    this.listEl.querySelectorAll('.lob').forEach((el) => {
+      el.onclick = () => this._fire('joinLobby', el.dataset.code);
+    });
   }
 
   // ---------------------------------------------------------------- Screens

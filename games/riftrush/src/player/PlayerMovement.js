@@ -54,7 +54,10 @@ export class PlayerMovement {
     s.yaw = cmd.yaw;
 
     // ---- Timer ----
-    s.dashCooldown = Math.max(0, s.dashCooldown - dt);
+    /* Der Dash laedt nur bei Bodenkontakt oder im Wallrun nach. Wer in der Luft
+     * dasht, ist damit festgelegt, bis er wieder etwas beruehrt — das macht
+     * Parkour zu einer Frage der Routenwahl statt zu Tastenspam. */
+    if (s.grounded || s.wallrunning) s.dashCooldown = Math.max(0, s.dashCooldown - dt);
     s.slideCooldown = Math.max(0, s.slideCooldown - dt);
     s.wallCooldown = Math.max(0, s.wallCooldown - dt);
     s.airLock = Math.max(0, s.airLock - dt);
@@ -120,14 +123,14 @@ export class PlayerMovement {
       s.dashCooldown = C.DASH_COOLDOWN;
       s.dashDir = { x: dx / l, z: dz / l };
       if (!s.grounded) s.dashCharges--;
-      s.vel.y = Math.max(s.vel.y, 1.2);
+      if (C.DASH_LIFT > 0) s.vel.y = Math.max(s.vel.y, C.DASH_LIFT);
       s.wallrunning = false;
     }
     if (s.dashing) {
       s.dashTimer -= dt;
       s.vel.x = s.dashDir.x * C.DASH_FORCE;
       s.vel.z = s.dashDir.z * C.DASH_FORCE;
-      s.vel.y *= 0.72;
+      s.vel.y *= C.DASH_FALL_DAMP;
       if (s.dashTimer <= 0) {
         s.dashing = false;
         s.vel.x *= 0.62; s.vel.z *= 0.62;
@@ -269,7 +272,10 @@ export class PlayerMovement {
         s.wallTimer = C.WALLRUN_MAX_TIME;
         s.wallNormal.x = nx; s.wallNormal.z = nz;
         s.vel.y = Math.max(s.vel.y, C.WALLRUN_UPKICK);
+        // Wandkontakt gibt Sprung UND Dash zurueck: das belohnt genau die
+        // Bewegung, um die es im Spiel geht.
         s.jumpsLeft = 1;
+        s.dashCharges = C.DASH_AIR_CHARGES;
       } else if (!s.wallrunning) {
         if (nx !== 0) s.vel.x = 0;
         if (nz !== 0) s.vel.z = 0;

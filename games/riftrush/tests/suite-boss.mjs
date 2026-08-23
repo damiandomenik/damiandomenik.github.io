@@ -142,6 +142,64 @@ console.log('=== 3. Einsturz lässt einen Weg zum Ausgang ===');
   console.log(fails === b ? `  ${gone.length} Kacheln weg, Mittelspur steht` : '  FEHLER');
 }
 
+console.log('=== 3b. Führung: Wegweiser zeigt immer das nächste Ziel ===');
+{
+  const b = fails;
+  const f = makeFight(true);
+  const A = dg.bossArena;
+  const ctx = fakeCtx(f, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
+  run(f, ctx, 0.3);
+  ok(f.beacon.visible, 'Kein Wegweiser in Phase 1');
+  ok(f.hud.goal.includes('MECHANISMUS'), `Zieltext fehlt: "${f.hud.goal}"`);
+  const near = A.mechanisms.reduce((best, m) => {
+    const d = Math.hypot(m.world.x - ctx.localPlayer.state.pos.x, m.world.z - ctx.localPlayer.state.pos.z);
+    return d < best.d ? { d, m } : best;
+  }, { d: Infinity, m: null });
+  ok(Math.hypot(f.beacon.position.x - near.m.world.x, f.beacon.position.z - near.m.world.z) < 1,
+    'Wegweiser zeigt nicht auf den nächstgelegenen Mechanismus');
+  ok(f.hud.goalDist > 0, 'Keine Entfernungsangabe');
+
+  // nach Aktivierung wandert er zum nächsten
+  f.activateMechanism(near.m.index, 'me');
+  run(f, ctx, 0.2);
+  ok(Math.hypot(f.beacon.position.x - near.m.world.x, f.beacon.position.z - near.m.world.z) > 1,
+    'Wegweiser bleibt am erledigten Mechanismus stehen');
+
+  f.activateMechanism(0, 'me'); f.activateMechanism(1, 'me'); f.activateMechanism(2, 'me');
+  run(f, ctx, 0.2);
+  ok(f.hud.goal.includes('KERN'), 'Wegweiser zeigt in Phase 2 nicht zum Kern');
+  ok(Math.abs(f.beacon.position.y - A.walkwayY) < 2, 'Wegweiser zeigt nicht auf die Kernhöhe');
+
+  f.hitCore('me');
+  run(f, ctx, 0.2);
+  ok(f.hud.goal.includes('AUSGANG') || f.hud.goal.includes('MITTELSPUR'), 'Kein Fluchtziel angezeigt');
+  ok(Math.abs(f.beacon.position.z - A.exitWorld.z) < 2, 'Wegweiser zeigt nicht zum Ausgang');
+  console.log(fails === b ? '  Ziel ist in jeder Phase markiert' : `  ${fails - b} Fehler`);
+}
+
+console.log('=== 3c. Nach Ablauf des Countdowns passiert etwas ===');
+{
+  const b = fails;
+  const f = makeFight(true);
+  const A = dg.bossArena;
+  const ctx = fakeCtx(f, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
+  run(f, ctx, 0.2);
+  f.activateMechanism(0, 'me'); f.activateMechanism(1, 'me'); f.activateMechanism(2, 'me');
+  run(f, ctx, 0.2);
+  f.hitCore('me');
+  run(f, ctx, ESCAPE_SECONDS - 2);
+  ok(!f.collapsed, 'Kollaps startet zu früh');
+  const attacksBefore = f.attackIndex;
+  run(f, ctx, 8);
+  ok(f.collapsed, 'Nach Ablauf des Countdowns passiert nichts');
+  ok(f.hud.collapsed === true, 'HUD meldet den Kollaps nicht');
+  ok(A.tiles.every((t) => !t.collapsible || t.visualState === 'gone'), 'Nicht alles Einstürzbare ist weg');
+  ok(A.tiles.filter((t) => !t.collapsible).every((t) => t.collider.active), 'Auch die Mittelspur ist weg — Ausgang unerreichbar');
+  ok(f.attackIndex > attacksBefore + 1, 'Der Boss feuert im Kollaps nicht härter');
+  ok(dg.doors.get(A.doorId).open === true, 'Ausgangstür ist im Kollaps zu');
+  console.log(fails === b ? '  Kollaps greift, Fluchtweg bleibt' : `  ${fails - b} Fehler`);
+}
+
 console.log('=== 4. Angriffe treffen nur, wenn man am Boden steht ===');
 {
   const b = fails;

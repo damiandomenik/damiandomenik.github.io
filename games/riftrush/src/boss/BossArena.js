@@ -142,6 +142,7 @@ export function buildBossArena(c) {
     radius: 26,
     minZ: O.z + CZ - 24, maxZ: O.z + CZ + 24,
     minX: O.x - 24, maxX: O.x + 24,
+    exitWorld: w(0, 0, ARENA.exitZ - 10),
     tiles, platforms, mechanisms, coreTrigger, doorId,
     lifts: [lift, lift2],
     entranceZ: O.z - 8,

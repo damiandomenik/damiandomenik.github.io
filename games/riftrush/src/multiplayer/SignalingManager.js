@@ -23,6 +23,8 @@ export class SignalingManager {
   async start() {}
   stop() {}
   send() {}
+  /** Lobby-Metadaten (Hostname, wartend/läuft) — nur mit Server sinnvoll. */
+  sendMeta() {}
   get label() { return 'none'; }
 }
 
@@ -31,6 +33,7 @@ export class WebSocketSignaling extends SignalingManager {
   constructor(opts) {
     super(opts);
     this.url = opts.url;
+    this.name = opts.name || 'Runner';
     this.ws = null;
     this.retry = 0;
     this.closedByUser = false;
@@ -46,7 +49,9 @@ export class WebSocketSignaling extends SignalingManager {
 
       this.ws.onopen = () => {
         this.onStatus('verbunden mit Signaling');
-        this.ws.send(JSON.stringify({ type: 'join', room: this.room, id: this.selfId, host: this.isHost }));
+        this.ws.send(JSON.stringify({
+          type: 'join', room: this.room, id: this.selfId, host: this.isHost, name: this.name,
+        }));
       };
       this.ws.onmessage = (ev) => {
         let msg; try { msg = JSON.parse(ev.data); } catch { return; }
@@ -83,6 +88,12 @@ export class WebSocketSignaling extends SignalingManager {
   send(toId, payload) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'signal', room: this.room, from: this.selfId, to: toId, data: payload }));
+    }
+  }
+
+  sendMeta(meta) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'meta', ...meta }));
     }
   }
 
@@ -148,9 +159,9 @@ export function decodeBlob(str) {
 }
 
 /** Fabrik: erzeugt die passende Signaling-Implementierung. */
-export function createSignaling({ url, selfId, room, isHost }) {
+export function createSignaling({ url, selfId, room, isHost, name }) {
   if (url && /^wss?:\/\//i.test(url.trim())) {
-    return new WebSocketSignaling({ url: url.trim(), selfId, room, isHost });
+    return new WebSocketSignaling({ url: url.trim(), selfId, room, isHost, name });
   }
   return new ManualSignaling({ selfId, room, isHost });
 }

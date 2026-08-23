@@ -48,7 +48,7 @@ export class NetworkManager {
     this.code = code;
     this.profile = { ...this.profile, ...profile };
 
-    this.signaling = createSignaling({ url, selfId, room: code, isHost });
+    this.signaling = createSignaling({ url, selfId, room: code, isHost, name: this.profile.name });
     this.signaling.onStatus = (s) => this.onStatus(s);
     this.signaling.onError = (e) => this.onError(e);
 
@@ -130,6 +130,11 @@ export class NetworkManager {
     this.profile.ready = ready;
     this.rtc?.broadcast({ t: 'ready', ready }, true);
     this.onRosterChange();
+  }
+
+  /** Lobby-Eintrag auf dem Signaling-Server aktualisieren. */
+  setLobbyState(state) {
+    this.signaling?.sendMeta({ state, name: this.profile.name });
   }
 
   startMatch(seed, countdownMs) {

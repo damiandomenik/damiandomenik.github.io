@@ -137,7 +137,9 @@ export class DungeonGenerator {
         // Exakt koplanare Flächen flimmern aber (Z-Fighting), daher bekommt jede
         // Box einen deterministischen Mikro-Versatz von wenigen Millimetern.
         // Rein visuell — die Physik arbeitet weiter mit den exakten Werten.
-        const e = ((gi++ * 0.6180339887) % 1) * 0.012 + 0.001;
+        const hash = Math.sin(b.x * 12.9898 + b.y * 78.233 + b.z * 37.719) * 43758.5453;
+        const e = (hash - Math.floor(hash)) * 0.012 + 0.001;
+        gi++;
         _p.set(b.x, b.y + (b.h - e) / 2, b.z);
         _s.set(b.w - e * 0.3, b.h - e, b.d - e * 0.3);
         _m.compose(_p, _q, _s);
@@ -222,7 +224,8 @@ export class DungeonGenerator {
       inst.frustumCulled = false;
       for (let i = 0; i < bars.length; i++) {
         const r = bars[i];
-        const e = ((i * 0.6180339887) % 1) * 0.008;
+        const h2 = Math.sin(r.x * 12.9898 + r.y * 78.233 + r.z * 37.719) * 43758.5453;
+        const e = (h2 - Math.floor(h2)) * 0.008;
         const th = r.h || TH;
         _p.set(r.x, r.y - (r.h ? 0 : TH * 0.5) + e, r.z);   // Plattformkanten bündig
         _s.set(r.w, th, r.d);

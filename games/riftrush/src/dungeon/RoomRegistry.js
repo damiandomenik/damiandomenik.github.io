@@ -49,7 +49,7 @@ export const ROOMS = [
       while (z > -50) {
         const rise = rng.range(-0.8, 1.1);
         const nx = Math.max(-4.2, Math.min(4.2, x + rng.range(-2.6, 2.6)));
-        z -= rng.range(4.2, 5.4) - Math.max(0, rise) + 3.4;
+        z -= rng.range(4.2, 5.4) - Math.max(0, rise) + 5.4;   // grössere Luecken: der Grundsprung soll knapp sein
         y += rise;
         c.plat(nx, y, z, rng.range(3.8, 5.2), rng.range(3.4, 4.6),
           rng.chance(0.25) ? 'accent' : 'solid');
@@ -62,9 +62,9 @@ export const ROOMS = [
   },
 
   {
-    id: 'parkour_pillars', name: 'Pillar Field', length: 56, exitY: 0, weight: 3,
+    id: 'parkour_pillars', name: 'Pillar Field', length: 70, exitY: 0, weight: 3,
     build(c, rng) {
-      entryPad(c); pit(c, 56, 30, -6);
+      entryPad(c); pit(c, 70, 30, -6);
       // Garantierter Hauptpfad (immer erreichbar)
       // Hauptpfad: jede Säule ist von der vorherigen sicher erreichbar
       let py = 0.6, px = 0;
@@ -72,7 +72,7 @@ export const ROOMS = [
       for (let i = 0; i < 10; i++) {
         py = Math.max(0.4, Math.min(2.2, py + rng.range(-0.8, 0.9)));
         px = Math.max(-3.5, Math.min(3.5, px + rng.range(-2.0, 2.0)));
-        const z = -11 - i * 4.0;
+        const z = -11 - i * 5.6;
         c.box(px, py - 8, z, 3.6, 8, 3.6, i % 3 === 0 ? 'accent' : 'solid');
         path.push({ x: px, y: py, z });
       }
@@ -83,8 +83,8 @@ export const ROOMS = [
         c.box(node.x + side * rng.range(2.8, 4.0), node.y + rng.range(-0.6, 0.8) - 8,
           node.z - rng.range(1.0, 2.6), 2.6, 8, 2.6, rng.chance(0.3) ? 'accent' : 'solid');
       }
-      c.plat(0, 0, -52, 8, 5, 'solid');
-      exitPad(c, 0, -56);
+      c.plat(0, 0, -66, 8, 5, 'solid');
+      exitPad(c, 0, -70);
     },
   },
 

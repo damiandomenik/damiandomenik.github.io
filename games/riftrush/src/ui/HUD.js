@@ -15,6 +15,7 @@ export class HUD {
     this.bossPhaseEl = this.bossEl ? this.bossEl.querySelector('.b-phase') : null;
     this.bossMechEls = this.bossEl ? [...this.bossEl.querySelectorAll('.b-mech span')] : [];
     this.bossTimerEl = this.bossEl ? this.bossEl.querySelector('.b-timer') : null;
+    this.bossGoalEl = this.bossEl ? this.bossEl.querySelector('.b-goal') : null;
     this.warnEl = root.getElementById('hud-warning');
     this._bossHash = '';
     this.abilityEls = {};
@@ -80,7 +81,7 @@ export class HUD {
     }
     this.bossEl.classList.remove('hidden');
     const secs = Math.ceil(b.escapeMs / 1000);
-    const hash = `${b.phase}|${b.mechanisms}|${secs}`;
+    const hash = `${b.phase}|${b.mechanisms}|${secs}|${b.goal}|${b.goalDist}|${b.collapsed}`;
     if (hash !== this._bossHash) {
       this._bossHash = hash;
       const label = b.phase === 'shield' ? `SCHILD AKTIV — ${b.mechanisms}/${b.mechanismsTotal} MECHANISMEN`
@@ -91,6 +92,10 @@ export class HUD {
       for (let i = 0; i < this.bossMechEls.length; i++) {
         this.bossMechEls[i].classList.toggle('on', i < b.mechanisms);
       }
+      if (this.bossGoalEl) {
+        this.bossGoalEl.textContent = b.goal ? `${b.goal}${b.goalDist ? ` · ${b.goalDist} m` : ''}` : '';
+      }
+      this.bossEl.classList.toggle('collapse', !!b.collapsed);
       const showTimer = b.phase === 'escape';
       this.bossTimerEl.classList.toggle('hidden', !showTimer);
       if (showTimer) this.bossTimerEl.textContent = String(Math.max(0, secs)).padStart(2, '0');

@@ -19,9 +19,13 @@ export const CONFIG = {
   FRICTION_SLIDE: 1.35,
   FRICTION_AIR: 0.35,
 
-  JUMP_FORCE: 11.4,
-  DOUBLE_JUMP_FORCE: 10.2,
-  GRAVITY: 30.0,
+  /* Sprungwerte: bewusst straffer als "schwebend". Ein reiner Sprint-Sprung
+   * schafft ~8 m, mit Doppelsprung ~11 m, mit Dash ~15 m. Die Luecken im Level
+   * liegen bei 6.5-9 m — dadurch ist der Grundsprung knapp, der Doppelsprung
+   * die Sicherheit und der Dash die Abkuerzung. */
+  JUMP_FORCE: 10.6,
+  DOUBLE_JUMP_FORCE: 9.8,
+  GRAVITY: 35.0,
   MAX_FALL_SPEED: 60,
   COYOTE_TIME: 0.12,
   JUMP_BUFFER: 0.14,
@@ -40,8 +44,11 @@ export const CONFIG = {
 
   DASH_FORCE: 34.0,
   DASH_TIME: 0.16,
-  DASH_COOLDOWN: 1.35,
-  DASH_AIR_CHARGES: 1,
+  DASH_COOLDOWN: 2.2,      // laedt NUR am Boden oder im Wallrun nach
+  DASH_AIR_CHARGES: 1,     // ein Dash pro Flugphase
+  DASH_LIFT: 0.0,          // frueher 1.2: der Dash hob einen an und war dadurch
+                           // ein Gratis-Doppelsprung mit doppelter Reichweite
+  DASH_FALL_DAMP: 0.82,
 
   AIR_CONTROL: 0.85,      // Anteil der Luft-Beschleunigung (Richtungskontrolle)
   SLIDE_SPEED: 19.0,

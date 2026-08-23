@@ -17,6 +17,7 @@ import { MatchManager } from '../gameplay/MatchManager.js';
 import { RaceManager } from '../gameplay/RaceManager.js';
 import { NetworkManager } from '../multiplayer/NetworkManager.js';
 import { RemotePlayer } from '../multiplayer/RemotePlayer.js';
+import { LobbyBrowser } from '../multiplayer/LobbyBrowser.js';
 import { HUD } from '../ui/HUD.js';
 import { LobbyUI } from '../ui/LobbyUI.js';
 import { ResultsUI } from '../ui/ResultsUI.js';
@@ -74,6 +75,7 @@ export class Game {
     this.race = new RaceManager(this);
     this.match = new MatchManager(this);
     this.network = new NetworkManager();
+    this.browser = new LobbyBrowser();
     this.remotePlayers = new Map();
 
     this.fx = new CharacterFx(this.scene, 320);
@@ -112,12 +114,22 @@ export class Game {
 
   start() {
     this.ui.showMenu();
+    // Lobby-Liste im Menü live halten
+    this.browser.start(document.getElementById('input-signal')?.value || '');
     this.renderer.setAnimationLoop(this._loop);
   }
 
   // ================================================================ UI
   _wireUI() {
     const L = this.lobbyUI;
+    this.browser.onUpdate = (b) => this.lobbyUI.setLobbyList(b);
+    L.on('refreshLobbies', () => this.browser.refresh());
+    L.on('signalChanged', (url) => this.browser.start(url));
+    L.on('joinLobby', (code) => {
+      const name = (document.getElementById('input-name').value.trim() || 'Runner').slice(0, 14);
+      const url = document.getElementById('input-signal').value.trim();
+      this.joinLobby(name, url, code);
+    });
     L.on('create', ({ name, url }) => this.createLobby(name, url));
     L.on('join', ({ name, url, code }) => this.joinLobby(name, url, code));
     L.on('solo', ({ name }) => this.startSolo(name));
@@ -327,6 +339,7 @@ export class Game {
       if (sig._lastBlob) this.lobbyUI.setManual(true, sig._lastBlob);
     } else this.lobbyUI.setManual(false);
 
+    this.browser.stop();
     this.state.set(Phase.LOBBY);
     this.ui.showLobby();
     this._refreshLobby();
@@ -356,6 +369,7 @@ export class Game {
     this.state.set(Phase.MENU);
     this.input.exitLock();
     this.ui.showMenu();
+    this.browser.start(document.getElementById('input-signal')?.value || '');
   }
 
   buildDungeon(seed) {

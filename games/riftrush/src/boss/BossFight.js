@@ -53,7 +53,11 @@ export class BossFight {
     this.model = new BossModel(scene, arena.bossPos);
     this._buildVisuals();
     this.active = [];                  // laufende Angriffe
-    this._hud = { active: false, phase: '', mechanisms: 0, mechanismsTotal: 3, escapeMs: 0, warning: '' };
+    this._hud = { active: false, phase: '', mechanisms: 0, mechanismsTotal: 3, escapeMs: 0,
+      warning: '', goal: '', goalDist: 0, collapsed: false };
+    this.collapsed = false;
+    this.goalText = '';
+    this.goalDist = 0;
   }
 
   // ================================================================ Visuals
@@ -78,6 +82,23 @@ export class BossFight {
     this.beamWarn = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, A.radius * 2), this.mat.telegraph);
     this.beamWarn.visible = false;
     this.scene.add(this.beamWarn);
+
+    // Wegweiser: Lichtsäule + Bodenring am aktuellen Ziel
+    this.mat.goal = new THREE.MeshBasicMaterial({
+      color: COLORS.goal, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+    });
+    this.beacon = new THREE.Group();
+    const col = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.6, 26, 12, 1, true), this.mat.goal);
+    col.position.y = 13;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.9, 2.5, 22), this.mat.goal);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.12;
+    this.beacon.add(col, ring);
+    this.beacon.visible = false;
+    this.beacon.renderOrder = 2;
+    this.scene.add(this.beacon);
+    this._beaconRing = ring;
 
     this.marks = [];
     this.shots = [];
@@ -125,6 +146,7 @@ export class BossFight {
       this.model.setState('unstable');
       this.arena.coreTrigger.active = false;
       this.escapeEndsAt = this.time + ESCAPE_SECONDS;
+      this.collapsed = false;
       this.nextCollapseAt = this.time + 1.5;
       this.collapseIndex = 0;
       this.dungeon.openDoor(this.arena.doorId);
@@ -244,13 +266,14 @@ export class BossFight {
         const a = list[this.attackIndex % list.length];
         this.attackIndex++;
         const seed = (this.rng() * 0xffffffff) >>> 0;
-        this.nextAttackAt = this.time + (INTERVAL[this.phase] || 4);
+        this.nextAttackAt = this.time + (this.collapsed ? 1.7 : (INTERVAL[this.phase] || 4));
         this.onEvent({ k: 'atk', a, s: seed });
         this._startAttack(a, seed);
       }
     }
 
     if (this.phase === BOSS_PHASE.ESCAPE) this._updateEscape(dt);
+    this._updateBeacon(dt, local.state.pos);
 
     // laufende Angriffe
     for (let i = this.active.length - 1; i >= 0; i--) {
@@ -262,6 +285,46 @@ export class BossFight {
       }
     }
     return this;
+  }
+
+  /**
+   * Wegweiser auf das jeweils nächste Ziel: Mechanismus -> Kern -> Ausgang.
+   * Ohne das weiß niemand, wie es weitergeht — die Arena ist groß.
+   */
+  _updateBeacon(dt, p) {
+    const A = this.arena;
+    let target = null, text = '';
+    if (this.phase === BOSS_PHASE.SHIELD) {
+      let best = Infinity;
+      for (let i = 0; i < this.mechanisms.length; i++) {
+        if (this.mechanisms[i]) continue;
+        const m = A.mechanisms[i];
+        const d = Math.hypot(m.world.x - p.x, m.world.z - p.z);
+        if (d < best) { best = d; target = m.world; }
+      }
+      const done = this.mechanisms.filter(Boolean).length;
+      text = `MECHANISMUS ${done + 1}/${this.mechanisms.length}`;
+    } else if (this.phase === BOSS_PHASE.CORE) {
+      target = { x: A.center.x, y: A.walkwayY, z: A.center.z };
+      text = 'ZUM KERN — ÜBER DIE WALLRUN-WÄNDE';
+    } else if (this.phase === BOSS_PHASE.ESCAPE) {
+      target = A.exitWorld;
+      text = this.collapsed ? 'KOLLAPS — NUR NOCH DIE MITTELSPUR' : 'RAUS ZUM AUSGANG';
+    }
+
+    if (!target) {
+      this.beacon.visible = false;
+      this.goalText = '';
+      this.goalDist = 0;
+      return;
+    }
+    this.beacon.visible = true;
+    this.beacon.position.set(target.x, target.y ?? A.floorY, target.z);
+    this._beaconRing.rotation.z += dt * 1.2;
+    const pulse = 0.16 + Math.sin(this.time * 3) * 0.07;
+    this.mat.goal.opacity = pulse;
+    this.goalText = text;
+    this.goalDist = Math.round(Math.hypot(target.x - p.x, target.z - p.z));
   }
 
   // ---------------------------------------------------------------- Angriffe
@@ -456,6 +519,17 @@ export class BossFight {
   }
 
   _updateEscape(dt) {
+    // Countdown abgelaufen: der Boss reisst alles ein, was noch steht, und
+    // feuert im Dauertakt. Die Mittelspur bleibt — raus kommt man weiterhin.
+    if (!this.collapsed && this.time >= this.escapeEndsAt) {
+      this.collapsed = true;
+      this.audio.floorCollapse({ final: true });
+      this.audio.emit('boss:collapse', {});
+      for (const t of this.arena.tiles) {
+        if (t.collapsible && t.visualState !== 'gone') t.setState('gone');
+      }
+      this.nextAttackAt = Math.min(this.nextAttackAt, this.time + 0.4);
+    }
     if (this.time >= this.nextCollapseAt) {
       const pool = this.arena.tiles.filter((t) => t.collapsible && t.visualState === 'normal');
       if (pool.length) {
@@ -481,12 +555,16 @@ export class BossFight {
     h.mechanismsTotal = this.mechanisms.length;
     h.escapeMs = this.escapeRemainingMs;
     h.warning = this.warning;
+    h.goal = this.goalText;
+    h.goalDist = this.goalDist;
+    h.collapsed = this.collapsed;
     return h;
   }
 
   dispose() {
     this.model.dispose();
-    this.scene.remove(this.shock, this.beam, this.beamWarn);
+    this.scene.remove(this.shock, this.beam, this.beamWarn, this.beacon);
+    this.beacon.children.forEach((c) => c.geometry.dispose());
     this.marks.forEach((m) => { this.scene.remove(m); m.geometry.dispose(); });
     this.shots.forEach((s) => { this.scene.remove(s); s.geometry.dispose(); });
     this.shock.geometry.dispose();
