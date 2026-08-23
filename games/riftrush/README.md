@@ -163,6 +163,10 @@ Abgedeckt:
   Vorwarnzeiten, keine Treffer-Dauerschleife (9 Treffer in 60 s bei Untätigkeit),
   Host/Client-Synchronisation inkl. Späteinsteiger und Traffic-Budget, Zeitbonus,
   Modellbudget (33 Meshes, 1.184 Dreiecke, ein Licht)
+* **Charakter-Asset**: GLB lädt mit dem echten GLTFLoader, Mesh-/Material-/Dreiecks-
+  budget, Proportionen gegen die 1,8-m-Hitbox, vollständiges Rig inkl. Hierarchie,
+  alle 16 geforderten Clips, jeder Clip bewegt das Rig nachweislich und ohne NaN,
+  Schnittstellen-Gleichheit beider Figur-Varianten, eigene Skelette und Farben pro Spieler
 * **Grafik**: Vertex-Farb-Attribute vorhanden (sonst schwarze Flächen), Glow-Materialien
   ohne Tone Mapping, Streuung der Instanzfarben in sinnvollen Grenzen, Himmel/Sterne/Gitter
   vorhanden, ohne Nebel und kameragebunden, Draw-Call-Budget des Dungeons
@@ -299,6 +303,45 @@ src/
 * Voller Mesh bis 8 Spieler.
 
 ### Spielerfigur
+
+Es gibt **zwei austauschbare Varianten** mit identischer Schnittstelle. Standard ist
+das GLB-Modell aus dem Character Sheet; schlägt das Laden fehl, läuft automatisch die
+prozedurale Figur weiter — das Spiel startet also in jedem Fall.
+
+```js
+RIFTRUSH.setCharacterModel('procedural');   // ohne Modell
+RIFTRUSH.setCharacterModel('glb');          // zurück zum Modell
+```
+
+#### Rift Runner (GLB)
+
+`assets/RiftRush_Player.glb` — 2.508 Dreiecke, 5 Materialien, 23 Knochen, 16 Clips,
+315 KB. Erzeugt von `tools/build_player_glb.py`, also reproduzierbar und versionierbar:
+
+```bash
+python3 tools/build_player_glb.py assets/RiftRush_Player.glb
+```
+
+Bauweise: Hartflächen-Panzerung aus gefasten Platten, jedes Teil starr an einen Knochen
+gebunden (Gewicht 1,0). Bei Rüstungsfiguren ist das üblich und vermeidet Verzerrungen an
+Schulter, Ellbogen und Knie vollständig. Die Fasen erzeugen die schmalen Glanzkanten —
+ohne sie sähe die Figur nach Klötzchen aus.
+
+Farbvarianten laufen über zwei Materialien (`Accent`, `Visor`), die pro Spieler geklont
+und eingefärbt werden. Die Panzerung bleibt bei allen gleich, genau wie im Sheet.
+
+Clips: `Idle Walk Run Sprint JumpStart Jump Fall Land Crouch Slide WallRun WallJump
+Dash Punch Hit Death`.
+
+**Editierbare .blend:** Blender lief in meiner Umgebung nicht, deshalb liegt statt einer
+fertigen Datei ein Aufbauskript bei, das dieselben Daten benutzt:
+
+```bash
+blender --background --python tools/build_riftrush_player_blender.py         # .blend
+blender --background --python tools/build_riftrush_player_blender.py -- --glb  # + GLB
+```
+
+#### Prozedurale Figur
 
 `PlayerCharacter` ist rein visuell und kennt weder Netzwerk noch Physik — sie bekommt
 nur einen Bewegungszustand und interpretiert ihn selbst:

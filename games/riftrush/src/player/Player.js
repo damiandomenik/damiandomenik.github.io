@@ -1,6 +1,6 @@
 import { CONFIG as C } from '../core/Config.js';
 import { PlayerMovement } from './PlayerMovement.js';
-import { PlayerCharacter } from './PlayerCharacter.js';
+import { createCharacter } from './CharacterFactory.js';
 
 /**
  * Lokaler Spieler: Movement + Race-Fortschritt + Interaktionen.
@@ -18,9 +18,7 @@ export class LocalPlayer {
     this.state = PlayerMovement.createState();
 
     this.fx = fx;
-    this.character = new PlayerCharacter({
-      scene, fx, name, color, isLocal: true, nameplate: false, build: C.CHARACTER_BUILD,
-    });
+    this.character = createCharacter({ scene, fx, name, color, isLocal: true, nameplate: false });
 
     this.checkpoint = 0;
     this.deaths = 0;
@@ -45,11 +43,11 @@ export class LocalPlayer {
   punch() { this.character.punch(); }
 
   /** Statur zur Laufzeit wechseln (RIFTRUSH.setBuild). */
-  rebuildCharacter(build) {
+  rebuildCharacter() {
     this.character.dispose();
-    this.character = new PlayerCharacter({
+    this.character = createCharacter({
       scene: this.scene, fx: this.fx, name: this.name, color: this.color,
-      isLocal: true, nameplate: false, build,
+      isLocal: true, nameplate: false,
     });
     this.character.setShadows(C.SHADOWS);
     this.syncCharacter(0);

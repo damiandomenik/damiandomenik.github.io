@@ -8,6 +8,7 @@ import { uid, randomRoomCode, formatTime } from './Utils.js';
 import { DungeonGenerator } from '../dungeon/DungeonGenerator.js';
 import { LocalPlayer } from '../player/Player.js';
 import { CharacterFx } from '../player/CharacterFx.js';
+import { preloadPlayerModel } from '../player/ModelLibrary.js';
 import { BossFight } from '../boss/BossFight.js';
 import { AudioHooks } from './AudioHooks.js';
 import { Environment } from './Environment.js';
@@ -114,6 +115,13 @@ export class Game {
 
   start() {
     this.ui.showMenu();
+    // Charaktermodell im Hintergrund laden; schlägt es fehl, bleibt die
+    // prozedurale Figur aktiv (das Spiel startet in jedem Fall sofort).
+    if (C.CHARACTER_MODEL === 'glb') {
+      preloadPlayerModel().then((r) => {
+        if (r.ok) this._rebuildAllCharacters();
+      });
+    }
     // Lobby-Liste im Menü live halten
     this.browser.start(document.getElementById('input-signal')?.value || '');
     this.renderer.setAnimationLoop(this._loop);
@@ -472,15 +480,27 @@ export class Game {
     this.hud.toast(`BELICHTUNG ${this.renderer.toneMappingExposure.toFixed(2)}`);
   }
 
-  /** Statur aller Figuren umschalten: 'runner' | 'agile' | 'heavy'. */
+  /** Statur der prozeduralen Figur: 'runner' | 'agile' | 'heavy'. */
   setBuild(name) {
     C.CHARACTER_BUILD = name;
-    this.localPlayer.rebuildCharacter(name);
+    C.CHARACTER_MODEL = 'procedural';
+    this._rebuildAllCharacters();
+    this.hud.toast(`STATUR: ${name.toUpperCase()}`);
+  }
+
+  /** Zwischen GLB-Modell und prozeduraler Figur wechseln. */
+  setCharacterModel(kind) {
+    C.CHARACTER_MODEL = kind === 'glb' ? 'glb' : 'procedural';
+    this._rebuildAllCharacters();
+    this.hud.toast(`FIGUR: ${C.CHARACTER_MODEL.toUpperCase()}`);
+  }
+
+  _rebuildAllCharacters() {
+    this.localPlayer.rebuildCharacter();
     for (const rp of this.remotePlayers.values()) {
-      rp.rebuildCharacter(name);
+      rp.rebuildCharacter();
       rp.character.setShadows(C.SHADOWS);
     }
-    this.hud.toast(`STATUR: ${name.toUpperCase()}`);
   }
 
   /** Schatten zur Laufzeit umschalten (Performance-Notausgang). */

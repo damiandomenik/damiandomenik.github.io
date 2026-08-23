@@ -1,5 +1,5 @@
 import { CONFIG as C } from '../core/Config.js';
-import { PlayerCharacter } from '../player/PlayerCharacter.js';
+import { createCharacter } from '../player/CharacterFactory.js';
 import { lerp, lerpAngle } from '../core/Utils.js';
 
 /**
@@ -19,9 +19,8 @@ export class RemotePlayer {
     this.scene = scene;
 
     this.fx = fx;
-    this.character = new PlayerCharacter({
+    this.character = createCharacter({
       scene, fx, name: this.name, color: this.color, isLocal: false, nameplate: true,
-      build: C.CHARACTER_BUILD,
     });
 
     this.buffer = [];
@@ -140,11 +139,11 @@ export class RemotePlayer {
     this.character.setVisible(silence < 4000);
   }
 
-  rebuildCharacter(build) {
+  rebuildCharacter() {
     this.character.dispose();
-    this.character = new PlayerCharacter({
+    this.character = createCharacter({
       scene: this.scene, fx: this.fx, name: this.name, color: this.color,
-      isLocal: false, nameplate: true, build,
+      isLocal: false, nameplate: true,
     });
   }
 
