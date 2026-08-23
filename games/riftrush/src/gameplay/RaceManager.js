@@ -17,7 +17,7 @@ export class RaceManager {
     this.entries.set(id, {
       id, name, color, self,
       checkpoint: 0, z: 0, finished: false, time: null,
-      deaths: 0, place: 0,
+      deaths: 0, place: 0, bonus: 0,
     });
   }
 
@@ -51,11 +51,23 @@ export class RaceManager {
     e.time = timeMs;
   }
 
+  /** Zeitgutschrift, z. B. für den ersten Treffer am Boss-Kern. */
+  setBonus(id, ms) {
+    const e = this.entries.get(id);
+    if (e) e.bonus = ms;
+  }
+
+  /** Gewertete Zeit inkl. Bonus. */
+  static finalTime(e) {
+    return e.time == null ? null : e.time + (e.bonus || 0);
+  }
+
   standings() {
     const list = [...this.entries.values()];
+    list.forEach((e) => { e.finalTime = RaceManager.finalTime(e); });
     list.sort((a, b) => {
       if (a.finished !== b.finished) return a.finished ? -1 : 1;
-      if (a.finished && b.finished) return (a.time ?? 1e12) - (b.time ?? 1e12);
+      if (a.finished && b.finished) return (a.finalTime ?? 1e12) - (b.finalTime ?? 1e12);
       if (a.checkpoint !== b.checkpoint) return b.checkpoint - a.checkpoint;
       return a.z - b.z;
     });

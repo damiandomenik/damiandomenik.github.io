@@ -83,6 +83,7 @@ export const CONFIG = {
 
   // ---------- Match ----------
   COUNTDOWN_SECONDS: 3,
+  BOSS_TIME_BONUS: 2500,   // Zeitgutschrift für den ersten Treffer am Boss-Kern
   FINISH_GRACE_SECONDS: 45,   // Nachlaufzeit, nachdem der erste Spieler im Ziel ist
   ROOM_COUNT: 9,            // Anzahl Rooms zwischen Start und Finish
 

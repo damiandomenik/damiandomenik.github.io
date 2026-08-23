@@ -139,6 +139,15 @@ Abgedeckt:
   Bewegungsrichtung (geprüft über den Weltvektor, nicht über Winkelkonventionen),
   der Kopf hält dagegen, im Stand richtet sich die Figur wieder aus und der Drehwinkel
   summiert sich über viele Richtungswechsel nicht auf
+* **Boss**: Arena in jeder Route korrekt eingebettet, Mechanismen erhöht und Kern hoch
+  genug (Parkour zwingend), Phasenfolge 1→2→3, Kern erst in Phase 2 treffbar, Einsturz
+  lässt immer einen Weg zum Ausgang, Angriffe treffen am Boden und verfehlen beim Sprung,
+  Vorwarnzeiten, keine Treffer-Dauerschleife (9 Treffer in 60 s bei Untätigkeit),
+  Host/Client-Synchronisation inkl. Späteinsteiger und Traffic-Budget, Zeitbonus,
+  Modellbudget (33 Meshes, 1.184 Dreiecke, ein Licht)
+* **Grafik**: Vertex-Farb-Attribute vorhanden (sonst schwarze Flächen), Glow-Materialien
+  ohne Tone Mapping, Streuung der Instanzfarben in sinnvollen Grenzen, Himmel/Sterne/Gitter
+  vorhanden, ohne Nebel und kameragebunden, Draw-Call-Budget des Dungeons
 * **Kamera**: Figur bleibt beim Strafen in der Bildmitte
 * **Kamera**: kein Roll/Überschlag bei beliebigen Yaw-/Pitch-Kombinationen
 * **End-to-End** (jsdom): Menü → Solo-Lobby → Countdown → Bewegung → Pause/Resume →
@@ -225,6 +234,11 @@ src/
     Checkpoint.js       Respawn-Punkte
     Hazards.js          Materialien & dynamische Meshes
 
+  boss/
+    BossArena.js       Arena-Geometrie (Kacheln, Mechanismen, Kern-Route, Tür)
+    BossModel.js       prozedurales Boss-Modell "Rift Guardian"
+    BossFight.js       Phasen, Angriffe, Treffererkennung, Synchronisation
+
   gameplay/
     MatchManager.js    Flow, Countdown, Ergebnisermittlung
     RaceManager.js     Zeiten, Fortschritt, Platzierungen
@@ -287,6 +301,62 @@ Remote-Spieler nutzen exakt dasselbe Modell — nur Farbe und Name unterscheiden
 damit im Rennen sofort lesbar ist, was die anderen gerade tun. Farbdopplungen werden
 lokal aufgelöst (`pickFreeColor`).
 
+### Optik
+
+Alles prozedural, weiterhin ohne externe Assets:
+
+* **Himmel** als Farbverlaufs-Kuppel mit atmendem Horizontband (eigener Shader),
+  Nebelfarbe = Horizontfarbe, dadurch verschwindet Entferntes im Dunst statt in
+  schwarzem Nichts
+* **Sternenfeld** (700 Punkte) und ein **Gitter tief unter dem Level** — beides
+  folgt der Kamera und gibt dem Abgrund Tiefe
+* **ACES-Tone-Mapping** mit Belichtung 1.15; alle Leuchtelemente (Kantenlicht,
+  Visor, Kern, Partikel, Namensschilder) sind davon ausgenommen und bleiben knackig
+* **Instanzfarben**: jede Box bekommt eine leichte Helligkeits- und Farbstreuung
+  (0.87–1.20), was den Flächen die "alles exakt gleich"-Optik nimmt — ohne einen
+  einzigen zusätzlichen Draw Call
+* **Kantenlicht**: Plattformen bekommen umlaufende Leuchtkanten, hohe Wände ein
+  Lichtband unter der Oberkante (~400 Kanten pro Dungeon in 4 Draw Calls)
+* **Vignette** als CSS-Overlay (kostet nichts auf der GPU)
+
+Der gesamte Dungeon zeichnet sich in unter 40 Draw Calls. Falls es zu dunkel oder
+zu hell wirkt: `RIFTRUSH.setExposure(1.4)` wirkt sofort.
+
+### Boss: Rift Guardian
+
+Der Boss ist der vorletzte Room jeder Route (`... → BOSS → FINISH`) und nutzt dasselbe
+Room-, Checkpoint-, Timer- und Race-System wie alles andere. Kein HP-Balken, kein
+Stehenbleiben — der Boss erzeugt ausschließlich Bewegungsaufgaben.
+
+**Phase 1 — Schild.** Drei Mechanismen stehen auf Hochplattformen und müssen per
+Parkour erreicht werden. Angriffe: Schockwelle (überspringen) und markierte Einschläge.
+
+**Phase 2 — Kern.** Das Schild fällt, der Kern öffnet sich auf ~15 m Höhe. Hinauf geht
+es nur über die Route Wallrun → Sprungplattform → Lift → Laufsteg. Angriffe: rotierender
+Laser, stärkere Schockwellen, einstürzende Bodenfelder.
+
+**Phase 3 — Flucht.** Der erste Treffer am Kern startet einen 30-Sekunden-Countdown,
+öffnet die Ausgangstür und lässt die Arena einstürzen. Die mittlere Bodenspur bleibt
+immer stehen, damit der Ausgang erreichbar bleibt.
+
+Der erste Spieler am Kern bekommt eine Zeitgutschrift von 2,5 s (`BOSS_TIME_BONUS`) —
+genug als Belohnung, zu wenig, um das Rennen allein zu entscheiden. Alle anderen laufen
+normal weiter; das Match endet erst über das reguläre Ziel.
+
+Synchronisation: der Host schaltet Phasen und plant Angriffe, verschickt werden nur
+Ereignisse (~0,33 Nachrichten/s über den reliable Channel). Treffer wertet jeder Client
+für den eigenen Spieler aus, wie beim bestehenden Knockback. Späteinsteiger bekommen
+einen Boss-Snapshot mit der Start-Nachricht.
+
+Audio: `src/core/AudioHooks.js` feuert benannte Ereignisse (`boss:intro`,
+`boss:mechanism`, `boss:shield-down`, `boss:shockwave`, `boss:laser-warning`,
+`boss:hit`, `boss:phase`, `boss:escape`, `race:finish`). Sounds lassen sich später
+anhängen, ohne Gameplay-Code zu ändern:
+
+```js
+RIFTRUSH.audio.on('boss:shockwave', () => mySound.play());
+```
+
 ### Performance
 
 * Statische Level-Geometrie als **InstancedMesh pro Material** → wenige Draw Calls.
@@ -337,6 +407,8 @@ Bewusste Design-Entscheidungen (keine Bugs):
   (ohne Countdown, mit der bereits verstrichenen Zeit).
 
 Nächste Schritte:
+* Sounds an die Audio-Hooks hängen
+* weitere Boss-Angriffe (die Angriffsliste in `BossFight` ist eine einfache Tabelle)
 * Ghost des besten Runs (lokal via `localStorage`)
 * Gesichter/Details der Figur über eigene BufferGeometry statt Primitiven
 * Shockwave- und Trap-Ability (Registry steht bereits)

@@ -168,10 +168,10 @@ export class PlayerCharacter {
     if (!this.materials.suit) {
       this.materials.suit = new THREE.MeshStandardMaterial({ metalness: 0.32, roughness: 0.48, flatShading: true });
       this.materials.visor = new THREE.MeshStandardMaterial({ color: 0x05070d, metalness: 0.2, roughness: 0.15 });
-      this.materials.core = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95 });
+      this.materials.core = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, toneMapped: false });
       this.materials.ring = new THREE.MeshBasicMaterial({
         transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
-        depthWrite: false, side: THREE.DoubleSide,
+        depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
       });
     }
     this.materials.suit.color.copy(p.primary);
@@ -406,7 +406,7 @@ export class PlayerCharacter {
     tex.colorSpace = THREE.SRGBColorSpace;
     this._npTex = tex;
     this.nameplate = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: tex, transparent: true, depthTest: true, depthWrite: false,
+      map: tex, transparent: true, depthTest: true, depthWrite: false, toneMapped: false,
     }));
     this.nameplate.position.y = 2.12;
     this.nameplate.renderOrder = 4;

@@ -36,6 +36,12 @@ total += (await import('./suite-world.mjs')).default;
 console.log('\n########## SPIELERFIGUR & EFFEKTE ##########');
 total += (await import('./suite-character.mjs')).default;
 
+console.log('\n########## GRAFIK & UMGEBUNG ##########');
+total += (await import('./suite-art.mjs')).default;
+
+console.log('\n########## BOSS ##########');
+total += (await import('./suite-boss.mjs')).default;
+
 console.log('\n########## NETZWERK & RACE ##########');
 total += (await import('./suite-net.mjs')).default;
 

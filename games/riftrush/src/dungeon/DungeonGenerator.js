@@ -10,6 +10,7 @@ const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
+const _c = new THREE.Color();
 
 /**
  * Baut aus den Room-Modulen einen kompletten Dungeon.
@@ -34,6 +35,7 @@ export class DungeonGenerator {
     this.rooms = [];
     this.checkpoints = [];
     this.finishTrigger = null;
+    this.bossArena = null;
     this.seed = 0;
   }
 
@@ -74,7 +76,7 @@ export class DungeonGenerator {
       if (m === route[route.length - 1]) route.splice(route.length - 1, 0, m);
       else route.push(m);
     }
-    route.push('final_room', 'finish');
+    route.push('boss_arena', 'finish');
     return route;
   }
 
@@ -90,7 +92,8 @@ export class DungeonGenerator {
       if (!def) return;
       const room = new DungeonRoom(def, { ...origin }, index);
       const ctx = new RoomContext(this, room.origin, index);
-      def.build(ctx, rng, index);
+      const result = def.build(ctx, rng, index);
+      if (def.tag === 'boss' && result) this.bossArena = result;
       this.rooms.push(room);
 
       const isFinish = def.tag === 'finish';
@@ -125,6 +128,9 @@ export class DungeonGenerator {
       const mat = this.materials[kind] || this.materials.solid;
       const inst = new THREE.InstancedMesh(UNIT_BOX, mat, list.length);
       inst.frustumCulled = false;
+      // Leichte Helligkeits- und Farbstreuung pro Box: nimmt den Flächen die
+      // "alles exakt gleich"-Optik, kostet keinen zusätzlichen Draw Call.
+      inst.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(list.length * 3), 3);
       for (let i = 0; i < list.length; i++) {
         const b = list[i];
         // Räume überlappen sich an den Nahtstellen bewusst (durchgehender Boden).
@@ -136,8 +142,12 @@ export class DungeonGenerator {
         _s.set(b.w - e * 0.3, b.h - e, b.d - e * 0.3);
         _m.compose(_p, _q, _s);
         inst.setMatrixAt(i, _m);
+        const n = ((gi * 0.7548776662) % 1);
+        const shade = 0.87 + n * 0.26;
+        inst.setColorAt(i, _c.setRGB(shade * (1 - n * 0.05), shade, shade * (1 + n * 0.06)));
       }
       inst.instanceMatrix.needsUpdate = true;
+      inst.instanceColor.needsUpdate = true;
       inst.receiveShadow = CONFIG.SHADOWS;
       this.group.add(inst);
     }
@@ -185,6 +195,16 @@ export class DungeonGenerator {
               if (alongZ) bars.push({ x: b.x + f * (b.w / 2 + 0.04), y, z: b.z, w: 0.07, d: b.d - 1.2, h: 0.13 });
               else bars.push({ x: b.x, y, z: b.z + f * (b.d / 2 + 0.04), w: b.w - 1.2, d: 0.07, h: 0.13 });
             }
+          }
+          continue;
+        }
+        if (b.h > 3.5 && (b.w > 4 || b.d > 4)) {
+          // Hohe Wände bekommen ein Lichtband unter der Oberkante
+          const alongZ = b.d > b.w;
+          const y = b.y + b.h - 0.45;
+          for (const f of [-1, 1]) {
+            if (alongZ) bars.push({ x: b.x + f * (b.w / 2 + 0.03), y, z: b.z, w: 0.06, d: b.d - 1.0, h: 0.16 });
+            else bars.push({ x: b.x, y, z: b.z + f * (b.d / 2 + 0.03), w: b.w - 1.0, d: 0.06, h: 0.16 });
           }
           continue;
         }

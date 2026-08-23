@@ -8,6 +8,9 @@ import { uid, randomRoomCode, formatTime } from './Utils.js';
 import { DungeonGenerator } from '../dungeon/DungeonGenerator.js';
 import { LocalPlayer } from '../player/Player.js';
 import { CharacterFx } from '../player/CharacterFx.js';
+import { BossFight } from '../boss/BossFight.js';
+import { AudioHooks } from './AudioHooks.js';
+import { Environment } from './Environment.js';
 import { PlayerController } from '../player/PlayerController.js';
 import { AbilityManager } from '../gameplay/AbilityManager.js';
 import { MatchManager } from '../gameplay/MatchManager.js';
@@ -31,14 +34,17 @@ export class Game {
     this.renderer.setClearColor(COLORS.bg, 1);
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(COLORS.fog, 0.012);
+    // Nebelfarbe = Horizontfarbe des Himmels, dadurch verschwindet entfernte
+    // Geometrie im Horizont statt in einer schwarzen Wand.
+    this.scene.fog = new THREE.FogExp2(0x121a2e, 0.0105);
     this.camera = new THREE.PerspectiveCamera(C.CAM_FOV, innerWidth / innerHeight, 0.3, 400);
+    this.env = new Environment(this.scene, this.renderer);
     // 'YXZ' ist Pflicht: nur in dieser Reihenfolge ist rotation.z ein echter Roll
     // um die Blickachse. Mit der Standardordnung 'XYZ' zerstört das Setzen von
     // rotation.z die von lookAt() berechnete Ausrichtung -> Kamera überschlägt sich.
     this.camera.rotation.order = 'YXZ';
 
-    const amb = new THREE.AmbientLight(0x5c7ba8, 0.68);
+    const amb = new THREE.AmbientLight(0x5c7ba8, 0.62);
     const dir = new THREE.DirectionalLight(0xbcd4ff, 1.15);
     dir.position.set(30, 60, 20);
     const hemi = new THREE.HemisphereLight(0x6f7bff, 0x0a0e18, 0.5);
@@ -63,6 +69,8 @@ export class Game {
     this.dungeon = new DungeonGenerator(this.scene, this.physics);
     this.state = new GameState();
     this.input = new Input(canvas);
+    this.audio = new AudioHooks();
+    this.boss = null;
     this.race = new RaceManager(this);
     this.match = new MatchManager(this);
     this.network = new NetworkManager();
@@ -182,9 +190,12 @@ export class Game {
     };
     n.onState = (id, msg) => this.remotePlayers.get(id)?.push(msg);
     n.onEvent = (id, e) => this._onNetEvent(id, e);
-    n.onStart = (msg) => this.match.beginMatch(msg.seed, msg.countdown, msg.elapsed || 0);
+    n.onStart = (msg) => {
+      this.match.beginMatch(msg.seed, msg.countdown, msg.elapsed || 0);
+      if (msg.boss) this.boss?.applySnapshot(msg.boss);
+    };
     n.getMatchInfo = () => (this.state.running
-      ? { seed: this.state.seed, elapsed: this.state.elapsedMs }
+      ? { seed: this.state.seed, elapsed: this.state.elapsedMs, boss: this.boss?.snapshot() }
       : null);
     n.onRosterChange = () => this._refreshLobby();
     n.onStatus = (s) => { if (C.DEBUG) console.log('[net]', s); };
@@ -212,6 +223,10 @@ export class Game {
         this.hud.toast(`${entry?.name || 'Spieler'} im Ziel — ${formatTime(e.time)}`, 2000);
         break;
       }
+      case 'boss': {
+        this.boss?.applyEvent(e.e, fromId);
+        break;
+      }
       case 'punch': {
         this.remotePlayers.get(fromId)?.character.punch();
         break;
@@ -236,6 +251,7 @@ export class Game {
     if (ids[0] !== this.selfId) return;
     n.isHost = true;
     n.updateProfile({});
+    this.boss?.setHost(true);
     this.lobbyUI.setLobby({ ...this._lobbyInfo, isHost: true });
     this.hud.toast('DU BIST JETZT HOST', 2500);
   }
@@ -266,6 +282,15 @@ export class Game {
       this.hud.toast(`ZIEL! ${formatTime(time)}`, 2500);
     };
     p.events.death = () => this.controller.addShake(0.6);
+    p.events.bossMech = (i) => {
+      if (this.boss?.activateMechanism(i, this.selfId)) {
+        const n = this.boss.mechanisms.filter(Boolean).length;
+        this.hud.toast(`MECHANISMUS ${n}/3`, 1400);
+      }
+    };
+    p.events.bossCore = () => {
+      if (this.boss?.hitCore(this.selfId)) this.hud.toast('KERN GETROFFEN!', 2000);
+    };
   }
 
   // ================================================================ Flow
@@ -321,6 +346,8 @@ export class Game {
   }
 
   leave() {
+    this.boss?.dispose();
+    this.boss = null;
     this.network.disconnect();
     for (const rp of this.remotePlayers.values()) rp.dispose();
     this.remotePlayers.clear();
@@ -332,7 +359,18 @@ export class Game {
   }
 
   buildDungeon(seed) {
+    this.boss?.dispose();
+    this.boss = null;
     this.dungeon.generate(seed, C.ROOM_COUNT);
+    if (this.dungeon.bossArena) {
+      this.boss = new BossFight({
+        scene: this.scene, dungeon: this.dungeon, arena: this.dungeon.bossArena,
+        fx: this.fx, audio: this.audio, seed,
+      });
+      this.boss.setHost(this.network.isHost || this.state.solo);
+      this.boss.onEvent = (e) => this.network.sendEvent({ t: 'boss', e });
+    }
+    this._bossBonusDone = false;
   }
 
   resetPlayersForRun() {
@@ -347,6 +385,7 @@ export class Game {
           id: p.id, name: p.name, color: p.color || 0x888888, self: p.id === this.selfId,
         }));
     this.race.reset(players);
+    this.boss?.setHost(this.network.isHost || this.state.solo);
   }
 
   // ================================================================ Loop
@@ -373,11 +412,21 @@ export class Game {
           if (ab.trigger()) this.localPlayer.punchCooldown = ab.cooldown;
         }
         this.abilities.update(dt);
+        if (this.boss && st.running) {
+          this.boss.update(dt, {
+            localPlayer: this.localPlayer,
+            remotePlayers: this.remotePlayers,
+            controller: this.controller,
+            onHit: (label) => this.hud.toast(label, 700),
+          });
+          this._checkBossBonus();
+        }
         for (const rp of this.remotePlayers.values()) {
           rp.update(dt, this.camera);
           this.race.updateRemote(rp);
         }
         this.fx.update(dt);
+        this.env.update(dt, this.camera, this.localPlayer.state.pos.y);
         this._followSun();
         this.controller.updateCamera(dt);
         // Kamera an einer Wand ganz nah dran -> sonst steckt sie im eigenen Kopf
@@ -390,6 +439,7 @@ export class Game {
       }
     }
 
+    if (!st.inWorld) this.env.update(dt, this.camera, 0);
     this.input.endFrame();
     this.renderer.render(this.scene, this.camera);
   }
@@ -400,6 +450,12 @@ export class Game {
     this.sun.position.set(p.x + 26, p.y + 44, p.z + 18);
     this.sun.target.position.set(p.x, p.y, p.z);
     this.sun.target.updateMatrixWorld();
+  }
+
+  /** Bildhelligkeit zur Laufzeit (RIFTRUSH.setExposure(1.4)). */
+  setExposure(v) {
+    this.renderer.toneMappingExposure = Math.max(0.4, Math.min(2.5, v));
+    this.hud.toast(`BELICHTUNG ${this.renderer.toneMappingExposure.toFixed(2)}`);
   }
 
   /** Statur aller Figuren umschalten: 'runner' | 'agile' | 'heavy'. */
@@ -430,6 +486,18 @@ export class Game {
     return pickFreeColor(used, preferred);
   }
 
+  /** Der erste Treffer am Kern bringt eine kleine Zeitgutschrift. */
+  _checkBossBonus() {
+    if (this._bossBonusDone || !this.boss?.coreFirstBy) return;
+    this._bossBonusDone = true;
+    const id = this.boss.coreFirstBy;
+    this.race.setBonus(id, -C.BOSS_TIME_BONUS);
+    const who = this.race.get(id);
+    this.hud.toast(id === this.selfId
+      ? `ERSTER AM KERN — ${(C.BOSS_TIME_BONUS / 1000).toFixed(1)}s GUTSCHRIFT`
+      : `${who?.name || 'Spieler'} war zuerst am Kern`, 2600);
+  }
+
   _updateHud() {
     const st = this.state;
     const p = this.localPlayer;
@@ -437,6 +505,7 @@ export class Game {
     this.hud.setCheckpoint(p.checkpoint, Math.max(0, this.dungeon.checkpointCount - 1));
     this.hud.setBoard(this.race.standings(), this.selfId);
     this.hud.setState(p.state.state, p.state.speed);
+    this.hud.setBoss(this.boss ? this.boss.hud : null);
     this.hud.setPeers(this.network.peerCount);
     const ab = this.abilities.get('punch');
     this.hud.setCooldowns({

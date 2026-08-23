@@ -106,3 +106,22 @@ button.ghost{background:transparent}
 .results .sub{font-size:11px;color:var(--dim);margin-left:8px}
 #click-to-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:13px;letter-spacing:.3em;color:var(--dim);background:rgba(4,6,12,.55);cursor:pointer;text-transform:uppercase}
+
+/* ---------- Boss ---------- */
+#hud-boss{position:absolute;top:96px;left:50%;transform:translateX(-50%);min-width:230px;text-align:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 16px;backdrop-filter:blur(8px)}
+#hud-boss .b-title{font-size:11px;letter-spacing:.32em;color:var(--danger);font-weight:700}
+#hud-boss .b-phase{font-size:12px;letter-spacing:.18em;color:var(--dim);margin-top:3px}
+#hud-boss .b-mech{display:flex;gap:6px;justify-content:center;margin-top:7px}
+#hud-boss .b-mech span{width:34px;height:5px;border-radius:3px;background:rgba(255,255,255,.14);transition:.2s}
+#hud-boss .b-mech span.on{background:var(--accent);box-shadow:0 0 10px rgba(56,242,200,.7)}
+#hud-boss .b-timer{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--danger);margin-top:4px;
+  text-shadow:0 0 22px rgba(255,77,109,.5)}
+#hud-warning{position:absolute;left:50%;top:26%;transform:translateX(-50%);font-size:20px;font-weight:700;
+  letter-spacing:.34em;color:var(--danger);opacity:0;transition:opacity .12s;text-shadow:0 0 24px rgba(255,77,109,.6)}
+#hud-warning.on{opacity:1}
+.results .bonus{font-size:11px;color:var(--accent);margin-left:6px}
+
+/* ---------- Vignette ---------- */
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,0) 42%,rgba(2,4,10,.34) 78%,rgba(2,4,10,.62) 100%)}

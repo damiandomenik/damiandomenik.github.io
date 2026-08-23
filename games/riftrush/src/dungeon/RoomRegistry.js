@@ -1,3 +1,5 @@
+import { buildBossArena, ARENA } from '../boss/BossArena.js';
+
 /**
  * RoomRegistry — modulare Room-Typen.
  * Jeder Room beginnt lokal bei (0,0,0) (Oberkante Eingangsplattform)
@@ -313,7 +315,7 @@ export const ROOMS = [
 
   // ---------------------------------------------------------------- FINAL
   {
-    id: 'final_room', name: 'Rift Core', length: 58, exitY: 8, weight: 0, tag: 'final',
+    id: 'final_room', name: 'Rift Core', length: 58, exitY: 8, weight: 1,
     build(c, rng) {
       entryPad(c); pit(c, 58, 40, -8);
       c.plat(0, 0, -16, 20, 18, 'solid');
@@ -329,6 +331,12 @@ export const ROOMS = [
       c.light(0, 10, -30, 0x38f2c8, 2.4, 40);
       exitPad(c, 8, -58);
     },
+  },
+
+  // ---------------------------------------------------------------- BOSS
+  {
+    id: 'boss_arena', name: 'Rift Guardian', length: ARENA.length, exitY: 0, weight: 0, tag: 'boss',
+    build(c) { return buildBossArena(c); },
   },
 
   // ---------------------------------------------------------------- FINISH

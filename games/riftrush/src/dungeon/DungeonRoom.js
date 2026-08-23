@@ -162,6 +162,46 @@ export class RoomContext {
     return obj;
   }
 
+  /**
+   * Steuerbare Kachel: Plattform mit eigenem Material, die zur Laufzeit
+   * umgefärbt oder abgeschaltet werden kann (Boss-Arena: Einsturzböden,
+   * Mechanismus-Podeste).
+   * Zustände: 'normal' | 'active' | 'warn' | 'gone'
+   */
+  tile(x, y, z, w, d, { thickness = 0.9, state = 'normal' } = {}) {
+    const col = new Collider(x + this.origin.x, y - thickness + this.origin.y, z + this.origin.z,
+      w, thickness, d, 'solid');
+    col.dynamic = true;
+    this.dungeon.physics.add(col);
+    const obj = {
+      collider: col, kind: 'tile', w, h: thickness, d, mesh: null,
+      visualState: state, _applied: null, shake: 0,
+      base: { x: col.minX + w / 2, y: col.minY, z: col.minZ + d / 2 },
+      setState(s) {
+        obj.visualState = s;
+        col.active = s !== 'gone';
+      },
+      update(t) {
+        if (!obj.mesh) return;
+        if (obj._applied !== obj.visualState) {
+          obj._applied = obj.visualState;
+          const m = obj.mesh.material;
+          if (obj.visualState === 'warn') { m.emissive.setHex(0xff4d6d); m.emissiveIntensity = 0.85; }
+          else if (obj.visualState === 'active') { m.emissive.setHex(0x38f2c8); m.emissiveIntensity = 0.8; }
+          else { m.emissive.setHex(0x6f7bff); m.emissiveIntensity = 0.22; }
+        }
+        if (obj.visualState === 'warn') {
+          const s = Math.sin(t * 22) * 0.06;
+          col.moveTo(obj.base.x + s, obj.base.y, obj.base.z);
+        } else if (obj.visualState !== 'gone' && (col.minX + w / 2) !== obj.base.x) {
+          col.moveTo(obj.base.x, obj.base.y, obj.base.z);
+        }
+      },
+    };
+    this.dungeon.dynamics.push(obj);
+    return obj;
+  }
+
   light(x, y, z, color, intensity = 1.4, distance = 26) {
     this.dungeon.lights.push({ x: x + this.origin.x, y: y + this.origin.y, z: z + this.origin.z, color, intensity, distance });
   }

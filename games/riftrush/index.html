@@ -16,6 +16,7 @@
 <body>
 
 <canvas id="game-canvas"></canvas>
+<div id="vignette"></div>
 
 <!-- ============ HUD ============ -->
 <div id="hud" class="hidden">
@@ -32,6 +33,14 @@
     <div class="ab" data-ab="punch"><span class="key">LMB / F</span><span class="lbl">PUNCH</span><div class="cd"></div></div>
     <div class="ab" data-ab="jump"><span class="key">SPACE</span><span class="lbl">JUMP</span><div class="cd"></div></div>
   </div>
+
+  <div id="hud-boss" class="hidden">
+    <div class="b-title">RIFT GUARDIAN</div>
+    <div class="b-phase">SCHILD AKTIV</div>
+    <div class="b-mech"><span></span><span></span><span></span></div>
+    <div class="b-timer hidden">00</div>
+  </div>
+  <div id="hud-warning"></div>
 
   <div id="hud-state"></div>
   <div id="hud-toast"></div>

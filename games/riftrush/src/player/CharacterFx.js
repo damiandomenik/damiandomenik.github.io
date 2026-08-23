@@ -26,7 +26,7 @@ export class CharacterFx {
     this.max = max;
     this.scene = scene;
     this.material = new THREE.MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: 0.95,
+      vertexColors: true, transparent: true, opacity: 0.95, toneMapped: false,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     this.mesh = new THREE.InstancedMesh(GEO, this.material, max);

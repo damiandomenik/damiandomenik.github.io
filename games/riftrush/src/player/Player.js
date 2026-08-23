@@ -156,6 +156,10 @@ export class LocalPlayer {
           dungeon.openDoor(d.doorId);
           this.emit('switch', d.doorId);
         }
+      } else if (d.type === 'boss_mech') {
+        this.emit('bossMech', d.index);
+      } else if (d.type === 'boss_core') {
+        this.emit('bossCore');
       } else if (d.type === 'finish' && matchRunning && !this.finished) {
         this.finished = true;
         this.emit('finish');

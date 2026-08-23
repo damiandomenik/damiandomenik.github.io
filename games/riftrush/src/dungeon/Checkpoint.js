@@ -34,13 +34,13 @@ export class Checkpoint {
       color: 0x1d2740, specular: 0x44608c, shininess: 40,
       emissive: this.idleColor, emissiveIntensity: 0.25,
     });
-    this.glowMat = new THREE.MeshBasicMaterial({ color: this.idleColor, transparent: true, opacity: 0.85 });
+    this.glowMat = new THREE.MeshBasicMaterial({ color: this.idleColor, transparent: true, opacity: 0.85, toneMapped: false });
     this.curtainMat = new THREE.MeshBasicMaterial({
-      color: this.idleColor, transparent: true, opacity: 0.10,
+      color: this.idleColor, transparent: true, opacity: 0.10, toneMapped: false,
       side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
     });
     this.ringMat = new THREE.MeshBasicMaterial({
-      color: this.idleColor, transparent: true, opacity: 0.35,
+      color: this.idleColor, transparent: true, opacity: 0.35, toneMapped: false,
       side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
     });
 
