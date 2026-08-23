@@ -62,12 +62,12 @@ BONES = [
     ("Visor",       "Head",      (0.000, 0.010, -0.090)),
     ("Backpack",    "Chest",     (0.000, 0.060, 0.115)),
     ("Core",        "Backpack",  (0.000, 0.000, 0.075)),
-    ("Shoulder_L",  "Chest",     (-0.150, 0.120, 0.000)),
-    ("UpperArm_L",  "Shoulder_L",(-0.055, -0.050, 0.000)),
+    ("Shoulder_L",  "Chest",     (-0.172, 0.115, 0.000)),
+    ("UpperArm_L",  "Shoulder_L",(-0.075, -0.055, 0.000)),
     ("LowerArm_L",  "UpperArm_L",(0.000, -0.255, 0.000)),
     ("Hand_L",      "LowerArm_L",(0.000, -0.235, 0.000)),
-    ("Shoulder_R",  "Chest",     (0.150, 0.120, 0.000)),
-    ("UpperArm_R",  "Shoulder_R",(0.055, -0.050, 0.000)),
+    ("Shoulder_R",  "Chest",     (0.172, 0.115, 0.000)),
+    ("UpperArm_R",  "Shoulder_R",(0.075, -0.055, 0.000)),
     ("LowerArm_R",  "UpperArm_R",(0.000, -0.255, 0.000)),
     ("Hand_R",      "LowerArm_R",(0.000, -0.235, 0.000)),
     ("UpperLeg_L",  "Hips",      (-0.092, -0.060, 0.000)),
@@ -134,6 +134,30 @@ class Mesh:
             self.idx += [base, base + k, base + k + 1]
             self.mat_of_tri.append(m)
 
+    def prism(self, bone, mat, center, radius, length, axis="x", seg=8, taper=1.0):
+        """Mehrkantiges Prisma — fuer Gelenke (Schulter, Ellbogen, Knie, Knoechel).
+        Runde Formen an den Drehpunkten verhindern die Luecken, die bei starrem
+        Skinning zwischen zwei Kaesten entstehen."""
+        ai = {"x": 0, "y": 1, "z": 2}[axis]
+        u, v = (ai + 1) % 3, (ai + 2) % 3
+        rings = []
+        for end in (-1, 1):
+            r = radius * (taper if end > 0 else 1.0)
+            ring = []
+            for i in range(seg):
+                a = (i / seg) * math.tau
+                p = [0.0, 0.0, 0.0]
+                p[ai] = center[ai] + end * length / 2
+                p[u] = center[u] + math.cos(a) * r
+                p[v] = center[v] + math.sin(a) * r
+                ring.append(tuple(p))
+            rings.append(ring)
+        for i in range(seg):
+            j = (i + 1) % seg
+            self.poly([rings[0][i], rings[0][j], rings[1][j], rings[1][i]], bone, mat, center)
+        self.poly(list(reversed(rings[0])), bone, mat, center)
+        self.poly(rings[1], bone, mat, center)
+
     def box(self, bone, mat, center, size, taper=1.0, bevel=None):
         """Gefaste Box in ABSOLUTEN Ruhepose-Koordinaten.
 
@@ -198,63 +222,119 @@ class Mesh:
 
 
 def build_character():
+    """Rift Runner — geschichtete Panzerung nach dem Character Sheet.
+
+    Aufbau nach Gruppen statt "viele kleine Wuerfel": jeder Teil ist eine
+    bewusst gesetzte, gefaste Platte; Gelenke sind Prismen, damit an Schulter,
+    Ellbogen, Knie und Knoechel beim Animieren keine Luecken aufreissen.
+    """
     M = Mesh()
-    B = M.box
+    B, P = M.box, M.prism
 
-    # ---------------- Kopf: Helm, Visier, Antenne (Vorlage: heller Helm) -----
-    B("Head", "ArmorLight", (0, 1.585, -0.005), (0.215, 0.185, 0.235), taper=0.82)
-    B("Head", "Armor",      (0, 1.500, 0.000),  (0.190, 0.075, 0.205))
-    B("Visor", "Visor",     (0, 1.548, -0.098), (0.175, 0.048, 0.045))
-    B("Visor", "Accent",    (0, 1.548, -0.116), (0.120, 0.020, 0.014))
-    B("Head", "ArmorLight", (-0.108, 1.552, 0.010), (0.028, 0.090, 0.105))
-    B("Head", "ArmorLight", (0.108, 1.552, 0.010),  (0.028, 0.090, 0.105))
-    B("Head", "Metal",      (0.070, 1.700, 0.045), (0.012, 0.150, 0.012))   # Antenne
-    B("Neck", "Armor",      (0, 1.452, 0.000), (0.090, 0.070, 0.090))
+    # ================= KOPF: Helmschale, Visier, Seitenmodule =================
+    B("Head", "ArmorLight", (0, 1.596, -0.012), (0.228, 0.150, 0.246), taper=0.86)   # Schale
+    B("Head", "ArmorLight", (0, 1.672, -0.004), (0.170, 0.060, 0.190), taper=0.70)   # Kalotte
+    B("Head", "Metal",      (0, 1.660, 0.010),  (0.048, 0.070, 0.200), taper=0.85)   # Kamm
+    B("Head", "Armor",      (0, 1.520, -0.010), (0.196, 0.075, 0.212))               # Kinnpartie
+    B("Head", "Armor",      (0, 1.556, -0.104), (0.185, 0.105, 0.045))               # dunkles Gesichtsfeld
+    B("Head", "Armor",      (0, 1.594, 0.112),  (0.150, 0.100, 0.045))               # Nackenmodul
+    B("Head", "Metal",      (0, 1.548, 0.126),  (0.070, 0.045, 0.030))
+    for sx in (-1, 1):
+        B("Head", "ArmorLight", (sx * 0.116, 1.566, 0.004), (0.036, 0.108, 0.150), taper=0.88)  # Ohrmodul
+        B("Head", "Metal",      (sx * 0.132, 1.566, 0.004), (0.014, 0.062, 0.090))
+        P("Head", "Metal", (sx * 0.128, 1.566, -0.030), 0.022, 0.020, axis="x", seg=8)
+    B("Head", "Metal", (0.086, 1.746, 0.052), (0.011, 0.135, 0.011))                 # Antenne
+    B("Head", "Accent", (0.086, 1.812, 0.052), (0.020, 0.022, 0.020))
+    # Visier: breites, leicht v-foermiges Leuchtband
+    B("Visor", "Visor",  (0, 1.556, -0.118), (0.196, 0.056, 0.036))
+    B("Visor", "Accent", (0, 1.556, -0.133), (0.150, 0.026, 0.012))
+    for sx in (-1, 1):
+        B("Visor", "Visor",  (sx * 0.104, 1.548, -0.096), (0.040, 0.046, 0.060))
+        B("Visor", "Accent", (sx * 0.100, 1.542, -0.114), (0.022, 0.014, 0.014))
+    B("Neck", "Armor", (0, 1.455, 0.000), (0.108, 0.075, 0.108))
 
-    # ---------------- Torso ---------------------------------------------------
-    B("Chest", "Armor",      (0, 1.330, 0.000), (0.300, 0.100, 0.190))      # Kragen
-    B("Chest", "Armor",      (0, 1.230, 0.000), (0.330, 0.180, 0.215), taper=1.06)
-    B("Chest", "Metal",      (0, 1.245, -0.108), (0.215, 0.130, 0.030))     # Brustplatte
-    B("Chest", "Accent",     (0, 1.235, -0.126), (0.070, 0.055, 0.012))     # Emblem
-    B("Chest", "Accent",     (-0.150, 1.230, -0.070), (0.020, 0.130, 0.020))
-    B("Chest", "Accent",     (0.150, 1.230, -0.070),  (0.020, 0.130, 0.020))
-    B("Spine", "Armor",      (0, 1.095, 0.000), (0.280, 0.140, 0.185))
-    B("Hips",  "Metal",      (0, 0.985, 0.000), (0.300, 0.070, 0.200))      # Gürtel
-    B("Hips",  "Armor",      (0, 0.925, 0.000), (0.275, 0.110, 0.185))
-    B("Hips",  "Accent",     (0.140, 0.985, 0.030), (0.016, 0.045, 0.070))
+    # ================= TORSO: Kragen, Brust, Bauch, Huefte ====================
+    B("Chest", "ArmorLight", (0, 1.352, 0.000), (0.352, 0.070, 0.212), taper=0.94)   # Kragenring
+    B("Chest", "Armor",      (0, 1.286, 0.000), (0.350, 0.110, 0.228), taper=1.02)   # obere Brust
+    B("Chest", "Armor",      (0, 1.196, 0.000), (0.330, 0.110, 0.222), taper=1.03)   # untere Brust
+    B("Chest", "ArmorLight", (0, 1.262, -0.108), (0.230, 0.150, 0.038))              # Brustplatte
+    B("Chest", "Metal",      (0, 1.180, -0.100), (0.190, 0.070, 0.034))
+    for sx in (-1, 1):
+        B("Chest", "Armor", (sx * 0.168, 1.240, -0.020), (0.052, 0.190, 0.170), taper=0.9)
+        B("Chest", "Accent", (sx * 0.176, 1.240, -0.076), (0.018, 0.130, 0.016))
+    # Energiekern in der Brust: klar sichtbares Dreieck-Motiv
+    P("Chest", "Metal",  (0, 1.262, -0.128), 0.052, 0.026, axis="z", seg=6)
+    P("Chest", "Accent", (0, 1.262, -0.140), 0.034, 0.022, axis="z", seg=6)
+    B("Chest", "Accent", (0, 1.208, -0.126), (0.030, 0.026, 0.014))
 
-    # ---------------- Backpack + Energiekern ---------------------------------
-    B("Backpack", "Armor",  (0, 1.290, 0.140), (0.235, 0.270, 0.110))
-    B("Backpack", "Metal",  (-0.098, 1.290, 0.150), (0.030, 0.230, 0.090))
-    B("Backpack", "Metal",  (0.098, 1.290, 0.150),  (0.030, 0.230, 0.090))
-    B("Core", "Accent",     (0, 1.300, 0.200), (0.075, 0.115, 0.030))
-    B("Core", "Metal",      (0, 1.180, 0.190), (0.110, 0.045, 0.045))
+    B("Spine", "Armor", (0, 1.108, 0.000), (0.300, 0.100, 0.204), taper=1.0)         # Bauch oben
+    B("Spine", "Armor", (0, 1.028, 0.000), (0.284, 0.078, 0.196), taper=1.0)         # Bauch unten
+    B("Spine", "Metal", (0, 1.070, -0.092), (0.150, 0.130, 0.028))
+    B("Hips",  "Metal", (0, 0.972, 0.000), (0.316, 0.056, 0.212))                    # Guertel
+    B("Hips",  "Accent", (0, 0.972, -0.106), (0.090, 0.024, 0.012))
+    B("Hips",  "Armor", (0, 0.912, 0.000), (0.290, 0.100, 0.198), taper=0.96)
+    for sx in (-1, 1):
+        B("Hips", "ArmorLight", (sx * 0.148, 0.926, 0.006), (0.052, 0.120, 0.130), taper=0.86)
+    B("Hips", "Metal", (0.156, 0.972, 0.058), (0.038, 0.075, 0.052))                 # Huftmodul (asym.)
 
-    # ---------------- Arme ----------------------------------------------------
-    for s, side in ((-1, "L"), (1, "R")):
+    # ================= BACKPACK: kompaktes Energiemodul =======================
+    B("Backpack", "Armor",      (0, 1.286, 0.150), (0.246, 0.290, 0.126), taper=0.94)
+    B("Backpack", "ArmorLight", (0, 1.396, 0.146), (0.210, 0.062, 0.116), taper=0.86)
+    B("Backpack", "Metal",      (0, 1.150, 0.146), (0.180, 0.052, 0.110))
+    for sx in (-1, 1):
+        B("Backpack", "ArmorLight", (sx * 0.132, 1.286, 0.152), (0.046, 0.230, 0.104), taper=0.9)
+        B("Backpack", "Accent",     (sx * 0.150, 1.286, 0.156), (0.014, 0.150, 0.030))
+        P("Backpack", "Metal", (sx * 0.104, 1.146, 0.190), 0.030, 0.060, axis="y", seg=6)
+    P("Core", "Metal",  (0, 1.300, 0.214), 0.062, 0.040, axis="z", seg=8)
+    P("Core", "Accent", (0, 1.300, 0.232), 0.042, 0.026, axis="z", seg=8)
+
+    # ================= ARME ===================================================
+    for s_, side in ((-1, "L"), (1, "R")):
         sh, ua, la, hd = f"Shoulder_{side}", f"UpperArm_{side}", f"LowerArm_{side}", f"Hand_{side}"
-        # Schultermodul (helle Panzerung wie im Sheet)
-        B(sh, "ArmorLight", (s * 0.178, 1.415, 0.000), (0.130, 0.105, 0.175), taper=0.80)
-        B(sh, "Accent",     (s * 0.178, 1.365, -0.055), (0.070, 0.016, 0.030))
-        B(ua, "Armor",      (s * 0.205, 1.245, 0.000), (0.098, 0.230, 0.105), taper=0.92)
-        B(ua, "Accent",     (s * 0.205, 1.180, -0.052), (0.028, 0.090, 0.012))
-        B(la, "Armor",      (s * 0.205, 0.995, 0.000), (0.086, 0.215, 0.092), taper=0.94)
-        B(la, "Metal",      (s * 0.205, 1.090, 0.000), (0.096, 0.045, 0.100))   # Ellbogen
-        B(la, "Accent",     (s * 0.205, 0.960, -0.046), (0.024, 0.110, 0.012))
-        B(hd, "Armor",      (s * 0.205, 0.835, 0.000), (0.090, 0.115, 0.075))   # Handschuh
-        B(hd, "Accent",     (s * 0.205, 0.840, -0.038), (0.020, 0.070, 0.010))
+        X = s_ * 0.248                       # Armachse
+        # Schultermodul: zwei Lagen + Gelenkkugel
+        B(sh, "ArmorLight", (s_ * 0.212, 1.372, 0.000), (0.148, 0.118, 0.196), taper=0.72)
+        B(sh, "ArmorLight", (s_ * 0.234, 1.300, 0.000), (0.104, 0.086, 0.166), taper=0.80)
+        B(sh, "Accent",     (s_ * 0.216, 1.322, -0.084), (0.070, 0.016, 0.026))
+        P(sh, "Metal", (X, 1.268, 0.000), 0.062, 0.070, axis="x", seg=8)
+        # Oberarm
+        B(ua, "Armor",      (X, 1.180, 0.000), (0.112, 0.190, 0.120), taper=0.94)
+        B(ua, "ArmorLight", (X, 1.216, -0.044), (0.086, 0.100, 0.040))
+        # Ellbogen
+        P(la, "Metal", (X, 1.078, 0.000), 0.056, 0.084, axis="x", seg=8)
+        B(la, "Armor",      (X, 0.980, 0.000), (0.098, 0.180, 0.104), taper=0.92)
+        B(la, "ArmorLight", (X, 1.020, -0.038), (0.074, 0.090, 0.036))
+        B(la, "Accent",     (X, 0.960, -0.048), (0.026, 0.108, 0.012))
+        # Handschuh
+        P(hd, "Metal", (X, 0.878, 0.000), 0.048, 0.040, axis="x", seg=8)
+        B(hd, "Armor",  (X, 0.826, -0.006), (0.096, 0.104, 0.082), taper=0.92)
+        B(hd, "Armor",  (X, 0.766, -0.014), (0.084, 0.052, 0.070), taper=0.9)
+        B(hd, "Accent", (X, 0.834, -0.046), (0.022, 0.062, 0.010))
 
-    # ---------------- Beine ---------------------------------------------------
-    for s, side in ((-1, "L"), (1, "R")):
+    # ================= BEINE ==================================================
+    for s_, side in ((-1, "L"), (1, "R")):
         ul, ll, ft = f"UpperLeg_{side}", f"LowerLeg_{side}", f"Foot_{side}"
-        B(ul, "Armor",  (s * 0.092, 0.690, 0.000), (0.140, 0.400, 0.150), taper=0.88)
-        B(ul, "Accent", (s * 0.092, 0.700, -0.076), (0.026, 0.170, 0.012))
-        B(ll, "Metal",  (s * 0.092, 0.455, -0.010), (0.130, 0.090, 0.140))      # Knie
-        B(ll, "Armor",  (s * 0.092, 0.270, 0.000), (0.118, 0.320, 0.128), taper=0.92)
-        B(ll, "Accent", (s * 0.092, 0.260, -0.064), (0.024, 0.140, 0.012))
-        B(ft, "Armor",  (s * 0.092, 0.055, -0.020), (0.140, 0.110, 0.255))      # Stiefel
-        B(ft, "Metal",  (s * 0.092, 0.020, -0.020), (0.150, 0.045, 0.265))
-        B(ft, "Accent", (s * 0.092, 0.075, -0.140), (0.055, 0.016, 0.012))
+        X = s_ * 0.092
+        P(ul, "Metal", (X, 0.884, 0.000), 0.072, 0.096, axis="x", seg=8)              # Hueftgelenk
+        B(ul, "Armor",      (X, 0.760, 0.000), (0.164, 0.220, 0.176), taper=0.94)     # Oberschenkel
+        B(ul, "Armor",      (X, 0.598, 0.000), (0.148, 0.140, 0.158), taper=0.94)
+        B(ul, "ArmorLight", (X, 0.740, -0.078), (0.104, 0.170, 0.040))                # Frontplatte
+        B(ul, "Accent",     (X, 0.700, -0.096), (0.024, 0.130, 0.012))
+        # Knie
+        P(ll, "Metal", (X, 0.518, 0.000), 0.070, 0.104, axis="x", seg=10)
+        B(ll, "ArmorLight", (X, 0.520, -0.070), (0.116, 0.116, 0.062), taper=0.86)    # Kniescheibe
+        B(ll, "Armor",      (X, 0.380, 0.000), (0.130, 0.180, 0.144), taper=0.92)     # Wade
+        B(ll, "Armor",      (X, 0.250, 0.004), (0.114, 0.120, 0.130), taper=0.94)
+        B(ll, "ArmorLight", (X, 0.330, -0.064), (0.084, 0.190, 0.036))
+        B(ll, "Accent",     (X, 0.310, -0.082), (0.024, 0.150, 0.012))
+        P(ft, "Metal", (X, 0.148, 0.006), 0.052, 0.086, axis="x", seg=8)              # Knoechel
+        # Stiefel: grosse Sohle, kantige Kappe
+        B(ft, "Armor",      (X, 0.098, -0.036), (0.150, 0.098, 0.244), taper=0.94)
+        B(ft, "ArmorLight", (X, 0.108, -0.128), (0.120, 0.078, 0.070), taper=0.88)    # Kappe
+        B(ft, "Metal",      (X, 0.034, -0.030), (0.166, 0.050, 0.268))                # Sohle
+        B(ft, "Metal",      (X, 0.060, 0.096),  (0.130, 0.070, 0.070))                # Ferse
+        B(ft, "Accent",     (X, 0.058, -0.152), (0.060, 0.014, 0.012))
+        B(ft, "Accent",     (X * 1.55, 0.086, -0.020), (0.012, 0.044, 0.130))
     return M
 
 
@@ -419,6 +499,14 @@ def make_clips():
                "UpperLeg_R": (-0.7, 0, -0.2), "LowerLeg_R": (1.2, 0, 0),
                "UpperArm_L": (-0.4, 0, 1.0), "UpperArm_R": (-0.4, 0, -1.0)}),
     ])
+    # Seitliche Ausrichtung korrigieren: eine positive Z-Rotation schwenkt
+    # BEIDE haengenden Gliedmassen nach +X. "Nach aussen" heisst deshalb links
+    # negativ und rechts positiv — hier zentral fuer alle Clips gedreht.
+    for _, _, keys in clips:
+        for _, pose in keys:
+            for bone, e in list(pose.items()):
+                if bone.endswith("_L") or bone.endswith("_R"):
+                    pose[bone] = (e[0], e[1], -e[2])
     return clips
 
 

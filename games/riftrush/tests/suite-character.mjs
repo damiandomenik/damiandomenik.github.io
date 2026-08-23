@@ -41,6 +41,7 @@ for (const part of ['torso', 'headGroup', 'visor', 'armL', 'armR', 'legL', 'legR
   ok(!!ch[part], `Bestandteil fehlt: ${part}`);
 }
 ok(ch.visor.material.emissiveIntensity > 1, 'Visor leuchtet nicht');
+ok(ch.ring === null, 'Bodenring ist nicht abgeschaltet (RIFT_CONFIG.GROUND_RING)');
 console.log(`  ${meshes} Meshes, ${Math.round(tris)} Dreiecke, 8 Spieler => ${meshes * 8} Objekte`);
 
 console.log('=== 2. Silhouette & Proportionen ===');

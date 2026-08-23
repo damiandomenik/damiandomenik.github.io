@@ -76,7 +76,7 @@ export class DungeonGenerator {
       if (m === route[route.length - 1]) route.splice(route.length - 1, 0, m);
       else route.push(m);
     }
-    route.push('boss_arena', 'finish');
+    route.push('boss_arena', 'final_run', 'finish');
     return route;
   }
 
@@ -105,6 +105,16 @@ export class DungeonGenerator {
       origin.y += def.exitY;
       origin.z -= def.length;
     });
+
+    // Zielpunkt des Boss-Portals: der Eingang des darauffolgenden Rooms
+    if (this.bossArena) {
+      const bi = this.rooms.findIndex((r) => r.def.tag === 'boss');
+      const next = this.rooms[bi + 1];
+      if (next) {
+        this.bossArena.exitRoomIndex = bi + 1;
+        this.bossArena.finalSpawn = { x: next.origin.x, y: next.origin.y + 0.4, z: next.origin.z - 3.5 };
+      }
+    }
 
     this.physics.build();
     this._buildMeshes();

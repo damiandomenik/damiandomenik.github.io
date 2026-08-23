@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG as C } from '../core/Config.js';
 import { derivePalette } from './PlayerColors.js';
 import { CONFIG as CFG } from '../core/Config.js';
 
@@ -383,6 +384,9 @@ export class PlayerCharacter {
    * Über RIFT_CONFIG.GROUND_RING = true wieder einschaltbar.
    */
   createGroundIndicator() {
+    // Bodenring standardmaessig aus (RIFT_CONFIG.GROUND_RING)
+    this.ring = null;
+    this.arrow = null;
     if (!CFG.GROUND_RING) return;
     this.ring = new THREE.Mesh(G.ring, this.materials.ring);
     this.ring.position.y = 0.03;

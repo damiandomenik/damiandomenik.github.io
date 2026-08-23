@@ -81,13 +81,12 @@ export class HUD {
     }
     this.bossEl.classList.remove('hidden');
     const secs = Math.ceil(b.escapeMs / 1000);
-    const hash = `${b.phase}|${b.mechanisms}|${secs}|${b.goal}|${b.goalDist}|${b.collapsed}`;
+    const hash = `${b.phase}|${b.mechanisms}|${b.portalOpen}|${b.escaped}|${b.goal}|${b.goalDist}`;
     if (hash !== this._bossHash) {
       this._bossHash = hash;
-      const label = b.phase === 'shield' ? `SCHILD AKTIV — ${b.mechanisms}/${b.mechanismsTotal} MECHANISMEN`
-        : b.phase === 'core' ? 'KERN OFFEN — RAUF ZUM KERN'
-        : b.phase === 'escape' ? 'ARENA STÜRZT EIN — RAUS HIER'
-        : 'BESIEGT';
+      const label = b.escaped ? 'ENDSTRECKE — AB ZUM ZIEL'
+        : b.portalOpen ? 'PORTAL OFFEN — ÜBER DER MITTE'
+        : `DEINE MECHANISMEN: ${b.mechanisms}/${b.mechanismsTotal}`;
       this.bossPhaseEl.textContent = label;
       for (let i = 0; i < this.bossMechEls.length; i++) {
         this.bossMechEls[i].classList.toggle('on', i < b.mechanisms);

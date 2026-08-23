@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { PhysicsWorld } from '../src/core/Physics.js';
 import { DungeonGenerator } from '../src/dungeon/DungeonGenerator.js';
 import { PlayerMovement } from '../src/player/PlayerMovement.js';
-import { BossFight, BOSS_PHASE, ESCAPE_SECONDS } from '../src/boss/BossFight.js';
+import { BossFight, BOSS_PHASE } from '../src/boss/BossFight.js';
 import { CharacterFx } from '../src/player/CharacterFx.js';
 import { AudioHooks } from '../src/core/AudioHooks.js';
 import { RaceManager } from '../src/gameplay/RaceManager.js';
@@ -34,25 +34,28 @@ console.log('=== 1. Arena ist Teil jedes Dungeons ===');
     dg.generate((s * 6151 + 17) >>> 0, 9);
     const ids = dg.rooms.map((r) => r.def.id);
     ok(ids.includes('boss_arena'), `seed ${s}: keine Boss-Arena in der Route`);
-    ok(ids.indexOf('boss_arena') === ids.length - 2, 'Boss steht nicht direkt vor dem Finish');
+    ok(ids.indexOf('boss_arena') === ids.length - 3, 'Boss steht nicht an drittletzter Stelle');
     ok(!!dg.bossArena, 'Arena-Beschreibung fehlt');
     const a = dg.bossArena;
     ok(a.mechanisms.length === 3, `${a.mechanisms.length} Mechanismen statt 3`);
     ok(a.tiles.length >= 12, `nur ${a.tiles.length} steuerbare Kacheln`);
     ok(a.tiles.some((t) => !t.collapsible), 'Alle Kacheln einstürzbar — Ausgang würde unerreichbar');
-    ok(a.coreTrigger.active === false, 'Kern ist von Anfang an verwundbar');
-    ok(!!dg.doors.get(a.doorId), 'Ausgangstür fehlt');
+    ok(a.portalTrigger.active === false, 'Portal ist von Anfang an offen');
+    ok(!!a.finalSpawn, 'Kein Zielpunkt hinter dem Portal hinterlegt');
+    ok(a.exitRoomIndex === dg.rooms.findIndex((r) => r.def.id === 'final_run'),
+      'Portal führt nicht in die Endstrecke');
+    ok(ids.includes('final_run'), 'Keine Endstrecke nach dem Boss');
+    ok(ids.indexOf('final_run') === ids.indexOf('boss_arena') + 1, 'Endstrecke folgt nicht direkt');
     // Mechanismen müssen erhöht stehen (Parkour nötig)
     for (const m of a.mechanisms) ok(m.world.y - a.floorY > 4, 'Mechanismus steht ebenerdig');
     // Kern-Route liegt hoch
-    ok(a.coreY - a.floorY > 12, 'Kern ist zu niedrig — keine Kletterroute nötig');
+    ok(a.portal.y - a.floorY > 12, 'Portal haengt zu niedrig — keine Kletterroute noetig');
     ok(physics.statics.some((c2) => c2.runnable && c2.minZ < a.maxZ && c2.maxZ > a.minZ),
       'Keine Wallrun-Wand in der Arena');
   }
   console.log(fails === b ? '  Arena korrekt eingebettet' : `  ${fails - b} Fehler`);
 }
 
-console.log('=== 2. Zustandsmaschine ===');
 const fx = new CharacterFx(scene, 120);
 const audio = new AudioHooks();
 const heard = [];
@@ -80,6 +83,7 @@ function run(f, ctx, seconds, dt = 1 / 60) {
   for (let i = 0; i < seconds / dt; i++) { T += dt * 1000; f.update(dt, ctx); }
 }
 
+console.log('=== 2. Ablauf: Mechanismen -> Portal -> Endstrecke ===');
 {
   const b = fails;
   const f = makeFight(true);
@@ -90,56 +94,88 @@ function run(f, ctx, seconds, dt = 1 / 60) {
 
   const inside = fakeCtx(f, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
   run(f, inside, 0.2);
-  ok(f.phase === BOSS_PHASE.SHIELD, 'Boss startet nicht beim Betreten');
+  ok(f.phase === BOSS_PHASE.ACTIVE, 'Boss startet nicht beim Betreten');
   ok(f.sent.some((e) => e.k === 'begin'), 'Start wird nicht ans Netzwerk gemeldet');
   ok(f.model.shield.visible, 'Schild ist nicht sichtbar');
-  ok(A.coreTrigger.active === false, 'Kern ist in Phase 1 verwundbar');
+  ok(!f.portalOpen && !f.portal.visible, 'Portal ist von Anfang an da');
+  ok(f.enterPortal('me') === null, 'Portal laesst sich ohne Mechanismen benutzen');
 
-  // Kern darf in Phase 1 nicht treffbar sein
-  ok(f.hitCore('me') === false, 'Kern lässt sich schon in Phase 1 treffen');
-
-  // Mechanismen
-  ok(f.activateMechanism(0, 'me') === true, 'Mechanismus lässt sich nicht aktivieren');
+  ok(f.activateMechanism(0, 'me') === true, 'Mechanismus laesst sich nicht aktivieren');
   ok(f.activateMechanism(0, 'me') === false, 'Mechanismus doppelt aktivierbar');
   ok(A.mechanisms[0].trigger.active === false, 'Trigger bleibt nach Aktivierung aktiv');
-  ok(f.phase === BOSS_PHASE.SHIELD, 'Schild fällt schon bei einem Mechanismus');
+  ok(!f.portalOpen, 'Portal oeffnet schon bei einem Mechanismus');
   f.activateMechanism(1, 'me');
+  ok(!f.portalOpen, 'Portal oeffnet schon bei zwei Mechanismen');
   f.activateMechanism(2, 'me');
-  run(f, inside, 0.1);
-  ok(f.phase === BOSS_PHASE.CORE, 'Schild fällt nicht nach allen Mechanismen');
+  run(f, inside, 0.2);
+  ok(f.portalOpen, 'Portal oeffnet nicht nach allen drei Mechanismen');
+  ok(f.portal.visible, 'Portal ist unsichtbar');
+  ok(A.portalTrigger.active === true, 'Portal-Trigger ist nicht scharf');
   ok(!f.model.shield.visible, 'Schild bleibt sichtbar');
-  ok(A.coreTrigger.active === true, 'Kern wird nicht verwundbar');
-  ok(heard.includes('boss:shield-down'), 'Audio-Hook für den Schildbruch fehlt');
+  ok(Math.abs(f.portal.position.y - A.portal.y) < 0.01, 'Portal steht an der falschen Stelle');
+  ok(Math.hypot(f.portal.position.x - A.center.x, f.portal.position.z - A.center.z) < 0.01,
+    'Portal schwebt nicht ueber der Mitte');
 
-  // Kern treffen -> Fluchtphase
-  ok(f.hitCore('me') === true, 'Kern lässt sich in Phase 2 nicht treffen');
-  run(f, inside, 0.1);
-  ok(f.phase === BOSS_PHASE.ESCAPE, 'Kerntreffer startet die Fluchtphase nicht');
-  ok(f.coreFirstBy === 'me', 'Erster Kerntreffer wird nicht vermerkt');
-  ok(dg.doors.get(A.doorId).open === true, 'Ausgangstür öffnet nicht');
-  ok(A.coreTrigger.active === false, 'Kern bleibt nach der Flucht treffbar');
-  ok(Math.abs(f.escapeRemainingMs - ESCAPE_SECONDS * 1000) < 400, 'Countdown startet falsch');
-  ok(heard.includes('boss:escape'), 'Audio-Hook für den Countdown fehlt');
-  console.log(fails === b ? '  Phasen 1 -> 2 -> 3 laufen korrekt' : `  ${fails - b} Fehler`);
+  const spawn = f.enterPortal('me');
+  ok(!!spawn, 'Portal-Durchflug liefert keinen Zielpunkt');
+  ok(spawn === A.finalSpawn, 'Zielpunkt ist nicht die Endstrecke');
+  ok(f.escaped === true, 'Durchflug wird nicht vermerkt');
+  ok(A.portalTrigger.active === false, 'Portal bleibt nach dem Durchflug scharf');
+  ok(f.enterPortal('me') === null, 'Portal laesst sich zweimal benutzen');
+  ok(f.portalFirstBy === 'me', 'Erster Durchflug wird nicht vermerkt');
+  run(f, inside, 0.2);
+  ok(!f.portal.visible, 'Portal bleibt nach dem Durchflug sichtbar');
+  console.log(fails === b ? '  Mechanismen -> Portal -> Endstrecke' : `  ${fails - b} Fehler`);
 }
 
-console.log('=== 3. Einsturz lässt einen Weg zum Ausgang ===');
+console.log('=== 3. Mechanismen zaehlen nur fuer den eigenen Spieler ===');
 {
   const b = fails;
-  const f = makeFight(true);
   const A = dg.bossArena;
-  const ctx = fakeCtx(f, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
-  run(f, ctx, 0.2);
-  f.activateMechanism(0, 'me'); f.activateMechanism(1, 'me'); f.activateMechanism(2, 'me');
-  run(f, ctx, 0.2);
-  f.hitCore('me');
-  run(f, ctx, ESCAPE_SECONDS + 5);
-  const gone = A.tiles.filter((t) => t.visualState === 'gone');
-  ok(gone.length > 3, `Nur ${gone.length} Kacheln eingestürzt — zu wenig Druck`);
-  const survivors = A.tiles.filter((t) => !t.collapsible);
-  ok(survivors.every((t) => t.collider.active), 'Die Mittelspur ist eingestürzt — Ausgang unerreichbar');
-  ok(f.escapeRemainingMs === 0, 'Countdown läuft nicht ab');
-  console.log(fails === b ? `  ${gone.length} Kacheln weg, Mittelspur steht` : '  FEHLER');
+  const me = makeFight(true);
+  const other = new BossFight({ scene, dungeon: dg, arena: dg.bossArena, fx, audio, seed: 7 });
+  other.setHost(false);
+  other.sent = [];
+  other.onEvent = (e) => other.sent.push(e);
+
+  const ctxA = fakeCtx(me, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
+  const ctxB = fakeCtx(other, { x: A.center.x - 14, y: A.floorY, z: A.center.z + 14 });
+  run(me, ctxA, 0.2);
+  for (const e of me.sent.splice(0)) other.applyEvent(e, 'me');
+  run(other, ctxB, 0.1);
+
+  // Spieler A macht alle drei
+  me.activateMechanism(0, 'me');
+  me.activateMechanism(1, 'me');
+  me.activateMechanism(2, 'me');
+  for (const e of me.sent.splice(0)) other.applyEvent(e, 'me');
+  run(other, ctxB, 0.2);
+
+  ok(me.portalOpen === true, 'Portal oeffnet bei A nicht');
+  ok(other.mechanisms.every((m) => m === false),
+    'Die Mechanismen von A zaehlen auch fuer B — genau das soll nicht passieren');
+  ok(other.portalOpen === false, 'B bekommt das Portal geschenkt');
+  ok(other.enterPortal('b') === null, 'B kann durchs Portal, ohne selbst gesammelt zu haben');
+  ok(other.peerProgress.get('me') === 3, 'Fortschritt der Mitspieler wird nicht mitgeteilt');
+
+  // B sammelt selbst -> bekommt sein eigenes Portal
+  other.activateMechanism(0, 'b');
+  other.activateMechanism(1, 'b');
+  other.activateMechanism(2, 'b');
+  ok(other.portalOpen === true, 'B bekommt kein Portal, obwohl er selbst gesammelt hat');
+  ok(!!other.enterPortal('b', 61000), 'B kommt nicht durchs eigene Portal');
+
+  /* Der Bonus geht an den mit der besseren RENNZEIT, nicht an das schnellere
+   * Paket: A springt zuerst durch (Host, sofortige Auswertung), Bs Nachricht
+   * trifft erst danach ein — hat aber die kleinere Zeit. */
+  me.enterPortal('me', 62500);
+  ok(me.portalFirstBy === 'me', 'Host wertet den eigenen Durchflug nicht');
+  for (const e of other.sent.splice(0)) me.applyEvent(e, 'b');
+  ok(me.portalFirstBy === 'b',
+    `Spaeter eintreffende, aber schnellere Zeit wird ignoriert (${me.portalFirstBy})`);
+  ok(me.sent.some((e) => e.k === 'first' && e.by === 'b'), 'Korrektur wird nicht verteilt');
+  other.dispose();
+  console.log(fails === b ? '  Jeder Spieler sammelt fuer sich' : `  ${fails - b} Fehler`);
 }
 
 console.log('=== 3b. Führung: Wegweiser zeigt immer das nächste Ziel ===');
@@ -167,37 +203,34 @@ console.log('=== 3b. Führung: Wegweiser zeigt immer das nächste Ziel ===');
 
   f.activateMechanism(0, 'me'); f.activateMechanism(1, 'me'); f.activateMechanism(2, 'me');
   run(f, ctx, 0.2);
-  ok(f.hud.goal.includes('KERN'), 'Wegweiser zeigt in Phase 2 nicht zum Kern');
-  ok(Math.abs(f.beacon.position.y - A.walkwayY) < 2, 'Wegweiser zeigt nicht auf die Kernhöhe');
+  ok(f.hud.goal.includes('PORTAL'), `Wegweiser zeigt nicht zum Portal: "${f.hud.goal}"`);
+  ok(Math.abs(f.beacon.position.y - A.portal.y) < 2, 'Wegweiser zeigt nicht auf die Portalhoehe');
 
-  f.hitCore('me');
+  f.enterPortal('me');
   run(f, ctx, 0.2);
-  ok(f.hud.goal.includes('AUSGANG') || f.hud.goal.includes('MITTELSPUR'), 'Kein Fluchtziel angezeigt');
-  ok(Math.abs(f.beacon.position.z - A.exitWorld.z) < 2, 'Wegweiser zeigt nicht zum Ausgang');
+  ok(!f.beacon.visible, 'Wegweiser bleibt nach dem Durchflug stehen');
   console.log(fails === b ? '  Ziel ist in jeder Phase markiert' : `  ${fails - b} Fehler`);
 }
 
-console.log('=== 3c. Nach Ablauf des Countdowns passiert etwas ===');
+console.log('=== 3d. Portal-Ziel liegt auf festem Boden ===');
 {
   const b = fails;
-  const f = makeFight(true);
-  const A = dg.bossArena;
-  const ctx = fakeCtx(f, { x: A.center.x + 14, y: A.floorY, z: A.center.z + 14 });
-  run(f, ctx, 0.2);
-  f.activateMechanism(0, 'me'); f.activateMechanism(1, 'me'); f.activateMechanism(2, 'me');
-  run(f, ctx, 0.2);
-  f.hitCore('me');
-  run(f, ctx, ESCAPE_SECONDS - 2);
-  ok(!f.collapsed, 'Kollaps startet zu früh');
-  const attacksBefore = f.attackIndex;
-  run(f, ctx, 8);
-  ok(f.collapsed, 'Nach Ablauf des Countdowns passiert nichts');
-  ok(f.hud.collapsed === true, 'HUD meldet den Kollaps nicht');
-  ok(A.tiles.every((t) => !t.collapsible || t.visualState === 'gone'), 'Nicht alles Einstürzbare ist weg');
-  ok(A.tiles.filter((t) => !t.collapsible).every((t) => t.collider.active), 'Auch die Mittelspur ist weg — Ausgang unerreichbar');
-  ok(f.attackIndex > attacksBefore + 1, 'Der Boss feuert im Kollaps nicht härter');
-  ok(dg.doors.get(A.doorId).open === true, 'Ausgangstür ist im Kollaps zu');
-  console.log(fails === b ? '  Kollaps greift, Fluchtweg bleibt' : `  ${fails - b} Fehler`);
+  for (let i = 0; i < 10; i++) {
+    dg.generate((i * 4451 + 9) >>> 0, 9);
+    const A = dg.bossArena;
+    ok(!!A.finalSpawn, 'Kein Portal-Ziel');
+    const mv = new PlayerMovement(physics);
+    const st = PlayerMovement.createState();
+    st.pos = { ...A.finalSpawn };
+    const cmd = { mx: 0, mz: 0, yaw: 0, sprint: false, crouch: false, jump: false, dash: false };
+    for (let f = 0; f < 90; f++) mv.update(st, cmd, 1 / 60);
+    ok(st.grounded, `seed ${i}: Spieler landet nach dem Portal nicht auf Boden`);
+    ok(Math.abs(st.pos.y - A.finalSpawn.y) < 1.2, `seed ${i}: Portal-Ziel schwebt zu hoch`);
+    ok(Math.abs(st.pos.z - A.finalSpawn.z) < 0.5, `seed ${i}: Spieler rutscht vom Zielpunkt`);
+    // Die Endstrecke muss hinter der Arena liegen, nicht darin
+    ok(A.finalSpawn.z < A.minZ, 'Portal-Ziel liegt noch in der Arena');
+  }
+  console.log(fails === b ? '  Landung nach dem Portal ist sicher' : `  ${fails - b} Fehler`);
 }
 
 console.log('=== 4. Angriffe treffen nur, wenn man am Boden steht ===');
@@ -209,7 +242,7 @@ console.log('=== 4. Angriffe treffen nur, wenn man am Boden steht ===');
 
   // --- Schockwelle: am Boden treffen, in der Luft nicht ---
   const hitCtx = fakeCtx(f, { x: A.center.x + 12, y: A.floorY, z: A.center.z });
-  f._setPhase(BOSS_PHASE.SHIELD);
+  f._setPhase(BOSS_PHASE.ACTIVE);
   f._startAttack('shock', 12345);
   run(f, hitCtx, 4);
   ok(!!hitCtx.localPlayer.kb, 'Schockwelle trifft am Boden nicht');
@@ -229,6 +262,7 @@ console.log('=== 4. Angriffe treffen nur, wenn man am Boden steht ===');
   const ang = at.data.a0;
   laserCtx.localPlayer.state.pos.x = A.center.x - Math.sin(ang) * 10;
   laserCtx.localPlayer.state.pos.z = A.center.z - Math.cos(ang) * 10;
+  laserCtx.localPlayer.state.pos.y = at.data.y - 0.2;    // Laser kann hoch liegen
   run(f, laserCtx, 3);
   ok(hitL, 'Laser trifft niemanden auf seiner Achse');
 
@@ -245,6 +279,98 @@ console.log('=== 4. Angriffe treffen nur, wenn man am Boden steht ===');
   console.log(fails === b ? '  Angriffe sind ausweichbar und angekündigt' : `  ${fails - b} Fehler`);
 }
 
+console.log('=== 4b. Treffer setzt zum Checkpoint zurück ===');
+{
+  const b = fails;
+  const f = makeFight(true);
+  f.setHost(false);
+  const A = dg.bossArena;
+  const ctx = fakeCtx(f, { x: A.center.x + 12, y: A.floorY, z: A.center.z });
+  let kills = 0, knockbacks = 0;
+  ctx.onKill = () => { kills++; };
+  ctx.localPlayer.applyKnockback = () => { knockbacks++; };
+
+  f._setPhase(BOSS_PHASE.ACTIVE);
+  f._startAttack('shock', 12345);
+  // bis exakt zum Treffer laufen, damit die Schonzeit sauber messbar ist
+  let guard = 0;
+  while (kills === 0 && guard++ < 600) run(f, ctx, 1 / 60);
+  ok(kills === 1, `Treffer loest keinen Respawn aus (${kills})`);
+  ok(knockbacks === 0, 'Treffer wirkt noch als Knockback statt als Respawn');
+
+  // Schonzeit: direkt danach darf nicht sofort erneut gestorben werden
+  f._startAttack('shock', 999);
+  run(f, ctx, 2.2);
+  ok(kills === 1, 'Keine Schonzeit nach dem Respawn — man stirbt sofort wieder');
+  ok(f.invulnUntil > f.time, 'Schonzeit ist bereits abgelaufen');
+  // nach Ablauf wieder verwundbar
+  f.invulnUntil = 0;
+  f._startAttack('shock', 4711);
+  run(f, ctx, 4);
+  ok(kills === 2, 'Nach der Schonzeit trifft der Boss nicht mehr');
+  console.log(fails === b ? '  Treffer = Respawn, mit kurzer Schonzeit' : `  ${fails - b} Fehler`);
+}
+
+console.log('=== 4c. Auch oben ist man nicht sicher ===');
+{
+  const b = fails;
+  const f = makeFight(true);
+  f.setHost(false);
+  const A = dg.bossArena;
+
+  // Rotorarme: auf Plattform-/Laufsteghöhe, treffen dort auch
+  let heights = new Set();
+  for (let s2 = 0; s2 < 12; s2++) {
+    f.active.length = 0;
+    f._startAttack('sweep', s2 * 977 + 3);
+    const at = f.active[0];
+    ok(!!at, 'Rotorarm-Angriff startet nicht');
+    if (at) heights.add(Math.round(at.data.y - A.floorY));
+  }
+  ok(heights.size >= 2, `Rotorarme nur auf einer Höhe (${[...heights].join(', ')})`);
+  ok([...heights].every((h) => h > 4), `Rotorarme liegen zu tief: ${[...heights].join(', ')}`);
+
+  // Treffer auf Kletterhöhe
+  f.active.length = 0;
+  f.invulnUntil = 0;
+  f._startAttack('sweep', 4242);
+  const sw = f.active[0];
+  let killed = 0;
+  const high = fakeCtx(f, { x: A.center.x + 9, y: sw.data.y - 0.9, z: A.center.z });
+  high.onKill = () => { killed++; };
+  // genau auf die Bahn eines Arms stellen
+  const ang = sw.data.a0;
+  high.localPlayer.state.pos.x = A.center.x + Math.sin(ang) * 9;
+  high.localPlayer.state.pos.z = A.center.z + Math.cos(ang) * 9;
+  run(f, high, 5);
+  ok(killed > 0, 'Rotorarm trifft auf Kletterhöhe niemanden');
+
+  // Wer tiefer steht, wird von einem hohen Arm nicht getroffen
+  f.active.length = 0;
+  f.invulnUntil = 0;
+  f._startAttack('sweep', 4242);
+  let killedLow = 0;
+  const low = fakeCtx(f, { x: high.localPlayer.state.pos.x, y: A.floorY, z: high.localPlayer.state.pos.z });
+  low.onKill = () => { killedLow++; };
+  run(f, low, 5);
+  ok(killedLow === 0, 'Hoher Rotorarm trifft auch am Boden — Höhe wird ignoriert');
+
+  // Laser und Einschläge erreichen ebenfalls die Höhe
+  const laserY = new Set(), projY = new Set();
+  for (let s2 = 0; s2 < 14; s2++) {
+    f.active.length = 0;
+    f._startAttack('laser', s2 * 613 + 7);
+    laserY.add(Math.round(f.active[0].data.y - A.floorY));
+    f.active.length = 0;
+    f._startAttack('proj', s2 * 421 + 11);
+    for (const sp of f.active[0].data.spots) projY.add(Math.round((sp.y ?? A.floorY) - A.floorY));
+  }
+  ok([...laserY].some((h) => h > 4), `Laser bleibt immer unten (${[...laserY].join(', ')})`);
+  ok([...projY].some((h) => h > 4), `Einschläge treffen nie die Hochplattformen (${[...projY].join(', ')})`);
+  console.log(`  Rotorarme auf ${[...heights].sort().join('/')} m, Laser ${[...laserY].sort().join('/')} m, Einschläge ${[...projY].sort((x, y) => x - y).join('/')} m`);
+  ok(fails === b, 'Höhenangriffe fehlerhaft');
+}
+
 console.log('=== 5. Kein Dauerschaden / kein Stunlock ===');
 {
   const b = fails;
@@ -252,12 +378,12 @@ console.log('=== 5. Kein Dauerschaden / kein Stunlock ===');
   const A = dg.bossArena;
   let hits = 0;
   const ctx = fakeCtx(f, { x: A.center.x + 10, y: A.floorY, z: A.center.z + 3 });
-  ctx.localPlayer.applyKnockback = () => { hits++; };
-  f._setPhase(BOSS_PHASE.CORE);
+  ctx.onKill = () => { hits++; };
+  f._setPhase(BOSS_PHASE.ACTIVE);
   run(f, ctx, 60);              // eine Minute regungslos in der Arena stehen
   ok(hits > 0, 'Wer regungslos stehen bleibt, wird gar nicht getroffen');
-  ok(hits < 40, `${hits} Treffer in 60 s — zu dicht, das wäre ein Stunlock`);
-  console.log(`  ${hits} Treffer in 60 s bei völliger Untätigkeit`);
+  ok(hits < 14, `${hits} Respawns in 60 s — zu hart, selbst fuer voellige Untaetigkeit`);
+  console.log(`  ${hits} Respawns in 60 s bei völliger Untätigkeit`);
   ok(fails === b, 'Trefferfrequenz unpassend');
 }
 
@@ -277,34 +403,24 @@ console.log('=== 6. Synchronisation zwischen Host und Client ===');
   const cCtx = fakeCtx(client, { x: A.center.x - 14, y: A.floorY, z: A.center.z + 14 });
 
   run(host, hCtx, 0.2); link(host, client); run(client, cCtx, 0.05);
-  ok(client.phase === BOSS_PHASE.SHIELD, 'Client startet den Kampf nicht mit');
+  ok(client.phase === BOSS_PHASE.ACTIVE, 'Client startet den Kampf nicht mit');
 
-  // Client aktiviert Mechanismen -> Host übernimmt
-  client.activateMechanism(0, 'c'); client.activateMechanism(1, 'c'); client.activateMechanism(2, 'c');
-  link(client, host);
-  run(host, hCtx, 0.1);
-  ok(host.mechanisms.every(Boolean), 'Host übernimmt die Mechanismen des Clients nicht');
-  ok(host.phase === BOSS_PHASE.CORE, 'Host schaltet die Phase nicht weiter');
-  link(host, client); run(client, cCtx, 0.05);
-  ok(client.phase === BOSS_PHASE.CORE, 'Client bekommt die Phase nicht');
-
-  // Client trifft zuerst -> Host entscheidet über den Bonus
-  client.hitCore('c');
+  // Client geht durchs eigene Portal -> Host vergibt den Erst-Bonus
+  client.mechanisms = [true, true, true];
+  client._openPortal();
+  client.enterPortal('c');
   link(client, host);
   run(host, hCtx, 0.05);
-  ok(host.coreFirstBy === 'c', 'Host wertet den ersten Kerntreffer falsch');
+  ok(host.portalFirstBy === 'c', 'Host wertet den ersten Durchflug falsch');
   link(host, client); run(client, cCtx, 0.05);
-  ok(client.phase === BOSS_PHASE.ESCAPE, 'Client wechselt nicht in die Fluchtphase');
-  ok(client.coreFirstBy === 'c', 'Client kennt den Ersttreffer nicht');
+  ok(client.portalFirstBy === 'c', 'Client kennt den Ersten nicht');
 
-  // Ein Client darf die Phase nicht selbst schalten
+  // Ein Client darf weder Phase schalten noch eigene Angriffe planen
   const solo = new BossFight({ scene, dungeon: dg, arena: dg.bossArena, fx, audio, seed: 7 });
   solo.setHost(false);
   solo.onEvent = () => {};
-  solo._setPhase(BOSS_PHASE.SHIELD);
-  solo.mechanisms = [true, true, true];
-  run(solo, cCtx, 2);
-  ok(solo.phase === BOSS_PHASE.SHIELD, 'Client schaltet die Phase eigenmächtig');
+  solo._setPhase(BOSS_PHASE.ACTIVE);
+  run(solo, cCtx, 6);
   ok(solo.active.length === 0, 'Client plant eigene Angriffe (Desync)');
   solo.dispose();
 
@@ -313,8 +429,8 @@ console.log('=== 6. Synchronisation zwischen Host und Client ===');
   late.setHost(false);
   late.onEvent = () => {};
   late.applySnapshot(host.snapshot());
-  ok(late.phase === BOSS_PHASE.ESCAPE, 'Späteinsteiger landet in der falschen Phase');
-  ok(late.mechanisms.every(Boolean), 'Späteinsteiger sieht die Mechanismen nicht');
+  ok(late.phase === BOSS_PHASE.ACTIVE, 'Späteinsteiger landet in der falschen Phase');
+  ok(late.mechanisms.every((m) => m === false), 'Späteinsteiger bekommt fremde Mechanismen geschenkt');
   late.dispose();
 
   // Datenvolumen: der Boss darf den Kanal nicht fluten
@@ -327,7 +443,7 @@ console.log('=== 6. Synchronisation zwischen Host und Client ===');
   console.log(fails === b ? '  Host/Client bleiben synchron' : `  ${fails - b} Fehler`);
 }
 
-console.log('=== 7. Zeitbonus für den ersten Kerntreffer ===');
+console.log('=== 7. Zeitbonus für den ersten Durchflug ===');
 {
   const b = fails;
   const race = new RaceManager(null);
@@ -362,7 +478,7 @@ console.log('=== 8. Modell & Performance ===');
   ok(lights <= 1, `${lights} Lichter am Boss — zu teuer`);
 
   const ctx = fakeCtx(f, { x: f.arena.center.x + 12, y: f.arena.floorY, z: f.arena.center.z });
-  f._setPhase(BOSS_PHASE.CORE);
+  f._setPhase(BOSS_PHASE.ACTIVE);
   const t0 = Date.now();
   run(f, ctx, 20);
   const ms = (Date.now() - t0) / (20 * 60);
@@ -383,7 +499,7 @@ console.log('=== 9. Audio-Hooks vollständig ===');
 {
   const b = fails;
   for (const name of ['boss:intro', 'boss:mechanism', 'boss:shield-down', 'boss:shockwave',
-    'boss:laser-warning', 'boss:hit', 'boss:phase', 'boss:escape']) {
+    'boss:laser-warning', 'boss:phase', 'boss:portal-open', 'boss:portal-enter']) {
     ok(heard.includes(name), `Audio-Hook "${name}" wurde nie ausgelöst`);
   }
   console.log(fails === b ? `  ${new Set(heard).size} verschiedene Hooks ausgelöst` : '  FEHLER');

@@ -339,6 +339,44 @@ export const ROOMS = [
     build(c) { return buildBossArena(c); },
   },
 
+  // ------------------------------------------------- ENDSTRECKE (nach dem Portal)
+  {
+    id: 'final_run', name: 'Rift Descent', length: 104, exitY: 0, weight: 0, tag: 'final_run',
+    build(c, rng) {
+      entryPad(c, 11, 9);
+      pit(c, 104, 34, -6);
+      c.light(0, 6, -6, 0xb388ff, 1.8, 30);
+
+      // 1) Bewegliche Plattformen über dem Abgrund
+      for (let i = 0; i < 3; i++) {
+        c.moving(i % 2 === 0 ? -3.5 : 3.5, 0.4, -14 - i * 8.5, 5.0, 0.7, 5.0,
+          { axis: 'x', amp: 4.2, speed: 0.24, phase: i * 0.33 });
+      }
+      c.plat(0, 0.8, -42, 8, 7, 'accent');
+
+      // 2) Schwingende Gefahrenbalken über einem schmalen Steg
+      c.plat(0, 0.8, -54, 6.5, 20, 'solid');
+      for (let i = 0; i < 3; i++) {
+        c.moving(0, 1.0, -48 - i * 6, 3.0, 2.8, 1.0,
+          { axis: 'x', amp: 4.0, speed: 0.32 + i * 0.05, phase: i * 0.4, kind: 'hazard' });
+      }
+
+      // 3) Wallrun-Passage über einer Lücke
+      c.runWall(-4.6, 0, -72, 1.3, 12, 18);
+      c.runWall(4.6, 0, -72, 1.3, 12, 18);
+      c.plat(0, 1.4, -84, 6, 6, 'accent');
+      c.light(0, 6, -72, 0xb388ff, 1.6, 28);
+
+      // 4) Verschwindende Platten auf die Zielgerade
+      for (let i = 0; i < 4; i++) {
+        c.blinker((i % 2 === 0 ? -2.6 : 2.6), 1.6, -90 - i * 3.6, 3.2, 3.2,
+          { period: 2.8 + i * 0.3, phase: rng(), onRatio: 0.66 });
+      }
+      c.plat(0, 1.6, -100, 9, 8, 'solid');
+      exitPad(c, 0, -104);
+    },
+  },
+
   // ---------------------------------------------------------------- FINISH
   {
     id: 'finish', name: 'Extraction', length: 22, exitY: 0, weight: 0, tag: 'finish',

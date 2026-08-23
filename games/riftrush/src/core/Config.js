@@ -100,6 +100,7 @@ export const CONFIG = {
   // sonst sind die Lichter faktisch unsichtbar.
   LIGHT_POWER: 25,
   MAX_POINT_LIGHTS: 10,
+  GROUND_RING: false,         // Leuchtkreis unter der Figur
   CHARACTER_MODEL: 'glb',     // 'glb' (Modell aus dem Character Sheet) | 'procedural'
   CHARACTER_BUILD: 'runner',  // Statur der prozeduralen Figur: 'runner' | 'agile' | 'heavy'
   GROUND_RING: false,         // Leuchtring unter der Figur  // 'runner' | 'agile' | 'heavy'

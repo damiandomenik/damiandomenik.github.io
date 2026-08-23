@@ -157,13 +157,19 @@ Abgedeckt:
 * **Boss-Führung**: Wegweiser zeigt in jeder Phase auf das richtige Ziel und wandert
   nach erledigtem Mechanismus weiter; nach Ablauf des Countdowns greift der Kollaps,
   ohne den Fluchtweg zu zerstören
-* **Boss**: Arena in jeder Route korrekt eingebettet, Mechanismen erhöht und Kern hoch
-  genug (Parkour zwingend), Phasenfolge 1→2→3, Kern erst in Phase 2 treffbar, Einsturz
-  lässt immer einen Weg zum Ausgang, Angriffe treffen am Boden und verfehlen beim Sprung,
-  Vorwarnzeiten, keine Treffer-Dauerschleife (9 Treffer in 60 s bei Untätigkeit),
-  Host/Client-Synchronisation inkl. Späteinsteiger und Traffic-Budget, Zeitbonus,
+* **Boss**: Arena und Endstrecke in jeder Route korrekt eingebettet, Mechanismen erhöht
+  und Portal hoch genug (Parkour zwingend), Ablauf Mechanismen → Portal → Endstrecke,
+  Portal erst nach allen drei benutzbar und nur einmal, **fremde Mechanismen zählen
+  nachweislich nicht**, Landung hinter dem Portal steht auf festem Boden, Angriffe treffen
+  am Boden und verfehlen beim Sprung, Vorwarnzeiten, Treffer setzen zum Checkpoint
+  zurück statt zu stossen, Schonzeit danach greift, Angriffe erreichen nachweislich
+  mehrere Höhen (Rotorarme 7/11 m, Laser 2/7 m, Einschläge 0/6/7 m) und ein hoher
+  Rotorarm trifft am Boden nicht, keine Treffer-Dauerschleife
+  (6 Respawns in 60 s bei Untätigkeit), Host/Client-Synchronisation inkl. Späteinsteiger
+  und Traffic-Budget, Zeitbonus nach Rennzeit statt Paketreihenfolge,
   Modellbudget (33 Meshes, 1.184 Dreiecke, ein Licht)
-* **Charakter-Asset**: GLB lädt mit dem echten GLTFLoader, Mesh-/Material-/Dreiecks-
+* **Charakter-Asset**: keine Durchdringung von Armen/Beinen und Rumpf über alle Clips,
+  GLB lädt mit dem echten GLTFLoader, Mesh-/Material-/Dreiecks-
   budget, Proportionen gegen die 1,8-m-Hitbox, vollständiges Rig inkl. Hierarchie,
   alle 16 geforderten Clips, jeder Clip bewegt das Rig nachweislich und ohne NaN,
   Schnittstellen-Gleichheit beider Figur-Varianten, eigene Skelette und Farben pro Spieler
@@ -274,7 +280,7 @@ src/
     Hazards.js          Materialien & dynamische Meshes
 
   boss/
-    BossArena.js       Arena-Geometrie (Kacheln, Mechanismen, Kern-Route, Tür)
+    BossArena.js       Arena-Geometrie (Kacheln, Mechanismen, Kletterroute, Portal)
     BossModel.js       prozedurales Boss-Modell "Rift Guardian"
     BossFight.js       Phasen, Angriffe, Treffererkennung, Synchronisation
 
@@ -315,17 +321,26 @@ RIFTRUSH.setCharacterModel('glb');          // zurück zum Modell
 
 #### Rift Runner (GLB)
 
-`assets/RiftRush_Player.glb` — 2.508 Dreiecke, 5 Materialien, 23 Knochen, 16 Clips,
-315 KB. Erzeugt von `tools/build_player_glb.py`, also reproduzierbar und versionierbar:
+`assets/RiftRush_Player.glb` — 4.856 Dreiecke, 5 Materialien, 23 Knochen, 16 Clips,
+538 KB. Erzeugt von `tools/build_player_glb.py`, also reproduzierbar und versionierbar:
 
 ```bash
 python3 tools/build_player_glb.py assets/RiftRush_Player.glb
 ```
 
-Bauweise: Hartflächen-Panzerung aus gefasten Platten, jedes Teil starr an einen Knochen
-gebunden (Gewicht 1,0). Bei Rüstungsfiguren ist das üblich und vermeidet Verzerrungen an
-Schulter, Ellbogen und Knie vollständig. Die Fasen erzeugen die schmalen Glanzkanten —
-ohne sie sähe die Figur nach Klötzchen aus.
+Aufbau in Schichten statt „viele kleine Würfel": Helmschale mit Kalotte, Kamm,
+Ohrmodulen und breitem Visierband; Kragenring, obere und untere Brustpanzerung mit
+Brustplatte und Energiekern; zweiteiliger Bauch, Gürtel und Hüftmodule; kompakter
+Backpack mit Seitenpods und Kern; Arme mit zweilagigem Schultermodul, Gelenkprismen an
+Schulter, Ellbogen und Handgelenk; Beine mit Oberschenkelpanzerung, Kniescheibe,
+Wadenpanzer und Stiefeln mit großer Sohle, Kappe und Ferse.
+
+Gelenke sind Prismen statt Kästen — bei starrem Skinning reißen sonst beim Animieren
+Lücken auf. Die Fasen an allen Platten erzeugen die schmalen Glanzkanten; ohne sie sähe
+die Figur nach Klötzchen aus. Höhe 1,81 m, Breite 0,61 m an den Schultern.
+
+Bewusst unter dem Zielbudget von 10–25k Dreiecken: bei 8 Spielern sind das rund 39k
+statt bis zu 200k. Für ein Browserspiel ist das der bessere Kompromiss.
 
 Farbvarianten laufen über zwei Materialien (`Accent`, `Visor`), die pro Spieler geklont
 und eingefärbt werden. Die Panzerung bleibt bei allen gleich, genau wie im Sheet.
@@ -406,30 +421,53 @@ Der Boss ist der vorletzte Room jeder Route (`... → BOSS → FINISH`) und nutz
 Room-, Checkpoint-, Timer- und Race-System wie alles andere. Kein HP-Balken, kein
 Stehenbleiben — der Boss erzeugt ausschließlich Bewegungsaufgaben.
 
-**Phase 1 — Schild.** Drei Mechanismen stehen auf Hochplattformen und müssen per
-Parkour erreicht werden. Angriffe: Schockwelle (überspringen) und markierte Einschläge.
+**Jeder sammelt für sich.** In der Arena stehen drei Mechanismen auf Hochplattformen.
+Sie zählen **pro Spieler**: berührt jemand einen, ist er nur für ihn erledigt — die
+anderen müssen ihn selbst noch anlaufen. Das macht den Boss zum Rennen statt zur
+Gemeinschaftsaufgabe.
 
-**Phase 2 — Kern.** Das Schild fällt, der Kern öffnet sich auf ~15 m Höhe. Hinauf geht
-es nur über die Route Wallrun → Sprungplattform → Lift → Laufsteg. Angriffe: rotierender
-Laser, stärkere Schockwellen, einstürzende Bodenfelder.
+**Portal.** Wer alle drei hat, für den öffnet sich ein Portal über der Arenamitte.
+Hinauf geht es nur über die Route Wallrun → Sprungplattform → Lift → Laufsteg, von dort
+springt man hinein. Es ist der einzige Weg aus der Arena — die Rückwand ist geschlossen.
 
-**Phase 3 — Flucht.** Der erste Treffer am Kern startet einen 30-Sekunden-Countdown,
-öffnet die Ausgangstür und lässt die Arena einstürzen. Läuft der Countdown ab, reisst
-der Boss alles Einstürzbare auf einmal weg und feuert im 1,7-Sekunden-Takt weiter —
-die mittlere Bodenspur bleibt aber immer stehen, der Ausgang ist also weiterhin
-erreichbar. Ablaufen kostet Zeit, nicht den Run.
+**Endstrecke.** Das Portal versetzt auf `Rift Descent`, einen 104 m langen Parkour-
+Abschnitt mit beweglichen Plattformen, schwingenden Gefahrenbalken, einer Wallrun-
+Passage und verschwindenden Platten. Danach kommt das reguläre Ziel.
 
-**Führung.** In jeder Phase markiert eine Lichtsäule das nächste Ziel (nächster
-Mechanismus → Kern → Ausgang), das HUD nennt es im Klartext samt Entfernung.
+**Treffer kosten den Abschnitt.** Wer von einem Angriff erwischt wird, landet am
+letzten Checkpoint — also am Arena-Eingang. Bereits berührte Mechanismen bleiben
+erhalten, verloren gehen Zeit und Position. Danach gilt eine Schonzeit von 2,5 s, sonst
+liefe man beim Respawn direkt in dieselbe Welle.
 
-Der erste Spieler am Kern bekommt eine Zeitgutschrift von 2,5 s (`BOSS_TIME_BONUS`) —
-genug als Belohnung, zu wenig, um das Rennen allein zu entscheiden. Alle anderen laufen
-normal weiter; das Match endet erst über das reguläre Ziel.
+**Auch oben ist man nicht sicher.** Der Boss greift auf drei Ebenen an:
 
-Synchronisation: der Host schaltet Phasen und plant Angriffe, verschickt werden nur
-Ereignisse (~0,33 Nachrichten/s über den reliable Channel). Treffer wertet jeder Client
-für den eigenen Spieler aus, wie beim bestehenden Knockback. Späteinsteiger bekommen
-einen Boss-Snapshot mit der Start-Nachricht.
+| Angriff | Höhe | Ausweichen |
+|---|---|---|
+| Schockwelle | Boden | drüberspringen |
+| Einschläge | Boden **und Hochplattformen** | markierte Zonen verlassen |
+| Laser | 1,5 m **oder 6,9 m** | springen oder Ebene wechseln |
+| Rotorarme | 6,6 m **oder 10,8 m** | in Bewegung bleiben, Timing |
+| Stampfer | nahe am Boss | Abstand halten |
+| Einsturz | Bodenfelder | Feld verlassen |
+
+Die Rotorarme sind der Grund, warum die Kletterroute kein sicherer Hafen mehr ist: zwei
+Balken rotieren 5 s lang auf Plattform- oder Laufsteghöhe durch die Arena.
+
+Der Angriffstakt zieht mit der Kampfdauer von 4,6 s auf 2,4 s an, Trödeln wird also
+teurer.
+
+**Führung.** Eine Lichtsäule markiert das nächste Ziel (nächster eigener Mechanismus →
+Portal), das HUD nennt es im Klartext samt Entfernung.
+
+Der erste Spieler durchs Portal bekommt eine Zeitgutschrift von 2,5 s
+(`BOSS_TIME_BONUS`). Entschieden wird über die **Rennzeit**, nicht über die Reihenfolge
+der Netzwerkpakete — sonst gewänne bei Latenz der mit der besseren Leitung. Trifft
+später eine kleinere Zeit ein, wandert der Bonus.
+
+Synchronisation: der Host startet den Kampf und plant die Angriffe (~0,23 Nachrichten/s
+über den reliable Channel). Der Mechanismus-Fortschritt ist bewusst **kein** gemeinsamer
+Zustand — er liegt pro Client und wird nur informativ mitgeteilt. Treffer wertet jeder
+Client für den eigenen Spieler aus, wie beim bestehenden Knockback.
 
 Audio: `src/core/AudioHooks.js` feuert benannte Ereignisse (`boss:intro`,
 `boss:mechanism`, `boss:shield-down`, `boss:shockwave`, `boss:laser-warning`,

@@ -156,8 +156,8 @@ export class LocalPlayer {
         }
       } else if (d.type === 'boss_mech') {
         this.emit('bossMech', d.index);
-      } else if (d.type === 'boss_core') {
-        this.emit('bossCore');
+      } else if (d.type === 'boss_portal') {
+        this.emit('bossPortal');
       } else if (d.type === 'finish' && matchRunning && !this.finished) {
         this.finished = true;
         this.emit('finish');

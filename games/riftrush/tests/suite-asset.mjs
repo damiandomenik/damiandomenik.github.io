@@ -155,6 +155,29 @@ console.log('=== 6. Jeder Clip bewegt das Rig wirklich ===');
   ok(fails === b, 'Clips fehlerhaft');
 }
 
+console.log('=== 6b. Panzerung bricht in keiner Animation ===');
+{
+  const b = fails;
+  // Geometrische Pruefung im Ruheraum der Knochen (tools/check_clearance.py):
+  // exakt, weil achsenparallele Huellen bei gedrehtem Koerper Fehlalarme geben.
+  const { execFileSync } = await import('child_process');
+  let out = '', ranOk = false;
+  try {
+    out = execFileSync('python3', [path.join(root, 'tools', 'check_clearance.py')],
+      { encoding: 'utf8', timeout: 120000 });
+    ranOk = true;
+  } catch (e) {
+    if (e.status === 1) { out = e.stdout || ''; ranOk = true; }
+    else console.log('  (uebersprungen — python3 nicht verfuegbar)');
+  }
+  if (ranOk) {
+    ok(out.includes('Keine Durchdringungen'),
+      'Gliedmassen durchdringen den Rumpf:\n' + out.split('\n').slice(0, 6).join('\n'));
+    console.log('  ' + out.trim().split('\n')[0]);
+  }
+  ok(fails === b, 'Deformationspruefung fehlgeschlagen');
+}
+
 console.log('=== 7. Anbindung im Spiel ===');
 {
   const b = fails;

@@ -15,14 +15,14 @@
  * so kann die Einsturzphase einzelne Felder wegnehmen.
  */
 export const ARENA = {
-  length: 92,
+  length: 78,
   centerZ: -46,
   halfX: 23,
   floorY: 0,
   pedestalTop: 3,
   coreY: 15.4,
   walkwayY: 12.5,
-  exitZ: -72,
+  portalY: 15.2,
 };
 
 export function buildBossArena(c) {
@@ -119,18 +119,15 @@ export function buildBossArena(c) {
   c.plat(0, W, CZ + 8.0, 5.5, 5.5, 'goal');
   c.plat(0, W, CZ - 8.0, 5.5, 5.5, 'goal');
 
-  // Kern-Trigger (nur in der verwundbaren Phase aktiv)
-  const coreTrigger = c.trigger(0, W + 0.5, CZ, 13, 5, 13, { type: 'boss_core' });
-  coreTrigger.active = false;
+  /* Portal statt Ausgangstür.
+   * Es erscheint erst, wenn DIESER Spieler alle drei Mechanismen berührt hat,
+   * und schwebt über der Arenamitte. Man springt vom Laufsteg hinein — das ist
+   * der einzige Weg aus der Arena. */
+  const portalTrigger = c.trigger(0, ARENA.portalY - 2.4, CZ, 5.6, 5.0, 5.6, { type: 'boss_portal' });
+  portalTrigger.active = false;
 
-  // ---------- Ausgang: Tür öffnet erst in der Fluchtphase ----------
-  const doorId = 'boss_exit';
-  c.plat(0, 0, ARENA.exitZ - 8, 11, 20, 'solid');
-  c.door(0, 0, ARENA.exitZ, 12, 9, 1.3, doorId);
-  c.wall(-8.5, 0, ARENA.exitZ - 8, 1.2, 8, 20);
-  c.wall(8.5, 0, ARENA.exitZ - 8, 1.2, 8, 20);
-  c.plat(0, 0, -88, 10, 10, 'accent');
-  c.light(0, 6, ARENA.exitZ - 10, 0xffd166, 1.8, 30);
+  // Rückwand: die Arena ist geschlossen, es geht nur durchs Portal weiter
+  c.wall(0, 0, CZ - 24, 50, 20, 1.6);
 
   return {
     center: w(0, ARENA.pedestalTop, CZ),
@@ -142,8 +139,9 @@ export function buildBossArena(c) {
     radius: 26,
     minZ: O.z + CZ - 24, maxZ: O.z + CZ + 24,
     minX: O.x - 24, maxX: O.x + 24,
-    exitWorld: w(0, 0, ARENA.exitZ - 10),
-    tiles, platforms, mechanisms, coreTrigger, doorId,
+    portal: w(0, ARENA.portalY, CZ),
+    portalTrigger,
+    tiles, platforms, mechanisms,
     lifts: [lift, lift2],
     entranceZ: O.z - 8,
   };

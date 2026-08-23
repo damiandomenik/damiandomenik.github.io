@@ -308,8 +308,23 @@ export class Game {
         this.hud.toast(`MECHANISMUS ${n}/3`, 1400);
       }
     };
-    p.events.bossCore = () => {
-      if (this.boss?.hitCore(this.selfId)) this.hud.toast('KERN GETROFFEN!', 2000);
+    p.events.bossPortal = () => {
+      const spawn = this.boss?.enterPortal(this.selfId, this.state.elapsedMs);
+      if (!spawn) return;
+      // Ab durchs Portal: Position, Tempo und Checkpoint auf die Endstrecke
+      const s = p.state;
+      s.pos.x = spawn.x; s.pos.y = spawn.y; s.pos.z = spawn.z;
+      s.vel.x = s.vel.y = s.vel.z = 0;
+      s.wallrunning = false; s.dashing = false; s.sliding = false;
+      const idx = this.dungeon.bossArena?.exitRoomIndex;
+      if (idx != null && idx > p.checkpoint) {
+        p.checkpoint = idx;
+        this.dungeon.checkpoints[idx]?.activate();
+        this.network.sendEvent({ t: 'cp', i: idx });
+      }
+      this.controller.resetCamera();
+      this.controller.addShake(0.8);
+      this.hud.toast('DURCHS PORTAL — ENDSTRECKE!', 2400);
     };
   }
 
@@ -392,7 +407,7 @@ export class Game {
       this.boss.setHost(this.network.isHost || this.state.solo);
       this.boss.onEvent = (e) => this.network.sendEvent({ t: 'boss', e });
     }
-    this._bossBonusDone = false;
+    this._bossBonusFor = null;
   }
 
   resetPlayersForRun() {
@@ -439,7 +454,11 @@ export class Game {
             localPlayer: this.localPlayer,
             remotePlayers: this.remotePlayers,
             controller: this.controller,
-            onHit: (label) => this.hud.toast(label, 700),
+            onHit: (label) => this.hud.toast(`${label} — ZURÜCK ZUM CHECKPOINT`, 1600),
+            onKill: () => {
+              const cp = this.dungeon.checkpointPosition(this.localPlayer.checkpoint);
+              this.localPlayer.respawnAt(cp);
+            },
           });
           this._checkBossBonus();
         }
@@ -522,14 +541,16 @@ export class Game {
 
   /** Der erste Treffer am Kern bringt eine kleine Zeitgutschrift. */
   _checkBossBonus() {
-    if (this._bossBonusDone || !this.boss?.coreFirstBy) return;
-    this._bossBonusDone = true;
-    const id = this.boss.coreFirstBy;
+    const id = this.boss?.portalFirstBy;
+    if (!id || id === this._bossBonusFor) return;
+    // Korrigierbar: trifft später eine kleinere Rennzeit ein, wandert der Bonus
+    if (this._bossBonusFor) this.race.setBonus(this._bossBonusFor, 0);
+    this._bossBonusFor = id;
     this.race.setBonus(id, -C.BOSS_TIME_BONUS);
     const who = this.race.get(id);
     this.hud.toast(id === this.selfId
-      ? `ERSTER AM KERN — ${(C.BOSS_TIME_BONUS / 1000).toFixed(1)}s GUTSCHRIFT`
-      : `${who?.name || 'Spieler'} war zuerst am Kern`, 2600);
+      ? `ERSTER DURCHS PORTAL — ${(C.BOSS_TIME_BONUS / 1000).toFixed(1)}s GUTSCHRIFT`
+      : `${who?.name || 'Spieler'} ist zuerst durchs Portal`, 2600);
   }
 
   _updateHud() {

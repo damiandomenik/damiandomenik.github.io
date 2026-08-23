@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG as C } from '../core/Config.js';
 import { derivePalette } from './PlayerColors.js';
 import { instantiatePlayerModel } from './ModelLibrary.js';
 
@@ -131,6 +132,7 @@ export class GlbCharacter {
   }
 
   _buildRing() {
+    if (!C.GROUND_RING) { this.ring = null; return; }
     this.ring = new THREE.Mesh(RING_GEO, this.materials.ring);
     this.ring.position.y = 0.03;
     this.ring.renderOrder = 2;
@@ -286,10 +288,12 @@ export class GlbCharacter {
     if (this._flash > 0) this._flash -= dt;
 
     // ---- Bodenring ----
-    const ringTarget = s.isGrounded ? (this.isLocal ? 0.55 : 0.4) : 0.12;
-    this.materials.ring.opacity = damp(this.materials.ring.opacity, ringTarget, 8, dt);
-    this.ring.rotation.y += dt * 0.6;
-    this.ring.scale.setScalar(1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25));
+    if (this.ring) {
+      const ringTarget = s.isGrounded ? (this.isLocal ? 0.55 : 0.4) : 0.12;
+      this.materials.ring.opacity = damp(this.materials.ring.opacity, ringTarget, 8, dt);
+      this.ring.rotation.y += dt * 0.6;
+      this.ring.scale.setScalar(1 + (s.isGrounded ? Math.sin(this.t * 2.2) * 0.05 : 0.25));
+    }
 
     this._updateFx(dt, s);
 

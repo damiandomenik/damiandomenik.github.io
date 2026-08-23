@@ -17,15 +17,15 @@ import { BossModel } from './BossModel.js';
  * Treffer wertet jeder Client für den eigenen Spieler aus — wie beim
  * bestehenden Knockback-System.
  */
-export const BOSS_PHASE = { IDLE: 'idle', SHIELD: 'shield', CORE: 'core', ESCAPE: 'escape', DONE: 'done' };
+export const BOSS_PHASE = { IDLE: 'idle', ACTIVE: 'active', DONE: 'done' };
 
-const ATTACKS = {
-  shield: ['shock', 'proj', 'shock', 'proj', 'slam'],
-  core: ['laser', 'shock', 'collapse', 'proj', 'laser', 'slam'],
-  escape: ['shock', 'proj', 'laser', 'shock'],
-};
-const INTERVAL = { shield: 4.6, core: 3.8, escape: 2.9 };
-export const ESCAPE_SECONDS = 30;
+/* Angriffsfolge des Bosses. Der Takt zieht mit der Zeit an, damit Trödeln
+ * teurer wird — der Boss ist die gemeinsame Bedrohung, das Rennen läuft aber
+ * zwischen den Spielern. */
+const ATTACKS = ['shock', 'sweep', 'proj', 'laser', 'shock', 'sweep', 'collapse', 'proj', 'laser', 'slam'];
+const INTERVAL_START = 4.6;
+const INTERVAL_MIN = 2.4;
+const INTERVAL_RAMP = 75;      // Sekunden bis zum schnellsten Takt
 
 export class BossFight {
   constructor({ scene, dungeon, arena, fx, audio, seed = 1 }) {
@@ -38,8 +38,14 @@ export class BossFight {
 
     this.isHost = false;
     this.phase = BOSS_PHASE.IDLE;
+    /* Mechanismen sind PRO SPIELER. Wer sie berührt, schaltet sie nur für sich
+     * frei — für die anderen zählt das nicht. Deshalb liegt der Zustand lokal
+     * und wird nicht als gemeinsame Wahrheit synchronisiert. */
     this.mechanisms = [false, false, false];
-    this.coreFirstBy = null;
+    this.portalOpen = false;
+    this.escaped = false;
+    this.portalFirstBy = null;
+    this.portalFirstAt = null;
     this.escapeEndsAt = 0;
     this.phaseStart = 0;
     this.time = 0;
@@ -54,8 +60,9 @@ export class BossFight {
     this._buildVisuals();
     this.active = [];                  // laufende Angriffe
     this._hud = { active: false, phase: '', mechanisms: 0, mechanismsTotal: 3, escapeMs: 0,
-      warning: '', goal: '', goalDist: 0, collapsed: false };
-    this.collapsed = false;
+      warning: '', goal: '', goalDist: 0, collapsed: false, portalOpen: false, escaped: false };
+    this.peerProgress = new Map();
+    this.invulnUntil = 0;      // kurze Schonzeit nach einem Respawn
     this.goalText = '';
     this.goalDist = 0;
   }
@@ -83,6 +90,23 @@ export class BossFight {
     this.beamWarn.visible = false;
     this.scene.add(this.beamWarn);
 
+    // Portal über der Arenamitte — erscheint erst, wenn dieser Spieler
+    // alle drei Mechanismen berührt hat.
+    this.mat.portal = new THREE.MeshBasicMaterial({
+      color: COLORS.accent, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+      depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+    });
+    this.portal = new THREE.Group();
+    const ringOuter = new THREE.Mesh(new THREE.TorusGeometry(2.5, 0.22, 8, 32), this.mat.portal);
+    const ringInner = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.10, 6, 26), this.mat.portal);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(2.3, 28), this.mat.portal);
+    this.portal.add(ringOuter, ringInner, disc);
+    this.portal.position.set(A.portal.x, A.portal.y, A.portal.z);
+    this.portal.visible = false;
+    this.portal.renderOrder = 2;
+    this.scene.add(this.portal);
+    this._portalParts = { ringOuter, ringInner, disc };
+
     // Wegweiser: Lichtsäule + Bodenring am aktuellen Ziel
     this.mat.goal = new THREE.MeshBasicMaterial({
       color: COLORS.goal, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
@@ -99,6 +123,22 @@ export class BossFight {
     this.beacon.renderOrder = 2;
     this.scene.add(this.beacon);
     this._beaconRing = ring;
+
+    // Sweep-Arme: rotieren auf Plattform- bzw. Kletterhöhe und zwingen dazu,
+    // oben in Bewegung zu bleiben — dort war der Boss vorher harmlos.
+    this.mat.sweep = new THREE.MeshBasicMaterial({
+      color: COLORS.danger, transparent: true, opacity: 0.85, toneMapped: false,
+    });
+    this.sweep = new THREE.Group();
+    const barGeo = new THREE.BoxGeometry(0.62, 0.9, A.radius * 1.7);
+    for (const off of [0, Math.PI]) {
+      const bar = new THREE.Mesh(barGeo, this.mat.sweep);
+      bar.position.set(Math.sin(off) * A.radius * 0.42, 0, Math.cos(off) * A.radius * 0.42);
+      bar.rotation.y = off;
+      this.sweep.add(bar);
+    }
+    this.sweep.visible = false;
+    this.scene.add(this.sweep);
 
     this.marks = [];
     this.shots = [];
@@ -127,91 +167,99 @@ export class BossFight {
            p.y > this.arena.floorY - 12;
   }
 
-  _setPhase(phase, extra = {}) {
+  _setPhase(phase) {
     if (this.phase === phase) return;
     this.phase = phase;
     this.phaseStart = this.time;
     this.attackIndex = 0;
-    this.nextAttackAt = this.time + (phase === BOSS_PHASE.SHIELD ? 3.0 : 2.0);
+    this.nextAttackAt = this.time + 3.0;
     this.audio.phaseTransition({ phase });
-
-    if (phase === BOSS_PHASE.SHIELD) {
+    if (phase === BOSS_PHASE.ACTIVE) {
       this.model.setState('shielded');
       this.audio.bossIntro({});
-    } else if (phase === BOSS_PHASE.CORE) {
-      this.model.setState('vulnerable');
-      this.arena.coreTrigger.active = true;
-      this.audio.shieldDestroyed({});
-    } else if (phase === BOSS_PHASE.ESCAPE) {
-      this.model.setState('unstable');
-      this.arena.coreTrigger.active = false;
-      this.escapeEndsAt = this.time + ESCAPE_SECONDS;
-      this.collapsed = false;
-      this.nextCollapseAt = this.time + 1.5;
-      this.collapseIndex = 0;
-      this.dungeon.openDoor(this.arena.doorId);
-      if (extra.first) this.coreFirstBy = extra.first;
-      this.audio.escapeCountdown({ seconds: ESCAPE_SECONDS });
     }
   }
 
   /** Vom lokalen Spieler ausgelöst (Trigger im Room). */
   activateMechanism(index, byId) {
-    if (this.phase !== BOSS_PHASE.SHIELD || this.mechanisms[index]) return false;
-    this._applyMechanism(index);
-    this.onEvent({ k: 'mech', i: index, by: byId });
-    return true;
-  }
-
-  _applyMechanism(index) {
-    if (this.mechanisms[index]) return;
+    if (this.phase === BOSS_PHASE.IDLE || this.mechanisms[index] || this.escaped) return false;
     this.mechanisms[index] = true;
     const m = this.arena.mechanisms[index];
     if (m) {
       m.pad.setState('active');
-      m.trigger.active = false;
+      m.trigger.active = false;              // nur fuer diesen Client
       this.fx?.burst(m.world.x, m.world.y + 1.5, m.world.z, COLORS.accent, 16,
         { speed: 5, size: 0.2, life: 0.7, up: 1.2, gravity: 0.4 });
     }
-    this.audio.mechanismActivated({ index, done: this.mechanisms.filter(Boolean).length });
-  }
-
-  /** Vom lokalen Spieler ausgelöst: Kern berührt. */
-  hitCore(byId) {
-    if (this.phase !== BOSS_PHASE.CORE) return false;
-    this.model.hit();
-    this.audio.bossHit({ by: byId });
-    this.fx?.burst(this.arena.center.x, this.arena.coreY, this.arena.center.z, COLORS.goal, 24,
-      { speed: 7, size: 0.24, life: 0.8, up: 0.8, gravity: 0.2 });
-    this.onEvent({ k: 'core', by: byId });
-    if (this.isHost) this._resolveCoreHit(byId);
+    const done = this.mechanisms.filter(Boolean).length;
+    this.audio.mechanismActivated({ index, done });
+    // Nur zur Information der Mitspieler — nicht als gemeinsamer Zustand
+    this.onEvent({ k: 'prog', n: done, by: byId });
+    if (done === this.mechanisms.length) this._openPortal();
     return true;
   }
 
-  /** Nur Host: entscheidet, wer zuerst am Kern war. */
-  _resolveCoreHit(byId) {
-    if (this.coreFirstBy) return;
-    this.coreFirstBy = byId;
-    this.onEvent({ k: 'phase', p: BOSS_PHASE.ESCAPE, first: byId });
-    this._setPhase(BOSS_PHASE.ESCAPE, { first: byId });
+  /** Alle drei berührt: das Portal über der Arenamitte öffnet sich. */
+  _openPortal() {
+    if (this.portalOpen) return;
+    this.portalOpen = true;
+    this.arena.portalTrigger.active = true;
+    this.model.setState('vulnerable');
+    this.audio.shieldDestroyed({});
+    this.audio.emit('boss:portal-open', {});
+    const p = this.arena.portal;
+    this.fx?.burst(p.x, p.y, p.z, COLORS.goal, 30,
+      { speed: 8, size: 0.26, life: 0.9, up: 0.6, gravity: 0.1 });
+  }
+
+  /**
+   * Vom lokalen Spieler ausgelöst: ins Portal gesprungen.
+   * Gibt den Zielpunkt zurück, an den das Spiel den Spieler versetzt.
+   */
+  enterPortal(byId, raceTimeMs = 0) {
+    if (!this.portalOpen || this.escaped) return null;
+    this.escaped = true;
+    this.arena.portalTrigger.active = false;
+    const p = this.arena.portal;
+    this.fx?.burst(p.x, p.y, p.z, COLORS.accent2, 26,
+      { speed: 7, size: 0.22, life: 0.7, up: 0.4, gravity: 0.1 });
+    this.audio.emit('boss:portal-enter', { by: byId });
+    this.onEvent({ k: 'portal', by: byId, t: raceTimeMs });
+    if (this.isHost) this._resolvePortal(byId, raceTimeMs);
+    return this.arena.finalSpawn || null;
+  }
+
+  /**
+   * Nur Host: wer war zuerst durch?
+   * Entschieden wird über die RENNZEIT, nicht über die Reihenfolge der
+   * Pakete — sonst gewinnt bei Latenz der mit der besseren Leitung.
+   * Trifft später eine kleinere Zeit ein, wird korrigiert.
+   */
+  _resolvePortal(byId, raceTimeMs = 0) {
+    if (this.portalFirstAt != null && raceTimeMs >= this.portalFirstAt) return;
+    this.portalFirstBy = byId;
+    this.portalFirstAt = raceTimeMs;
+    this.onEvent({ k: 'first', by: byId, t: raceTimeMs });
   }
 
   /** Netzwerk-Ereignisse anwenden. */
   applyEvent(e, fromId) {
     switch (e.k) {
       case 'begin':
-        if (this.phase === BOSS_PHASE.IDLE) this._setPhase(BOSS_PHASE.SHIELD);
+        if (this.phase === BOSS_PHASE.IDLE) this._setPhase(BOSS_PHASE.ACTIVE);
         break;
-      case 'mech':
-        this._applyMechanism(e.i);
+      case 'prog':
+        // rein informativ: der Fortschritt der anderen zählt nicht fuer uns
+        this.peerProgress.set(fromId, e.n);
         break;
-      case 'core':
+      case 'portal':
         this.model.hit();
         this.audio.bossHit({ by: e.by || fromId });
-        if (this.isHost) this._resolveCoreHit(e.by || fromId);
+        if (this.isHost) this._resolvePortal(e.by || fromId, e.t || 0);
         break;
-      case 'phase':
-        this._setPhase(e.p, { first: e.first });
+      case 'first':
+        this.portalFirstBy = e.by || fromId;
+        this.portalFirstAt = e.t || 0;
         break;
       case 'atk':
         this._startAttack(e.a, e.s >>> 0);
@@ -221,18 +269,16 @@ export class BossFight {
 
   /** Zustand für Späteinsteiger. */
   snapshot() {
-    return {
-      p: this.phase, m: this.mechanisms.slice(), f: this.coreFirstBy,
-      e: this.phase === BOSS_PHASE.ESCAPE ? Math.max(0, this.escapeEndsAt - this.time) : 0,
-    };
+    // Nur gemeinsamer Zustand: Kampf laeuft, und wer zuerst durch war.
+    // Die Mechanismen sind pro Spieler und werden bewusst NICHT uebertragen.
+    return { p: this.phase, f: this.portalFirstBy, ft: this.portalFirstAt };
   }
 
   applySnapshot(s) {
     if (!s) return;
-    for (let i = 0; i < 3; i++) if (s.m && s.m[i]) this._applyMechanism(i);
-    this.coreFirstBy = s.f || null;
-    if (s.p && s.p !== this.phase) this._setPhase(s.p, { first: s.f });
-    if (s.p === BOSS_PHASE.ESCAPE && s.e) this.escapeEndsAt = this.time + s.e;
+    this.portalFirstBy = s.f || null;
+    this.portalFirstAt = s.ft ?? null;
+    if (s.p && s.p !== this.phase) this._setPhase(s.p);
   }
 
   // ================================================================ Update
@@ -250,30 +296,23 @@ export class BossFight {
       if (!anyone && ctx.remotePlayers) {
         for (const rp of ctx.remotePlayers.values()) if (this.inArena(rp.render)) { anyone = true; break; }
       }
-      if (anyone) { this._setPhase(BOSS_PHASE.SHIELD); this.onEvent({ k: 'begin' }); }
+      if (anyone) { this._setPhase(BOSS_PHASE.ACTIVE); this.onEvent({ k: 'begin' }); }
     }
 
-    // Alle Mechanismen aktiv -> Schild fällt (Host)
-    if (this.isHost && this.phase === BOSS_PHASE.SHIELD && this.mechanisms.every(Boolean)) {
-      this.onEvent({ k: 'phase', p: BOSS_PHASE.CORE });
-      this._setPhase(BOSS_PHASE.CORE);
-    }
-
-    // Angriffe planen (Host)
-    if (this.isHost && this.phase !== BOSS_PHASE.IDLE && this.phase !== BOSS_PHASE.DONE) {
+    // Angriffe planen (Host). Der Takt zieht mit der Kampfdauer an.
+    if (this.isHost && this.phase === BOSS_PHASE.ACTIVE) {
       if (this.time >= this.nextAttackAt) {
-        const list = ATTACKS[this.phase] || ATTACKS.shield;
-        const a = list[this.attackIndex % list.length];
+        const a = ATTACKS[this.attackIndex % ATTACKS.length];
         this.attackIndex++;
         const seed = (this.rng() * 0xffffffff) >>> 0;
-        this.nextAttackAt = this.time + (this.collapsed ? 1.7 : (INTERVAL[this.phase] || 4));
+        const ramp = Math.min(1, (this.time - this.phaseStart) / INTERVAL_RAMP);
+        this.nextAttackAt = this.time + (INTERVAL_START - (INTERVAL_START - INTERVAL_MIN) * ramp);
         this.onEvent({ k: 'atk', a, s: seed });
         this._startAttack(a, seed);
       }
     }
-
-    if (this.phase === BOSS_PHASE.ESCAPE) this._updateEscape(dt);
     this._updateBeacon(dt, local.state.pos);
+    this._updatePortal(dt);
 
     // laufende Angriffe
     for (let i = this.active.length - 1; i >= 0; i--) {
@@ -287,6 +326,24 @@ export class BossFight {
     return this;
   }
 
+  _updatePortal(dt) {
+    this.portal.visible = this.portalOpen && !this.escaped;
+    if (!this.portal.visible) return;
+    const t = this.time;
+    this._portalParts.ringOuter.rotation.z = t * 0.8;
+    this._portalParts.ringInner.rotation.z = -t * 1.5;
+    this._portalParts.ringOuter.rotation.x = Math.sin(t * 0.4) * 0.15;
+    this._portalParts.disc.scale.setScalar(0.9 + Math.sin(t * 3) * 0.08);
+    this.mat.portal.opacity = 0.45 + Math.sin(t * 2.4) * 0.14;
+    // sanftes Funkeln, damit es aus der Ferne auffällt
+    if (this.fx && Math.random() < 0.35) {
+      const a = Math.random() * Math.PI * 2;
+      const p = this.arena.portal;
+      this.fx.spawn(p.x + Math.cos(a) * 2.4, p.y + (Math.random() - 0.5) * 1.6, p.z + Math.sin(a) * 2.4,
+        -Math.cos(a) * 1.2, 0.4, -Math.sin(a) * 1.2, COLORS.accent, 0.12, 0.6, 0.05);
+    }
+  }
+
   /**
    * Wegweiser auf das jeweils nächste Ziel: Mechanismus -> Kern -> Ausgang.
    * Ohne das weiß niemand, wie es weitergeht — die Arena ist groß.
@@ -294,7 +351,16 @@ export class BossFight {
   _updateBeacon(dt, p) {
     const A = this.arena;
     let target = null, text = '';
-    if (this.phase === BOSS_PHASE.SHIELD) {
+    if (this.escaped) {
+      this.beacon.visible = false;
+      this.goalText = '';
+      this.goalDist = 0;
+      return;
+    }
+    if (this.portalOpen) {
+      target = A.portal;
+      text = 'PORTAL — HINEINSPRINGEN';
+    } else if (this.phase !== BOSS_PHASE.IDLE) {
       let best = Infinity;
       for (let i = 0; i < this.mechanisms.length; i++) {
         if (this.mechanisms[i]) continue;
@@ -304,12 +370,6 @@ export class BossFight {
       }
       const done = this.mechanisms.filter(Boolean).length;
       text = `MECHANISMUS ${done + 1}/${this.mechanisms.length}`;
-    } else if (this.phase === BOSS_PHASE.CORE) {
-      target = { x: A.center.x, y: A.walkwayY, z: A.center.z };
-      text = 'ZUM KERN — ÜBER DIE WALLRUN-WÄNDE';
-    } else if (this.phase === BOSS_PHASE.ESCAPE) {
-      target = A.exitWorld;
-      text = this.collapsed ? 'KOLLAPS — NUR NOCH DIE MITTELSPUR' : 'RAUS ZUM AUSGANG';
     }
 
     if (!target) {
@@ -336,17 +396,43 @@ export class BossFight {
     const rng = makeRng(seed);
     const at = { kind, t: 0, rng, seed, phase: 'warn', data: {} };
     if (kind === 'shock') { at.warn = 1.15; at.dur = 2.4; this.audio.shockwave({}); }
-    else if (kind === 'laser') { at.warn = 1.6; at.dur = 4.6; at.data.a0 = rng() * Math.PI * 2; at.data.dir = rng.chance(0.5) ? 1 : -1; this.audio.laserWarning({}); }
+    else if (kind === 'laser') {
+      at.warn = 1.6; at.dur = 4.6;
+      at.data.a0 = rng() * Math.PI * 2;
+      at.data.dir = rng.chance(0.5) ? 1 : -1;
+      // mal knapp über dem Boden, mal auf Plattformhöhe
+      at.data.y = this.arena.floorY + (rng.chance(0.45) ? 6.9 : 1.5);
+      this.audio.laserWarning({ height: at.data.y });
+    }
     else if (kind === 'proj') {
       at.warn = 1.5; at.dur = 2.6;
       at.data.spots = [];
-      const n = 4 + (this.phase === BOSS_PHASE.SHIELD ? 0 : 2);
+      const n = this.portalOpen ? 6 : 4;
+      const plats = this.arena.platforms || [];
       for (let i = 0; i < n; i++) {
-        const ang = rng() * Math.PI * 2, r = 5 + rng() * 17;
-        at.data.spots.push({ x: this.arena.center.x + Math.cos(ang) * r, z: this.arena.center.z + Math.sin(ang) * r, hit: false });
+        // Jeder dritte Einschlag zielt auf eine Hochplattform statt auf den Boden
+        if (plats.length && i % 3 === 2) {
+          const t = plats[Math.floor(rng() * plats.length)];
+          at.data.spots.push({ x: t.world.x, y: t.world.y, z: t.world.z, hit: false });
+        } else {
+          const ang = rng() * Math.PI * 2, r = 5 + rng() * 17;
+          at.data.spots.push({
+            x: this.arena.center.x + Math.cos(ang) * r,
+            y: this.arena.floorY,
+            z: this.arena.center.z + Math.sin(ang) * r, hit: false,
+          });
+        }
       }
       this.audio.projectiles({ count: n });
     } else if (kind === 'slam') { at.warn = 1.2; at.dur = 1.4; }
+    else if (kind === 'sweep') {
+      at.warn = 1.3; at.dur = 5.0;
+      // abwechselnd Plattform- und Laufsteghöhe: oben soll man nicht sicher sein
+      at.data.y = this.arena.floorY + (rng.chance(0.5) ? 6.6 : 10.8);
+      at.data.a0 = rng() * Math.PI * 2;
+      at.data.dir = rng.chance(0.5) ? 1 : -1;
+      this.audio.emit('boss:sweep', { height: at.data.y });
+    }
     this.active.push(at);
   }
 
@@ -386,7 +472,7 @@ export class BossFight {
 
     if (at.kind === 'laser') {
       const ang = at.data.a0 + (warming ? 0 : u * 2.2 * at.data.dir);
-      const y = A.laserY;
+      const y = at.data.y ?? A.laserY;
       const set = (mesh) => {
         mesh.visible = true;
         mesh.position.set(A.center.x, y, A.center.z);
@@ -404,7 +490,7 @@ export class BossFight {
         const bx = -Math.sin(ang), bz = -Math.cos(ang);
         const along = dx * bx + dz * bz;
         const side = Math.abs(dx * -bz + dz * bx);
-        if (d > 3 && Math.abs(along) > 0 && side < 1.3 && p.y < A.laserY + 0.9) {
+        if (d > 3 && Math.abs(along) > 0 && side < 1.3 && p.y < y + 0.9 && p.y > y - 2.4) {
           at.data.cool = 0.8;
           this._hitPlayer(ctx, dx / (d || 1), dz / (d || 1), 13, 6.5, 'LASER');
         }
@@ -420,12 +506,12 @@ export class BossFight {
         for (let i = 0; i < spots.length && i < this.marks.length; i++) {
           const m = this.marks[i];
           m.visible = true;
-          m.position.set(spots[i].x, A.floorY + 0.08, spots[i].z);
+          m.position.set(spots[i].x, (spots[i].y ?? A.floorY) + 0.08, spots[i].z);
           const s = 0.7 + (at.t / at.warn) * 0.4;
           m.scale.setScalar(s);
           const sh = this.shots[i];
           sh.visible = true;
-          sh.position.set(spots[i].x, A.floorY + 26 - (at.t / at.warn) * 8, spots[i].z);
+          sh.position.set(spots[i].x, (spots[i].y ?? A.floorY) + 26 - (at.t / at.warn) * 8, spots[i].z);
           sh.rotation.y += dt * 4;
         }
         this.mat.mark.opacity = 0.35 + Math.sin(at.t * 16) * 0.25;
@@ -436,14 +522,15 @@ export class BossFight {
         const sh = this.shots[i];
         const s = spots[i];
         if (s.hit) { sh.visible = false; this.marks[i].visible = false; continue; }
-        sh.position.y = A.floorY + 18 * (1 - Math.min(1, u * 3.2));
-        if (sh.position.y <= A.floorY + 0.6) {
+        const gy = s.y ?? A.floorY;
+        sh.position.y = gy + 18 * (1 - Math.min(1, u * 3.2));
+        if (sh.position.y <= gy + 0.6) {
           s.hit = true;
           sh.visible = false;
-          this.fx?.burst(s.x, A.floorY + 0.3, s.z, COLORS.danger, 14, { speed: 6, size: 0.18, life: 0.5, up: 0.9, gravity: 1.2 });
+          this.fx?.burst(s.x, gy + 0.3, s.z, COLORS.danger, 14, { speed: 6, size: 0.18, life: 0.5, up: 0.9, gravity: 1.2 });
           if (inside) {
             const d = Math.hypot(p.x - s.x, p.z - s.z);
-            if (d < 3.4 && p.y < A.floorY + 3) {
+            if (d < 3.4 && Math.abs(p.y - gy) < 3) {
               this._hitPlayer(ctx, (p.x - s.x) / (d || 1), (p.z - s.z) / (d || 1), 14, 8, 'EINSCHLAG');
             }
           }
@@ -461,6 +548,34 @@ export class BossFight {
         this.fx?.burst(b.x, b.y, b.z, COLORS.danger, 10, { speed: 4, size: 0.16, life: 0.5, up: 0.4, gravity: 1.4 });
       }
       if (at.t > at.warn + at.dur) { at.tile.setState('normal'); return false; }
+      return true;
+    }
+
+    if (at.kind === 'sweep') {
+      const y = at.data.y;
+      const ang = at.data.a0 + (warming ? at.t * 0.25 : (u * 5.2 + at.warn * 0.25)) * at.data.dir;
+      this.sweep.visible = true;
+      this.sweep.position.set(A.center.x, y, A.center.z);
+      this.sweep.rotation.y = ang;
+      if (warming) {
+        this.warning = 'ROTORARME';
+        this.mat.sweep.opacity = 0.20 + Math.sin(at.t * 14) * 0.14;
+        return true;
+      }
+      if (u > 1) return false;
+      this.mat.sweep.opacity = 0.85;
+      if (inside && this.time >= this.invulnUntil) {
+        const dx = p.x - A.center.x, dz = p.z - A.center.z;
+        const d = Math.hypot(dx, dz);
+        const py = p.y + 0.9;                       // Körpermitte
+        if (d > 3.5 && d < A.radius && Math.abs(py - y) < 1.5) {
+          const pa = Math.atan2(dx, dz);            // Achse des Arms zeigt entlang +Z
+          const tol = Math.atan2(1.0, d);
+          let diff = Math.abs(((pa - ang + Math.PI) % (Math.PI * 2)) - Math.PI);
+          diff = Math.min(diff, Math.abs(Math.PI - diff));
+          if (diff < tol) this._hitPlayer(ctx, dx / (d || 1), dz / (d || 1), 0, 0, 'ROTORARM');
+        }
+      }
       return true;
     }
 
@@ -491,15 +606,28 @@ export class BossFight {
   _endAttack(at) {
     // Nur ausblenden, wenn kein weiterer Angriff derselben Art die Meshes nutzt
     if (this.active.some((a) => a !== at && a.kind === at.kind)) return;
+    if (at.kind === 'sweep') this.sweep.visible = false;
     if (at.kind === 'shock') this.shock.visible = false;
     if (at.kind === 'laser') { this.beam.visible = false; this.beamWarn.visible = false; }
     if (at.kind === 'proj') { this.marks.forEach((m) => (m.visible = false)); this.shots.forEach((s) => (s.visible = false)); }
   }
 
+  /**
+   * Treffer durch den Boss: zurück zum letzten Checkpoint.
+   * Danach 2,5 s Schonzeit, sonst würde man beim Respawn direkt wieder in
+   * dieselbe Schockwelle laufen. Gesammelte Mechanismen bleiben erhalten —
+   * verloren geht Zeit und Position, nicht der Fortschritt.
+   */
   _hitPlayer(ctx, nx, nz, force, up, label) {
-    ctx.localPlayer.applyKnockback(nx * force, up, nz * force);
-    ctx.controller?.addShake(0.9);
+    if (this.time < this.invulnUntil) return;
+    this.invulnUntil = this.time + 2.5;
+    ctx.controller?.addShake(1.2);
     this.audio.playerHit({ source: label });
+    const p = ctx.localPlayer.state.pos;
+    this.fx?.burst(p.x, p.y + 0.9, p.z, COLORS.danger, 18,
+      { speed: 6, size: 0.18, life: 0.6, up: 0.8, gravity: 0.6 });
+    if (ctx.onKill) ctx.onKill(label);
+    else ctx.localPlayer.applyKnockback(nx * force, up, nz * force);
     ctx.onHit?.(label);
   }
 
@@ -518,33 +646,6 @@ export class BossFight {
     }
   }
 
-  _updateEscape(dt) {
-    // Countdown abgelaufen: der Boss reisst alles ein, was noch steht, und
-    // feuert im Dauertakt. Die Mittelspur bleibt — raus kommt man weiterhin.
-    if (!this.collapsed && this.time >= this.escapeEndsAt) {
-      this.collapsed = true;
-      this.audio.floorCollapse({ final: true });
-      this.audio.emit('boss:collapse', {});
-      for (const t of this.arena.tiles) {
-        if (t.collapsible && t.visualState !== 'gone') t.setState('gone');
-      }
-      this.nextAttackAt = Math.min(this.nextAttackAt, this.time + 0.4);
-    }
-    if (this.time >= this.nextCollapseAt) {
-      const pool = this.arena.tiles.filter((t) => t.collapsible && t.visualState === 'normal');
-      if (pool.length) {
-        const t = pool[Math.floor(this.rng() * pool.length)];
-        t.setState('warn');
-        this.active.push({ kind: 'tile', t: 0, warn: 1.0, dur: 1e6, tile: t, data: {}, phase: 'warn' });
-      }
-      this.nextCollapseAt = this.time + 2.2;
-    }
-  }
-
-  get escapeRemainingMs() {
-    if (this.phase !== BOSS_PHASE.ESCAPE) return 0;
-    return Math.max(0, (this.escapeEndsAt - this.time) * 1000);
-  }
 
   /** Kompakter Zustand fürs HUD. */
   get hud() {
@@ -553,17 +654,21 @@ export class BossFight {
     h.phase = this.phase;
     h.mechanisms = this.mechanisms.filter(Boolean).length;
     h.mechanismsTotal = this.mechanisms.length;
-    h.escapeMs = this.escapeRemainingMs;
     h.warning = this.warning;
     h.goal = this.goalText;
     h.goalDist = this.goalDist;
-    h.collapsed = this.collapsed;
+    h.portalOpen = this.portalOpen;
+    h.escaped = this.escaped;
+    h.escapeMs = 0;
+    h.collapsed = false;
     return h;
   }
 
   dispose() {
     this.model.dispose();
-    this.scene.remove(this.shock, this.beam, this.beamWarn, this.beacon);
+    this.scene.remove(this.shock, this.beam, this.beamWarn, this.beacon, this.portal, this.sweep);
+    this.sweep.children.forEach((m) => m.geometry.dispose());
+    this._portalParts && Object.values(this._portalParts).forEach((m) => m.geometry.dispose());
     this.beacon.children.forEach((c) => c.geometry.dispose());
     this.marks.forEach((m) => { this.scene.remove(m); m.geometry.dispose(); });
     this.shots.forEach((s) => { this.scene.remove(s); s.geometry.dispose(); });
