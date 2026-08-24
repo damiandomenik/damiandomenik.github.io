@@ -1,0 +1,18 @@
+# Ein-Klick-Deployment auf Render (kostenlos).
+# 1. Dieses Repo auf GitHub pushen
+# 2. render.com -> New -> Blueprint -> Repo auswählen
+# 3. Render liest diese Datei und startet den Server
+# Danach steht die URL oben in der Render-Übersicht, z. B.
+#   wss://riftrush-signaling.onrender.com
+services:
+  - type: web
+    name: riftrush-signaling
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node signaling-server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

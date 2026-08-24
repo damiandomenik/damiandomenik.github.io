@@ -189,6 +189,46 @@ try {
     br.stop();
   }
 
+  console.log('=== 10c2. Voreingestellter Server wird übernommen ===');
+  {
+    const { CONFIG } = await import('../src/core/Config.js');
+    ok('SIGNALING_URL' in CONFIG, 'CONFIG.SIGNALING_URL fehlt — kein Ort fuer die Server-Adresse');
+    ok(typeof CONFIG.SIGNALING_URL === 'string', 'SIGNALING_URL hat den falschen Typ');
+    const fs2 = await import('fs');
+    const path2 = await import('path');
+    const srv = path2.join(root, 'server');
+    for (const f of ['render.yaml', 'Dockerfile', 'fly.toml', 'signaling-server.js']) {
+      ok(fs2.existsSync(path2.join(srv, f)), `Deployment-Vorlage fehlt: server/${f}`);
+    }
+    const render = fs2.readFileSync(path2.join(srv, 'render.yaml'), 'utf8');
+    ok(render.includes('signaling-server.js'), 'render.yaml startet den falschen Prozess');
+    ok(render.includes('rootDir: server'), 'render.yaml zeigt nicht auf den Serverordner');
+  }
+
+  console.log('=== 10d. Verbindungscodes sind kompakt und verlustfrei ===');
+  {
+    const sig = await import('../src/multiplayer/SignalingManager.js');
+    const cands = Array.from({ length: 8 }, (_, i) =>
+      `a=candidate:${i} 1 udp 2113937151 192.168.1.${i} 5000${i} typ host generation 0 ufrag AbCd network-cost 999`);
+    const tcp = Array.from({ length: 6 }, (_, i) =>
+      `a=candidate:t${i} 1 tcp 1518214911 192.168.1.${i} 9 typ host tcptype passive generation 0`);
+    const sdp = ['v=0', 'o=- 1 2 IN IP4 127.0.0.1', ...cands, ...tcp].join('\r\n');
+    const payload = { from: 'peer-abc', data: { type: 'sdp', sdp: { type: 'offer', sdp } } };
+    const plain = Buffer.from(JSON.stringify(payload)).toString('base64').length;
+    const code = await sig.encodeBlob(JSON.parse(JSON.stringify(payload)));
+    const back = await sig.decodeBlob(code);
+    ok(code.length < plain * 0.4, `Code nur ${code.length} statt ${plain} Zeichen — zu wenig Ersparnis`);
+    ok(back.data.sdp.sdp.includes('a=candidate:0'), 'UDP-Kandidaten gehen beim Kodieren verloren');
+    ok(!back.data.sdp.sdp.includes(' tcp '), 'TCP-Kandidaten werden nicht entfernt');
+    ok(back.from === 'peer-abc', 'Absender geht verloren');
+    ok(!/[^A-Za-z0-9_-]/.test(code), 'Code enthaelt Zeichen, die beim Kopieren kaputtgehen');
+    // Alte, unkomprimierte Codes muessen weiterhin lesbar sein
+    const legacy = Buffer.from(JSON.stringify(payload)).toString('base64');
+    const old = await sig.decodeBlob(legacy);
+    ok(old.from === 'peer-abc', 'Alte Codes lassen sich nicht mehr lesen');
+    console.log(`  ${plain} -> ${code.length} Zeichen (${(100 - code.length / plain * 100).toFixed(0)} % kuerzer)`);
+  }
+
   console.log('=== 11. Manueller Modus (ohne Server, Copy & Paste) ===');
   const mkManual = async (id, name, isHost) => {
     const n = new NetworkManager();
@@ -206,15 +246,15 @@ try {
   await wait(120);
   ok(H.n.isManual, 'Ohne URL wird nicht auf manuelles Signaling umgeschaltet');
   ok(H.log.blobs.length > 0, 'Host erzeugt keinen Offer-Code');
-  ok(G.n.signaling.receiveBlob(H.log.blobs.at(-1)) === true, 'Gast kann den Offer-Code nicht lesen');
+  ok(await G.n.signaling.receiveBlob(H.log.blobs.at(-1)) === true, 'Gast kann den Offer-Code nicht lesen');
   await wait(150);
   ok(G.log.blobs.length > 0, 'Gast erzeugt keinen Antwort-Code');
-  ok(H.n.signaling.receiveBlob(G.log.blobs.at(-1)) === true, 'Host kann den Antwort-Code nicht lesen');
+  ok(await H.n.signaling.receiveBlob(G.log.blobs.at(-1)) === true, 'Host kann den Antwort-Code nicht lesen');
   await wait(300);
   ok(H.n.peerCount === 1 && G.n.peerCount === 1, `Manuelle Verbindung steht nicht (${H.n.peerCount}/${G.n.peerCount})`);
   ok(H.n.roster.get('guest')?.name === 'GastSpieler', 'Profil kommt im manuellen Modus nicht an');
   ok(G.n.roster.get('host')?.name === 'HostSpieler', 'Host-Profil fehlt beim Gast');
-  ok(G.n.signaling.receiveBlob('kein-gueltiger-code') === false, 'Ungültiger Code wird nicht abgefangen');
+  ok(await G.n.signaling.receiveBlob('kein-gueltiger-code') === false, 'Ungültiger Code wird nicht abgefangen');
 
   // Treffer: IDs sind hier lokale Aliase ("guest"/"host") -> gerichteter Versand nötig
   H.n.sendEventTo('guest', { t: 'hit', target: 'guest', kx: 12, ky: 5, kz: 0 });

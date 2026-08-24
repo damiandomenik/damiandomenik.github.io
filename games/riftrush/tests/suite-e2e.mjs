@@ -22,7 +22,11 @@ window.document.exitPointerLock = function(){
   Object.defineProperty(window.document, 'pointerLockElement', { value: null, configurable: true });
   window.document.dispatchEvent(new window.Event('pointerlockchange'));
 };
-window.RTCPeerConnection = class { constructor(){ this.connectionState='new'; } createDataChannel(){ return { readyState:'connecting', send(){}, close(){} }; } close(){} };
+// Echter Loopback-Mock statt einer leeren Attrappe: nur so laeuft der
+// tatsaechliche Verbindungsaufbau (Offer, ICE, Verbindungscode) im Test.
+const { installWebRTCMock } = await import('./mock-webrtc.mjs');
+installWebRTCMock();
+window.RTCPeerConnection = globalThis.RTCPeerConnection;
 let now = 0;
 window.performance.now = () => now;
 globalThis.window = window;
@@ -59,6 +63,69 @@ ok(game.state.phase === Phase.LOBBY, 'Solo führt nicht in die Lobby');
 ok(game.localPlayer.name === 'Damian', 'Name nicht übernommen');
 ok(document.getElementById('lobby-players').textContent.includes('Damian'), 'Spieler nicht in Lobby-Liste');
 ok(!document.getElementById('btn-start').classList.contains('hidden'), 'Start-Button fehlt für Host');
+
+console.log('=== 2b. Verbinden ohne Server: eindeutiger Ablauf ===');
+{
+  const b = fails;
+  game.leave();                       // zurueck ins Menue
+  const $ = (id) => document.getElementById(id);
+  $('input-signal').value = '';
+  $('input-signal').dispatchEvent(new window.Event('change'));
+
+  // Ohne Server darf kein Room-Code-Feld erscheinen — der Code waere bedeutungslos
+  ok($('field-code').classList.contains('hidden'),
+    'Room-Code-Feld ist ohne Server sichtbar — genau das fuehrt in die Irre');
+  ok(!$('field-direct').classList.contains('hidden'), 'Direktverbindung wird nicht angeboten');
+  ok($('field-direct').tagName === 'DETAILS' && !$('field-direct').open,
+    'Die langen Codes sind aufgeklappt statt weggeraeumt');
+
+  // Mit Server umgekehrt
+  $('input-signal').value = 'wss://example.test';
+  $('input-signal').dispatchEvent(new window.Event('change'));
+  ok(!$('field-code').classList.contains('hidden'), 'Mit Server fehlt das Room-Code-Feld');
+  ok($('field-direct').classList.contains('hidden'), 'Mit Server wird die Direktverbindung angeboten');
+  // ws:// auf einer HTTPS-Seite: der Browser blockiert das, also warnen
+  ok(game.lobbyUI.checkSignalUrl('wss://ok.example') === true, 'wss wird faelschlich bemaengelt');
+  ok(game.lobbyUI.checkSignalUrl('ws://unsicher.example') === false,
+    'ws:// auf HTTPS wird nicht bemaengelt — sieht dann aus wie ein kaputter Server');
+  ok($('signal-warn').textContent.includes('wss'), 'Warnung nennt die Loesung nicht');
+  game.lobbyUI.checkSignalUrl('');
+
+  $('input-signal').value = '';
+  $('input-signal').dispatchEvent(new window.Event('change'));
+
+  // Host: Direktverbindung -> Lobby ohne Room Code, mit Schritt-Anleitung
+  $('input-name').value = 'Damian';
+  $('btn-create').click();
+  await new Promise((r) => setTimeout(r, 60));
+  ok(game.state.phase === Phase.LOBBY, 'Lobby erstellen ohne Server fuehrt nicht in die Lobby');
+  ok(!$('manual-signal').classList.contains('hidden'), 'Verbindungscode-Feld fehlt');
+  ok($('code-box').classList.contains('hidden'),
+    'Bedeutungsloser Room Code wird weiterhin angezeigt');
+  ok($('mstep-1').classList.contains('on') || $('mstep-2').classList.contains('on'),
+    'Kein Schritt markiert — der Ablauf bleibt unklar');
+  ok($('manual-status').textContent.length > 20, 'Keine Erklaerung, was zu tun ist');
+
+  // Der Code muss innerhalb kurzer Zeit erscheinen
+  await new Promise((r) => setTimeout(r, 400));
+  const code = $('manual-out').value;
+  ok(code.length > 20, `Es wird kein Verbindungscode erzeugt (${code.length} Zeichen)`);
+  ok(/^R[01][A-Za-z0-9_-]+$/.test(code), `Code hat ein unerwartetes Format: ${code.slice(0, 12)}`);
+  ok($('mstep-2').classList.contains('on'), 'Schritt springt nach dem Erzeugen nicht weiter');
+
+  // Unsinn einfuegen -> verstaendliche Fehlermeldung statt Stille
+  $('manual-in').value = 'ABC123';
+  $('btn-manual-apply').click();
+  await new Promise((r) => setTimeout(r, 60));
+  ok($('manual-status').className === 'err', 'Ungueltiger Code wird nicht als Fehler gemeldet');
+  ok(/g[üu]ltig/i.test($('manual-status').textContent), 'Fehlermeldung ist nicht verstaendlich');
+
+  game.leave();
+  ok(game.state.phase === Phase.MENU, 'Verlassen fuehrt nicht ins Menue zurueck');
+  console.log(fails === b ? '  Ablauf ohne Server ist eindeutig' : `  ${fails - b} Fehler`);
+  // fuer die folgenden Tests wieder in eine Solo-Lobby
+  $('btn-solo').click();
+}
 
 console.log('=== 3. Match starten + Countdown + Timer ===');
 document.getElementById('btn-start').click();

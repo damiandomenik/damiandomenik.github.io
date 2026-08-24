@@ -15,16 +15,29 @@ let _clips = [];
 export function preloadPlayerModel(url = './assets/RiftRush_Player.glb') {
   if (_promise) return _promise;
   _promise = new Promise((resolve) => {
-    const loader = new GLTFLoader();
-    loader.load(url, (gltf) => {
-      _model = gltf.scene;
-      _clips = gltf.animations || [];
-      _model.updateMatrixWorld(true);
-      resolve({ ok: true, clips: _clips.map((c) => c.name) });
-    }, undefined, (err) => {
-      console.warn('[RiftRush] Charaktermodell nicht geladen, nutze prozedurale Figur.', err?.message || err);
-      resolve({ ok: false, error: err });
-    });
+    let loader;
+    try {
+      loader = new GLTFLoader();
+    } catch (e) {
+      resolve({ ok: false, error: e });
+      return;
+    }
+    // load() kann je nach Umgebung auch synchron werfen (z. B. bei einer
+    // nicht aufloesbaren URL) — das darf das Spiel nicht mitreissen.
+    try {
+      loader.load(url, (gltf) => {
+        _model = gltf.scene;
+        _clips = gltf.animations || [];
+        _model.updateMatrixWorld(true);
+        resolve({ ok: true, clips: _clips.map((c) => c.name) });
+      }, undefined, (err) => {
+        console.warn('[RiftRush] Charaktermodell nicht geladen, nutze prozedurale Figur.', err?.message || err);
+        resolve({ ok: false, error: err });
+      });
+    } catch (e) {
+      console.warn('[RiftRush] Charaktermodell nicht ladbar, nutze prozedurale Figur.', e?.message || e);
+      resolve({ ok: false, error: e });
+    }
   });
   return _promise;
 }

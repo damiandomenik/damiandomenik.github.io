@@ -80,7 +80,6 @@ export class HUD {
       return;
     }
     this.bossEl.classList.remove('hidden');
-    const secs = Math.ceil(b.escapeMs / 1000);
     const hash = `${b.phase}|${b.mechanisms}|${b.portalOpen}|${b.escaped}|${b.goal}|${b.goalDist}`;
     if (hash !== this._bossHash) {
       this._bossHash = hash;
@@ -94,10 +93,8 @@ export class HUD {
       if (this.bossGoalEl) {
         this.bossGoalEl.textContent = b.goal ? `${b.goal}${b.goalDist ? ` · ${b.goalDist} m` : ''}` : '';
       }
-      this.bossEl.classList.toggle('collapse', !!b.collapsed);
-      const showTimer = b.phase === 'escape';
-      this.bossTimerEl.classList.toggle('hidden', !showTimer);
-      if (showTimer) this.bossTimerEl.textContent = String(Math.max(0, secs)).padStart(2, '0');
+      // Countdown gibt es seit dem Portal-Umbau nicht mehr
+      this.bossTimerEl.classList.add('hidden');
     }
     if (this.warnEl) {
       this.warnEl.textContent = b.warning || '';

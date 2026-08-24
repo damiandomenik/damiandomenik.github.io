@@ -1,6 +1,6 @@
 /** Menü- und Lobby-Screen. */
 export class LobbyUI {
-  constructor(root = document) {
+  constructor(root = document, defaultUrl = '') {
     this.root = root;
     this.overlay = root.getElementById('overlay');
     this.screens = {
@@ -18,11 +18,15 @@ export class LobbyUI {
     this.btnStart = root.getElementById('btn-start');
     this.btnReady = root.getElementById('btn-ready');
     this.listEl = root.getElementById('lobby-list');
+    this.codeBoxEl = root.getElementById('code-box');
+    this.manualStatusEl = root.getElementById('manual-status');
+    this.signalWarnEl = root.getElementById('signal-warn');
+    this.stepEls = [1, 2, 3].map((i) => root.getElementById(`mstep-${i}`));
     this.browserStatusEl = root.getElementById('browser-status');
 
     this.handlers = {};
     this._bind();
-    this._restore();
+    this._restore(defaultUrl);
   }
 
   on(name, fn) { this.handlers[name] = fn; }
@@ -53,6 +57,16 @@ export class LobbyUI {
     g('btn-manual-copy').onclick = () => navigator.clipboard?.writeText(this.manualOut.value);
     g('btn-manual-apply').onclick = () => this._fire('manualPaste', this.manualIn.value);
     g('btn-refresh').onclick = () => this._fire('refreshLobbies');
+    g('btn-direct').onclick = () => { this._save(); this._fire('direct', { name: name() }); };
+    g('btn-manual-paste').onclick = async () => {
+      try {
+        const txt = await navigator.clipboard.readText();
+        g('manual-in').value = txt.trim();
+        this._fire('manualPaste', txt);
+      } catch {
+        this.setManualStatus('Zwischenablage nicht lesbar — bitte mit Strg+V einfügen.', false);
+      }
+    };
     g('input-signal').addEventListener('change', () => { this._save(); this._fire('signalChanged', url()); });
     g('btn-resume').onclick = () => this._fire('resume');
     g('btn-quit').onclick = () => this._fire('quit');
@@ -64,13 +78,17 @@ export class LobbyUI {
       localStorage.setItem('riftrush.signal', this.root.getElementById('input-signal').value);
     } catch {}
   }
-  _restore() {
+  /** @param {string} defaultUrl aus CONFIG.SIGNALING_URL */
+  _restore(defaultUrl = '') {
+    let saved = null;
     try {
       const n = localStorage.getItem('riftrush.name');
-      const s = localStorage.getItem('riftrush.signal');
+      saved = localStorage.getItem('riftrush.signal');
       if (n) this.root.getElementById('input-name').value = n;
-      if (s) this.root.getElementById('input-signal').value = s;
     } catch {}
+    // Voreingestellter Server gewinnt, solange der Spieler nichts eigenes gesetzt hat
+    const url = (saved && saved.trim()) ? saved : defaultUrl;
+    if (url) this.root.getElementById('input-signal').value = url;
   }
 
   /** Liste offener Lobbys im Menü. */
@@ -124,9 +142,55 @@ export class LobbyUI {
     this.btnStart.classList.toggle('hidden', !isHost);
   }
 
+  /** Blendet Room-Code-Feld bzw. Direktverbindung passend zum Modus ein. */
+  /**
+   * Browser blockieren ws:// auf HTTPS-Seiten. Ohne Hinweis sieht es so aus,
+   * als sei der Server kaputt.
+   */
+  checkSignalUrl(url) {
+    if (!this.signalWarnEl) return true;
+    const u = (url || '').trim();
+    // Protokoll des eigenen Dokuments nehmen, nicht ein globales `location`
+    const loc = this.root.defaultView?.location
+      || (typeof location !== 'undefined' ? location : null);
+    const insecurePage = loc?.protocol === 'https:';
+    if (u && /^ws:\/\//i.test(u) && insecurePage) {
+      this.signalWarnEl.textContent =
+        'Diese Seite läuft über HTTPS — der Browser blockiert ws://. Der Server muss über wss:// erreichbar sein.';
+      return false;
+    }
+    this.signalWarnEl.textContent = '';
+    return true;
+  }
+
+  setServerMode(hasServer) {
+    this.root.getElementById('field-code').classList.toggle('hidden', !hasServer);
+    this.root.getElementById('field-direct').classList.toggle('hidden', !!hasServer);
+  }
+
   setManual(visible, blob = '') {
     this.manualBox.classList.toggle('hidden', !visible);
-    if (blob) this.manualOut.value = blob;
+    // Ohne Server gibt es keinen sinnvollen Room Code — er wurde bisher
+    // trotzdem angezeigt und alle haben vergeblich versucht, ihn einzutippen.
+    if (this.codeBoxEl) this.codeBoxEl.classList.toggle('hidden', visible);
+    if (blob) {
+      this.manualOut.value = blob;
+      this.setStep(2);
+    }
+  }
+
+  setStep(n) {
+    this.stepEls.forEach((el, i) => {
+      if (!el) return;
+      el.classList.toggle('on', i === n - 1);
+      el.classList.toggle('done', i < n - 1);
+    });
+  }
+
+  setManualStatus(text, ok) {
+    if (!this.manualStatusEl) return;
+    this.manualStatusEl.textContent = text || '';
+    this.manualStatusEl.className = ok === true ? 'ok' : ok === false ? 'err' : '';
   }
 
   setPlayers(list, selfId) {

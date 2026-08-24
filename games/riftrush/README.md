@@ -62,48 +62,61 @@ dort läuft ohnehin kein Jekyll.)
 
 ## 3. Multiplayer einrichten
 
-WebRTC braucht einen Signaling-Kanal für den SDP/ICE-Austausch. Es gibt zwei Wege:
+**Damit andere deine Lobby sehen können, braucht es eine gemeinsame Stelle im Netz.**
+WebRTC verbindet zwar direkt von Rechner zu Rechner, aber die beiden Seiten müssen sich
+erst einmal finden — dafür ist der Signaling-Server da. Ohne ihn bleibt nur der
+Code-Austausch zu zweit.
 
-### A) Manueller Modus (0 Backend, ideal für den ersten Test)
+### Server aufsetzen (einmalig, ein paar Minuten)
 
-Im Menü das Feld „Signaling Server" **leer lassen**.
+In `/server` liegen fertige Vorlagen:
 
-1. Spieler 1 klickt **Lobby erstellen** → es erscheint ein langer Code (Offer).
-2. Diesen Code an Spieler 2 schicken (Discord, WhatsApp …).
-3. Spieler 2 klickt **Beitreten** (Code-Feld beliebig), fügt den Blob unten ein → **Verbinden**.
-4. Spieler 2 erhält einen Antwort-Code → zurück an Spieler 1 → dort einfügen → **Verbinden**.
-5. Verbindung steht (P2P-Anzeige oben links). Host startet das Match.
+| Hoster | Vorgehen |
+|---|---|
+| **Render** (kostenlos) | Repo auf GitHub pushen → render.com → New → **Blueprint** → Repo wählen. `server/render.yaml` wird automatisch gelesen. |
+| **Fly.io** | `cd server && fly launch --copy-config --now` |
+| **Docker / eigener Server** | `docker build -t riftrush-signaling server && docker run -p 8080:8080 riftrush-signaling` |
+| **Lokal zum Testen** | `cd server && npm install && npm start` → `ws://localhost:8080` |
+
+Danach die Adresse **einmal** in `src/core/Config.js` eintragen:
+
+```js
+SIGNALING_URL: 'wss://riftrush-signaling.onrender.com',
+```
+
+Ab dann sieht jeder, der die Seite öffnet, automatisch die offenen Lobbys und tritt per
+Klick bei — ohne Codes, ohne Eingaben. Wer will, kann im Menü unter
+„Verbindungs-Einstellungen" eine abweichende Adresse setzen.
+
+> Die Seite läuft über HTTPS, deshalb muss der Server über **`wss://`** erreichbar sein.
+> Bei `ws://` blockiert der Browser die Verbindung; das Menü weist darauf hin.
+
+> Render schläft im Gratistarif nach Inaktivität ein und braucht beim ersten Aufruf
+> etwa 30 Sekunden. Danach läuft es normal.
+
+### Ohne Server: Direktverbindung zu zweit
+
+Im Menü unter „Ohne Server spielen" aufklappen. Ihr tauscht einmalig einen
+Verbindungscode aus:
+
+1. Spieler 1 klickt **Lobby erstellen** → Code erscheint, kopieren und schicken.
+2. Spieler 2 klickt **Direktverbindung starten**, fügt den Code ein → **Verbinden**.
+3. Spieler 2 bekommt einen Antwortcode → zurück an Spieler 1 → dort einfügen.
+
+Warum der Code nicht sechs Zeichen kurz sein kann: Ohne Server *ist* der Code die
+Verbindungsinformation (Netzwerkadressen und Verschlüsselungsdaten). Er lässt sich
+komprimieren — von 1.924 auf rund 300 Zeichen, also 84 % kürzer — aber nicht ersetzen.
+Sechs Zeichen setzen zwingend eine Stelle voraus, die beide Seiten kennt.
 
 Limitierung: genau 2 Spieler.
 
-### B) WebSocket-Signaling-Server (bis 8 Spieler, Lobby-Liste + Room Codes)
-
-```bash
-cd server
-npm install
-npm start          # ws://localhost:8080
-```
-
-Im Menü unter „Verbindungs-Einstellungen" die URL eintragen, z. B.
-`ws://localhost:8080` (lokal) oder `wss://dein-server.example` (Produktion).
-
-> Wichtig: Die GitHub-Pages-Seite läuft über HTTPS. Browser erlauben von dort aus **nur
-> `wss://`** — der Server braucht also ein TLS-Zertifikat (Render / Railway / Fly.io /
-> Caddy-Reverse-Proxy liefern das automatisch).
-
-Mit Server gibt es im Menü eine **Liste offener Lobbys**: wer eine Lobby erstellt,
-taucht bei allen anderen automatisch auf — Hostname, Spielerzahl und ob das Match
-schon läuft. Ein Klick genügt, der Code ist dann optional. Die Liste aktualisiert
-sich von selbst (der Server pusht bei jeder Änderung), es gibt zusätzlich
-`GET /lobbies` als einfachen JSON-Endpunkt.
-
-Ohne Server ist das technisch nicht möglich: WebRTC ist reines Peer-to-Peer und
-kennt nur Gegenstellen, die man bereits kennt. Es braucht immer eine Stelle, die
-weiß, wer gerade offen ist — genau das ist der Signaling-Server. Im manuellen Modus
-bleibt daher nur der Code-Austausch.
+Mit Server gibt es dagegen die **Lobby-Liste**: wer eine Lobby erstellt, taucht bei allen
+anderen automatisch auf — mit Hostname, Spielerzahl und ob das Match schon läuft. Die
+Liste aktualisiert sich von selbst; zusätzlich gibt es `GET /lobbies` als JSON.
 
 Der Server vermittelt ausschließlich Verbindungsaufbau und Lobby-Liste. Das Gameplay
 läuft danach vollständig Peer-to-Peer.
+
 
 ---
 
@@ -134,6 +147,14 @@ Abgedeckt:
 * **Determinismus**: gleicher Seed erzeugt exakt dieselbe Geometrie
 * **Netzwerk**: Snapshot-Interpolation bei 12 % Paketverlust und ±20 ms Jitter
   (keine harten Positionssprünge), Leaderboard-Sortierung
+* **Server-Voreinstellung**: `CONFIG.SIGNALING_URL` wird ins Menü übernommen,
+  Deployment-Vorlagen (`render.yaml`, `Dockerfile`, `fly.toml`) sind vorhanden und
+  starten den richtigen Prozess; `ws://` auf einer HTTPS-Seite wird bemängelt
+* **Verbindungscodes**: Kompression und Rundlauf verlustfrei, TCP-Kandidaten entfernt,
+  nur kopierfeste Zeichen, alte Codes weiterhin lesbar
+* **Menüablauf ohne Server**: kein irreführendes Room-Code-Feld, Direktverbindung wird
+  angeboten, Verbindungscode erscheint, Schrittanzeige wandert weiter, unsinnige Eingabe
+  liefert eine verständliche Fehlermeldung
 * **Multiplayer** (echter Signaling-Server aus `/server` + Loopback-PeerConnections):
   Verbindungsaufbau, Roster- und Profilabgleich, Ready-Status, Seed-Verteilung,
   Snapshot-Tickrate, gerichtete Treffer-Events, Full Mesh mit 3 Peers, Broadcast,
@@ -446,12 +467,19 @@ liefe man beim Respawn direkt in dieselbe Welle.
 | Schockwelle | Boden | drüberspringen |
 | Einschläge | Boden **und Hochplattformen** | markierte Zonen verlassen |
 | Laser | 1,5 m **oder 6,9 m** | springen oder Ebene wechseln |
-| Rotorarme | 6,6 m **oder 10,8 m** | in Bewegung bleiben, Timing |
+| Rotorarme | 6,6 m, 10,8 m **oder 13,2 m** | in Bewegung bleiben, Timing |
 | Stampfer | nahe am Boss | Abstand halten |
 | Einsturz | Bodenfelder | Feld verlassen |
 
 Die Rotorarme sind der Grund, warum die Kletterroute kein sicherer Hafen mehr ist: zwei
-Balken rotieren 5 s lang auf Plattform- oder Laufsteghöhe durch die Arena.
+Balken rotieren 3,6 s lang auf einer der drei Höhen durch die Arena — inklusive des
+Laufstegs am Kern.
+
+Wichtig für die Fairness: Es läuft immer nur **ein** arenaweiter Angriff (Schockwelle,
+Laser, Rotorarme). Zwei gleichzeitig wären nicht ausweichbar, weil man zur selben Zeit
+springen und die Ebene wechseln müsste. Gemessen ist das längste tödliche Zeitfenster an
+einem Punkt 0,17 s — ein Sprung hält 0,61 s in der Luft, jeder Angriff ist also
+überspringbar. Ein Test prüft das an vier Positionen über je 90 s.
 
 Der Angriffstakt zieht mit der Kampfdauer von 4,6 s auf 2,4 s an, Trödeln wird also
 teurer.

@@ -88,6 +88,16 @@ export const CONFIG = {
   NET_SNAPSHOT_BUFFER: 24,
   MAX_PLAYERS: 8,
 
+  /* ------------------------------------------------------------------
+   * HIER EINMAL DEN SIGNALING-SERVER EINTRAGEN.
+   * Dann sehen alle, die die Seite öffnen, automatisch die offenen Lobbys
+   * und können mit einem Klick beitreten — ohne Codes, ohne Eingaben.
+   * Beispiel: 'wss://riftrush-signaling.onrender.com'
+   * Deployment-Vorlagen liegen in /server (render.yaml, Dockerfile, fly.toml).
+   * Leer = nur Direktverbindung per Code moeglich.
+   * ------------------------------------------------------------------ */
+  SIGNALING_URL: '',
+
   // ---------- Match ----------
   COUNTDOWN_SECONDS: 3,
   BOSS_TIME_BONUS: 2500,   // Zeitgutschrift für den ersten Treffer am Boss-Kern

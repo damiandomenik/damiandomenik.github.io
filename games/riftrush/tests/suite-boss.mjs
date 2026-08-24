@@ -371,6 +371,46 @@ console.log('=== 4c. Auch oben ist man nicht sicher ===');
   ok(fails === b, 'Höhenangriffe fehlerhaft');
 }
 
+console.log('=== 4d. Jeder Angriff ist ausweichbar ===');
+{
+  const b = fails;
+  /* Entscheidend ist nicht, wie oft ein reglose Bot stirbt, sondern ob
+   * Ausweichen ueberhaupt moeglich ist: kein Punkt darf laenger toedlich sein,
+   * als ein Sprung in der Luft haelt. */
+  const AIRTIME = 2 * C.JUMP_FORCE / C.GRAVITY;      // ~0.61 s
+  const spots = [
+    ['Boden 12 m', { x: 12, y: 0, z: 0 }],
+    ['Boden 20 m', { x: 20, y: 0, z: 0 }],
+    ['Hochplattform', { x: -15.5, y: 6.0, z: 13 }],
+    ['Laufsteg', { x: 8, y: 12.5, z: 0 }],
+  ];
+  const report = [];
+  for (const [label, off] of spots) {
+    const f = makeFight(true);
+    const A2 = dg.bossArena;
+    const ctx = fakeCtx(f, { x: A2.center.x + off.x, y: A2.floorY + off.y, z: A2.center.z + off.z });
+    let hits = 0, streak = 0, worst = 0, danger = 0;
+    ctx.onKill = () => { hits++; };
+    const frames = 60 * 90;
+    for (let i = 0; i < frames; i++) {
+      T += 16.7;
+      f.invulnUntil = 0;                 // Schonzeit aus: reine Gefahrenmessung
+      const before = hits;
+      f.update(1 / 60, ctx);
+      if (hits > before) { danger++; streak++; worst = Math.max(worst, streak); } else streak = 0;
+    }
+    const pct = danger / frames * 100;
+    report.push(`${label} ${pct.toFixed(1)}%/${(worst / 60).toFixed(2)}s`);
+    ok(worst / 60 < AIRTIME * 0.85,
+      `${label}: Gefahrenfenster ${(worst / 60).toFixed(2)} s ist laenger als ein Sprung (${AIRTIME.toFixed(2)} s)`);
+    ok(pct < 4, `${label}: ${pct.toFixed(1)} % der Zeit toedlich — zu dicht`);
+    ok(pct > 0.02, `${label}: praktisch nie in Gefahr — dort ist der Boss harmlos`);
+    f.dispose();
+  }
+  console.log('  ' + report.join(' | '));
+  ok(fails === b, 'Ausweichbarkeit verletzt');
+}
+
 console.log('=== 5. Kein Dauerschaden / kein Stunlock ===');
 {
   const b = fails;

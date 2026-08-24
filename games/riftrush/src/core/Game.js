@@ -89,7 +89,7 @@ export class Game {
 
     // ---------- UI ----------
     this.hud = new HUD();
-    this.lobbyUI = new LobbyUI();
+    this.lobbyUI = new LobbyUI(document, C.SIGNALING_URL);
     this.resultsUI = new ResultsUI(this.lobbyUI);
     this.clickToPlay = document.getElementById('click-to-play');
     this.ui = {
@@ -130,26 +130,35 @@ export class Game {
   // ================================================================ UI
   _wireUI() {
     const L = this.lobbyUI;
-    this.browser.onUpdate = (b) => this.lobbyUI.setLobbyList(b);
+    this.browser.onUpdate = (b) => {
+      this.lobbyUI.setLobbyList(b);
+      this.lobbyUI.setServerMode(b.available);
+    };
     L.on('refreshLobbies', () => this.browser.refresh());
-    L.on('signalChanged', (url) => this.browser.start(url));
+    L.on('signalChanged', (url) => {
+      this.lobbyUI.checkSignalUrl(url);
+      this.browser.start(url);
+      this.lobbyUI.setServerMode(/^wss?:\/\//i.test((url || '').trim()));
+    });
     L.on('joinLobby', (code) => {
       const name = (document.getElementById('input-name').value.trim() || 'Runner').slice(0, 14);
       const url = document.getElementById('input-signal').value.trim();
       this.joinLobby(name, url, code);
     });
+    L.on('direct', ({ name }) => this.joinLobby(name, '', ''));
     L.on('create', ({ name, url }) => this.createLobby(name, url));
     L.on('join', ({ name, url, code }) => this.joinLobby(name, url, code));
     L.on('solo', ({ name }) => this.startSolo(name));
     L.on('ready', (r) => this.network.setReady(r));
     L.on('start', () => this.match.requestStart());
     L.on('leave', () => this.leave());
-    L.on('manualPaste', (txt) => {
+    L.on('manualPaste', async (txt) => {
       const sig = this.network.signaling;
-      if (sig?.receiveBlob) {
-        const ok = sig.receiveBlob(txt);
-        this.hud.toast(ok ? 'Code übernommen' : 'Ungültiger Code');
-      }
+      if (!sig?.receiveBlob) return;
+      const ok = await sig.receiveBlob(txt);
+      this.lobbyUI.setManualStatus(ok
+        ? 'Code übernommen — Verbindung wird aufgebaut …'
+        : 'Das war kein gültiger Verbindungscode.', ok);
     });
     L.on('resume', () => { this.state.set(this.state.prevPhase); this.ui.showWorld(); this.input.requestLock(); });
     L.on('quit', () => this.leave());
@@ -358,6 +367,10 @@ export class Game {
     this.lobbyUI.setLobby(this._lobbyInfo);
     if (this.network.isManual) {
       this.lobbyUI.setManual(true, '');
+      this.lobbyUI.setStep(1);
+      this.lobbyUI.setManualStatus(isHost
+        ? 'Dein Code wird erzeugt. Schick ihn deinem Freund und füge danach seinen Antwortcode hier ein.'
+        : 'Füge den Code deines Freundes ein. Du bekommst dann einen Antwortcode, den er bei sich einfügt.');
       sig.onLocalBlob = (blob) => this.lobbyUI.setManual(true, blob);
       if (sig._lastBlob) this.lobbyUI.setManual(true, sig._lastBlob);
     } else this.lobbyUI.setManual(false);
@@ -392,7 +405,10 @@ export class Game {
     this.state.set(Phase.MENU);
     this.input.exitLock();
     this.ui.showMenu();
-    this.browser.start(document.getElementById('input-signal')?.value || '');
+    const url0 = document.getElementById('input-signal')?.value || '';
+    this.lobbyUI.checkSignalUrl(url0);
+    this.browser.start(url0);
+    this.lobbyUI.setServerMode(/^wss?:\/\//i.test(url0.trim()));
   }
 
   buildDungeon(seed) {

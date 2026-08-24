@@ -146,3 +146,27 @@ button.ghost{background:transparent}
 
 #hud-boss .b-goal{font-size:11px;letter-spacing:.14em;color:var(--goal,#ffd166);margin-top:6px}
 #hud-boss.collapse{border-color:rgba(255,77,109,.55);box-shadow:0 0 26px rgba(255,77,109,.22)}
+
+/* ---------- Direktverbindung ---------- */
+#field-direct small{margin-top:8px}
+#btn-direct{width:100%}
+.manual .steps{display:flex;gap:6px;margin-bottom:14px}
+.manual .step{flex:1;font-size:10px;letter-spacing:.06em;color:var(--dim);text-align:center;
+  padding:7px 4px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid var(--line);line-height:1.4}
+.manual .step b{display:block;font-size:14px;color:var(--dim);margin-bottom:3px}
+.manual .step.on{border-color:var(--accent);color:var(--fg)}
+.manual .step.on b{color:var(--accent)}
+.manual .step.done{opacity:.5}
+button.wide{width:100%;margin-bottom:4px}
+#manual-status{margin-top:10px;font-size:11.5px;line-height:1.5;color:var(--dim);min-height:16px}
+#manual-status.ok{color:var(--accent)}
+#manual-status.err{color:var(--danger)}
+
+#field-direct{border-top:1px solid var(--line);padding-top:12px;margin-top:16px}
+#field-direct summary{cursor:pointer;color:var(--dim);font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;margin-bottom:10px}
+#field-direct small{display:block;margin-bottom:10px}
+#field-direct code{font-family:var(--mono);color:var(--accent);font-size:11px}
+#field-direct button{width:100%}
+.manual textarea{max-height:70px}
+#signal-warn{margin-top:8px;font-size:11.5px;color:var(--danger);line-height:1.5}

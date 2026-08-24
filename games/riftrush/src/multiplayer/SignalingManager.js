@@ -130,14 +130,16 @@ export class ManualSignaling extends SignalingManager {
   }
 
   send(toId, payload) {
-    this._lastBlob = encodeBlob({ from: this.selfId, data: payload });
-    this.onLocalBlob(this._lastBlob);
+    encodeBlob({ from: this.selfId, data: payload }).then((blob) => {
+      this._lastBlob = blob;
+      this.onLocalBlob(blob);
+    });
   }
 
   /** Vom UI aufgerufen, wenn der Nutzer einen Code einfügt. */
-  receiveBlob(text) {
+  async receiveBlob(text) {
     let obj;
-    try { obj = decodeBlob(text.trim()); }
+    try { obj = await decodeBlob(text); }
     catch { this.onError(new Error('Ungültiger Code')); return false; }
     if (!obj || !obj.data) { this.onError(new Error('Ungültiger Code')); return false; }
     if (!this.isHost && !this._joined) {
@@ -151,11 +153,65 @@ export class ManualSignaling extends SignalingManager {
   stop() {}
 }
 
-export function encodeBlob(obj) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+/* ------------------------------------------------------------------ Codes
+ * Der Verbindungscode IST die Verbindungsinformation (SDP + ICE-Kandidaten) —
+ * ohne Server gibt es nichts Kürzeres als das. Zwei Maßnahmen drücken ihn
+ * trotzdem auf etwa ein Viertel:
+ *   1. TCP-Kandidaten entfernen, solange UDP-Kandidaten vorhanden sind
+ *      (für Peer-to-Peer ohne TURN sind sie praktisch nutzlos)
+ *   2. verlustfrei komprimieren (deflate) und base64url ohne Füllzeichen
+ * Präfix "R1" = komprimiert, "R0" = unkomprimiert (alter Browser).
+ */
+function b64url(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-export function decodeBlob(str) {
-  return JSON.parse(decodeURIComponent(escape(atob(str))));
+function unb64url(str) {
+  const s = str.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s + '='.repeat((4 - (s.length % 4)) % 4));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Entfernt TCP-Kandidaten, wenn es UDP-Kandidaten gibt. */
+export function slimSdp(sdp) {
+  if (!sdp) return sdp;
+  const lines = sdp.split(/\r?\n/);
+  const cand = lines.filter((l) => l.startsWith('a=candidate:'));
+  const udp = cand.filter((l) => / udp /i.test(l));
+  if (!cand.length || !udp.length) return sdp;
+  return lines.filter((l) => !l.startsWith('a=candidate:') || / udp /i.test(l)).join('\r\n');
+}
+
+export async function encodeBlob(obj) {
+  if (obj?.data?.sdp?.sdp) obj.data.sdp.sdp = slimSdp(obj.data.sdp.sdp);
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  if (typeof CompressionStream === 'function') {
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      const buf = await new Response(stream).arrayBuffer();
+      return 'R1' + b64url(new Uint8Array(buf));
+    } catch { /* faellt unten auf unkomprimiert zurueck */ }
+  }
+  return 'R0' + b64url(bytes);
+}
+
+export async function decodeBlob(str) {
+  const clean = String(str).trim().replace(/\s+/g, '');
+  const tag = clean.slice(0, 2);
+  // Erst den Typ pruefen, dann dekodieren: sonst scheitert ein Code ohne
+  // Praefix schon am Abschneiden der ersten beiden Zeichen.
+  if (tag === 'R1' || tag === 'R0') {
+    const body = unb64url(clean.slice(2));
+    if (tag === 'R0') return JSON.parse(new TextDecoder().decode(body));
+    const stream = new Blob([body]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const buf = await new Response(stream).arrayBuffer();
+    return JSON.parse(new TextDecoder().decode(buf));
+  }
+  // alter Code ohne Praefix
+  return JSON.parse(decodeURIComponent(escape(atob(clean))));
 }
 
 /** Fabrik: erzeugt die passende Signaling-Implementierung. */

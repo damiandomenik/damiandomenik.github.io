@@ -23,9 +23,14 @@ export const BOSS_PHASE = { IDLE: 'idle', ACTIVE: 'active', DONE: 'done' };
  * teurer wird — der Boss ist die gemeinsame Bedrohung, das Rennen läuft aber
  * zwischen den Spielern. */
 const ATTACKS = ['shock', 'sweep', 'proj', 'laser', 'shock', 'sweep', 'collapse', 'proj', 'laser', 'slam'];
-const INTERVAL_START = 4.6;
-const INTERVAL_MIN = 2.4;
+const INTERVAL_START = 5.2;
+const INTERVAL_MIN = 3.0;
+/* Arenaweite Angriffe (Schockwelle, Laser, Rotorarme) treffen ueberall im Ring.
+ * Zwei davon gleichzeitig sind nicht ausweichbar — man muesste zur selben Zeit
+ * springen und die Ebene wechseln. Deshalb laeuft immer nur einer davon. */
+const WIDE = new Set(['shock', 'laser', 'sweep']);
 const INTERVAL_RAMP = 75;      // Sekunden bis zum schnellsten Takt
+const SWEEP_INNER = 4.0;       // Rotorarme beginnen ausserhalb des Bosskoerpers
 
 export class BossFight {
   constructor({ scene, dungeon, arena, fx, audio, seed = 1 }) {
@@ -46,7 +51,6 @@ export class BossFight {
     this.escaped = false;
     this.portalFirstBy = null;
     this.portalFirstAt = null;
-    this.escapeEndsAt = 0;
     this.phaseStart = 0;
     this.time = 0;
     this.nextAttackAt = 0;
@@ -60,7 +64,7 @@ export class BossFight {
     this._buildVisuals();
     this.active = [];                  // laufende Angriffe
     this._hud = { active: false, phase: '', mechanisms: 0, mechanismsTotal: 3, escapeMs: 0,
-      warning: '', goal: '', goalDist: 0, collapsed: false, portalOpen: false, escaped: false };
+      warning: '', goal: '', goalDist: 0, portalOpen: false, escaped: false };
     this.peerProgress = new Map();
     this.invulnUntil = 0;      // kurze Schonzeit nach einem Respawn
     this.goalText = '';
@@ -130,13 +134,19 @@ export class BossFight {
       color: COLORS.danger, transparent: true, opacity: 0.85, toneMapped: false,
     });
     this.sweep = new THREE.Group();
-    const barGeo = new THREE.BoxGeometry(0.62, 0.9, A.radius * 1.7);
+    /* Balken reichen exakt vom Bosskörper bis zur Arenawand — also genau über
+     * den Bereich, in dem sie auch treffen (SWEEP_INNER .. radius). Vorher waren
+     * sie 44 m lang und ragten 7 m durch die Wand und quer durch den Boss. */
+    const barLen = A.radius - SWEEP_INNER;
+    const barMid = SWEEP_INNER + barLen / 2;
+    const barGeo = new THREE.BoxGeometry(0.62, 0.9, barLen);
     for (const off of [0, Math.PI]) {
       const bar = new THREE.Mesh(barGeo, this.mat.sweep);
-      bar.position.set(Math.sin(off) * A.radius * 0.42, 0, Math.cos(off) * A.radius * 0.42);
+      bar.position.set(Math.sin(off) * barMid, 0, Math.cos(off) * barMid);
       bar.rotation.y = off;
       this.sweep.add(bar);
     }
+    this.sweepReach = { inner: SWEEP_INNER, outer: A.radius };
     this.sweep.visible = false;
     this.scene.add(this.sweep);
 
@@ -303,6 +313,10 @@ export class BossFight {
     if (this.isHost && this.phase === BOSS_PHASE.ACTIVE) {
       if (this.time >= this.nextAttackAt) {
         const a = ATTACKS[this.attackIndex % ATTACKS.length];
+        if (WIDE.has(a) && this.active.some((x) => WIDE.has(x.kind))) {
+          this.nextAttackAt = this.time + 0.8;      // warten, nicht ueberlagern
+          return this;
+        }
         this.attackIndex++;
         const seed = (this.rng() * 0xffffffff) >>> 0;
         const ramp = Math.min(1, (this.time - this.phaseStart) / INTERVAL_RAMP);
@@ -397,7 +411,7 @@ export class BossFight {
     const at = { kind, t: 0, rng, seed, phase: 'warn', data: {} };
     if (kind === 'shock') { at.warn = 1.15; at.dur = 2.4; this.audio.shockwave({}); }
     else if (kind === 'laser') {
-      at.warn = 1.6; at.dur = 4.6;
+      at.warn = 1.6; at.dur = 3.4;
       at.data.a0 = rng() * Math.PI * 2;
       at.data.dir = rng.chance(0.5) ? 1 : -1;
       // mal knapp über dem Boden, mal auf Plattformhöhe
@@ -426,9 +440,10 @@ export class BossFight {
       this.audio.projectiles({ count: n });
     } else if (kind === 'slam') { at.warn = 1.2; at.dur = 1.4; }
     else if (kind === 'sweep') {
-      at.warn = 1.3; at.dur = 5.0;
-      // abwechselnd Plattform- und Laufsteghöhe: oben soll man nicht sicher sein
-      at.data.y = this.arena.floorY + (rng.chance(0.5) ? 6.6 : 10.8);
+      at.warn = 1.3; at.dur = 3.6;
+      // Drei Ebenen: Hochplattformen, Kletterroute und Laufsteg am Kern.
+      // Ohne die dritte waere der Laufsteg ein voellig sicherer Hafen.
+      at.data.y = this.arena.floorY + [6.6, 10.8, 13.2][rng.int(0, 2)];
       at.data.a0 = rng() * Math.PI * 2;
       at.data.dir = rng.chance(0.5) ? 1 : -1;
       this.audio.emit('boss:sweep', { height: at.data.y });
@@ -568,7 +583,7 @@ export class BossFight {
         const dx = p.x - A.center.x, dz = p.z - A.center.z;
         const d = Math.hypot(dx, dz);
         const py = p.y + 0.9;                       // Körpermitte
-        if (d > 3.5 && d < A.radius && Math.abs(py - y) < 1.5) {
+        if (d > SWEEP_INNER - 0.5 && d < A.radius && Math.abs(py - y) < 1.5) {
           const pa = Math.atan2(dx, dz);            // Achse des Arms zeigt entlang +Z
           const tol = Math.atan2(1.0, d);
           let diff = Math.abs(((pa - ang + Math.PI) % (Math.PI * 2)) - Math.PI);
@@ -620,7 +635,7 @@ export class BossFight {
    */
   _hitPlayer(ctx, nx, nz, force, up, label) {
     if (this.time < this.invulnUntil) return;
-    this.invulnUntil = this.time + 2.5;
+    this.invulnUntil = this.time + 3.0;
     ctx.controller?.addShake(1.2);
     this.audio.playerHit({ source: label });
     const p = ctx.localPlayer.state.pos;
@@ -660,7 +675,6 @@ export class BossFight {
     h.portalOpen = this.portalOpen;
     h.escaped = this.escaped;
     h.escapeMs = 0;
-    h.collapsed = false;
     return h;
   }
 
