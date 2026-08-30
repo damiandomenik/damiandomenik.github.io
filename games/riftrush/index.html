@@ -65,38 +65,27 @@
       <button id="btn-solo" class="ghost">Solo / Training</button>
     </div>
 
-    <div class="field join hidden" id="field-code">
-      <label>Room Code</label>
+    <div class="field join" id="field-code">
+      <label>Einer Lobby beitreten</label>
       <div class="row">
-        <input id="input-code" maxlength="6" placeholder="ABC123" />
+        <input id="input-code" maxlength="6" inputmode="numeric" placeholder="123456" />
         <button id="btn-join">Beitreten</button>
       </div>
+      <small>Den sechsstelligen Code bekommst du von dem, der die Lobby erstellt hat.</small>
+      <div id="join-error"></div>
+      <div id="net-status">Verbindung wird geprüft …</div>
     </div>
 
-    <details class="field" id="field-direct">
-      <summary>Ohne Server spielen (zu zweit)</summary>
-      <small>Damit andere deine Lobby <b>sehen</b> können, braucht es eine gemeinsame
-        Stelle im Netz — einen Signaling-Server. Vorlagen dafür liegen in
-        <code>/server</code>, das Aufsetzen dauert ein paar Minuten.
-        Ohne Server geht nur die Direktverbindung: ihr tauscht einmalig einen
-        Verbindungscode aus.</small>
-      <button id="btn-direct" class="ghost">Direktverbindung starten</button>
-    </details>
 
-    <div class="field browser">
-      <label>Offene Lobbys <span id="browser-status"></span>
-        <button id="btn-refresh" class="ghost small inline">Aktualisieren</button>
-      </label>
-      <div id="lobby-list" class="lobbies"></div>
-    </div>
 
     <details class="advanced">
-      <summary>Verbindungs-Einstellungen</summary>
+      <summary>Erweitert</summary>
       <div class="field">
-        <label>Signaling Server (WebSocket URL)</label>
+        <label>Eigener Signaling-Server (optional)</label>
         <input id="input-signal" placeholder="wss://dein-signaling-server.example" />
-        <small>Einmal eintragen &rarr; alle sehen die offenen Lobbys und treten per Klick bei.
-          Vorlagen zum Aufsetzen liegen in <code>/server</code>.</small>
+        <small>Normalerweise nicht nötig — die Zahlencodes laufen über einen
+          öffentlichen Vermittler. Wer einen eigenen Server betreibt, bekommt
+          zusätzlich eine Lobby-Liste. Vorlagen liegen in <code>/server</code>.</small>
         <div id="signal-warn"></div>
       </div>
     </details>
@@ -122,12 +111,8 @@
       <button id="btn-start" class="primary hidden">Match starten</button>
       <button id="btn-leave" class="ghost">Verlassen</button>
     </div>
-    <div id="manual-signal" class="hidden manual">
-      <div class="steps">
-        <div class="step" id="mstep-1"><b>1</b> Deinen Code kopieren und schicken</div>
-        <div class="step" id="mstep-2"><b>2</b> Code des anderen einfügen</div>
-        <div class="step" id="mstep-3"><b>3</b> Fertig — Verbindung steht</div>
-      </div>
+    <details id="manual-signal" class="hidden manual">
+      <summary>Notfall: Verbindungscode manuell austauschen</summary>
       <label>Dein Verbindungscode</label>
       <textarea id="manual-out" readonly rows="2" placeholder="wird erzeugt …"></textarea>
       <button id="btn-manual-copy" class="primary small wide">Code kopieren</button>
@@ -138,7 +123,7 @@
         <button id="btn-manual-apply" class="primary small">Verbinden</button>
       </div>
       <div id="manual-status"></div>
-    </div>
+    </details>
   </div>
 
   <div id="screen-results" class="screen hidden">

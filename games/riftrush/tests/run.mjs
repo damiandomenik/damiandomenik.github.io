@@ -48,6 +48,15 @@ total += (await import('./suite-boss.mjs')).default;
 console.log('\n########## NETZWERK & RACE ##########');
 total += (await import('./suite-net.mjs')).default;
 
+console.log('\n########## BEITRETEN PER ZAHLENCODE ##########');
+try {
+  await import('ws');
+  total += (await import('./suite-code.mjs')).default;
+} catch (e) {
+  if (String(e).includes("'ws'")) console.log('(uebersprungen — benoetigt "ws")');
+  else { console.log('  FAIL:', e.stack); total++; }
+}
+
 console.log('\n########## MULTIPLAYER (echter Signaling-Server) ##########');
 try {
   await import('ws');

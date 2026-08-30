@@ -1,3 +1,6 @@
+import { CONFIG } from '../core/Config.js';
+import { PeerSignaling } from './PeerSignaling.js';
+
 /**
  * Signaling-Abstraktion.
  * Die WebRTC-Verbindung braucht einen Kanal zum Austausch von SDP/ICE.
@@ -214,10 +217,19 @@ export async function decodeBlob(str) {
   return JSON.parse(decodeURIComponent(escape(atob(clean))));
 }
 
-/** Fabrik: erzeugt die passende Signaling-Implementierung. */
-export function createSignaling({ url, selfId, room, isHost, name }) {
+/**
+ * Fabrik.
+ *   1. eigener Signaling-Server, falls konfiguriert (mit Lobby-Liste)
+ *   2. sonst Zahlencode über den öffentlichen Vermittler  <- Standard
+ *   3. Copy&Paste nur noch als ausdrücklicher Notnagel
+ */
+export function createSignaling({ url, selfId, room, isHost, name, mode }) {
+  if (mode === 'manual') return new ManualSignaling({ selfId, room, isHost });
   if (url && /^wss?:\/\//i.test(url.trim())) {
     return new WebSocketSignaling({ url: url.trim(), selfId, room, isHost, name });
   }
-  return new ManualSignaling({ selfId, room, isHost });
+  return new PeerSignaling({
+    selfId, room, isHost, name,
+    urls: CONFIG.PEER_SERVERS, key: CONFIG.PEER_KEY,
+  });
 }

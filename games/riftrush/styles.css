@@ -170,3 +170,15 @@ button.wide{width:100%;margin-bottom:4px}
 #field-direct button{width:100%}
 .manual textarea{max-height:70px}
 #signal-warn{margin-top:8px;font-size:11.5px;color:var(--danger);line-height:1.5}
+
+#field-code small{margin-top:8px}
+#input-code{font-size:20px;text-align:center;letter-spacing:.35em;padding:10px 8px}
+#lobby-code{font-size:52px;letter-spacing:.24em}
+#manual-signal summary{cursor:pointer;color:var(--dim);font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase}
+
+#join-error{margin-top:8px;font-size:11.5px;color:var(--danger);line-height:1.5}
+
+#net-status{margin-top:10px;font-size:11px;letter-spacing:.06em;color:var(--dim);line-height:1.5}
+#net-status.ok{color:var(--accent)}
+#net-status.err{color:var(--danger)}

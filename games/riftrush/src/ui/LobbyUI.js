@@ -21,6 +21,8 @@ export class LobbyUI {
     this.codeBoxEl = root.getElementById('code-box');
     this.manualStatusEl = root.getElementById('manual-status');
     this.signalWarnEl = root.getElementById('signal-warn');
+    this.joinErrEl = root.getElementById('join-error');
+    this.netStatusEl = root.getElementById('net-status');
     this.stepEls = [1, 2, 3].map((i) => root.getElementById(`mstep-${i}`));
     this.browserStatusEl = root.getElementById('browser-status');
 
@@ -41,9 +43,12 @@ export class LobbyUI {
     g('btn-solo').onclick = () => { this._save(); this._fire('solo', { name: name() }); };
     g('btn-join').onclick = () => {
       this._save();
-      const code = g('input-code').value.trim().toUpperCase();
+      const code = g('input-code').value.replace(/\D/g, '');
       this._fire('join', { name: name(), url: url(), code });
     };
+    g('input-code').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    });
     g('input-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') g('btn-join').click(); });
 
     this.btnReady.onclick = () => {
@@ -56,9 +61,12 @@ export class LobbyUI {
     g('btn-copy-code').onclick = () => navigator.clipboard?.writeText(this.codeEl.textContent);
     g('btn-manual-copy').onclick = () => navigator.clipboard?.writeText(this.manualOut.value);
     g('btn-manual-apply').onclick = () => this._fire('manualPaste', this.manualIn.value);
-    g('btn-refresh').onclick = () => this._fire('refreshLobbies');
-    g('btn-direct').onclick = () => { this._save(); this._fire('direct', { name: name() }); };
-    g('btn-manual-paste').onclick = async () => {
+    const refresh = g('btn-refresh');
+    if (refresh) refresh.onclick = () => this._fire('refreshLobbies');
+    const direct = g('btn-direct');
+    if (direct) direct.onclick = () => { this._save(); this._fire('direct', { name: name() }); };
+    const mpaste = g('btn-manual-paste');
+    if (mpaste) mpaste.onclick = async () => {
       try {
         const txt = await navigator.clipboard.readText();
         g('manual-in').value = txt.trim();
@@ -163,9 +171,10 @@ export class LobbyUI {
     return true;
   }
 
+  /** Der Zahlencode funktioniert immer; die Lobby-Liste nur mit eigenem Server. */
   setServerMode(hasServer) {
-    this.root.getElementById('field-code').classList.toggle('hidden', !hasServer);
-    this.root.getElementById('field-direct').classList.toggle('hidden', !!hasServer);
+    const list = this.root.getElementById('field-browser');
+    if (list) list.classList.toggle('hidden', !hasServer);
   }
 
   setManual(visible, blob = '') {
@@ -185,6 +194,18 @@ export class LobbyUI {
       el.classList.toggle('on', i === n - 1);
       el.classList.toggle('done', i < n - 1);
     });
+  }
+
+  /** Fehlermeldung direkt im Menü statt als flüchtige Einblendung. */
+  /** Ergebnis des Verbindungstests im Menü. */
+  setNetStatus(text, ok) {
+    if (!this.netStatusEl) return;
+    this.netStatusEl.textContent = text || '';
+    this.netStatusEl.className = ok === true ? 'ok' : ok === false ? 'err' : '';
+  }
+
+  setJoinError(text) {
+    if (this.joinErrEl) this.joinErrEl.textContent = text || '';
   }
 
   setManualStatus(text, ok) {

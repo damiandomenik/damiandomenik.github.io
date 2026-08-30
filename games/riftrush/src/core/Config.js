@@ -88,8 +88,18 @@ export const CONFIG = {
   NET_SNAPSHOT_BUFFER: 24,
   MAX_PLAYERS: 8,
 
+  /* Vermittler fuer die Zahlencodes — nichts einzurichten.
+   * Der Browser kann keine Verbindungen annehmen (kein offener Port, kein
+   * Weg durch den Router), deshalb braucht der Verbindungsaufbau eine Stelle,
+   * die beide Seiten erreichen. Das Spiel selbst laeuft danach direkt.
+   * Die Liste wird der Reihe nach probiert; ein eigener PeerServer
+   * (npx peerjs --port 9000) kann vorne eingetragen werden. */
+  PEER_SERVERS: ['wss://0.peerjs.com'],
+  PEER_KEY: 'peerjs',
+
   /* ------------------------------------------------------------------
-   * HIER EINMAL DEN SIGNALING-SERVER EINTRAGEN.
+   * Optional: eigener Signaling-Server (bringt zusätzlich eine Lobby-Liste).
+   * Leer lassen — dann laeuft alles ueber die Zahlencodes.
    * Dann sehen alle, die die Seite öffnen, automatisch die offenen Lobbys
    * und können mit einem Klick beitreten — ohne Codes, ohne Eingaben.
    * Beispiel: 'wss://riftrush-signaling.onrender.com'

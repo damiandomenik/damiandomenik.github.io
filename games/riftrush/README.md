@@ -60,62 +60,68 @@ dort läuft ohnehin kein Jekyll.)
 
 ---
 
-## 3. Multiplayer einrichten
+## 3. Zusammen spielen
 
-**Damit andere deine Lobby sehen können, braucht es eine gemeinsame Stelle im Netz.**
-WebRTC verbindet zwar direkt von Rechner zu Rechner, aber die beiden Seiten müssen sich
-erst einmal finden — dafür ist der Signaling-Server da. Ohne ihn bleibt nur der
-Code-Austausch zu zweit.
+**Es ist nichts einzurichten.** Wer eine Lobby erstellt, bekommt einen sechsstelligen
+Zahlencode. Die anderen tippen ihn im Menü ein und sind drin.
 
-### Server aufsetzen (einmalig, ein paar Minuten)
-
-In `/server` liegen fertige Vorlagen:
-
-| Hoster | Vorgehen |
-|---|---|
-| **Render** (kostenlos) | Repo auf GitHub pushen → render.com → New → **Blueprint** → Repo wählen. `server/render.yaml` wird automatisch gelesen. |
-| **Fly.io** | `cd server && fly launch --copy-config --now` |
-| **Docker / eigener Server** | `docker build -t riftrush-signaling server && docker run -p 8080:8080 riftrush-signaling` |
-| **Lokal zum Testen** | `cd server && npm install && npm start` → `ws://localhost:8080` |
-
-Danach die Adresse **einmal** in `src/core/Config.js` eintragen:
-
-```js
-SIGNALING_URL: 'wss://riftrush-signaling.onrender.com',
+```
+Spieler 1: „Lobby erstellen"  ->  Code 482913
+Spieler 2: Code eintippen     ->  Beitreten
 ```
 
-Ab dann sieht jeder, der die Seite öffnet, automatisch die offenen Lobbys und tritt per
-Klick bei — ohne Codes, ohne Eingaben. Wer will, kann im Menü unter
-„Verbindungs-Einstellungen" eine abweichende Adresse setzen.
+### Warum es trotzdem eine Vermittlungsstelle gibt
 
-> Die Seite läuft über HTTPS, deshalb muss der Server über **`wss://`** erreichbar sein.
-> Bei `ws://` blockiert der Browser die Verbindung; das Menü weist darauf hin.
+Der Host ist der Server — für das Spiel: Er bestimmt Seed, Matchstart und Boss-Ablauf.
+Aber ein **Browser kann keine Verbindungen annehmen**: kein offener Port, keine
+erreichbare Adresse, der Router lässt nichts von außen durch. Der Browser des Gastes
+kann den des Hosts also nicht direkt anrufen.
 
-> Render schläft im Gratistarif nach Inaktivität ein und braucht beim ersten Aufruf
-> etwa 30 Sekunden. Danach läuft es normal.
+Deshalb hat jedes Browserspiel mit „Host + Code" eine Vermittlungsstelle — meist
+denselben Server, von dem das Spiel geladen wird. Man sieht sie nie, weil der Entwickler
+sie betreibt. Auf GitHub Pages gibt es kein Backend, also nutzt RiftRush einen
+**öffentlichen PeerServer**, den niemand einrichten oder bezahlen muss.
 
-### Ohne Server: Direktverbindung zu zweit
+Der Vermittler reicht ausschließlich den Verbindungsaufbau durch. Sobald die Spieler
+verbunden sind, läuft der gesamte Spielverkehr direkt zwischen ihnen — ein Test prüft
+das ausdrücklich nach: während des Spielens sieht der Vermittler keine einzige
+Nachricht mehr.
 
-Im Menü unter „Ohne Server spielen" aufklappen. Ihr tauscht einmalig einen
-Verbindungscode aus:
+Alle Spieler verbinden sich untereinander (volles Netz, bis 8 Spieler). Der Host teilt
+dafür die Kennungen weiter, sodass sich auch die Gäste direkt erreichen.
 
-1. Spieler 1 klickt **Lobby erstellen** → Code erscheint, kopieren und schicken.
-2. Spieler 2 klickt **Direktverbindung starten**, fügt den Code ein → **Verbinden**.
-3. Spieler 2 bekommt einen Antwortcode → zurück an Spieler 1 → dort einfügen.
+Ändern lässt sich der Vermittler in `src/core/Config.js`:
 
-Warum der Code nicht sechs Zeichen kurz sein kann: Ohne Server *ist* der Code die
-Verbindungsinformation (Netzwerkadressen und Verschlüsselungsdaten). Er lässt sich
-komprimieren — von 1.924 auf rund 300 Zeichen, also 84 % kürzer — aber nicht ersetzen.
-Sechs Zeichen setzen zwingend eine Stelle voraus, die beide Seiten kennt.
+```js
+PEER_SERVERS: ['wss://0.peerjs.com'],
+PEER_KEY: 'peerjs',
+```
 
-Limitierung: genau 2 Spieler.
+Die Anmeldung ist Zeile für Zeile mit dem offiziellen PeerJS-Client 1.5.5 abgeglichen
+(Pfad, Parameter, Versionsangabe, Nachrichtentypen, Lebenszeichen) — ein Test prüft das
+mit, damit es nicht auseinanderläuft.
 
-Mit Server gibt es dagegen die **Lobby-Liste**: wer eine Lobby erstellt, taucht bei allen
-anderen automatisch auf — mit Hostname, Spielerzahl und ob das Match schon läuft. Die
-Liste aktualisiert sich von selbst; zusätzlich gibt es `GET /lobbies` als JSON.
+Im Menü steht eine Statuszeile: Sie prüft beim Start, ob der Vermittler antwortet, und
+sagt im Fehlerfall, was zu tun ist — statt dass ein Beitritt wortlos scheitert.
 
-Der Server vermittelt ausschließlich Verbindungsaufbau und Lobby-Liste. Das Gameplay
-läuft danach vollständig Peer-to-Peer.
+`PEER_SERVERS` ist eine **Liste**: Ist der erste Eintrag tot, rückt der Verbindungsaufbau
+automatisch auf den nächsten. Ein eigener PeerServer (`npx peerjs --port 9000`) lässt sich
+einfach vorne eintragen — an der Bedienung ändert sich nichts.
+
+### Optional: eigener Signaling-Server mit Lobby-Liste
+
+Wer will, kann den Server aus `/server` betreiben und im Menü unter „Erweitert"
+eintragen. Dann gibt es zusätzlich eine **Liste offener Lobbys**, in die man ohne Code
+per Klick beitritt. Vorlagen: `render.yaml`, `Dockerfile`, `fly.toml`.
+
+> Die Seite läuft über HTTPS, deshalb muss ein eigener Server über `wss://` erreichbar
+> sein. Bei `ws://` blockiert der Browser; das Menü weist darauf hin.
+
+### Notfall: Verbindungscode von Hand
+
+Falls gar nichts geht, lässt sich in der Lobby unter „Notfall" der vollständige
+Verbindungscode direkt austauschen (rund 300 Zeichen, für zwei Spieler). Das braucht
+keinerlei Vermittler, ist aber umständlich — deshalb ist es zugeklappt.
 
 
 ---
@@ -147,6 +153,17 @@ Abgedeckt:
 * **Determinismus**: gleicher Seed erzeugt exakt dieselbe Geometrie
 * **Netzwerk**: Snapshot-Interpolation bei 12 % Paketverlust und ±20 ms Jitter
   (keine harten Positionssprünge), Leaderboard-Sortierung
+* **Zahlencodes** (gegen einen nachgebauten PeerServer, der sich exakt ans dokumentierte
+  Protokoll hält): Codeerzeugung und -prüfung, Host meldet sich unter dem Code an, zwei
+  Gäste treten allein mit der Zahl bei, volles Netz auch zwischen den Gästen, während des
+  Spielens läuft nachweislich nichts mehr über den Vermittler, unbekannter Code verbindet
+  nicht, belegter Code wird gemeldet, Verlassen wird bemerkt, Verbindung wird durch
+  Lebenszeichen gehalten, toter Vermittler wird übersprungen und der nächste genommen,
+  Erreichbarkeitsprüfung meldet den funktionierenden Server bzw. schlägt sauber fehl,
+  Anmelde-URL entspricht exakt dem offiziellen PeerJS-Client (Pfad, key, id, token,
+  Version), unbekannter Code meldet „niemand erreichbar" statt stumm zu bleiben
+* **Menü**: Zahlenfeld filtert Buchstaben, unvollständiger Code liefert eine klare
+  Meldung ohne Verbindungsversuch, fehlgeschlagener Beitritt bleibt nicht stumm
 * **Server-Voreinstellung**: `CONFIG.SIGNALING_URL` wird ins Menü übernommen,
   Deployment-Vorlagen (`render.yaml`, `Dockerfile`, `fly.toml`) sind vorhanden und
   starten den richtigen Prozess; `ws://` auf einer HTTPS-Seite wird bemängelt
@@ -289,7 +306,8 @@ src/
     SignalingManager.js  Interface + WebSocket- und Manual-Implementierung
     WebRTCManager.js     PeerConnections, 2 DataChannels (unreliable/reliable)
     NetworkManager.js    Protokoll: profile | ready | start | event | s(napshot)
-    LobbyBrowser.js      Liste offener Lobbys (eigene, kurzlebige Verbindung)
+    PeerSignaling.js     Beitreten per Zahlencode über einen öffentlichen Vermittler
+    LobbyBrowser.js      Liste offener Lobbys (nur mit eigenem Signaling-Server)
     RemotePlayer.js      Snapshot-Interpolation (+ kurze Extrapolation)
 
   dungeon/

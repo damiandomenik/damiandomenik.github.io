@@ -42,13 +42,16 @@ export class NetworkManager {
   get peerCount() { return this.rtc ? this.rtc.openCount : 0; }
   get isManual() { return this.signaling && this.signaling.needsBundledIce; }
 
-  async connect({ code, url, selfId, isHost, profile }) {
+  async connect({ code, url, selfId, isHost, profile, mode, prepare }) {
     this.selfId = selfId;
     this.isHost = isHost;
     this.code = code;
     this.profile = { ...this.profile, ...profile };
 
-    this.signaling = createSignaling({ url, selfId, room: code, isHost, name: this.profile.name });
+    this.signaling = createSignaling({
+      url, selfId, room: code, isHost, name: this.profile.name, mode,
+    });
+    prepare?.(this.signaling);
     this.signaling.onStatus = (s) => this.onStatus(s);
     this.signaling.onError = (e) => this.onError(e);
 
@@ -77,7 +80,7 @@ export class NetworkManager {
   _onPeerOpen(id) {
     if (!this.roster.has(id)) this.roster.set(id, { id, name: 'Runner', color: 0x888888, ready: false, connected: true });
     else this.roster.get(id).connected = true;
-    this.rtc.send(id, { t: 'profile', ...this.profile, host: this.isHost }, true);
+    this.rtc.send(id, { t: 'profile', ...this.profile, host: this.isHost, pid: this.signaling?.peerId }, true);
     // Läuft bereits ein Match, holt der Host den neuen Spieler direkt hinein
     const mi = this.isHost ? this.getMatchInfo() : null;
     if (mi) this.rtc.send(id, { t: 'start', seed: mi.seed, countdown: 0, elapsed: mi.elapsed }, true);
@@ -97,9 +100,21 @@ export class NetworkManager {
       case 'profile': {
         const p = this.roster.get(id) || { id, connected: true };
         p.name = msg.name; p.color = msg.color; p.ready = !!msg.ready; p.host = !!msg.host;
+        p.pid = msg.pid || p.pid;
         this.roster.set(id, p);
+        // Volles Netz: der Host kennt alle und reicht die Kennungen weiter,
+        // damit sich auch die Gäste untereinander direkt verbinden.
+        if (this.isHost) this._sharePeerList();
         this.onPlayerJoin(id, p);
         this.onRosterChange();
+        break;
+      }
+      case 'peers': {
+        for (const entry of msg.list || []) {
+          if (!entry.pid || entry.pid === this.signaling?.peerId) continue;
+          if (this.rtc?.peers.has(entry.id)) continue;
+          this.signaling?.connectToPeer?.(entry.pid);
+        }
         break;
       }
       case 'ready': {
@@ -122,7 +137,7 @@ export class NetworkManager {
   // ---------------------------------------------------------------- senden
   updateProfile(patch) {
     Object.assign(this.profile, patch);
-    this.rtc?.broadcast({ t: 'profile', ...this.profile, host: this.isHost }, true);
+    this.rtc?.broadcast({ t: 'profile', ...this.profile, host: this.isHost, pid: this.signaling?.peerId }, true);
     this.onRosterChange();
   }
 
@@ -130,6 +145,16 @@ export class NetworkManager {
     this.profile.ready = ready;
     this.rtc?.broadcast({ t: 'ready', ready }, true);
     this.onRosterChange();
+  }
+
+  /** Nur Host: allen die Kennungen aller Mitspieler mitteilen. */
+  _sharePeerList() {
+    if (!this.rtc) return;
+    const list = [...this.roster.values()]
+      .filter((p) => p.pid)
+      .map((p) => ({ id: p.id, pid: p.pid }));
+    if (this.signaling?.peerId) list.push({ id: this.selfId, pid: this.signaling.peerId });
+    if (list.length > 1) this.rtc.broadcast({ t: 'peers', list }, true);
   }
 
   /** Lobby-Eintrag auf dem Signaling-Server aktualisieren. */

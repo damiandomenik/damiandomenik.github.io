@@ -235,7 +235,7 @@ try {
     const log = { joins: [], events: [], blobs: [] };
     n.onPlayerJoin = (pid, p) => log.joins.push({ pid, name: p.name });
     n.onEvent = (pid, e) => log.events.push({ pid, e });
-    await n.connect({ code: 'MANUAL', url: '', selfId: id, isHost, profile: { name, color: 0x38f2c8, ready: false } });
+    await n.connect({ code: 'MANUAL', url: '', selfId: id, isHost, mode: 'manual', profile: { name, color: 0x38f2c8, ready: false } });
     n.signaling.onLocalBlob = (b) => log.blobs.push(b);
     if (n.signaling._lastBlob) log.blobs.push(n.signaling._lastBlob);
     made.push(n);

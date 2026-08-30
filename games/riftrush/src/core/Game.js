@@ -19,6 +19,7 @@ import { RaceManager } from '../gameplay/RaceManager.js';
 import { NetworkManager } from '../multiplayer/NetworkManager.js';
 import { RemotePlayer } from '../multiplayer/RemotePlayer.js';
 import { LobbyBrowser } from '../multiplayer/LobbyBrowser.js';
+import { makeRoomCode, isValidCode, probePeerServers } from '../multiplayer/PeerSignaling.js';
 import { HUD } from '../ui/HUD.js';
 import { LobbyUI } from '../ui/LobbyUI.js';
 import { ResultsUI } from '../ui/ResultsUI.js';
@@ -228,7 +229,17 @@ export class Game {
       : null);
     n.onRosterChange = () => this._refreshLobby();
     n.onStatus = (s) => { if (C.DEBUG) console.log('[net]', s); };
-    n.onError = (err) => this.hud.toast(err.message || 'Netzwerkfehler', 2500);
+    n.onError = (err) => {
+      // Häufigster Fall: Code vertippt. Dann sitzt man sonst wortlos in einer
+      // leeren Lobby und weiss nicht, warum niemand kommt.
+      if (err?.noHost && this.state.phase === Phase.LOBBY && this.network.peerCount === 0) {
+        this.leave();
+        this.lobbyUI.setJoinError(
+          `${err.message} Tippfehler? Der Code muss genau so lauten wie beim Ersteller.`);
+        return;
+      }
+      this.hud.toast(err.message || 'Netzwerkfehler', 2500);
+    };
   }
 
   _onNetEvent(fromId, e) {
@@ -338,29 +349,41 @@ export class Game {
   }
 
   // ================================================================ Flow
-  async createLobby(name, url) {
-    const code = randomRoomCode();
-    await this._connect({ name, url, code, isHost: true });
+  async createLobby(name, url, attempt = 0) {
+    // Sechsstelliger Zahlencode; ist er zufaellig vergeben, wird neu gewuerfelt
+    const code = makeRoomCode();
+    const ok = await this._connect({ name, url, code, isHost: true });
+    if (!ok && attempt < 3 && this._lastConnectError === 'code-taken') {
+      return this.createLobby(name, url, attempt + 1);
+    }
+    return ok;
   }
 
   async joinLobby(name, url, code) {
-    if (!code && url) { this.hud.toast('Room Code fehlt'); return; }
-    await this._connect({ name, url, code: code || 'MANUAL', isHost: false });
+    const clean = String(code || '').replace(/\D/g, '');
+    if (!isValidCode(clean) && !url) {
+      this.lobbyUI.setJoinError('Bitte den sechsstelligen Code eingeben.');
+      return false;
+    }
+    return this._connect({ name, url, code: clean || 'MANUAL', isHost: false });
   }
 
-  async _connect({ name, url, code, isHost }) {
+  async _connect({ name, url, code, isHost, mode }) {
     this.localPlayer.setName(name);
     this.state.solo = false;
+    this._lastConnectError = null;
     try {
+      const sigPre = { onCodeTaken: () => { this._lastConnectError = 'code-taken'; } };
       await this.network.connect({
-        code, url, selfId: this.selfId, isHost,
+        code, url, selfId: this.selfId, isHost, mode,
         profile: { name, color: this.color, ready: false },
+        prepare: (sig) => { if (sig.onCodeTaken !== undefined) sig.onCodeTaken = sigPre.onCodeTaken; },
       });
     } catch (err) {
-      this.hud.show();
-      this.hud.toast('Signaling fehlgeschlagen: ' + err.message, 3000);
-      setTimeout(() => this.hud.hide(), 3200);
-      return;
+      this.lobbyUI.setJoinError(isHost
+        ? `Lobby konnte nicht erstellt werden: ${err.message}`
+        : `Beitritt fehlgeschlagen: ${err.message}`);
+      return false;
     }
     const sig = this.network.signaling;
     this._lobbyInfo = { code, transport: sig.label, isHost };
@@ -379,6 +402,7 @@ export class Game {
     this.state.set(Phase.LOBBY);
     this.ui.showLobby();
     this._refreshLobby();
+    return true;
   }
 
   startSolo(name) {
@@ -405,6 +429,8 @@ export class Game {
     this.state.set(Phase.MENU);
     this.input.exitLock();
     this.ui.showMenu();
+    // Erreichbarkeit einmal pruefen, damit im Fehlerfall nicht geraten wird
+    this.checkConnection();
     const url0 = document.getElementById('input-signal')?.value || '';
     this.lobbyUI.checkSignalUrl(url0);
     this.browser.start(url0);
@@ -507,6 +533,20 @@ export class Game {
     this.sun.position.set(p.x + 26, p.y + 44, p.z + 18);
     this.sun.target.position.set(p.x, p.y, p.z);
     this.sun.target.updateMatrixWorld();
+  }
+
+  /** Prüft, ob der Vermittler für die Zahlencodes erreichbar ist. */
+  async checkConnection() {
+    this.lobbyUI.setNetStatus('Verbindung wird geprüft …');
+    const res = await probePeerServers(C.PEER_SERVERS, C.PEER_KEY);
+    if (res.ok) {
+      this.lobbyUI.setNetStatus('Bereit — Lobby erstellen oder Code eingeben.', true);
+    } else {
+      this.lobbyUI.setNetStatus(
+        'Der Vermittlungsdienst ist gerade nicht erreichbar. Ein eigener lässt sich in '
+        + 'src/core/Config.js unter PEER_SERVERS eintragen (npx peerjs --port 9000).', false);
+    }
+    return res;
   }
 
   /** Bildhelligkeit zur Laufzeit (RIFTRUSH.setExposure(1.4)). */
