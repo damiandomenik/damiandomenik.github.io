@@ -156,6 +156,28 @@ console.log('=== 3c. Wallrun: Blick geht von der Wand weg ===');
   console.log(fails === b ? '  Blick, Neigung und Greifarm stimmen für beide Seiten' : '  FEHLER');
 }
 
+console.log('=== 3c1. Wallrun folgt der Laufrichtung (kein Driften) ===');
+{
+  const b = fails;
+  for (const side of [1, -1]) {
+    for (let i = 0; i < 70; i++) {
+      T += 16.7;
+      ch.setTransform(0, 0, 0, 0);
+      ch.updateAnimation(0.0167, {
+        movementState: 'wallrun', speed: 15, isGrounded: false,
+        isWallRunning: true, wallSide: side, moveAngle: 0.5,
+      }, camera);
+    }
+    /* Der Koerper muss der Bewegung folgen (0.5 rad) und darf nur leicht nach
+     * aussen gedreht sein. Ohne das gleitet die Figur seitlich an der Wand
+     * entlang — genau der "Drift"-Eindruck. */
+    const expected = -0.5 + 0.22 * side;
+    ok(Math.abs(ch.turn.rotation.y - expected) < 0.18,
+      `wallSide=${side}: Koerper folgt der Laufrichtung nicht (${ch.turn.rotation.y.toFixed(2)} statt ${expected.toFixed(2)})`);
+  }
+  console.log(fails === b ? '  Koerper folgt der Wandrichtung' : `  ${fails - b} Fehler`);
+}
+
 console.log('=== 3c2. Körper dreht in die Laufrichtung (Strafe) ===');
 {
   const b = fails;

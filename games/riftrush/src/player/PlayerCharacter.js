@@ -510,12 +510,15 @@ export class PlayerCharacter {
       case 'fall':
         lean = 0.06; armX = -0.15; armOut = 1.0; elbow = 0.25; legSplit = -0.25; break;
       case 'wallrun': {
-        /* rotation.y > 0 dreht den Blick nach LINKS, rotation.z > 0 kippt den
-         * Kopf nach LINKS. Bei einer Wand RECHTS (side = +1) muss beides
-         * positiv sein, damit sich die Figur von der Wand wegdreht und -neigt. */
+        /* Die Fuesse stehen an der Wand, der Kopf lehnt sich davon weg —
+         * rotation.z > 0 kippt nach LINKS, bei einer Wand rechts (side = +1)
+         * also positiv.
+         * Der Blick geht leicht nach aussen, damit die Figur nicht in die Wand
+         * schaut. Die Hauptausrichtung uebernimmt aber die Laufrichtung, sonst
+         * gleitet sie seitlich entlang und es sieht aus wie Driften. */
         const side = s.wallSide || 1;
         roll = 0.34 * side;
-        turn = 0.40 * side;
+        turn = 0.22 * side;
       }
         lean = -0.20; swing = 0.95; cycle = 1; reach = 1; armOut = 0.12; elbow = 0.6; break;
       case 'dash':
@@ -556,10 +559,10 @@ export class PlayerCharacter {
      * die Bewegungsrichtung, Brust und Kopf halten dagegen, sodass der Blick
      * weiterhin dorthin geht, wo die Kamera hinschaut. */
     let moveTurn = 0;
-    if (!s.isWallRunning && spd > 1.5) {
+    if (spd > 1.5) {
       // Vorzeichen: Blickrichtung ist (-sin θ, -cos θ). Damit der Körper nach
       // rechts (moveAngle = +PI/2) zeigt, muss um -PI/2 gedreht werden.
-      moveTurn = -s.moveAngle * (s.isGrounded ? 1 : 0.5);
+      moveTurn = -s.moveAngle * (s.isGrounded || s.isWallRunning ? 1 : 0.5);
     }
     if (this._punch > 0) moveTurn *= this._punch;      // beim Schlag zur Front zurück
     p.bodyTurn = dampAngle(p.bodyTurn, moveTurn, 9, dt);
@@ -588,8 +591,10 @@ export class PlayerCharacter {
      * Der linke Arm muss also negativ, der rechte positiv abgespreizt werden —
      * vorher war es umgekehrt und beide Arme drehten durch den Torso. */
     let lZ = -p.armOut, rZ = p.armOut;
-    let lE = -p.elbow - Math.max(0, sw) * 0.85;
-    let rE = -p.elbow - Math.max(0, swB) * 0.85;
+    /* Ellbogen beugt nach VORNE (positive X-Drehung). Negativ knickte der Arm
+     * wie ein Vogelbein nach hinten und liess das Laufen rueckwaerts wirken. */
+    let lE = p.elbow + Math.max(0, sw) * 0.85;
+    let rE = p.elbow + Math.max(0, swB) * 0.85;
 
     if (p.reach > 0.01) {
       const side = s.wallSide || 1;
@@ -597,11 +602,11 @@ export class PlayerCharacter {
       if (side > 0) {                       // Wand rechts -> rechter Arm greift nach rechts
         rX = rX * (1 - w) + (-0.45) * w;
         rZ = rZ * (1 - w) + (1.15) * w;
-        rE = rE * (1 - w) + (-0.2) * w;
+        rE = rE * (1 - w) + 0.2 * w;
       } else {                              // Wand links
         lX = lX * (1 - w) + (-0.45) * w;
         lZ = lZ * (1 - w) + (-1.15) * w;
-        lE = lE * (1 - w) + (-0.2) * w;
+        lE = lE * (1 - w) + 0.2 * w;
       }
     }
     // ---- Schlag: überschreibt den rechten Arm für ~0.35 s ----
@@ -615,7 +620,7 @@ export class PlayerCharacter {
       rZ = rZ * (1 - e) - 0.18 * e;
       rE = rE * (1 - e) + 0.02 * e;              // Ellbogen durchgestreckt
       lX = lX * (1 - e) + (-0.55) * e;           // Gegenarm zurück
-      lE = lE * (1 - e) + (-1.15) * e;
+      lE = lE * (1 - e) + 1.15 * e;
       this.chestGroup.rotation.y = -0.42 * e;    // Körper dreht mit
       this.turn.rotation.y = p.turn + p.bodyTurn - 0.16 * e;
     }

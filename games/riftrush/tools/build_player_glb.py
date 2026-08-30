@@ -171,7 +171,9 @@ class Mesh:
         ausmachen — und kostet nur ~30 Dreiecke pro Teil.
         """
         hx, hy, hz = size[0] / 2, size[1] / 2, size[2] / 2
-        c = bevel if bevel is not None else min(0.014, min(hx, hy, hz) * 0.32)
+        # kraeftigere Fase: nimmt der Panzerung das Klotzige, ohne die
+        # klaren Kanten ganz zu verlieren
+        c = bevel if bevel is not None else min(0.030, min(hx, hy, hz) * 0.46)
         cx, cy, cz = center
 
         def P(sx, sy, sz, kind):
@@ -232,10 +234,10 @@ def build_character():
     B, P = M.box, M.prism
 
     # ================= KOPF: Helmschale, Visier, Seitenmodule =================
-    B("Head", "ArmorLight", (0, 1.596, -0.012), (0.228, 0.150, 0.246), taper=0.86)   # Schale
-    B("Head", "ArmorLight", (0, 1.672, -0.004), (0.170, 0.060, 0.190), taper=0.70)   # Kalotte
+    B("Head", "ArmorLight", (0, 1.596, -0.012), (0.228, 0.150, 0.246), taper=0.86, bevel=0.048)  # Schale
+    B("Head", "ArmorLight", (0, 1.672, -0.004), (0.170, 0.062, 0.190), taper=0.62, bevel=0.040)  # Kalotte
     B("Head", "Metal",      (0, 1.660, 0.010),  (0.048, 0.070, 0.200), taper=0.85)   # Kamm
-    B("Head", "Armor",      (0, 1.520, -0.010), (0.196, 0.075, 0.212))               # Kinnpartie
+    B("Head", "Armor",      (0, 1.520, -0.010), (0.196, 0.075, 0.212), bevel=0.036)  # Kinnpartie
     B("Head", "Armor",      (0, 1.556, -0.104), (0.185, 0.105, 0.045))               # dunkles Gesichtsfeld
     B("Head", "Armor",      (0, 1.594, 0.112),  (0.150, 0.100, 0.045))               # Nackenmodul
     B("Head", "Metal",      (0, 1.548, 0.126),  (0.070, 0.045, 0.030))
@@ -251,12 +253,12 @@ def build_character():
     for sx in (-1, 1):
         B("Visor", "Visor",  (sx * 0.104, 1.548, -0.096), (0.040, 0.046, 0.060))
         B("Visor", "Accent", (sx * 0.100, 1.542, -0.114), (0.022, 0.014, 0.014))
-    B("Neck", "Armor", (0, 1.455, 0.000), (0.108, 0.075, 0.108))
+    P("Neck", "Armor", (0, 1.455, 0.000), 0.056, 0.080, axis="y", seg=10)
 
     # ================= TORSO: Kragen, Brust, Bauch, Huefte ====================
     B("Chest", "ArmorLight", (0, 1.352, 0.000), (0.352, 0.070, 0.212), taper=0.94)   # Kragenring
-    B("Chest", "Armor",      (0, 1.286, 0.000), (0.350, 0.110, 0.228), taper=1.02)   # obere Brust
-    B("Chest", "Armor",      (0, 1.196, 0.000), (0.330, 0.110, 0.222), taper=1.03)   # untere Brust
+    B("Chest", "Armor",      (0, 1.286, 0.000), (0.350, 0.110, 0.228), taper=1.02, bevel=0.042)   # obere Brust
+    B("Chest", "Armor",      (0, 1.196, 0.000), (0.330, 0.110, 0.222), taper=1.03, bevel=0.042)   # untere Brust
     B("Chest", "ArmorLight", (0, 1.262, -0.108), (0.230, 0.150, 0.038))              # Brustplatte
     B("Chest", "Metal",      (0, 1.180, -0.100), (0.190, 0.070, 0.034))
     for sx in (-1, 1):
@@ -267,12 +269,12 @@ def build_character():
     P("Chest", "Accent", (0, 1.262, -0.140), 0.034, 0.022, axis="z", seg=6)
     B("Chest", "Accent", (0, 1.208, -0.126), (0.030, 0.026, 0.014))
 
-    B("Spine", "Armor", (0, 1.108, 0.000), (0.300, 0.100, 0.204), taper=1.0)         # Bauch oben
-    B("Spine", "Armor", (0, 1.028, 0.000), (0.284, 0.078, 0.196), taper=1.0)         # Bauch unten
+    B("Spine", "Armor", (0, 1.108, 0.000), (0.300, 0.100, 0.204), taper=1.0, bevel=0.040)         # Bauch oben
+    B("Spine", "Armor", (0, 1.028, 0.000), (0.284, 0.078, 0.196), taper=1.0, bevel=0.036)         # Bauch unten
     B("Spine", "Metal", (0, 1.070, -0.092), (0.150, 0.130, 0.028))
     B("Hips",  "Metal", (0, 0.972, 0.000), (0.316, 0.056, 0.212))                    # Guertel
     B("Hips",  "Accent", (0, 0.972, -0.106), (0.090, 0.024, 0.012))
-    B("Hips",  "Armor", (0, 0.912, 0.000), (0.290, 0.100, 0.198), taper=0.96)
+    B("Hips",  "Armor", (0, 0.912, 0.000), (0.290, 0.100, 0.198), taper=0.96, bevel=0.040)
     for sx in (-1, 1):
         B("Hips", "ArmorLight", (sx * 0.148, 0.926, 0.006), (0.052, 0.120, 0.130), taper=0.86)
     B("Hips", "Metal", (0.156, 0.972, 0.058), (0.038, 0.075, 0.052))                 # Huftmodul (asym.)
@@ -298,11 +300,11 @@ def build_character():
         B(sh, "Accent",     (s_ * 0.216, 1.322, -0.084), (0.070, 0.016, 0.026))
         P(sh, "Metal", (X, 1.268, 0.000), 0.062, 0.070, axis="x", seg=8)
         # Oberarm
-        B(ua, "Armor",      (X, 1.180, 0.000), (0.112, 0.190, 0.120), taper=0.94)
+        P(ua, "Armor", (X, 1.180, 0.000), 0.060, 0.200, axis="y", seg=10, taper=0.92)
         B(ua, "ArmorLight", (X, 1.216, -0.044), (0.086, 0.100, 0.040))
         # Ellbogen
         P(la, "Metal", (X, 1.078, 0.000), 0.056, 0.084, axis="x", seg=8)
-        B(la, "Armor",      (X, 0.980, 0.000), (0.098, 0.180, 0.104), taper=0.92)
+        P(la, "Armor", (X, 0.980, 0.000), 0.052, 0.190, axis="y", seg=10, taper=0.92)
         B(la, "ArmorLight", (X, 1.020, -0.038), (0.074, 0.090, 0.036))
         B(la, "Accent",     (X, 0.960, -0.048), (0.026, 0.108, 0.012))
         # Handschuh
@@ -316,20 +318,20 @@ def build_character():
         ul, ll, ft = f"UpperLeg_{side}", f"LowerLeg_{side}", f"Foot_{side}"
         X = s_ * 0.092
         P(ul, "Metal", (X, 0.884, 0.000), 0.072, 0.096, axis="x", seg=8)              # Hueftgelenk
-        B(ul, "Armor",      (X, 0.760, 0.000), (0.164, 0.220, 0.176), taper=0.94)     # Oberschenkel
-        B(ul, "Armor",      (X, 0.598, 0.000), (0.148, 0.140, 0.158), taper=0.94)
+        P(ul, "Armor", (X, 0.760, 0.000), 0.088, 0.230, axis="y", seg=12, taper=0.92)     # Oberschenkel
+        P(ul, "Armor", (X, 0.598, 0.000), 0.078, 0.150, axis="y", seg=12, taper=0.94)
         B(ul, "ArmorLight", (X, 0.740, -0.078), (0.104, 0.170, 0.040))                # Frontplatte
         B(ul, "Accent",     (X, 0.700, -0.096), (0.024, 0.130, 0.012))
         # Knie
         P(ll, "Metal", (X, 0.518, 0.000), 0.070, 0.104, axis="x", seg=10)
         B(ll, "ArmorLight", (X, 0.520, -0.070), (0.116, 0.116, 0.062), taper=0.86)    # Kniescheibe
-        B(ll, "Armor",      (X, 0.380, 0.000), (0.130, 0.180, 0.144), taper=0.92)     # Wade
-        B(ll, "Armor",      (X, 0.250, 0.004), (0.114, 0.120, 0.130), taper=0.94)
+        P(ll, "Armor", (X, 0.380, 0.000), 0.070, 0.190, axis="y", seg=12, taper=0.90)     # Wade
+        P(ll, "Armor", (X, 0.250, 0.004), 0.060, 0.130, axis="y", seg=12, taper=0.92)
         B(ll, "ArmorLight", (X, 0.330, -0.064), (0.084, 0.190, 0.036))
         B(ll, "Accent",     (X, 0.310, -0.082), (0.024, 0.150, 0.012))
         P(ft, "Metal", (X, 0.148, 0.006), 0.052, 0.086, axis="x", seg=8)              # Knoechel
         # Stiefel: grosse Sohle, kantige Kappe
-        B(ft, "Armor",      (X, 0.098, -0.036), (0.150, 0.098, 0.244), taper=0.94)
+        B(ft, "Armor",      (X, 0.098, -0.036), (0.150, 0.098, 0.244), taper=0.94, bevel=0.032)
         B(ft, "ArmorLight", (X, 0.108, -0.128), (0.120, 0.078, 0.070), taper=0.88)    # Kappe
         B(ft, "Metal",      (X, 0.034, -0.030), (0.166, 0.050, 0.268))                # Sohle
         B(ft, "Metal",      (X, 0.060, 0.096),  (0.130, 0.070, 0.070))                # Ferse
@@ -441,17 +443,22 @@ def make_clips():
         "UpperArm_L": (-0.95, 0, 0.30), "LowerArm_L": (-0.55, 0, 0),
         "UpperArm_R": (-0.55 + math.sin(t * math.tau) * 0.05, 0, -0.55), "LowerArm_R": (-0.30, 0, 0),
     })
-    # Wallrun: Körper zur Wand gedreht, wandseitiger Arm greift
+    # Wallrun: bewusst SEITENNEUTRAL — nur Laufzyklus und leichte Vorlage.
+    # Neigung zur Wand, Körperdrehung und der greifende Arm haengen von der
+    # Wandseite ab und werden zur Laufzeit gesetzt (GlbCharacter). Stuenden sie
+    # fest im Clip, waere an der anderen Wand alles spiegelverkehrt.
     def wallrun(t):
-        lf, lk = leg_cycle(t, 0.85)
-        rf, rk = leg_cycle(t + 0.5, 0.85)
+        lf, lk = leg_cycle(t, 0.88)
+        rf, rk = leg_cycle(t + 0.5, 0.88)
+        al = math.sin((t + 0.5) * math.tau) * 0.75
+        ar = math.sin(t * math.tau) * 0.75
         return {
-            "Hips": (-0.12, 0.0, -0.30), "Spine": (-0.18, -0.22, -0.12), "Chest": (-0.10, -0.20, 0),
-            "Neck": (0.10, 0.28, 0.10),
+            "Hips": (-0.10, 0, 0), "Spine": (-0.16, 0, 0), "Chest": (-0.08, 0, 0),
+            "Neck": (0.16, 0, 0),
             "UpperLeg_L": (lf, 0, 0), "LowerLeg_L": (-lk, 0, 0),
             "UpperLeg_R": (rf, 0, 0), "LowerLeg_R": (-rk, 0, 0),
-            "UpperArm_R": (-0.55, 0, -1.10), "LowerArm_R": (-0.20, 0, 0),
-            "UpperArm_L": (math.sin(t * math.tau) * 0.8, 0, 0.25), "LowerArm_L": (-0.75, 0, 0),
+            "UpperArm_L": (al, 0, 0.10), "LowerArm_L": (-abs(al) * 0.8 - 0.45, 0, 0),
+            "UpperArm_R": (ar, 0, -0.10), "LowerArm_R": (-abs(ar) * 0.8 - 0.45, 0, 0),
         }
     cycle("WallRun", 0.62, 8, wallrun)
     pose_clip("WallJump", 0.42, [
@@ -473,15 +480,30 @@ def make_clips():
         (1.0, {"Hips": (-0.30, 0, 0), "Spine": (-0.25, 0, 0),
                "UpperArm_L": (-0.9, 0, 0.16), "UpperArm_R": (-0.9, 0, -0.16)}),
     ])
-    pose_clip("Punch", 0.40, [
-        (0.0, {"UpperArm_R": (0.10, 0, -0.12), "LowerArm_R": (-0.35, 0, 0)}),
-        (0.22, {"Chest": (0, 0.42, 0), "Spine": (0, 0.22, 0),
-                "UpperArm_R": (-0.75, 0, -0.25), "LowerArm_R": (-1.35, 0, 0),
-                "UpperArm_L": (0.35, 0, 0.20)}),
-        (0.45, {"Chest": (0, -0.45, 0), "Spine": (0, -0.20, 0), "Hips": (0, -0.14, 0),
-                "UpperArm_R": (1.45, 0, -0.18), "LowerArm_R": (-0.02, 0, 0),
-                "UpperArm_L": (-0.60, 0, 0.30), "LowerArm_L": (-1.15, 0, 0)}),
-        (1.0, {"UpperArm_R": (0.10, 0, -0.12), "LowerArm_R": (-0.35, 0, 0)}),
+    # Der Schlag muss aus der Distanz lesbar sein: kurze Ausholphase, dann ein
+    # voll durchgestreckter Arm nach vorne, Koerperdrehung und Ausfallschritt.
+    # Frame 0 ist bewusst die Ruhepose: der Clip wird zur Laufzeit additiv
+    # ueberlagert, damit die Beine weiterlaufen.
+    pose_clip("Punch", 0.46, [
+        (0.0, {}),
+        # ausholen: Faust an die Schulter, Koerper dreht auf
+        # Ausholen: rechte Schulter zurueck. rotation.y > 0 dreht nach LINKS,
+        # die rechte Schulter geht dabei nach HINTEN -> negativer Wert.
+        (0.20, {"Chest": (0, -0.50, 0), "Spine": (0, -0.24, 0), "Hips": (0, -0.15, 0),
+                "UpperArm_R": (-0.55, 0, -0.30), "LowerArm_R": (-1.85, 0, 0),
+                "UpperArm_L": (0.45, 0, 0.22), "LowerArm_L": (-0.55, 0, 0),
+                "Neck": (0, 0.24, 0)}),
+        # Treffer: Arm voll ausgestreckt nach vorne, Schulter schiebt nach
+        # Treffer: die rechte Schulter schiebt nach vorne -> positiver Wert
+        (0.42, {"Chest": (0, 0.62, 0), "Spine": (0, 0.30, 0), "Hips": (0, 0.22, 0),
+                "UpperArm_R": (1.62, 0, -0.10), "LowerArm_R": (0.02, 0, 0),
+                "UpperArm_L": (-0.60, 0, 0.34), "LowerArm_L": (-1.35, 0, 0),
+                "Neck": (0, -0.32, 0), "UpperLeg_R": (0.30, 0, 0), "UpperLeg_L": (-0.22, 0, 0)}),
+        # kurz stehen lassen, damit der Treffer sichtbar bleibt
+        (0.58, {"Chest": (0, 0.55, 0), "Spine": (0, 0.26, 0), "Hips": (0, 0.18, 0),
+                "UpperArm_R": (1.48, 0, -0.12), "LowerArm_R": (-0.10, 0, 0),
+                "UpperArm_L": (-0.50, 0, 0.30), "LowerArm_L": (-1.20, 0, 0)}),
+        (1.0, {}),
     ])
     pose_clip("Hit", 0.38, [
         (0.0, {}),
@@ -499,14 +521,25 @@ def make_clips():
                "UpperLeg_R": (-0.7, 0, -0.2), "LowerLeg_R": (1.2, 0, 0),
                "UpperArm_L": (-0.4, 0, 1.0), "UpperArm_R": (-0.4, 0, -1.0)}),
     ])
-    # Seitliche Ausrichtung korrigieren: eine positive Z-Rotation schwenkt
-    # BEIDE haengenden Gliedmassen nach +X. "Nach aussen" heisst deshalb links
-    # negativ und rechts positiv — hier zentral fuer alle Clips gedreht.
+    # --- Zwei zentrale Vorzeichen-Korrekturen fuer alle Clips ---
     for _, _, keys in clips:
         for _, pose in keys:
             for bone, e in list(pose.items()):
+                if bone.startswith("_"):
+                    continue          # Hilfswerte wie "_bob" sind keine Knochen
+                rx, ry, rz = e
+                # (a) Seitliche Ausrichtung: eine positive Z-Drehung schwenkt
+                #     BEIDE haengenden Gliedmassen nach +X. "Nach aussen" heisst
+                #     also links negativ, rechts positiv.
                 if bone.endswith("_L") or bone.endswith("_R"):
-                    pose[bone] = (e[0], e[1], -e[2])
+                    rz = -rz
+                # (b) Ellbogen: der menschliche Arm beugt nach VORNE (Bizeps),
+                #     das ist eine positive X-Drehung. Vorher knickte er nach
+                #     hinten weg wie ein Vogelbein — das liest sich beim Laufen
+                #     wie eine Rueckwaertsbewegung.
+                if bone.startswith("LowerArm"):
+                    rx = -rx
+                pose[bone] = (rx, ry, rz)
     return clips
 
 

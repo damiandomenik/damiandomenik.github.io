@@ -155,6 +155,160 @@ console.log('=== 6. Jeder Clip bewegt das Rig wirklich ===');
   ok(fails === b, 'Clips fehlerhaft');
 }
 
+console.log('=== 5b. Ellbogen beugen nach vorne ===');
+{
+  const b = fails;
+  /* Der menschliche Ellbogen beugt nach vorne (positive X-Drehung). Knickt er
+   * nach hinten, sieht jede Laufanimation aus wie rueckwaerts gehen. */
+  const e = new THREE.Euler(), q = new THREE.Quaternion();
+  let worst = 0, worstClip = '';
+  for (const clip of gltf.animations) {
+    for (const tr of clip.tracks) {
+      if (!/^LowerArm_[LR]\./.test(tr.name)) continue;
+      for (let i = 0; i < tr.values.length; i += 4) {
+        q.set(tr.values[i], tr.values[i + 1], tr.values[i + 2], tr.values[i + 3]);
+        e.setFromQuaternion(q, 'XYZ');
+        if (e.x < worst) { worst = e.x; worstClip = clip.name; }
+      }
+    }
+  }
+  ok(worst > -0.06, `Ellbogen knickt in "${worstClip}" um ${worst.toFixed(2)} rad nach hinten`);
+  console.log(`  kleinster Ellbogenwinkel ${worst.toFixed(2)} rad (${worstClip || 'alle'})`);
+  ok(fails === b, 'Ellbogenrichtung falsch');
+}
+
+console.log('=== 5c. Arme und Beine laufen gegenläufig ===');
+{
+  const b = fails;
+  const scene = gltf.scene;
+  const mixer = new THREE.AnimationMixer(scene);
+  const bone = {};
+  scene.traverse((o) => { if (o.isBone) bone[o.name] = o; });
+  const v = new THREE.Vector3();
+  const zOf = (n) => { v.setFromMatrixPosition(bone[n].matrixWorld); return v.z; };
+  for (const name of ['Walk', 'Run', 'Sprint']) {
+    const clip = gltf.animations.find((a) => a.name === name);
+    const act = mixer.clipAction(clip);
+    act.reset(); act.play();
+    let opposed = 0, samples = 0;
+    for (let i = 1; i < 8; i++) {
+      mixer.setTime(clip.duration * i / 8);
+      scene.updateMatrixWorld(true);
+      // Am Ellbogen messen, nicht an der Hand: die haengt durch die Beugung
+      // fast immer vorne und taugt nicht als Mass fuer die Armschwingung.
+      const hand = zOf('LowerArm_L'), foot = zOf('Foot_L');
+      if (Math.abs(hand) < 0.02 || Math.abs(foot) < 0.02) continue;   // Nulldurchgang
+      samples++;
+      if ((hand < 0) !== (foot < 0)) opposed++;
+    }
+    ok(samples > 0 && opposed === samples,
+      `"${name}": Arm und Bein derselben Seite schwingen gleichläufig (${opposed}/${samples})`);
+    act.stop();
+  }
+  console.log('  Arm und Bein derselben Seite schwingen gegenläufig');
+  ok(fails === b, 'Laufzyklus falsch');
+}
+
+console.log('=== 5c2. Der Schlag geht sichtbar nach vorne ===');
+{
+  const b = fails;
+  const scene3 = gltf.scene;
+  const bone3 = {};
+  scene3.traverse((o) => { if (o.isBone) bone3[o.name] = o; });
+  const hand = new THREE.Vector3(), chest = new THREE.Vector3(), sh = new THREE.Vector3();
+  const punch = gltf.animations.find((a) => a.name === 'Punch');
+
+  const measure = (baseName, additive) => {
+    const mixer = new THREE.AnimationMixer(scene3);
+    if (baseName) mixer.clipAction(gltf.animations.find((a) => a.name === baseName)).play();
+    const act = additive
+      ? mixer.clipAction(THREE.AnimationUtils.makeClipAdditive(punch.clone()), scene3,
+        THREE.AdditiveAnimationBlendMode)
+      : mixer.clipAction(punch);
+    act.setLoop(THREE.LoopOnce, 1);
+    act.clampWhenFinished = true;
+    act.play();
+    let best = 0, twist = 0;
+    for (let i = 0; i < 40; i++) {
+      mixer.update(0.5 / 40);
+      scene3.updateMatrixWorld(true);
+      hand.setFromMatrixPosition(bone3.Hand_R.matrixWorld);
+      chest.setFromMatrixPosition(bone3.Chest.matrixWorld);
+      sh.setFromMatrixPosition(bone3.UpperArm_R.matrixWorld);
+      best = Math.min(best, hand.z - chest.z);
+      twist = Math.min(twist, sh.z - chest.z);       // Schulter muss nachschieben
+    }
+    mixer.stopAllAction();
+    return { reach: best, shoulder: twist };
+  };
+
+  const solo = measure(null, false);
+  const blended = measure('Idle', false);
+  const add = measure('Idle', true);
+  const sprint = measure('Sprint', true);
+
+  ok(solo.reach < -0.45, `Faust kommt nur ${(-solo.reach).toFixed(2)} m nach vorne — zu wenig sichtbar`);
+  ok(solo.shoulder < -0.02, 'Die Schulter schiebt beim Treffer nicht nach vorne');
+  /* Additiv statt dazwischengeblendet: sonst mittelt der Mixer den Schlag mit
+   * der laufenden Bewegung und er kommt nur halb heraus. */
+  ok(add.reach < blended.reach - 0.03,
+    `Additive Ueberlagerung bringt nichts (${add.reach.toFixed(2)} vs ${blended.reach.toFixed(2)})`);
+  ok(add.reach < solo.reach * 0.9,
+    `Ueber einer laufenden Animation geht zu viel verloren (${add.reach.toFixed(2)} statt ${solo.reach.toFixed(2)})`);
+  ok(sprint.reach < -0.42, `Beim Sprinten schlaegt es kaum noch (${sprint.reach.toFixed(2)})`);
+  console.log(`  allein ${(-solo.reach).toFixed(2)} m · additiv über Idle ${(-add.reach).toFixed(2)} m · über Sprint ${(-sprint.reach).toFixed(2)} m`);
+  ok(fails === b, 'Schlag ist nicht sichtbar genug');
+}
+
+console.log('=== 5d. Wallrun stimmt auf beiden Wandseiten ===');
+{
+  const b = fails;
+  /* Der Clip ist bewusst seitenneutral. Neigung, Blickrichtung und der
+   * greifende Arm kommen zur Laufzeit aus der Wandseite — sonst waere an der
+   * gegenueberliegenden Wand alles spiegelverkehrt. */
+  const e2 = new THREE.Euler(), q2 = new THREE.Quaternion();
+  const clip = gltf.animations.find((a) => a.name === 'WallRun');
+  let maxRoll = 0;
+  for (const tr of clip.tracks) {
+    if (!/^(Hips|Spine|Chest)\./.test(tr.name)) continue;
+    for (let i = 0; i < tr.values.length; i += 4) {
+      q2.set(tr.values[i], tr.values[i + 1], tr.values[i + 2], tr.values[i + 3]);
+      e2.setFromQuaternion(q2, 'XYZ');
+      maxRoll = Math.max(maxRoll, Math.abs(e2.z), Math.abs(e2.y));
+    }
+  }
+  ok(maxRoll < 0.05, `WallRun-Clip enthaelt feste Neigung/Drehung (${maxRoll.toFixed(2)}) — an der anderen Wand spiegelverkehrt`);
+
+  adoptPlayerModel(gltf.scene, gltf.animations);
+  const scene2 = new THREE.Scene();
+  const cam2 = new THREE.PerspectiveCamera(70, 1.6, 0.3, 400);
+  const ch2 = new GlbCharacter({ scene: scene2, name: 'W', color: 0x4c9dff, nameplate: false });
+  const up = new THREE.Vector3(), fwd = new THREE.Vector3(), q3 = new THREE.Quaternion();
+  const hand = new THREE.Vector3(), sh = new THREE.Vector3();
+  const bone = (n) => { let r = null; ch2.model.traverse((o) => { if (o.isBone && o.name === n) r = o; }); return r; };
+  for (const side of [1, -1]) {
+    for (let i = 0; i < 80; i++) {
+      ch2.setTransform(0, 0, 0, 0);
+      ch2.updateAnimation(1 / 60, {
+        movementState: 'wallrun', speed: 15, isGrounded: false,
+        isWallRunning: true, wallSide: side, moveAngle: 0,
+      }, cam2);
+    }
+    ch2.root.updateMatrixWorld(true);
+    ch2.tilt.getWorldQuaternion(q3);
+    up.set(0, 1, 0).applyQuaternion(q3);
+    fwd.set(0, 0, -1).applyQuaternion(q3);
+    ok(up.x * side < -0.15, `wallSide=${side}: Kopf neigt sich zur Wand statt weg (${up.x.toFixed(2)})`);
+    ok(fwd.x * side < -0.1, `wallSide=${side}: Blick geht in die Wand (${fwd.x.toFixed(2)})`);
+    hand.setFromMatrixPosition(bone(side > 0 ? 'Hand_R' : 'Hand_L').matrixWorld);
+    sh.setFromMatrixPosition(bone(side > 0 ? 'UpperArm_R' : 'UpperArm_L').matrixWorld);
+    ok((hand.x - sh.x) * side > 0.2,
+      `wallSide=${side}: Der wandseitige Arm greift nicht zur Wand (${(hand.x - sh.x).toFixed(2)} m)`);
+  }
+  ch2.dispose();
+  console.log(fails === b ? '  beide Wandseiten korrekt gespiegelt' : `  ${fails - b} Fehler`);
+}
+
 console.log('=== 6b. Panzerung bricht in keiner Animation ===');
 {
   const b = fails;

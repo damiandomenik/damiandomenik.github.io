@@ -19,7 +19,10 @@ const CLIP_FOR_STATE = {
   idle: 'Idle', run: 'Run', sprint: 'Sprint', crouch: 'Crouch', slide: 'Slide',
   jump: 'Jump', fall: 'Fall', wallrun: 'WallRun', dash: 'Dash', respawn: 'Idle',
 };
-const ONESHOT = { Punch: 0.40, Land: 0.34, WallJump: 0.42, Hit: 0.38, JumpStart: 0.26 };
+const ONESHOT = { Punch: 0.46, Land: 0.34, WallJump: 0.42, Hit: 0.38, JumpStart: 0.26 };
+/* Additiv ueberlagert statt dazwischengeblendet: sonst mittelt der Mixer den
+ * Schlag mit der laufenden Bewegung und er kommt nur halb heraus. */
+const ADDITIVE = new Set(['Punch', 'Hit']);
 
 const _v = new THREE.Vector3();
 const damp = (a, b, l, dt) => a + (b - a) * (1 - Math.exp(-l * dt));
@@ -70,10 +73,23 @@ export class GlbCharacter {
     this.modelMaterials = inst.materials;
     scene.add(this.root);
 
+    // Armknochen merken: der greifende Arm beim Wallrun haengt von der
+    // Wandseite ab und wird nach dem Mixer ueberschrieben.
+    this.bones = {};
+    inst.root.traverse((o) => {
+      if (o.isBone && /^(Upper|Lower)Arm_[LR]$/.test(o.name)) this.bones[o.name] = o;
+    });
+
     this.mixer = new THREE.AnimationMixer(inst.root);
     this.actions = {};
     for (const clip of inst.clips) {
-      const a = this.mixer.clipAction(clip);
+      let a;
+      if (ADDITIVE.has(clip.name)) {
+        const add = THREE.AnimationUtils.makeClipAdditive(clip.clone());
+        a = this.mixer.clipAction(add, inst.root, THREE.AdditiveAnimationBlendMode);
+      } else {
+        a = this.mixer.clipAction(clip);
+      }
       a.clampWhenFinished = !!ONESHOT[clip.name];
       a.loop = ONESHOT[clip.name] ? THREE.LoopOnce : THREE.LoopRepeat;
       this.actions[clip.name] = a;
@@ -262,14 +278,23 @@ export class GlbCharacter {
 
     // ---- Körperhaltung (dieselbe Logik wie bei der prozeduralen Figur) ----
     const lean = ms === 'sprint' ? -0.12 : ms === 'dash' ? -0.20 : 0;
-    const roll = s.isWallRunning ? -0.24 * (s.wallSide || 1) : 0;
-    const wallTurn = s.isWallRunning ? -0.30 * (s.wallSide || 1) : 0;
+    /* Fuesse an der Wand, Kopf davon weggelehnt; Blick leicht nach aussen.
+     * Vorzeichen kommt aus der Wandseite, nicht aus dem Clip — sonst waere an
+     * der gegenueberliegenden Wand alles spiegelverkehrt. */
+    const side = s.wallSide || 1;
+    const roll = s.isWallRunning ? 0.30 * side : 0;
+    const wallTurn = s.isWallRunning ? 0.22 * side : 0;
     p.lean = damp(p.lean, lean, 10, dt);
     p.roll = damp(p.roll, roll, 8, dt);
     p.turn = damp(p.turn, wallTurn, 8, dt);
 
+    /* Auch beim Wallrun in die tatsaechliche Laufrichtung drehen. Vorher blieb
+     * der Koerper zur Kamera ausgerichtet, waehrend er seitlich an der Wand
+     * entlangglitt — das sah aus wie Driften. */
     let moveTurn = 0;
-    if (!s.isWallRunning && s.speed > 1.5) moveTurn = -s.moveAngle * (s.isGrounded ? 1 : 0.5);
+    if (s.speed > 1.5) {
+      moveTurn = -s.moveAngle * (s.isGrounded || s.isWallRunning ? 1 : 0.5);
+    }
     if (this.oneShot === 'Punch') moveTurn = 0;
     p.bodyTurn = dampAngle(p.bodyTurn, moveTurn, 9, dt);
     p.bodyTurn = ((p.bodyTurn + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
@@ -277,6 +302,21 @@ export class GlbCharacter {
     this.tilt.rotation.x = p.lean;
     this.tilt.rotation.z = p.roll;
     this.turn.rotation.y = p.turn + p.bodyTurn;
+
+    // ---- Wallrun: der wandseitige Arm greift nach der Wand ----
+    this._reach = damp(this._reach ?? 0, s.isWallRunning ? 1 : 0, 9, dt);
+    if (this._reach > 0.01) {
+      const side = s.wallSide || 1;
+      const upper = this.bones[side > 0 ? 'UpperArm_R' : 'UpperArm_L'];
+      const lower = this.bones[side > 0 ? 'LowerArm_R' : 'LowerArm_L'];
+      const w = this._reach;
+      if (upper) {
+        // nach aussen zur Wand: rechts positiv, links negativ
+        upper.rotation.z = upper.rotation.z * (1 - w) + (1.05 * side) * w;
+        upper.rotation.x = upper.rotation.x * (1 - w) + (-0.45) * w;
+      }
+      if (lower) lower.rotation.x = lower.rotation.x * (1 - w) + 0.25 * w;
+    }
 
     // ---- Visor pulsiert, Treffer blitzt auf ----
     const visor = this.modelMaterials.Visor;

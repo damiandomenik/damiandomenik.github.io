@@ -206,7 +206,14 @@ Abgedeckt:
   (6 Respawns in 60 s bei Untätigkeit), Host/Client-Synchronisation inkl. Späteinsteiger
   und Traffic-Budget, Zeitbonus nach Rennzeit statt Paketreihenfolge,
   Modellbudget (33 Meshes, 1.184 Dreiecke, ein Licht)
-* **Charakter-Asset**: keine Durchdringung von Armen/Beinen und Rumpf über alle Clips,
+* **Schlag**: Faust legt mindestens 45 cm nach vorne zurück, die Schulter schiebt nach,
+  und die additive Überlagerung erhält die Reichweite auch über Idle und Sprint
+* **Wallrun**: auf beiden Wandseiten korrekt gespiegelt (Neigung, Blick, greifender Arm),
+  der Clip enthält nachweislich keine feste Neigung, und der Körper folgt der
+  Laufrichtung statt seitlich zu driften
+* **Charakter-Asset**: Ellbogen beugen in allen Clips nach vorne (nach hinten knickende
+  Ellbogen lassen jedes Laufen rückwärts wirken), Arm und Bein derselben Seite schwingen
+  gegenläufig, keine Durchdringung von Armen/Beinen und Rumpf über alle Clips,
   GLB lädt mit dem echten GLTFLoader, Mesh-/Material-/Dreiecks-
   budget, Proportionen gegen die 1,8-m-Hitbox, vollständiges Rig inkl. Hierarchie,
   alle 16 geforderten Clips, jeder Clip bewegt das Rig nachweislich und ohne NaN,
@@ -374,8 +381,10 @@ Backpack mit Seitenpods und Kern; Arme mit zweilagigem Schultermodul, Gelenkpris
 Schulter, Ellbogen und Handgelenk; Beine mit Oberschenkelpanzerung, Kniescheibe,
 Wadenpanzer und Stiefeln mit großer Sohle, Kappe und Ferse.
 
-Gelenke sind Prismen statt Kästen — bei starrem Skinning reißen sonst beim Animieren
-Lücken auf. Die Fasen an allen Platten erzeugen die schmalen Glanzkanten; ohne sie sähe
+Ober- und Unterarme, Ober- und Unterschenkel sowie der Hals sind 10- bis 12-eckige
+Prismen statt Kästen, die Panzerungsplatten haben kräftige Fasen — das nimmt der Figur
+das Klotzige, ohne die klaren Kanten zu verlieren. Gelenke sind ebenfalls Prismen: bei
+starrem Skinning reißen sonst beim Animieren Lücken auf. Die Fasen an allen Platten erzeugen die schmalen Glanzkanten; ohne sie sähe
 die Figur nach Klötzchen aus. Höhe 1,81 m, Breite 0,61 m an den Schultern.
 
 Bewusst unter dem Zielbudget von 10–25k Dreiecken: bei 8 Spielern sind das rund 39k
@@ -423,10 +432,16 @@ schaltet ihn ein), ebenso gibt es kein Fadenkreuz.
 Aufbau aus ~33 Primitiven (Capsule, Icosahedron, Box, Cylinder, eigene BufferGeometry
 für den segmentierten Bodenring), ca. 1.570 Dreiecke, Körperhöhe ~1,71 m — passend zur
 Hitbox. Animation ist komplett prozedural: Laufzyklus für Arme, Beine und Torso,
-Vorlage beim Sprint, gestreckte Pose beim Dash, Atmen im Idle. Beim Wallrun neigt sich
-der Körper zur Wand, dreht sich aber von ihr **weg**, sodass der Blick nach vorne geht,
-während der wandseitige Arm danach greift. Der Punch ist eine sichtbare Schlaganimation
-(Faust nach vorn, Gegenarm zurück, Körperdrehung) — auch bei allen Mitspielern. Effekte (Dash-Trail, Wallrun-Funken, Lande- und Sprungstaub, Punch)
+Vorlage beim Sprint, gestreckte Pose beim Dash, Atmen im Idle. Beim Wallrun stehen die
+Füße an der Wand, der Kopf lehnt sich davon weg, der Blick geht leicht nach außen und
+der wandseitige Arm greift zur Wand. Der Wallrun-Clip selbst ist **seitenneutral** —
+Neigung, Blickrichtung und greifender Arm kommen zur Laufzeit aus der Wandseite, sonst
+wäre an der gegenüberliegenden Wand alles spiegelverkehrt. Der Punch ist eine deutlich lesbare Schlaganimation: Ausholen mit zurückgedrehter
+Schulter, dann ein voll durchgestreckter Arm nach vorne mit nachschiebender Schulter und
+Ausfallschritt — die Faust legt dabei 55 cm zurück. Schlag und Treffer-Reaktion werden
+**additiv** überlagert statt dazwischengeblendet; sonst mittelt der Mixer sie mit der
+laufenden Bewegung und der Schlag kommt nur halb heraus. Sichtbar ist er auch bei allen
+Mitspielern. Effekte (Dash-Trail, Wallrun-Funken, Lande- und Sprungstaub, Punch)
 laufen über ein einziges InstancedMesh für alle Spieler.
 
 Remote-Spieler nutzen exakt dasselbe Modell — nur Farbe und Name unterscheiden sich,
