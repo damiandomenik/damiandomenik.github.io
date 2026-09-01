@@ -38,12 +38,25 @@ Der Host kann auch alleine starten — dann ist es ein Trainingslauf gegen eine 
 
 | Situation | Tasten |
 |---|---|
-| **Zu Fuß** | `WASD` bewegen · `Shift` sprinten · `Leertaste` springen · Maus zielen · `Linksklick` feuern · `1` `2` `3` Waffe · Mausrad wechseln · `R` nachladen · `E` einsteigen |
+| **Zu Fuß** | `WASD` bewegen (Figur bleibt bildmittig, seitwärts wird gestrafet) · `Shift` sprinten · `Leertaste` springen · Maus zielen · `Linksklick` feuern · `1` `2` `3` Waffe · Mausrad wechseln · `R` nachladen · `E` einsteigen |
 | **Im Flug** | Maus steuern · `A`/`D` rollen · `Q`/`E` gieren · `W`/`S` Schub · `Shift` Boost · `Linksklick` Bordkanonen · `Rechtsklick` Raketen/Bomben · `F` aussteigen |
-| **Im Fall** | `Leertaste` Fallschirm · `WASD` steuern |
+| **Im Fall** | `Leertaste` Fallschirm öffnen · `WASD` steuern (W beschleunigt, A/D seitlich) |
 | **Sonstiges** | `H` HUD ein-/ausblenden · `Esc` Mauszeiger freigeben |
 
-Einsteigen geht nur an einem der drei Startplätze im eigenen Hangar. Landen funktioniert:
+**Auf der gegnerischen Insel landen** geht auf zwei Wegen. Entweder du fliegst flach an und
+setzt unter 55 m/s auf — der Pilot steigt dann automatisch aus. Oder du steigst mit `F` in der
+Luft aus und öffnest mit der Leertaste den Schirm. Der Schirm gleitet etwa 2,5 Meter waagerecht
+pro Meter Höhenverlust, aus 400 Metern kommst du also rund einen Kilometer weit — genug, um
+von über der Mitte des Luftraums die gegnerische Insel zu erreichen. Ohne Schirm aufzuschlagen
+ist tödlich.
+
+**Wo ist das Flugzeug?** Auf der eigenen Insel stehen drei Maschinen sichtbar hintereinander:
+der Interceptor im Hangar, der Striker auf der Startbahn, der Bomber ganz vorn auf dem
+Katapultdeck. Du steigst in die ein, vor der du gerade stehst — der HUD-Hinweis
+(`E — BOMBER BESTEIGEN`) sagt dir welche. Die Wahl in der Lobby ist nur eine Voreinstellung;
+entscheidend ist, zu welchem Startplatz du läufst.
+
+Landen funktioniert:
 flach anfliegen, unter 55 m/s aufsetzen — der Pilot steigt automatisch aus. Wer schneller
 oder schräger aufkommt, zerschellt.
 
@@ -182,3 +195,107 @@ Elf Fehler wurden vor der Auslieferung behoben:
 10. Dasselbe beim Landen.
 11. **Landen in Geometrie** — wer auf der Startbahn aufsetzte, stand im Kollider fest.
     Der Pilot wird jetzt beim Aussteigen herausgeschoben.
+
+---
+
+## Nachgebessert nach dem ersten Spieltest
+
+- **Kamera zentriert.** Sie kreist jetzt um einen Punkt über dem Helm statt um die Schulter.
+  Die Figur bleibt waagerecht immer in der Bildmitte, auch beim Strafen.
+- **Strafe-Animation.** Die Figur schaut weiter in Blickrichtung, setzt aber sichtbar
+  Seitwärtsschritte (Scherenschritt, Körperneigung in die Laufrichtung).
+- **Flugzeuge sind sichtbar.** Vorher stand nur ein Leuchtring auf dem Startplatz.
+  Jetzt parken drei Maschinen gestaffelt auf dem Deck, mit Triebwerks-Glimmen im Stand.
+- **Bloom entschärft.** Schwelle von 0.72 auf 0.9, Stärke von 0.62 auf 0.48. Die
+  Startbahn-Markierungen waren zu weißen Flecken ausgebrannt; ihre Leuchtstärke ging
+  zusätzlich von 2.2 auf 0.55 runter.
+- **Deck detailliert.** Plattenfugen, abgesetzte Fahrbahn zum Core, Gefahrenzone vor dem
+  Hangartor, gedämpfte Randbeleuchtung. Vorher war es eine einzige flache Fläche.
+- **Schwebende Rampen entfernt.** Zwei gekippte Platten hingen sichtbar in der Luft neben
+  dem Core-Podest. Die Treppenstufen daneben erfüllen denselben Zweck.
+- **Beleuchtung.** Zusätzliches kaltes Gegenlicht ohne Schatten trennt Silhouetten vom
+  Hintergrund; Umgebungs- und Hemisphärenlicht deutlich angehoben.
+- **Himmel.** Weniger Dither-Rauschen, weichere Horizontstufe, weniger gesättigtes Orange.
+
+---
+
+## Balance- und Performance-Runde
+
+**Flak entschärft.** Die Türme richteten vorher rund 44 Schaden pro Sekunde an — ein Striker
+war nach fünf Sekunden im Anflug erledigt. Geändert:
+
+| | vorher | jetzt |
+|---|---|---|
+| Reichweite | 420 m | 250 m |
+| Nachladezeit | 0,55–0,95 s | 1,8–2,8 s |
+| Schaden pro Treffer | 14 | 7 |
+| Trefferchance | 60 % fest | 55 %, sinkt mit Tempo, halbiert bei Boost |
+| Zielerfassung | sofort | 1 s Verfolgung nötig |
+
+Damit sind die Türme eine Abschreckung im Nahbereich statt einer Todeszone. Ein schneller
+Anflug mit Boost kommt durch; wer langsam über der gegnerischen Insel kreist, wird bestraft.
+Bei Flak-Treffern erscheint jetzt ein HUD-Hinweis.
+
+**Standbilder behoben.** Zwei Ursachen:
+
+1. *Speicherleck.* Jedes bestiegene Flugzeug erzeugte neue Geometrien und Materialien, die
+   beim Zerstören nie freigegeben wurden. Über eine Runde mit vielen Respawns wuchs der
+   GPU-Speicher stetig. Es gibt jetzt eine Freigabe, die objekteigene Ressourcen abräumt
+   und geteilte Materialien aus dem Cache in Ruhe lässt.
+2. *GC-Pausen.* Die Hauptschleife allokierte mehrere hundert `Vector3` pro Frame —
+   Projektil-Update, Trefferprüfung, beide Kameras, Radar und Remote-Spieler. Alles läuft
+   jetzt über wiederverwendete Rechenpuffer.
+
+---
+
+## Zweite Code-Review
+
+Systematischer Durchgang nach Fehlerklassen statt nach Symptomen. Gefunden und behoben:
+
+**Korrektheit**
+
+- *Veraltete Transformationen.* Three.js aktualisiert Weltmatrizen erst beim Rendern.
+  Sowohl die Mündung der Handwaffe als auch die Bordkanonen lasen die Matrix des
+  vorherigen Frames — Schüsse kamen aus der Position von vor 16 ms, nach einem Respawn
+  sogar vom Sterbeort. Avatar wird jetzt vor dem Feuern gesetzt, die Kanonen rechnen
+  direkt aus Lage und Position statt aus der Matrix.
+- *Landen war praktisch unmöglich.* Die Schwelle lag fest bei 55 m/s, der Interceptor
+  fliegt aber mit 105 Reisetempo — man hätte tief in den Strömungsabriss bremsen müssen.
+  Die Schwelle richtet sich jetzt nach der Maschine (72 % des Reisetempos, mindestens 50).
+- *Kollision nur am Mittelpunkt.* Ein Bomber mit 29 m Spannweite flog durch Gebäude
+  hindurch. Es werden jetzt Rumpfmitte und beide Flügelspitzen geprüft.
+- *Matchuhr verlor Zeit*, wenn ein Frame länger als eine Sekunde brauchte.
+- *Core blieb nach einer Runde zerstört.* `setHP` setzte das Zerstört-Flag nie zurück.
+  Es gibt jetzt ein vollständiges Zurücksetzen für Cores, Türme, Anlagen, Startplätze,
+  Projektile und Wracks.
+
+**Autorität und Netzwerk**
+
+- *Kein Schutz vor Beschuss von Teamkameraden.* Der Host prüfte Betrag und Feuerrate,
+  aber nie, ob Schütze und Ziel überhaupt gegnerisch sind — ein manipulierter Client
+  hätte das eigene Team ausschalten können. Wird jetzt serverseitig abgewiesen; Schaden
+  an sich selbst (Splash, Absturz, Sturz) bleibt erlaubt.
+- *`undefined` im Protokoll.* Schadensmeldungen ohne Schützen (Flak, Unfall) sendeten
+  ein undefiniertes Feld; jetzt sauber `null`.
+- *Hostabbruch mitten im Match* ließ die Runde ohne Autorität weiterlaufen. Sie wird
+  jetzt mit klarer Meldung beendet.
+
+**Bedienung**
+
+- `Tab` war auch im Menü blockiert, dadurch kein Wechsel zwischen den Eingabefeldern.
+- Es gab keinen Weg aus einem laufenden Match. Bei freigegebener Maus erscheint jetzt
+  ein Abbruch-Knopf.
+- Killfeed formulierte Unfälle als „SKYFALL zerschellt SPIELER". Selbstverschuldete
+  Tode nennen jetzt nur noch das Opfer.
+
+**Politur**
+
+- *Trefferrückmeldung.* Vorher gab es keinerlei Hinweis, ob ein Schuss gesessen hat.
+  Jetzt ein Treffermarker am Fadenkreuz, rot bei einem Abschuss, auf 10 Ereignisse pro
+  Sekunde begrenzt.
+- *Abschusszähler* im HUD.
+- *Zielmarkierungen.* Aus 500 Metern war ein Flugzeug nicht vom Himmel zu unterscheiden.
+  Gegner und Verbündete tragen jetzt einen entfernungsskalierten Punkt in Teamfarbe, der
+  unter 60 Metern ausblendet, damit das Modell selbst zur Geltung kommt.
+- Zeitanzeige läuft im HUD-Takt statt pro Frame — spart rund 120 DOM-Schreibvorgänge
+  pro Sekunde.

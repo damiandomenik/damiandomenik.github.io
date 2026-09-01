@@ -16,7 +16,10 @@ export const TEAM_COLOR = {
 const cache = {};
 
 function mat(key, params) {
-  if (!cache[key]) cache[key] = new THREE.MeshStandardMaterial(params);
+  if (!cache[key]) {
+    cache[key] = new THREE.MeshStandardMaterial(params);
+    cache[key].userData.shared = true;
+  }
   return cache[key];
 }
 
@@ -32,15 +35,19 @@ export const M = {
   get rock()      { return mat('rock',      { color: 0x1f2226, metalness: 0.04, roughness: 1.0, flatShading: true }); },
   get rockLight() { return mat('rockLight', { color: 0x33383e, metalness: 0.06, roughness: 0.95, flatShading: true }); },
   get glass()     {
-    if (!cache.glass) cache.glass = new THREE.MeshPhysicalMaterial({
-      color: 0x0b131a, metalness: 1.0, roughness: 0.06,
-      transparent: true, opacity: 0.62, envMapIntensity: 1.4
-    });
+    if (!cache.glass) {
+      cache.glass = new THREE.MeshPhysicalMaterial({
+        color: 0x0b131a, metalness: 1.0, roughness: 0.06,
+        transparent: true, opacity: 0.62, envMapIntensity: 1.4
+      });
+      cache.glass.userData.shared = true;
+    }
     return cache.glass;
   },
-  get warn()      { return emissive('warn', 0xff8c1a, 2.2); },
+  get warn()      { return emissive('warn', 0xff8c1a, 1.1); },
+  get marker()    { return emissive('marker', 0xffb347, 0.55); },
   get engineHot() { return emissive('hot', 0xffd39a, 5.0); },
-  get lampWhite() { return emissive('lampW', 0xdfe8f0, 1.6); }
+  get lampWhite() { return emissive('lampW', 0xdfe8f0, 1.1); }
 };
 
 function emissive(key, color, intensity) {
@@ -49,6 +56,7 @@ function emissive(key, color, intensity) {
       color: 0x0a0a0a, emissive: color, emissiveIntensity: intensity,
       metalness: 0.3, roughness: 0.4
     });
+    cache[key].userData.shared = true;
   }
   return cache[key];
 }
@@ -112,6 +120,24 @@ export function cloudTexture() {
   _cloud = new THREE.CanvasTexture(c);
   _cloud.colorSpace = THREE.SRGBColorSpace;
   return _cloud;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Freigabe
+ * ------------------------------------------------------------------ */
+
+// Gibt Geometrien und objekteigene Materialien frei. Materialien aus dem
+// gemeinsamen Cache bleiben erhalten - sie werden von anderen Objekten genutzt.
+// Texturen werden nie freigegeben, es sind zwei geteilte Singletons.
+export function disposeObject(root) {
+  root.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (!o.material) return;
+    const list = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of list) {
+      if (m && !m.userData.shared) m.dispose();
+    }
+  });
 }
 
 /* ------------------------------------------------------------------ *

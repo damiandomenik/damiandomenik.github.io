@@ -59,7 +59,7 @@
   </div>
 
   <div class="briefing">
-    <div><b>ZU FUSS</b> WASD bewegen · Shift sprinten · Leertaste springen · Maus zielen · Linksklick feuern · 1/2/3 Waffe · R nachladen · E einsteigen</div>
+    <div><b>ZU FUSS</b> WASD bewegen (Figur bleibt mittig, seitwärts wird gestrafet) · Shift sprinten · Leertaste springen · Maus zielen · Linksklick feuern · 1/2/3 Waffe · R nachladen · E einsteigen</div>
     <div><b>IM FLUG</b> Maus steuern · A/D rollen · W/S Schub · Shift Boost · Linksklick Kanonen · Rechtsklick Raketen/Bomben · F aussteigen</div>
     <div><b>IM FALL</b> Leertaste Fallschirm · WASD steuern</div>
   </div>
@@ -142,6 +142,7 @@
   </div>
 
   <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+  <div id="hitmark"><i></i><i></i><i></i><i></i></div>
 
   <div id="alert" class="alert"><b id="alertTitle"></b><span id="alertSub"></span></div>
   <div id="killfeed"></div>
@@ -158,7 +159,10 @@
         <div class="s-track"><i id="boostFill"></i></div>
         <span id="spdVal" class="s-val"></span>
       </div>
-      <div id="modeVal" class="modetag">ZU FUSS</div>
+      <div class="taglines">
+        <span id="modeVal" class="modetag">ZU FUSS</span>
+        <span id="killCount" class="modetag dim">ABSCHÜSSE 0</span>
+      </div>
     </div>
 
     <div class="stack right">
@@ -182,7 +186,12 @@
     <i>Respawn auf eigener Insel</i>
   </div>
 
-  <div id="pauseHint" class="pausehint">Klicken, um die Steuerung zu übernehmen</div>
+  <div id="prompt" class="prompt"><b>E</b><span id="promptText">EINSTEIGEN</span></div>
+
+  <div id="pauseHint" class="pausehint">
+    <span>Klicken, um die Steuerung zu übernehmen</span>
+    <button id="btnAbort" class="btn tiny ghost">MATCH VERLASSEN</button>
+  </div>
   <div id="toast" class="toast"></div>
 
   <div id="introCard" class="introcard">

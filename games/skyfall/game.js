@@ -8,7 +8,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { buildIsland, Sky, CloudField, Rain, Lighting, WEATHER, CORE_MAX_HP, ISLAND_RADIUS } from './world.js';
-import { buildAircraft, buildPilot, AIRCRAFT_SPECS, WEAPONS, TEAM_COLOR } from './models.js';
+import { buildAircraft, buildPilot, disposeObject, glowTexture, AIRCRAFT_SPECS, WEAPONS, TEAM_COLOR } from './models.js';
 import { FX } from './fx.js';
 import { sfx } from './audio.js';
 import { net } from './multiplayer.js';
@@ -42,7 +42,7 @@ const G = {
   islands: {}, remotes: new Map(), projectiles: [], projPool: [],
   me: null, weather: 'sunset', running: false, over: false,
   clock: null, time: 0, shake: 0, netAcc: 0, hostAcc: 0,
-  matchTime: MATCH_TIME, intro: 0,
+  matchTime: MATCH_TIME, intro: 0, kills: 0,
   coreHp: { blue: CORE_MAX_HP, red: CORE_MAX_HP },
   // Host-Only
   hostState: { hp: new Map(), dead: new Map(), lastHit: new Map(), destroyed: { blue: new Set(), red: new Set() } },
@@ -63,7 +63,7 @@ function initRenderer() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.18;
   G.renderer = renderer;
 
   const scene = new THREE.Scene();
@@ -75,7 +75,7 @@ function initRenderer() {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.62, 0.55, 0.72);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.48, 0.5, 0.9);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   G.composer = composer;
@@ -95,12 +95,58 @@ function initRenderer() {
   });
 }
 
+// Wie hoch das Modell ueber dem Startplatz stehen muss, damit das
+// Fahrwerk nicht im Boden steckt.
+const PARK_HEIGHT = { interceptor: 1.5, striker: 2.3, bomber: 3.9 };
+
 function buildWorld() {
   G.islands.blue = buildIsland('blue');
   G.islands.red = buildIsland('red');
   G.scene.add(G.islands.blue.group, G.islands.red.group);
+  buildParkedAircraft();
   initProjectilePool();
   applyWeather(G.weather);
+}
+
+// Auf jedem Startplatz steht sichtbar die Maschine, die man dort besteigt.
+function buildParkedAircraft() {
+  for (const team of ['blue', 'red']) {
+    const isl = G.islands[team];
+    isl.parked = [];
+    for (const pad of isl.pads) {
+      const mesh = buildAircraft(pad.type, team);
+      mesh.position.copy(pad.pos).setY(pad.pos.y + PARK_HEIGHT[pad.type]);
+      mesh.rotation.y = isl.forwardYaw;
+      animateEngines(mesh, 0.1, false, 0);
+      G.scene.add(mesh);
+      isl.parked.push({ mesh, pad, cooldown: 0 });
+    }
+  }
+}
+
+// Nach dem Start rollt die Maschine kurz aus dem Bild und ist dann wieder da.
+// Rein visuell und lokal — der Bestand ist nicht limitiert.
+function updateParked(dt) {
+  const idle = 0.08 + Math.sin(G.time * 1.6) * 0.03;   // leichtes Pulsieren im Stand
+  for (const team of ['blue', 'red']) {
+    for (const p of G.islands[team].parked) {
+      if (p.mesh.visible) animateEngines(p.mesh, idle, false, dt);
+      if (p.cooldown <= 0) continue;
+      p.cooldown -= dt;
+      if (p.cooldown <= 0) p.mesh.visible = true;
+    }
+  }
+}
+
+// Naechster Startplatz auf der eigenen Insel
+function nearestPad(me, maxDist = 16) {
+  const isl = islandOf(me.team);
+  let best = null, bd = maxDist;
+  for (const p of isl.parked) {
+    const d = p.pad.pos.distanceTo(me.pos);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
 }
 
 function applyWeather(name) {
@@ -267,30 +313,32 @@ class LocalPlayer {
         addShake(0.9);
       }
       G.scene.remove(this.craft);
+      disposeObject(this.craft);
       this.craft = null;
     }
   }
 
   board() {
-    const isl = islandOf(this.team);
-    let pad = null, best = 1e9;
-    for (const p of isl.pads) {
-      const d = p.distanceTo(this.pos);
-      if (d < best) { best = d; pad = p; }
-    }
-    if (!pad || best > 14) { toast('Zum Hangar gehen, um zu starten.'); return; }
+    const parked = nearestPad(this, 16);
+    if (!parked) { toast('Zu einem Startplatz im Hangar gehen.'); return; }
+    if (parked.cooldown > 0) { toast('Startplatz wird noch geräumt.'); return; }
+
+    const pad = parked.pad.pos;
+    this.craftType = parked.pad.type;      // die Maschine, vor der man steht
+    parked.mesh.visible = false;
+    parked.cooldown = 7;
 
     this.craft = buildAircraft(this.craftType, this.team);
-    this.craft.position.copy(pad).setY(pad.y + 5);
+    this.craft.position.copy(pad).setY(pad.y + PARK_HEIGHT[this.craftType]);
     // Nase zeigt entlang der Startbahn zur gegnerischen Festung, leicht angestellt
-    this.quat.setFromEuler(new THREE.Euler(0, isl.forwardYaw, 0));
-    this.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.22));
+    this.quat.setFromEuler(new THREE.Euler(0, islandOf(this.team).forwardYaw, 0));
+    this.quat.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), 0.24));
     this.craft.quaternion.copy(this.quat);
     G.scene.add(this.craft);
 
     this.craftHp = this.spec.hp;
     this.speed = this.spec.cruise;      // Katapultstart, kein Strömungsabriss
-    this.spawnGrace = 1.2;
+    this.spawnGrace = 1.4;
     this.throttle = 0.85;
     this.boostFuel = 1;
     this.heavyAmmo = this.spec.heavy ? this.spec.heavy.ammo : 0;
@@ -299,7 +347,7 @@ class LocalPlayer {
     this.stick.set(0, 0);
     this.roll = 0;
     sfx.engineStart();
-    G.fx.explosion(this.craft.position.clone().setY(pad.y), 0.6, 0xffd9a0);
+    G.fx.explosion(this.craft.position.clone().setY(pad.y), 0.7, 0xffd9a0);
     toast(`${this.spec.label} — Startfreigabe`);
     net.toHost({ t: 'board', c: this.craftType });
   }
@@ -321,7 +369,7 @@ class LocalPlayer {
     this.craft = null;
     net.toHost({ t: 'unboard' });
     sfx.engineStop();
-    toast('AUSGESTIEGEN — LEERTASTE für Fallschirm');
+    toast('AUSGESTIEGEN — LEERTASTE ÖFFNET DEN SCHIRM');
   }
 
   deployChute() {
@@ -348,7 +396,15 @@ class LocalPlayer {
   }
 }
 
-function forwardOf(q) { return new THREE.Vector3(0, 0, -1).applyQuaternion(q); }
+// Wiederverwendbare Rechenpuffer. Ohne sie erzeugt die Hauptschleife
+// mehrere hundert Vector3 pro Frame, was regelmaessige GC-Pausen ausloest.
+const _s1 = new THREE.Vector3(), _s2 = new THREE.Vector3(), _s3 = new THREE.Vector3();
+const _s4 = new THREE.Vector3(), _s5 = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+const _sq = new THREE.Quaternion();
+
+function forwardOf(q, out) {
+  return (out || new THREE.Vector3()).set(0, 0, -1).applyQuaternion(q);
+}
 
 /* ================================================================== *
  *  Herrenlose Wracks
@@ -375,6 +431,7 @@ function updateWrecks(dt) {
       G.fx.explosion(w.position, 2.4, 0xffa040);
       sfx.explosion(w.position.distanceTo(G.camera.position), 1.8);
       G.scene.remove(w);
+      disposeObject(w);
       wrecks.splice(i, 1);
     }
   }
@@ -384,6 +441,7 @@ function updateWrecks(dt) {
  *  Remote-Spieler
  * ================================================================== */
 
+const _remEuler = new THREE.Euler();
 class RemotePlayer {
   constructor(id, team, craftType, name) {
     this.id = id; this.team = team; this.name = name || 'PILOT';
@@ -402,11 +460,18 @@ class RemotePlayer {
     this.avatar.visible = false;
     G.scene.add(this.avatar);
     this.craft = null;
+
+    this.marker = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTexture(), color: TEAM_COLOR[team], transparent: true,
+      opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false
+    }));
+    this.marker.visible = false;
+    G.scene.add(this.marker);
   }
 
   ensureCraft(type) {
     if (this.craft && this.craftType === type) return;
-    if (this.craft) G.scene.remove(this.craft);
+    if (this.craft) { G.scene.remove(this.craft); disposeObject(this.craft); }
     this.craftType = type;
     this.craft = buildAircraft(type, this.team);
     G.scene.add(this.craft);
@@ -440,44 +505,93 @@ class RemotePlayer {
       this.craft.quaternion.copy(this.quat);
       animateEngines(this.craft, this.throttle, this.boost, dt);
       if (Math.random() < 0.5) {
-        const back = forwardOf(this.quat).multiplyScalar(-1);
-        G.fx.engineTrail(this.craft.position.clone().addScaledVector(back, 4), back, this.throttle, this.boost);
+        const back = forwardOf(this.quat, _s1).multiplyScalar(-1);
+        G.fx.engineTrail(_s2.copy(this.craft.position).addScaledVector(back, 4), back, this.throttle, this.boost);
       }
     }
     if (this.avatar.visible) {
       this.avatar.position.copy(this.pos);
-      const e = new THREE.Euler().setFromQuaternion(this.quat, 'YXZ');
+      _remEuler.setFromQuaternion(this.quat, 'YXZ');
+      const e = _remEuler;
       this.avatar.rotation.y = e.y;
       this.avatar.userData.chute.visible = this.chute;
-      const moving = this.mode === 'foot' && this.vel.lengthSq() > 1;
-      this.walkPhase += dt * (moving ? 9 : 2);
-      animatePilot(this.avatar, this.walkPhase, moving, this.mode);
+      const mv = localMove(this.vel, e.y);
+      const sp = Math.hypot(mv.f, mv.r);
+      this.walkPhase += dt * (sp > 1.2 ? 4.5 + sp * 0.5 : 2);
+      animatePilot(this.avatar, this.walkPhase, mv, this.mode);
     }
+    this.updateMarker();
+  }
+
+  // Blendet zwischen 60 m und 220 m ein und skaliert mit der Entfernung,
+  // damit der Marker in jeder Distanz gleich gross wirkt.
+  updateMarker() {
+    if (this.mode === 'dead') { this.marker.visible = false; return; }
+    const d = this.pos.distanceTo(G.camera.position);
+    const a = THREE.MathUtils.clamp((d - 60) / 160, 0, 1) * 0.75;
+    if (a <= 0.01) { this.marker.visible = false; return; }
+    this.marker.visible = true;
+    this.marker.material.opacity = a;
+    this.marker.position.copy(this.pos);
+    this.marker.position.y += this.mode === 'fly' ? AIRCRAFT_SPECS[this.craftType].radius + 4 : 2.6;
+    this.marker.scale.setScalar(Math.max(2, d * 0.028));
   }
 
   dispose() {
+    G.scene.remove(this.marker);
+    disposeObject(this.marker);
     G.scene.remove(this.avatar);
-    if (this.craft) G.scene.remove(this.craft);
+    disposeObject(this.avatar);
+    if (this.craft) { G.scene.remove(this.craft); disposeObject(this.craft); }
   }
 }
 
-function animatePilot(av, phase, moving, mode) {
+// mv = Bewegung im lokalen Raum der Figur: f = vorwaerts, r = rechts.
+// Die Figur schaut immer in Blickrichtung, laeuft aber sichtbar seitwaerts.
+function animatePilot(av, phase, mv, mode) {
   const u = av.userData;
-  const sw = moving ? Math.sin(phase) * 0.65 : Math.sin(phase * 0.3) * 0.05;
+
   if (mode === 'fall' || mode === 'chute') {
-    u.legs[0].rotation.x = 0.5; u.legs[1].rotation.x = 0.2;
-    u.arms[0].rotation.x = -0.6; u.arms[1].rotation.x = -1.4;
-    u.arms[0].rotation.z = 0.5; u.arms[1].rotation.z = -0.5;
-    u.hips.rotation.x = mode === 'chute' ? 0.15 : 0.5;
+    u.legs[0].rotation.set(0.5, 0, 0.25);
+    u.legs[1].rotation.set(0.2, 0, -0.25);
+    u.arms[0].rotation.set(-0.6, 0, 0.5);
+    u.arms[1].rotation.set(-1.4, 0, -0.5);
+    u.hips.rotation.set(mode === 'chute' ? 0.15 : 0.5, 0, 0);
+    u.hips.position.y = 0.9;
     return;
   }
-  u.hips.rotation.x = 0;
-  u.legs[0].rotation.x = sw;
-  u.legs[1].rotation.x = -sw;
-  u.arms[1].rotation.x = sw * 0.7;
-  u.arms[0].rotation.x = -0.9;        // Waffenarm nach vorn
+
+  const speed = Math.hypot(mv.f, mv.r);
+  const moving = speed > 1.2;
+  const swing = Math.sin(phase);
+  const fwd = speed > 0.01 ? mv.f / speed : 1;
+  const side = speed > 0.01 ? mv.r / speed : 0;
+  const amp = moving ? Math.min(1, speed / 10) : 0;
+
+  // Vorwaerts/rueckwaerts: klassisches Schrittpendeln
+  u.legs[0].rotation.x = swing * 0.68 * fwd * amp;
+  u.legs[1].rotation.x = -swing * 0.68 * fwd * amp;
+  // Seitwaerts: Scherenschritt, Beine gehen auf und zu
+  u.legs[0].rotation.z = swing * 0.34 * side * amp;
+  u.legs[1].rotation.z = swing * 0.34 * side * amp;
+
+  u.arms[1].rotation.x = -swing * 0.55 * fwd * amp;
+  u.arms[1].rotation.z = -0.08 - Math.abs(side) * 0.25 * amp;
+  u.arms[0].rotation.x = -0.95;          // Waffenarm bleibt vorn
   u.arms[0].rotation.z = 0.1;
-  u.hips.position.y = 0.9 + (moving ? Math.abs(Math.sin(phase)) * 0.06 : 0);
+
+  // Koerper lehnt sich leicht in die Laufrichtung
+  u.hips.rotation.z = -side * 0.14 * amp;
+  u.hips.rotation.x = Math.max(0, fwd) * 0.09 * amp;
+  u.hips.rotation.y = side * 0.18 * amp;
+  u.hips.position.y = 0.9 + (moving ? Math.abs(swing) * 0.055 * amp : 0);
+}
+
+// Weltgeschwindigkeit in den lokalen Raum der Figur umrechnen
+function localMove(vel, yaw) {
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const rx = Math.cos(yaw), rz = -Math.sin(yaw);
+  return { f: vel.x * fx + vel.z * fz, r: vel.x * rx + vel.z * rz };
 }
 
 function animateEngines(craft, throttle, boost, dt) {
@@ -548,16 +662,16 @@ function updateProjectiles(dt) {
     const p = G.projectiles[i];
     p.life -= dt;
     if (p.gravity) p.vel.y -= p.gravity * dt;
-    const step = p.vel.clone().multiplyScalar(dt);
-    const next = p.pos.clone().add(step);
+    _s1.copy(p.vel).multiplyScalar(dt);          // Schrittvektor
+    _s2.copy(p.pos).add(_s1);                    // Zielposition
 
     let hit = null;
-    if (p.mine) hit = traceHit(p, p.pos, next);
+    if (p.mine) hit = traceHit(p, p.pos, _s2);
 
-    p.pos.copy(next);
+    p.pos.copy(_s2);
     if (p.mesh.userData.proj === p) {
       p.mesh.position.copy(p.pos);
-      p.mesh.lookAt(p.pos.clone().add(p.vel));
+      p.mesh.lookAt(_s3.copy(p.pos).add(p.vel));
     }
 
     if (p.trail && Math.random() < 0.6) {
@@ -588,22 +702,25 @@ function retire(p, i) {
 }
 
 function localBurst(p) {
+  const pos = p.pos;
   if (p.splash) {
-    G.fx.explosion(p.pos, p.radius > 12 ? 1.7 : 1.1, p.color);
-    sfx.explosion(p.pos.distanceTo(G.camera.position), p.radius > 12 ? 1.4 : 1);
+    G.fx.explosion(pos, p.radius > 12 ? 1.7 : 1.1, p.color);
+    sfx.explosion(pos.distanceTo(G.camera.position), p.radius > 12 ? 1.4 : 1);
   } else {
     G.fx.impact(p.pos, p.vel.clone().normalize().negate(), p.color, 8);
-    sfx.hit(p.pos.distanceTo(G.camera.position));
+    sfx.hit(pos.distanceTo(G.camera.position));
   }
 }
 
 // Trefferprüfung — läuft nur für eigene Projektile.
+const _seg = new THREE.Vector3(), _step = new THREE.Vector3();
+const _probe = new THREE.Vector3(), _ctr = new THREE.Vector3();
 function traceHit(p, from, to) {
-  const seg = to.clone().sub(from);
+  const seg = _seg.copy(to).sub(from);
   const len = seg.length();
-  const steps = Math.max(1, Math.ceil(len / 3));
-  const step = seg.clone().divideScalar(steps);
-  const probe = from.clone();
+  const steps = Math.max(1, Math.min(24, Math.ceil(len / 3)));
+  const step = _step.copy(seg).divideScalar(steps);
+  const probe = _probe.copy(from);
 
   for (let s = 0; s < steps; s++) {
     probe.add(step);
@@ -615,8 +732,8 @@ function traceHit(p, from, to) {
         const rad = AIRCRAFT_SPECS[r.craftType].radius + 1.2;
         if (probe.distanceToSquared(r.pos) < rad * rad) return { type: 'craft', id: r.id, point: probe.clone() };
       } else {
-        const c = r.pos.clone(); c.y += 0.95;
-        if (probe.distanceToSquared(c) < 1.3) return { type: 'player', id: r.id, point: probe.clone() };
+        _ctr.copy(r.pos); _ctr.y += 0.95;
+        if (probe.distanceToSquared(_ctr) < 1.3) return { type: 'player', id: r.id, point: probe.clone() };
       }
     }
 
@@ -630,8 +747,9 @@ function traceHit(p, from, to) {
       }
     }
 
-    // Zerstörbare Anlagen
+    // Zerstörbare Anlagen — nur die der Gegenseite
     for (const team of ['blue', 'red']) {
+      if (team === p.team) continue;
       const isl = G.islands[team];
       for (let d = 0; d < isl.destructibles.length; d++) {
         const dd = isl.destructibles[d];
@@ -700,9 +818,9 @@ let invertY = false;
 
 function initInput() {
   addEventListener('keydown', (e) => {
-    if (e.code === 'Tab') e.preventDefault();
     keys[e.code] = true;
     if (!G.running) return;
+    if (e.code === 'Tab') e.preventDefault();
     if (e.code === 'KeyE') onInteract();
     if (e.code === 'KeyF') G.me && G.me.eject();
     if (e.code === 'Space' && G.me && G.me.mode === 'fall') G.me.deployChute();
@@ -811,9 +929,9 @@ function updateOnFoot(me, dt, mdx, mdy, sens) {
   const inAir = me.mode === 'fall' || me.mode === 'chute';
 
   if (me.mode === 'foot') {
-    const f = new THREE.Vector3(-Math.sin(me.yaw), 0, -Math.cos(me.yaw));
-    const r = new THREE.Vector3(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
-    const wish = new THREE.Vector3();
+    const f = _s1.set(-Math.sin(me.yaw), 0, -Math.cos(me.yaw));
+    const r = _s2.set(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
+    const wish = _s3.set(0, 0, 0);
     if (keys.KeyW) wish.add(f);
     if (keys.KeyS) wish.sub(f);
     if (keys.KeyD) wish.add(r);
@@ -828,20 +946,33 @@ function updateOnFoot(me, dt, mdx, mdy, sens) {
     if (keys.Space && me.grounded) { me.vel.y = JUMP; me.grounded = false; }
 
     me.grounded = moveWithCollision(me.pos, me.vel, dt);
-    me.walkPhase += dt * (me.vel.length() > 1 ? 9 : 2);
+    const hspeed = Math.hypot(me.vel.x, me.vel.z);
+    me.walkPhase += dt * (hspeed > 1.2 ? 4.5 + hspeed * 0.5 : 2);
 
+    // Avatar erst setzen, dann feuern - sonst kommt der Schuss aus der
+    // Position des letzten Frames (nach dem Respawn sogar vom Sterbeort).
+    me.avatar.position.copy(me.pos);
+    me.avatar.rotation.y = me.yaw;
+    me.avatar.updateMatrixWorld(true);
     handleGroundFire(me, dt);
   } else {
-    // Freier Fall / Fallschirm
-    const drag = me.chute ? 3.2 : 0.25;
-    const f = new THREE.Vector3(-Math.sin(me.yaw), 0, -Math.cos(me.yaw));
-    const steer = me.chute ? 11 : 4;
+    // Freier Fall und Fallschirm.
+    // Der Schirm ist bewusst als Transportmittel ausgelegt: flacher Sinkflug,
+    // damit man aus der Hoehe tatsaechlich die gegnerische Insel erreicht.
+    const f = _s1.set(-Math.sin(me.yaw), 0, -Math.cos(me.yaw));
+    const r = _s2.set(Math.cos(me.yaw), 0, -Math.sin(me.yaw));
+    const steer = me.chute ? 17 : 5;
     if (keys.KeyW) me.vel.addScaledVector(f, steer * dt);
-    if (keys.KeyS) me.vel.addScaledVector(f, -steer * dt);
+    if (keys.KeyS) me.vel.addScaledVector(f, -steer * dt * 0.6);
+    if (keys.KeyD) me.vel.addScaledVector(r, steer * dt * 0.7);
+    if (keys.KeyA) me.vel.addScaledVector(r, -steer * dt * 0.7);
+
     me.vel.y -= GRAVITY * dt;
-    me.vel.y = Math.max(me.vel.y, me.chute ? -11 : -95);
-    me.vel.x *= Math.max(0, 1 - drag * dt * 0.4);
-    me.vel.z *= Math.max(0, 1 - drag * dt * 0.4);
+    me.vel.y = Math.max(me.vel.y, me.chute ? -7 : -95);
+    const hDrag = me.chute ? 0.9 : 0.32;
+    const damp = Math.max(0, 1 - hDrag * dt);
+    me.vel.x *= damp;
+    me.vel.z *= damp;
 
     const wasFalling = me.vel.y;
     const ground = moveWithCollision(me.pos, me.vel, dt);
@@ -853,13 +984,15 @@ function updateOnFoot(me, dt, mdx, mdy, sens) {
       me.chute = false;
       me.avatar.userData.chute.visible = false;
       me.grounded = true;
+      me.vel.x *= 0.2; me.vel.z *= 0.2;
+      toast(overIsland(me.pos, islandOf(me.team)) ? 'GELANDET' : 'AUF FEINDGEBIET GELANDET');
     }
   }
 
   // Avatar setzen
   me.avatar.position.copy(me.pos);
   me.avatar.rotation.y = me.yaw;
-  animatePilot(me.avatar, me.walkPhase, me.mode === 'foot' && me.vel.lengthSq() > 2, me.mode);
+  animatePilot(me.avatar, me.walkPhase, localMove(me.vel, me.yaw), me.mode);
 
   updateFootCamera(me, dt, inAir);
   sfx.ambientSet(me.vel.length() * 2);
@@ -920,10 +1053,10 @@ function handleGroundFire(me, dt) {
 
 // Zielrichtung: von der Mündung auf den Punkt, den das Fadenkreuz anvisiert.
 const _camDir = new THREE.Vector3();
+const _focus = new THREE.Vector3();
 function cameraAimDir(from) {
   G.camera.getWorldDirection(_camDir);
-  const focus = G.camera.position.clone().addScaledVector(_camDir, 400);
-  return focus.sub(from).normalize();
+  return _focus.copy(G.camera.position).addScaledVector(_camDir, 400).sub(from).normalize();
 }
 
 /* ---------------- Flug ---------------- */
@@ -980,11 +1113,10 @@ function updateFlight(me, dt, mdx, mdy, sens) {
   me.craft.quaternion.copy(q);
 
   animateEngines(me.craft, me.throttle, me.boosting, dt);
-  const back = fwd.clone().negate();
+  const back = _s4.copy(fwd).negate();
   for (const e of me.craft.userData.engines) {
-    const wp = new THREE.Vector3();
-    e.getWorldPosition(wp);
-    G.fx.engineTrail(wp.addScaledVector(back, 2), back, me.throttle, me.boosting);
+    e.getWorldPosition(_s5);
+    G.fx.engineTrail(_s5.addScaledVector(back, 2), back, me.throttle, me.boosting);
   }
   if (me.craftHp / spec.hp < 0.55) {
     G.fx.damageSmoke(me.pos, me.vel, 1 - me.craftHp / spec.hp);
@@ -1008,7 +1140,7 @@ function handleAirFire(me, dt, fwd) {
     me.airCool = spec.gun.rate;
     const ports = me.craft.userData.ports || [new THREE.Vector3(0, 0, -3)];
     for (const local of ports) {
-      const wp = local.clone().applyMatrix4(me.craft.matrixWorld);
+      const wp = local.clone().applyQuaternion(me.quat).add(me.pos);
       const dir = fwd.clone();
       dir.x += (Math.random() - 0.5) * spec.gun.spread * 2;
       dir.y += (Math.random() - 0.5) * spec.gun.spread * 2;
@@ -1047,19 +1179,30 @@ function handleAirFire(me, dt, fwd) {
   }
 }
 
+const _wingL = new THREE.Vector3(), _wingR = new THREE.Vector3();
 function checkCraftCollision(me) {
   const isl = nearestIsland(me.pos);
   const spec = me.spec;
   const r = spec.radius;
 
-  const deckHit = overIsland(me.pos, isl, r) && me.pos.y < FOOT_Y + r;
-  const structHit = pointInColliders(me.pos, isl);
+  // Rumpfmitte plus beide Flügelspitzen — ein einzelner Punkt liess grosse
+  // Maschinen durch Gebaeude hindurchfliegen.
+  const halfSpan = r * 1.9;
+  _wingL.set(-halfSpan, 0, 0).applyQuaternion(me.quat).add(me.pos);
+  _wingR.set(halfSpan, 0, 0).applyQuaternion(me.quat).add(me.pos);
+
+  const deckHit = (overIsland(me.pos, isl, r) && me.pos.y < FOOT_Y + r)
+    || (overIsland(_wingL, isl, 1) && _wingL.y < FOOT_Y + 1)
+    || (overIsland(_wingR, isl, 1) && _wingR.y < FOOT_Y + 1);
+  const structHit = pointInColliders(me.pos, isl)
+    || pointInColliders(_wingL, isl) || pointInColliders(_wingR, isl);
   const coreHit = me.pos.distanceTo(isl.corePos) < 10 + r;
 
   if (!deckHit && !structHit && !coreHit) return;
 
-  const level = Math.abs(forwardOf(me.quat).y) < 0.28;
-  const gentle = me.speed < 55 && level && deckHit && !structHit && !coreHit;
+  const level = Math.abs(forwardOf(me.quat, _s1).y) < 0.30;
+  const landSpeed = Math.max(50, spec.cruise * 0.72);
+  const gentle = me.speed < landSpeed && level && deckHit && !structHit && !coreHit;
 
   if (gentle) {
     // Landung: Pilot steigt aus
@@ -1069,6 +1212,7 @@ function checkCraftCollision(me) {
     me.pitch = 0;
     me.avatar.visible = true;
     G.scene.remove(me.craft);
+    disposeObject(me.craft);
     me.craft = null;
     me.vel.set(0, 0, 0);
     moveWithCollision(me.pos, me.vel, 0);   // aus eventueller Geometrie herausschieben
@@ -1086,6 +1230,9 @@ function checkCraftCollision(me) {
  *  Kamera
  * ================================================================== */
 
+const _camEuler = new THREE.Euler();
+const CAM_PIVOT_Y = 2.05;   // Drehpunkt knapp ueber dem Helm
+const CAM_DIST = 5.0;
 const camTmp = new THREE.Vector3();
 const camGoal = new THREE.Vector3();
 let camFov = 68;
@@ -1093,29 +1240,31 @@ let camFov = 68;
 function addShake(v) { G.shake = Math.min(1.6, G.shake + v); }
 
 function updateFootCamera(me, dt, inAir) {
-  G.camera.up.lerp(new THREE.Vector3(0, 1, 0), Math.min(1, dt * 8));
-  const off = new THREE.Vector3(0.95, 1.95, 4.3);
-  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(me.pitch, me.yaw, 0, 'YXZ'));
-  camGoal.copy(off).applyQuaternion(q).add(me.pos);
+  G.camera.up.lerp(_up, Math.min(1, dt * 8));
+
+  // Die Kamera kreist um einen Punkt ueber dem Kopf, nicht um die Schulter.
+  // Dadurch bleibt die Figur waagerecht immer mittig, egal ob sie strafet.
+  const pivot = _s5.copy(me.pos).setY(me.pos.y + CAM_PIVOT_Y);
+  _camEuler.set(me.pitch, me.yaw, 0, 'YXZ');
+  const q = _sq.setFromEuler(_camEuler);
+  camGoal.copy(pivot).add(_s1.set(0, 0, CAM_DIST).applyQuaternion(q));
 
   // Nicht durch Wände klemmen
   const island = nearestIsland(me.pos);
-  const from = me.pos.clone().setY(me.pos.y + 1.5);
-  const dirv = camGoal.clone().sub(from);
+  const dirv = _s2.copy(camGoal).sub(pivot);
   const dist = dirv.length();
   dirv.normalize();
   let clip = dist;
-  for (let s = 1; s <= 6; s++) {
-    const t = (s / 6) * dist;
-    camTmp.copy(from).addScaledVector(dirv, t);
+  for (let step = 1; step <= 6; step++) {
+    const t = (step / 6) * dist;
+    camTmp.copy(pivot).addScaledVector(dirv, t);
     if (pointInColliders(camTmp, island) || (overIsland(camTmp, island) && camTmp.y < FOOT_Y + 0.3)) { clip = t - 0.4; break; }
   }
-  camGoal.copy(from).addScaledVector(dirv, Math.max(1.2, clip));
+  camGoal.copy(pivot).addScaledVector(dirv, Math.max(1.4, clip));
 
   G.camera.position.lerp(camGoal, Math.min(1, dt * (inAir ? 9 : 16)));
-  const look = me.pos.clone().setY(me.pos.y + 1.55).addScaledVector(
-    new THREE.Vector3(0, 0, -1).applyQuaternion(q), 12);
-  G.camera.lookAt(look);
+  // Blickachse laeuft durch den Pivot hindurch -> Kopf sitzt knapp unter der Bildmitte
+  G.camera.lookAt(_s3.copy(pivot).addScaledVector(dirv, -40));
   applyShake(dt);
   camFov += ((inAir ? 82 : 70) - camFov) * Math.min(1, dt * 4);
   setFov(camFov);
@@ -1124,13 +1273,12 @@ function updateFootCamera(me, dt, inAir) {
 function updateFlyCamera(me, dt) {
   const spec = me.spec;
   const back = 12 + spec.radius * 2.4;
-  const off = new THREE.Vector3(0, spec.radius * 0.9 + 3.2, back);
-  camGoal.copy(off).applyQuaternion(me.quat).add(me.pos);
+  camGoal.set(0, spec.radius * 0.9 + 3.2, back).applyQuaternion(me.quat).add(me.pos);
   G.camera.position.lerp(camGoal, Math.min(1, dt * 6.5));
 
-  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(me.quat).lerp(new THREE.Vector3(0, 1, 0), 0.25);
-  G.camera.up.lerp(up, Math.min(1, dt * 6));
-  G.camera.lookAt(me.pos.clone().addScaledVector(forwardOf(me.quat), 42));
+  _s1.set(0, 1, 0).applyQuaternion(me.quat).lerp(_up, 0.25);
+  G.camera.up.lerp(_s1, Math.min(1, dt * 6));
+  G.camera.lookAt(_s2.copy(me.pos).addScaledVector(forwardOf(me.quat, _s3), 42));
   applyShake(dt);
 
   const speedT = THREE.MathUtils.clamp(me.speed / spec.boost, 0, 1);
@@ -1165,7 +1313,7 @@ function updateIntro(dt) {
   const isl = islandOf(me.team);
   const t = 3.6 - G.intro;
   const a = 0.6 + t * 0.35;
-  const center = isl.pads[1].clone();
+  const center = isl.pads[0].pos.clone();
   G.camera.position.set(
     center.x + Math.cos(a) * (34 - t * 3),
     center.y + 16 - t * 2.2,
@@ -1190,30 +1338,44 @@ function updateIntro(dt) {
  * ================================================================== */
 
 const _tv = new THREE.Vector3();
+
+// Flak-Werte. Bewusst als Abschreckung ausgelegt, nicht als Todeszone:
+// die Tuerme sollen den Anflug unangenehm machen, nicht ihn verbieten.
+const TURRET = {
+  range: 250,        // nur der Nahbereich der Insel, nicht der halbe Luftraum
+  cooldown: 1.8,     // plus Zufall
+  lockTime: 1.0,     // so lange muss ein Ziel im Visier bleiben
+  damage: 7,
+  baseHit: 0.55
+};
+
 function updateTurrets(dt) {
   for (const team of ['blue', 'red']) {
     const isl = G.islands[team];
     if (G.coreHp[team] <= 0) continue;
     for (const t of isl.turrets) {
       if (t.dead) continue;
-      const tgt = nearestEnemyAir(team, t.world, 420);
+      const tgt = nearestEnemyAir(team, t.world, TURRET.range);
       const o = t.obj.userData;
+
       if (tgt) {
         _tv.copy(tgt).sub(t.world);
         const yaw = Math.atan2(-_tv.x, -_tv.z) - (team === 'red' ? Math.PI : 0);
         const pitch = Math.atan2(_tv.y, Math.hypot(_tv.x, _tv.z));
         o.yaw.rotation.y = lerpAngle(o.yaw.rotation.y, yaw, Math.min(1, dt * 2.2));
         o.pitch.rotation.x = THREE.MathUtils.lerp(o.pitch.rotation.x, -pitch, Math.min(1, dt * 2.2));
+        t.lock = (t.lock || 0) + dt;
       } else {
         o.yaw.rotation.y += dt * 0.15;
         o.pitch.rotation.x = THREE.MathUtils.lerp(o.pitch.rotation.x, -0.25, Math.min(1, dt * 1.2));
+        t.lock = 0;
       }
 
       // Feuer nur beim Host, Schaden autoritativ
       if (!net.isHost) continue;
       t.cool -= dt;
-      if (!tgt || t.cool > 0) continue;
-      t.cool = 0.55 + Math.random() * 0.4;
+      if (!tgt || t.cool > 0 || t.lock < TURRET.lockTime) continue;
+      t.cool = TURRET.cooldown + Math.random();
       const muzzle = new THREE.Vector3();
       o.muzzle.getWorldPosition(muzzle);
       const dir = tgt.clone().sub(muzzle).normalize();
@@ -1245,12 +1407,15 @@ function nearestEnemyAir(team, from, range) {
 }
 
 function hostTurretDamage(team, targetPos) {
-  // Der Host prüft, welches Flugzeug an dieser Position ist, und trifft mit 60 % Chance.
-  if (Math.random() > 0.6) return;
   for (const [id, p] of allPlayers()) {
     if (p.team === team || p.mode !== 'fly') continue;
-    if (p.pos.distanceTo(targetPos) > 8) continue;
-    hostApplyDamage('a:' + id, 14, 'turret', null);
+    if (p.pos.distanceTo(targetPos) > 10) continue;
+    // Wer schnell fliegt oder boostet, wird schlechter getroffen.
+    const speed = p.vel ? p.vel.length() : 0;
+    let chance = TURRET.baseHit * (1 - Math.min(0.65, speed / 300));
+    if (p.boosting || p.boost) chance *= 0.5;
+    if (Math.random() > chance) return;
+    hostApplyDamage('a:' + id, TURRET.damage, 'turret', null);
     return;
   }
 }
@@ -1316,15 +1481,30 @@ function hostOnMsg(m) {
   }
 }
 
+// Team eines Spielers laut Lobby-Register des Hosts
+function teamOf(id) {
+  const p = net.players.get(id);
+  return p ? p.team : null;
+}
+
 function hostApplyDamage(target, amount, kind, by) {
   if (G.over) return;
   const [type, a, b] = target.split(':');
+
+  // Kein Eigenbeschuss zwischen Teamkameraden. Schaden an sich selbst
+  // (Splash, Absturz, Sturz, Weltgrenze) bleibt erlaubt.
+  if (by && (type === 'p' || type === 'a') && by !== a) {
+    const t1 = teamOf(by), t2 = teamOf(a);
+    if (t1 && t2 && t1 === t2) return;
+  }
+  if (by && type === 'c' && teamOf(by) === a) return;
+  if (by && type === 'd' && teamOf(by) === a) return;
 
   if (type === 'c') {
     const team = a;
     if (G.coreHp[team] <= 0) return;
     G.coreHp[team] = Math.max(0, G.coreHp[team] - amount);
-    net.publish({ t: 'core', team, hp: G.coreHp[team], by, amt: amount });
+    net.publish({ t: 'core', team, hp: G.coreHp[team], by: by || null, amt: amount });
     if (G.coreHp[team] <= 0) {
       G.over = true;
       net.publish({ t: 'end', winner: team === 'blue' ? 'red' : 'blue' });
@@ -1351,19 +1531,19 @@ function hostApplyDamage(target, amount, kind, by) {
   if (type === 'a') {
     if (s.craft <= 0) return;
     s.craft -= amount;
-    net.publish({ t: 'ahp', id, hp: Math.max(0, s.craft), by });
+    net.publish({ t: 'ahp', id, hp: Math.max(0, s.craft), by: by || null, k: kind });
     if (s.craft <= 0) {
       G.hostState.dead.set(id, G.time + RESPAWN_TIME);
-      net.publish({ t: 'kill', id, by, cause: kind });
+      net.publish({ t: 'kill', id, by: by || null, cause: kind });
     }
     return;
   }
 
   s.player -= amount;
-  net.publish({ t: 'php', id, hp: Math.max(0, s.player), by });
+  net.publish({ t: 'php', id, hp: Math.max(0, s.player), by: by || null, k: kind });
   if (s.player <= 0) {
     G.hostState.dead.set(id, G.time + RESPAWN_TIME);
-    net.publish({ t: 'kill', id, by, cause: kind });
+    net.publish({ t: 'kill', id, by: by || null, cause: kind });
   }
 }
 
@@ -1371,7 +1551,7 @@ function hostTick(dt) {
   if (!net.isHost || !G.running) return;
   G.hostAcc += dt;
   if (G.hostAcc < 1) return;
-  G.hostAcc = 0;
+  G.hostAcc -= 1;
 
   if (!G.over) {
     G.matchTime -= 1;
@@ -1435,7 +1615,9 @@ function onAuthMsg(m) {
       } else {
         const r = G.remotes.get(m.id);
         if (r) {
+          const dropped = m.hp < r.hp;
           r.hp = m.hp;
+          if (dropped && m.by === net.myId) hitMarker(m.hp <= 0);
           if (m.hp >= PLAYER_HP && r.mode === 'dead') r.mode = 'foot';
         }
       }
@@ -1445,12 +1627,19 @@ function onAuthMsg(m) {
       if (m.id === net.myId && G.me) {
         const dropped = m.hp < G.me.craftHp;
         G.me.craftHp = m.hp;
-        if (dropped) { flashDamage(); addShake(0.3); }
+        if (dropped) {
+          flashDamage(); addShake(0.3);
+          if (m.k === 'turret') warnFlak();
+        }
         if (m.hp <= 0 && G.me.mode === 'fly') G.me.die('shotdown');
         updateHud();
       } else {
         const r = G.remotes.get(m.id);
-        if (r) r.craftHp = m.hp;
+        if (r) {
+          const dropped = m.hp < (r.craftHp ?? Infinity);
+          r.craftHp = m.hp;
+          if (dropped && m.by === net.myId) hitMarker(m.hp <= 0);
+        }
       }
       break;
     }
@@ -1458,6 +1647,10 @@ function onAuthMsg(m) {
       const victim = net.players.get(m.id);
       const killer = m.by ? net.players.get(m.by) : null;
       killFeed(killer ? killer.name : 'SKYFALL', victim ? victim.name : '???', m.cause);
+      if (m.by === net.myId && m.id !== net.myId) {
+        G.kills++;
+        $('killCount').textContent = 'ABSCHÜSSE ' + G.kills;
+      }
       if (m.id === net.myId && G.me && G.me.mode !== 'dead') G.me.die(m.cause);
       else {
         const r = G.remotes.get(m.id);
@@ -1514,6 +1707,13 @@ function spawnRemoteShot(m) {
   });
   G.fx.muzzle(pos, new THREE.Vector3(m.dx, m.dy, m.dz), def.color);
   sfx.shot(m.k === 'aircannon' ? 'blaster' : m.k, pos.distanceTo(G.camera.position));
+}
+
+let lastFlak = 0;
+function warnFlak() {
+  if (G.time - lastFlak < 4) return;
+  lastFlak = G.time;
+  toast('FLAK-FEUER — TEMPO HALTEN ODER AUSWEICHEN');
 }
 
 let lastAlarm = 0;
@@ -1612,15 +1812,32 @@ function alertBanner(title, sub) {
   setTimeout(() => el.classList.remove('on'), 3200);
 }
 
+const SELF_CAUSE = {
+  crash: 'zerschellt', void: 'ins Leere gestürzt', fall: 'aus der Höhe gestürzt', turret: 'von Flak geholt'
+};
 function killFeed(killer, victim, cause) {
   const el = document.createElement('div');
-  const verb = cause === 'crash' ? 'zerschellt' : cause === 'void' ? 'ist gefallen' :
-    cause === 'fall' ? 'Aufprall' : cause === 'turret' ? 'Flak' : '×';
   el.className = 'kf';
-  el.innerHTML = `<span class="k">${killer}</span> <span class="v">${verb}</span> <span class="d">${victim}</span>`;
+  // Unfaelle und Flak haben keinen Schuetzen — dann nur das Opfer nennen.
+  el.innerHTML = SELF_CAUSE[cause]
+    ? `<span class="d">${victim}</span> <span class="v">${SELF_CAUSE[cause]}</span>`
+    : `<span class="k">${killer}</span> <span class="v">schaltet aus</span> <span class="d">${victim}</span>`;
   $('killfeed').prepend(el);
   setTimeout(() => el.remove(), 6000);
   while ($('killfeed').children.length > 5) $('killfeed').lastChild.remove();
+}
+
+// Kurzes Kreuz am Fadenkreuz, wenn ein eigener Schuss gesessen hat.
+let lastHitMark = 0;
+function hitMarker(lethal) {
+  if (!lethal && G.time - lastHitMark < 0.1) return;
+  lastHitMark = G.time;
+  const el = $('hitmark');
+  el.classList.remove('on', 'kill');
+  void el.offsetWidth;
+  el.classList.add('on');
+  if (lethal) el.classList.add('kill');
+  sfx.ui(lethal ? 'ok' : 'click');
 }
 
 function flashDamage() {
@@ -1647,9 +1864,11 @@ function drawRadar() {
   c.beginPath(); c.arc(R, R, (R - 2) * 0.5, 0, Math.PI * 2); c.stroke();
 
   const cos = Math.cos(-me.yaw), sin = Math.sin(-me.yaw);
-  const heading = me.mode === 'fly'
-    ? Math.atan2(-forwardOf(me.quat).x, -forwardOf(me.quat).z)
-    : me.yaw;
+  let heading = me.yaw;
+  if (me.mode === 'fly') {
+    forwardOf(me.quat, _s1);
+    heading = Math.atan2(-_s1.x, -_s1.z);
+  }
   const ch = Math.cos(-heading), sh = Math.sin(-heading);
   void cos; void sin;
 
@@ -1705,6 +1924,24 @@ const r3 = (v) => Math.round(v * 1000) / 1000;
  *  Hauptschleife
  * ================================================================== */
 
+// Blendet den Einsteigen-Hinweis ein, wenn man vor einer Maschine steht.
+function updatePrompt() {
+  const el = $('prompt');
+  const me = G.me;
+  if (me && me.mode === 'fall') {
+    $('promptText').textContent = 'FALLSCHIRM ÖFFNEN';
+    el.querySelector('b').textContent = '␣';
+    el.classList.add('on');
+    return;
+  }
+  el.querySelector('b').textContent = 'E';
+  if (!me || me.mode !== 'foot') { el.classList.remove('on'); return; }
+  const parked = nearestPad(me, 16);
+  if (!parked || parked.cooldown > 0) { el.classList.remove('on'); return; }
+  $('promptText').textContent = AIRCRAFT_SPECS[parked.pad.type].label + ' BESTEIGEN';
+  el.classList.add('on');
+}
+
 let hudAcc = 0;
 function loop() {
   requestAnimationFrame(loop);
@@ -1719,12 +1956,13 @@ function loop() {
     updateProjectiles(dt);
     updateWrecks(dt);
     updateTurrets(dt);
+    updateParked(dt);
+    updatePrompt();
     sendState(dt);
     hostTick(dt);
-    updateTimer();
     drawRadar();
     hudAcc += dt;
-    if (hudAcc > 0.1) { hudAcc = 0; updateHud(); }
+    if (hudAcc > 0.1) { hudAcc = 0; updateHud(); updateTimer(); }
 
     if (toastT && G.time > toastT) { $('toast').classList.remove('on'); toastT = 0; }
   }
@@ -1842,7 +2080,21 @@ function initUI() {
     renderLobby();
   });
   net.on('error', (msg) => { toastMenu(msg); $('lobbyStatus').textContent = msg; });
-  net.on('disconnected', (msg) => { toastMenu(msg); alertBanner('VERBINDUNG VERLOREN', msg); });
+  net.on('disconnected', (msg) => {
+    toastMenu(msg);
+    if (G.running) {
+      // Ohne Host gibt es keine Autorität mehr — die Runde sauber beenden.
+      G.running = false;
+      document.exitPointerLock();
+      sfx.engineStop();
+      $('endTitle').textContent = 'VERBINDUNG VERLOREN';
+      $('endTitle').className = 'lose';
+      $('endSub').textContent = msg;
+      showScreen('endScreen');
+      $('hud').classList.remove('on');
+    }
+  });
+  $('btnAbort').onclick = () => location.reload();
 }
 
 function saveName() { localStorage.setItem('skyfall.name', $('inpName').value.trim()); }
@@ -1916,12 +2168,11 @@ function renderLobby() {
 
 function beginMatch(m) {
   applyWeather(m.weather in WEATHER ? m.weather : 'sunset');
-  G.coreHp.blue = CORE_MAX_HP;
-  G.coreHp.red = CORE_MAX_HP;
-  G.islands.blue.core.setHP(CORE_MAX_HP);
-  G.islands.red.core.setHP(CORE_MAX_HP);
+  resetMatchState();
   G.matchTime = MATCH_TIME;
   G.over = false;
+  G.kills = 0;
+  $('killCount').textContent = 'ABSCHÜSSE 0';
 
   const info = net.players.get(net.myId);
   const team = info ? info.team : 'blue';
@@ -1947,6 +2198,27 @@ function beginMatch(m) {
   $('introTeam').className = 'team-' + team;
   $('introCard').classList.add('on');
   updateHud();
+}
+
+// Alles zuruecksetzen, was eine vorige Runde veraendert hat.
+function resetMatchState() {
+  for (const team of ['blue', 'red']) {
+    const isl = G.islands[team];
+    G.coreHp[team] = CORE_MAX_HP;
+    isl.core.setHP(CORE_MAX_HP);
+    for (const t of isl.turrets) { t.dead = false; t.cool = Math.random() * 2; t.lock = 0; }
+    for (const d of isl.destructibles) {
+      d.dead = false;
+      d.hp = d.maxHp;
+      d.mesh.visible = true;
+      for (const e of d.extra || []) e.visible = true;
+    }
+    for (const p of isl.parked) { p.cooldown = 0; p.mesh.visible = true; }
+  }
+  for (const p of G.projectiles) if (p.mesh.userData.proj === p) { p.mesh.visible = false; p.mesh.userData.proj = null; }
+  G.projectiles.length = 0;
+  for (const w of wrecks) { G.scene.remove(w); disposeObject(w); }
+  wrecks.length = 0;
 }
 
 function showEnd(winner) {

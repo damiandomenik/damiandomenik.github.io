@@ -15,23 +15,23 @@ export const CORE_MAX_HP = 1000;
 export const WEATHER = {
   sunset: {
     label: 'SONNENUNTERGANG',
-    skyTop: 0x101c34, skyMid: 0x6d3a2e, skyBottom: 0xd9773a,
+    skyTop: 0x0d1830, skyMid: 0x5c3730, skyBottom: 0xc26a35,
     sunColor: 0xffb066, sunIntensity: 2.6, sunDir: new THREE.Vector3(-0.55, 0.14, 0.82),
-    ambient: 0x2c3446, ambientIntensity: 0.55,
-    hemiSky: 0x4a5f80, hemiGround: 0x1a120c, hemiIntensity: 0.65,
+    ambient: 0x38415a, ambientIntensity: 0.9,
+    hemiSky: 0x5b7398, hemiGround: 0x2a1d12, hemiIntensity: 1.0,
     fog: 0x59392f, fogDensity: 0.00072,
     cloudColor: 0xd3a184, cloudLit: 0xffc79a,
-    rain: 0, bloom: 0.62
+    rain: 0, bloom: 0.48
   },
   storm: {
     label: 'STURM',
     skyTop: 0x05080d, skyMid: 0x131a24, skyBottom: 0x27303b,
     sunColor: 0x7f93ad, sunIntensity: 0.75, sunDir: new THREE.Vector3(0.35, 0.32, 0.87),
-    ambient: 0x141b26, ambientIntensity: 0.42,
-    hemiSky: 0x2a3646, hemiGround: 0x0a0c10, hemiIntensity: 0.5,
+    ambient: 0x1e2836, ambientIntensity: 0.7,
+    hemiSky: 0x3a4a5e, hemiGround: 0x111419, hemiIntensity: 0.85,
     fog: 0x171d26, fogDensity: 0.00135,
     cloudColor: 0x353f4d, cloudLit: 0x5d6b7d,
-    rain: 1, bloom: 0.82
+    rain: 1, bloom: 0.62
   }
 };
 
@@ -53,14 +53,14 @@ varying vec3 vDir;
 void main() {
   vec3 d = normalize(vDir);
   float h = d.y * 0.5 + 0.5;
-  vec3 col = mix(bottomColor, midColor, smoothstep(0.30, 0.52, h));
+  vec3 col = mix(bottomColor, midColor, smoothstep(0.42, 0.56, h));
   col = mix(col, topColor, smoothstep(0.52, 0.92, h));
   float s = max(dot(d, normalize(sunDir)), 0.0);
   col += sunColor * pow(s, 90.0) * sunIntensity;        // Sonnenscheibe
   col += sunColor * pow(s, 7.0) * 0.20 * sunIntensity;  // Halo
   col += vec3(flash) * (0.35 + 0.65 * smoothstep(0.2, 0.9, h));
   // leichtes Banding aufbrechen
-  col += (fract(sin(dot(d.xy, vec2(12.99, 78.23))) * 43758.5) - 0.5) * 0.012;
+  col += (fract(sin(dot(d.xy, vec2(12.99, 78.23))) * 43758.5) - 0.5) * 0.004;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -320,7 +320,7 @@ export class Core {
 
   setHP(hp) {
     this.hp = Math.max(0, Math.min(this.maxHp, hp));
-    if (this.hp <= 0) this.destroyed = true;
+    this.destroyed = this.hp <= 0;
   }
 
   update(dt, t) {
@@ -483,6 +483,43 @@ export function buildIsland(team) {
   plate.receiveShadow = true;
   g.add(plate);
 
+  // Plattenfugen brechen die grosse Deckflaeche auf
+  const seam = new THREE.MeshStandardMaterial({ color: 0x0c0f13, metalness: 0.5, roughness: 0.95 });
+  for (let i = -6; i <= 6; i++) {
+    const half = Math.sqrt(Math.max(0, (R * 0.94) ** 2 - (i * 16) ** 2));
+    if (half < 3) continue;
+    const a = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, half * 2), seam);
+    a.position.set(i * 16, 0.63, 0); g.add(a);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 0.08, 0.45), seam);
+    b.position.set(0, 0.63, i * 16); g.add(b);
+  }
+
+  // Dunkel abgesetzte Fahrbahn vom Hangar zum Core
+  const road = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 70), M.panel);
+  road.position.set(0, 0.66, hangarZ + 55);
+  g.add(road);
+
+  // Gefahrenzone vor dem Hangartor: abwechselnde Streifen
+  for (let i = 0; i < 14; i++) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.09, 7),
+      i % 2 ? M.rust : M.panel);
+    st.position.set(-15 + i * 2.3, 0.67, hangarZ - 24);
+    st.rotation.y = 0.5;
+    g.add(st);
+  }
+
+  // Umlaufende Randbeleuchtung, gedaempft
+  const edgeLight = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0a, emissive: 0xff7b12, emissiveIntensity: 0.7, roughness: 0.5
+  });
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const l = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.5), edgeLight);
+    l.position.set(Math.cos(a) * R * 0.925, 0.7, Math.sin(a) * R * 0.925);
+    l.rotation.y = -a;
+    g.add(l);
+  }
+
   // Randwall + Geländer
   for (let i = 0; i < 28; i++) {
     const a = (i / 28) * Math.PI * 2;
@@ -541,7 +578,7 @@ export function buildIsland(team) {
   // Startdeck nach vorn — begehbar, ragt kontrolliert ueber den Inselrand
   B.box(30, 1.2, 52, 0, 0, hangarZ - 40, M.concrete);
   for (let i = 0; i < 8; i++) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.16, 4.5), M.warn);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 3.2), M.marker);
     m.position.set(i % 2 ? 12 : -12, 1.3, hangarZ - 20 - i * 6);
     g.add(m);
   }
@@ -559,15 +596,25 @@ export function buildIsland(team) {
     g.add(l);
   }
 
-  // Startplätze (3 Stück, nebeneinander im Hangar)
-  const pads = [];
-  for (let i = 0; i < 3; i++) {
-    const x = (i - 1) * 11;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.35, 5, 22), tc);
+  // Startplaetze: hintereinander gestaffelt, damit auch der Bomber Platz hat.
+  // Reihenfolge = Weg nach draussen: Interceptor im Hangar, Bomber ganz vorn.
+  const padDefs = [
+    { x: 0, y: 0.9, z: hangarZ + 2,  type: 'interceptor', ring: 5.2 },
+    { x: 0, y: 1.5, z: hangarZ - 34, type: 'striker',     ring: 8.0 },
+    { x: 0, y: 1.7, z: hangarZ - 66, type: 'bomber',      ring: 12.5 }
+  ];
+  for (const d of padDefs) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(d.ring, 0.3, 5, 28), tc);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(x, 0.9, hangarZ + 2);
+    ring.position.set(d.x, d.y + 0.1, d.z);
     g.add(ring);
-    pads.push(new THREE.Vector3(x, 0.9, hangarZ + 2));
+    // Haltebolzen rund um den Platz
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.7, 6), M.hullDark);
+      b.position.set(d.x + Math.cos(a) * d.ring, d.y + 0.35, d.z + Math.sin(a) * d.ring);
+      g.add(b);
+    }
   }
 
   /* ---- Core-Bereich (Zentrum, leicht nach hinten versetzt) ---- */
@@ -578,16 +625,7 @@ export function buildIsland(team) {
   g.add(corePlat);
   B.colliders.push({ cx: 0, cy: 2.5, cz: coreZ, hx: 30, hy: 2.5, hz: 30 });
 
-  // Rampen von zwei Seiten, damit man raufkommt
-  for (const s of [1, -1]) {
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(12, 0.8, 20), M.hullDark);
-    ramp.position.set(s * 30, 2.6, coreZ);
-    ramp.rotation.x = 0;
-    ramp.rotation.z = s * 0.25;
-    ramp.receiveShadow = true;
-    g.add(ramp);
-  }
-  // Stufen als begehbare Kollider (einfacher als schiefe Ebenen)
+  // Treppen zum Core-Podest, jede Stufe ist ein begehbarer Kollider
   for (const s of [1, -1]) {
     for (let i = 0; i < 4; i++) {
       B.box(12, 1.25 * (i + 1), 4, s * (38 - i * 4), 0, coreZ, M.concrete);
@@ -709,7 +747,7 @@ export function buildIsland(team) {
     corePos: toWorld(new THREE.Vector3(0, 18, coreZ)),
     center: g.position.clone(),
     radius: R,
-    pads: pads.map(toWorld),
+    pads: padDefs.map(d => ({ pos: toWorld(new THREE.Vector3(d.x, d.y, d.z)), type: d.type })),
     forwardYaw: g.rotation.y,                  // Blickrichtung "zum Gegner"
     spawns: spawns.map(toWorld),
     turrets: turrets.map(t => ({ ...t, world: toWorld(t.local) })),
@@ -745,6 +783,11 @@ export class Lighting {
     scene.add(this.ambient);
     this.hemi = new THREE.HemisphereLight(0xffffff, 0x000000, 0.6);
     scene.add(this.hemi);
+
+    // Kaltes Gegenlicht ohne Schatten: trennt Silhouetten vom Hintergrund
+    this.fill = new THREE.DirectionalLight(0x7fa4cc, 0.85);
+    this.fill.position.set(-260, 180, -220);
+    scene.add(this.fill);
   }
 
   apply(w) {
