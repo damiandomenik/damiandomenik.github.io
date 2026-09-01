@@ -35,7 +35,7 @@
   <div class="brandwrap">
     <div class="eyebrow">HÖHENSTUFE 11 400 M · SEKTOR AUSSER KONTROLLE</div>
     <h1 class="brand">SKY<span>FALL</span></h1>
-    <p class="tag">Zwei Festungen. Ein Himmel. Zerstört den gegnerischen Core.</p>
+    <p class="tag">Schild zerlegen. Core knacken. Der Himmel gehört einem Team.</p>
   </div>
 
   <div class="panel menu-panel">
@@ -128,7 +128,8 @@
     <div id="coreMine" class="corebar blue">
       <span class="cb-label">EIGENER CORE</span>
       <div class="cb-track"><i id="coreMineFill"></i></div>
-      <span id="coreMineVal" class="cb-val">1000</span>
+      <span id="coreMineVal" class="cb-val">800</span>
+      <div id="shieldMine" class="pips"></div>
     </div>
     <div class="hud-clock">
       <span id="timer">15:00</span>
@@ -137,7 +138,8 @@
     <div id="coreFoe" class="corebar red">
       <span class="cb-label">GEGNER-CORE</span>
       <div class="cb-track"><i id="coreFoeFill"></i></div>
-      <span id="coreFoeVal" class="cb-val">1000</span>
+      <span id="coreFoeVal" class="cb-val">800</span>
+      <div id="shieldFoe" class="pips"></div>
     </div>
   </div>
 
@@ -173,11 +175,13 @@
         <span id="ammoLabel" class="w-res">ZELLE</span>
       </div>
       <div class="slots-mini">
-        <span id="slot0" class="active">1</span><span id="slot1">2</span><span id="slot2">3</span>
+        <span id="slot0" class="active">1</span><span id="slot1">2</span><span id="slot2">3</span><span id="slot3">4</span><span id="slot4">5</span>
       </div>
     </div>
   </div>
 
+  <div id="lead" class="lead"><i></i><i></i><i></i><i></i></div>
+  <div id="dmgDir" class="dmgdir"><i></i></div>
   <div id="dmgFlash"></div>
 
   <div id="respawn" class="respawn">
@@ -197,7 +201,8 @@
   <div id="introCard" class="introcard">
     <span class="ic-eyebrow">EINSATZBEFEHL</span>
     <b id="introTeam" class="team-blue">BLAUE FESTUNG</b>
-    <span class="ic-obj">Zerstöre den Core der Gegenseite. E am Hangar zum Starten.</span>
+    <span class="ic-obj">Erst die Schildknoten der Gegenseite zerstören, dann den Core.</span>
+    <span class="ic-obj">E am Startplatz zum Abheben.</span>
   </div>
 </div>
 

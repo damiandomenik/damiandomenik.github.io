@@ -5,8 +5,11 @@ import * as THREE from 'three';
 import { M, teamEmissive, TEAM_COLOR, cloudTexture, glowTexture, buildTurret } from './models.js';
 
 export const ISLAND_RADIUS = 112;
-export const ISLAND_Z = 900;          // Blau bei -Z, Rot bei +Z
-export const CORE_MAX_HP = 1000;
+// 470 statt 900: zwischen den Inselkanten liegen jetzt ~720 m statt 1580 m.
+// Bei Reisetempo sind das rund acht Sekunden Anflug, mit Boost vier.
+// Alles darueber ist Leerlauf und der sichere Weg, ein Arcade-Spiel zu toeten.
+export const ISLAND_Z = 470;          // Blau bei -Z, Rot bei +Z
+export const CORE_MAX_HP = 800;
 
 /* ------------------------------------------------------------------ *
  *  Wetter
@@ -19,7 +22,7 @@ export const WEATHER = {
     sunColor: 0xffb066, sunIntensity: 2.6, sunDir: new THREE.Vector3(-0.55, 0.14, 0.82),
     ambient: 0x38415a, ambientIntensity: 0.9,
     hemiSky: 0x5b7398, hemiGround: 0x2a1d12, hemiIntensity: 1.0,
-    fog: 0x59392f, fogDensity: 0.00072,
+    fog: 0x59392f, fogDensity: 0.00062,
     cloudColor: 0xd3a184, cloudLit: 0xffc79a,
     rain: 0, bloom: 0.48
   },
@@ -29,7 +32,7 @@ export const WEATHER = {
     sunColor: 0x7f93ad, sunIntensity: 0.75, sunDir: new THREE.Vector3(0.35, 0.32, 0.87),
     ambient: 0x1e2836, ambientIntensity: 0.7,
     hemiSky: 0x3a4a5e, hemiGround: 0x111419, hemiIntensity: 0.85,
-    fog: 0x171d26, fogDensity: 0.00135,
+    fog: 0x171d26, fogDensity: 0.00085,
     cloudColor: 0x353f4d, cloudLit: 0x5d6b7d,
     rain: 1, bloom: 0.62
   }
@@ -280,6 +283,29 @@ export class Core {
       this.rings.push(r);
     }
 
+    // Schildkuppel. Ihre Deckkraft zeigt, wie viele Schildknoten der Insel
+    // noch stehen — das ist die zentrale Information des ganzen Matches.
+    this.shield = new THREE.Mesh(
+      new THREE.SphereGeometry(21, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshBasicMaterial({
+        color: tc, transparent: true, opacity: 0.16, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending, depthWrite: false, wireframe: false
+      })
+    );
+    this.shield.position.y = 4;
+    this.group.add(this.shield);
+
+    this.shieldGrid = new THREE.Mesh(
+      new THREE.SphereGeometry(21.2, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshBasicMaterial({
+        color: tc, transparent: true, opacity: 0.3, wireframe: true,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    this.shieldGrid.position.y = 4;
+    this.group.add(this.shieldGrid);
+    this.shieldLevel = 1;      // 1 = voll, 0 = gefallen
+
     // Halo
     this.halo = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture(), color: tc, blending: THREE.AdditiveBlending,
@@ -323,8 +349,19 @@ export class Core {
     this.destroyed = this.hp <= 0;
   }
 
+  // 0..1, wird vom Spiel aus der Zahl ueberlebender Schildknoten gesetzt
+  setShield(level) { this.shieldLevel = Math.max(0, Math.min(1, level)); }
+
   update(dt, t) {
     const p = this.pct;
+
+    // Schild flackert staerker, je weniger Knoten noch stehen
+    const sl = this.shieldLevel;
+    const flick = sl > 0 ? (0.85 + Math.sin(t * (3 + (1 - sl) * 14)) * 0.15 * (1 - sl + 0.3)) : 0;
+    this.shield.material.opacity = this.destroyed ? 0 : 0.05 + sl * 0.16 * flick;
+    this.shieldGrid.material.opacity = this.destroyed ? 0 : sl * 0.34 * flick;
+    this.shield.visible = this.shieldGrid.visible = sl > 0.001 && !this.destroyed;
+    this.shieldGrid.rotation.y += dt * 0.16;
     const st = this.stage;
 
     this.crystal.rotation.y += dt * (0.3 + (1 - p) * 1.6);
@@ -494,20 +531,6 @@ export function buildIsland(team) {
     b.position.set(0, 0.63, i * 16); g.add(b);
   }
 
-  // Dunkel abgesetzte Fahrbahn vom Hangar zum Core
-  const road = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 70), M.panel);
-  road.position.set(0, 0.66, hangarZ + 55);
-  g.add(road);
-
-  // Gefahrenzone vor dem Hangartor: abwechselnde Streifen
-  for (let i = 0; i < 14; i++) {
-    const st = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.09, 7),
-      i % 2 ? M.rust : M.panel);
-    st.position.set(-15 + i * 2.3, 0.67, hangarZ - 24);
-    st.rotation.y = 0.5;
-    g.add(st);
-  }
-
   // Umlaufende Randbeleuchtung, gedaempft
   const edgeLight = new THREE.MeshStandardMaterial({
     color: 0x0a0a0a, emissive: 0xff7b12, emissiveIntensity: 0.7, roughness: 0.5
@@ -575,6 +598,19 @@ export function buildIsland(team) {
   hangarLight.position.set(0, 12, hangarZ);
   g.add(hangarLight);
 
+  // Dunkel abgesetzte Fahrbahn vom Hangar zum Core
+  const road = new THREE.Mesh(new THREE.BoxGeometry(14, 0.1, 70), M.panel);
+  road.position.set(0, 0.66, hangarZ + 55);
+  g.add(road);
+
+  // Gefahrenzone vor dem Hangartor: abwechselnde Streifen
+  for (let i = 0; i < 14; i++) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.09, 7),
+      i % 2 ? M.rust : M.panel);
+    st.position.set(-15 + i * 2.3, 0.67, hangarZ - 24);
+    st.rotation.y = 0.5;
+    g.add(st);
+  }
   // Startdeck nach vorn — begehbar, ragt kontrolliert ueber den Inselrand
   B.box(30, 1.2, 52, 0, 0, hangarZ - 40, M.concrete);
   for (let i = 0; i < 8; i++) {
@@ -647,7 +683,7 @@ export function buildIsland(team) {
     glow.rotation.x = Math.PI / 2; glow.position.set(x, 11, z);
     g.add(glow);
     B.destructibles.push({
-      mesh: tank, hp: 220, maxHp: 220, pos: new THREE.Vector3(x, 8, z), radius: 8, dead: false, extra: [glow]
+      mesh: tank, hp: 180, maxHp: 180, pos: new THREE.Vector3(x, 8, z), radius: 8, dead: false, extra: [glow]
     });
     B.pipe(new THREE.Vector3(x, 12, z), new THREE.Vector3(0, 10, coreZ + 10), 0.9, M.rust);
   }
@@ -664,7 +700,7 @@ export function buildIsland(team) {
       g.add(band);
     }
     B.destructibles.push({
-      mesh: t, hp: 260, maxHp: 260, pos: new THREE.Vector3(x, 13, z), radius: 9, dead: false, extra: [cap]
+      mesh: t, hp: 200, maxHp: 200, pos: new THREE.Vector3(x, 13, z), radius: 9, dead: false, extra: [cap]
     });
   }
 

@@ -58,6 +58,16 @@ button, input, select { font-family: inherit; color: inherit; }
 .load-bar i { display: block; height: 100%; width: 40%; background: var(--amber); animation: sweep 1.2s ease-in-out infinite; }
 @keyframes sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(320%); } }
 #loading p { color: var(--dim); font-size: 13px; letter-spacing: 0.2em; }
+#loading.failed { gap: 12px; padding: 6vh 8vw; }
+#loading.failed h3 { color: var(--red); font-size: 20px; letter-spacing: 0.28em; }
+#loading.failed p { max-width: 620px; text-align: center; letter-spacing: 0.06em; line-height: 1.6; }
+#loading.failed p.hint { color: #566270; font-size: 12px; }
+#loading.failed pre {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim);
+  background: #0a0d11; border: 1px solid var(--edge); padding: 12px 14px;
+  max-width: min(760px, 88vw); max-height: 34vh; overflow: auto;
+  white-space: pre-wrap; text-align: left;
+}
 
 /* ------------------------------------------------------------------ *
    Menü
@@ -227,6 +237,34 @@ button, input, select { font-family: inherit; color: inherit; }
 .corebar.critical .cb-track { border-color: var(--red); animation: crit 0.8s steps(2) infinite; }
 @keyframes crit { 50% { border-color: rgba(255,74,61,0.25); } }
 
+/* Schildknoten: ein Punkt je Anlage, erloschen = zerstoert */
+.pips { grid-column: 1; display: flex; gap: 4px; margin-top: 3px; }
+.pips i { width: 14px; height: 3px; background: var(--ok); box-shadow: 0 0 6px rgba(111,227,160,0.5); transition: background .3s, box-shadow .3s; }
+.pips i.down { background: #313941; box-shadow: none; }
+.pips.broken i { background: var(--red); box-shadow: 0 0 6px rgba(255,74,61,0.6); animation: crit 1s steps(2) infinite; }
+.corebar.red .pips { direction: ltr; justify-content: flex-end; }
+
+/* Vorhaltepunkt fuer Luftziele */
+.lead { position: absolute; width: 26px; height: 26px; transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s; }
+.lead.on { opacity: 0.85; }
+.lead i { position: absolute; width: 7px; height: 7px; border: 1px solid rgba(255,235,190,0.95); }
+.lead i:nth-child(1) { left: 0; top: 0; border-right: none; border-bottom: none; }
+.lead i:nth-child(2) { right: 0; top: 0; border-left: none; border-bottom: none; }
+.lead i:nth-child(3) { left: 0; bottom: 0; border-right: none; border-top: none; }
+.lead i:nth-child(4) { right: 0; bottom: 0; border-left: none; border-top: none; }
+.lead.close i { border-color: var(--red); }
+
+/* Woher kam der Treffer */
+.dmgdir { position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; transform: translate(-50%, -50%); opacity: 0; pointer-events: none; }
+.dmgdir.on { animation: dd 1.3s ease-out; }
+.dmgdir i {
+  position: absolute; left: 50%; top: 8px; width: 130px; height: 5px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(255,60,44,0.95), transparent);
+  clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+}
+@keyframes dd { 0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+
 .hud-clock { display: flex; flex-direction: column; align-items: center; }
 #timer { font-family: 'IBM Plex Mono', monospace; font-size: 20px; letter-spacing: 0.1em; }
 .ping { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--dim); letter-spacing: 0.2em; }
@@ -280,6 +318,7 @@ button, input, select { font-family: inherit; color: inherit; }
   display: grid; place-items: center; border: 1px solid var(--edge); color: var(--dim);
 }
 .slots-mini span.active { border-color: var(--amber); color: var(--amber); }
+.slots-mini span.empty { opacity: 0.3; }
 
 #killfeed { position: absolute; top: 74px; right: 26px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .kf { font-size: 12px; letter-spacing: 0.08em; background: rgba(8,11,15,0.6); padding: 4px 9px; border-left: 2px solid var(--amber); }

@@ -172,6 +172,13 @@ export class Net {
     }
   }
 
+  // Gezielt an einen einzelnen Peer (fuer Spaetzugang).
+  sendTo(id, msg) {
+    if (id === this.myId) { this._onClientData(msg); return; }
+    const c = this.conns.get(id);
+    if (c && c.open) { try { c.send(msg); this.stats.out++; } catch (e) { /* Kanal weg */ } }
+  }
+
   // Host sendet an alle inkl. sich selbst.
   publish(msg) {
     this.broadcast(msg);

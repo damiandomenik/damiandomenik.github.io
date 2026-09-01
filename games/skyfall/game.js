@@ -45,7 +45,8 @@ const G = {
   matchTime: MATCH_TIME, intro: 0, kills: 0,
   coreHp: { blue: CORE_MAX_HP, red: CORE_MAX_HP },
   // Host-Only
-  hostState: { hp: new Map(), dead: new Map(), lastHit: new Map(), destroyed: { blue: new Set(), red: new Set() } },
+  drones: new Map(),
+  hostState: { hp: new Map(), dead: new Map(), lastHit: new Map(), hist: new Map(), destroyed: { blue: new Set(), red: new Set() } },
   lightning: 0, lightningT: 6
 };
 
@@ -166,6 +167,22 @@ function applyWeather(name) {
 
 function islandOf(team) { return G.islands[team]; }
 
+// Anteil noch stehender Schildknoten, 1 = voll geschuetzt
+function shieldLevel(team) {
+  const d = G.islands[team].destructibles;
+  if (!d.length) return 0;
+  let alive = 0;
+  for (const n of d) if (!n.dead) alive++;
+  return alive / d.length;
+}
+
+// Wie viel Schaden der Core tatsaechlich nimmt. Bei vollem Schild bleiben
+// 15 Prozent uebrig — genug, damit Beschuss nicht voellig folgenlos wirkt,
+// zu wenig, um den Core ohne Vorarbeit zu knacken.
+function coreVulnerability(team) {
+  return 0.15 + 0.85 * (1 - shieldLevel(team));
+}
+
 function nearestIsland(pos) {
   const b = G.islands.blue, r = G.islands.red;
   return pos.distanceToSquared(b.center) < pos.distanceToSquared(r.center) ? b : r;
@@ -235,6 +252,17 @@ function pointInColliders(p, island) {
  *  Lokaler Spieler
  * ================================================================== */
 
+// Wurfwaffen haben keine Reserve — was man beim Spawn hat, ist alles.
+function freshAmmo() {
+  return {
+    blaster: WEAPONS.blaster.mag, scatter: WEAPONS.scatter.mag, rocket: WEAPONS.rocket.mag,
+    grenade: WEAPONS.grenade.mag, charge: WEAPONS.charge.mag
+  };
+}
+function freshReserve() {
+  return { blaster: Infinity, scatter: 48, rocket: 16, grenade: 0, charge: 0 };
+}
+
 class LocalPlayer {
   constructor(id, team, craftType) {
     this.id = id;
@@ -250,10 +278,10 @@ class LocalPlayer {
     this.respawnAt = 0;
 
     // Bodenwaffen
-    this.weaponList = ['blaster', 'scatter', 'rocket'];
+    this.weaponList = ['blaster', 'scatter', 'rocket', 'grenade', 'charge'];
     this.weapon = 0;
-    this.ammo = { blaster: WEAPONS.blaster.mag, scatter: WEAPONS.scatter.mag, rocket: WEAPONS.rocket.mag };
-    this.reserve = { blaster: Infinity, scatter: 48, rocket: 16 };
+    this.ammo = freshAmmo();
+    this.reserve = freshReserve();
     this.cool = 0;
     this.reloading = 0;
 
@@ -287,6 +315,7 @@ class LocalPlayer {
   get weaponDef() { return WEAPONS[this.weaponName]; }
 
   spawn() {
+    if (this.diedFlying) { this.diedFlying = false; this.spawnAirborne(); return; }
     const isl = islandOf(this.team);
     const p = isl.spawns[Math.floor(Math.random() * isl.spawns.length)];
     this.pos.copy(p);
@@ -297,12 +326,51 @@ class LocalPlayer {
     this.chute = false;
     this.yaw = isl.forwardYaw;
     this.pitch = 0;
-    this.ammo = { blaster: WEAPONS.blaster.mag, scatter: WEAPONS.scatter.mag, rocket: WEAPONS.rocket.mag };
-    this.reserve = { blaster: Infinity, scatter: 48, rocket: 16 };
+    this.ammo = freshAmmo();
+    this.reserve = freshReserve();
+    this.weapon = 0;
     this.reloading = 0;
     this.destroyCraft(false);
     this.avatar.visible = true;
     sfx.engineStop();
+  }
+
+  // Start hoch ueber der eigenen Insel, Nase Richtung Gegner.
+  spawnAirborne() {
+    const isl = islandOf(this.team);
+    this.hp = PLAYER_HP;
+    this.chute = false;
+    this.ammo = freshAmmo();
+    this.reserve = freshReserve();
+    this.weapon = 0;
+    this.reloading = 0;
+    this.destroyCraft(false);
+    this.avatar.visible = false;
+
+    const yaw = isl.forwardYaw;
+    const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, yaw, 0));
+    this.pos.copy(isl.center).addScaledVector(dir, 40);
+    this.pos.y = 190 + Math.random() * 40;
+    this.yaw = yaw;
+    this.pitch = 0;
+    this.quat.setFromEuler(new THREE.Euler(0, yaw, 0));
+
+    this.craft = buildAircraft(this.craftType, this.team);
+    this.craft.position.copy(this.pos);
+    this.craft.quaternion.copy(this.quat);
+    G.scene.add(this.craft);
+
+    this.craftHp = this.spec.hp;
+    this.speed = this.spec.cruise;
+    this.spawnGrace = 1.0;
+    this.throttle = 0.9;
+    this.boostFuel = 1;
+    this.heavyAmmo = this.spec.heavy ? this.spec.heavy.ammo : 0;
+    this.mode = 'fly';
+    this.stick.set(0, 0);
+    sfx.engineStart();
+    net.toHost({ t: 'board', c: this.craftType });
+    toast('WIEDER IN DER LUFT');
   }
 
   destroyCraft(explode) {
@@ -326,7 +394,7 @@ class LocalPlayer {
     const pad = parked.pad.pos;
     this.craftType = parked.pad.type;      // die Maschine, vor der man steht
     parked.mesh.visible = false;
-    parked.cooldown = 7;
+    parked.cooldown = 3;
 
     this.craft = buildAircraft(this.craftType, this.team);
     this.craft.position.copy(pad).setY(pad.y + PARK_HEIGHT[this.craftType]);
@@ -383,6 +451,7 @@ class LocalPlayer {
 
   die(cause) {
     if (this.mode === 'dead') return;
+    this.diedFlying = this.mode === 'fly';
     this.mode = 'dead';
     this.respawnAt = G.time + RESPAWN_TIME;
     G.fx.explosion(this.pos.clone().setY(this.pos.y + 1), 1.0, 0xff7a3a);
@@ -649,7 +718,8 @@ function fireProjectile(opts) {
     life: opts.life ?? 4, owner: opts.owner, team: opts.team, mine: !!opts.mine,
     dmg: opts.dmg, splash: opts.splash || 0, radius: opts.radius || 0,
     coreMul: opts.coreMul ?? 1, color: opts.color, kind: opts.kind || 'shot',
-    gravity: opts.gravity || 0, trail: opts.trail !== false
+    gravity: opts.gravity || 0, trail: opts.trail !== false,
+    fuse: opts.fuse ?? null, stuck: false
   };
   mesh.userData.proj = p;
   G.projectiles.push(p);
@@ -661,12 +731,28 @@ function updateProjectiles(dt) {
   for (let i = G.projectiles.length - 1; i >= 0; i--) {
     const p = G.projectiles[i];
     p.life -= dt;
+
+    // Wurfwaffen: Zuender laeuft, danach Detonation am Liegeplatz
+    if (p.fuse !== null) {
+      p.fuse -= dt;
+      if (p.fuse <= 0) {
+        detonate(p);
+        retire(p, i);
+        continue;
+      }
+      if (p.stuck) {
+        blinkFuse(p);
+        continue;
+      }
+    }
+
     if (p.gravity) p.vel.y -= p.gravity * dt;
     _s1.copy(p.vel).multiplyScalar(dt);          // Schrittvektor
     _s2.copy(p.pos).add(_s1);                    // Zielposition
 
     let hit = null;
     if (p.mine) hit = traceHit(p, p.pos, _s2);
+
 
     p.pos.copy(_s2);
     if (p.mesh.userData.proj === p) {
@@ -679,6 +765,12 @@ function updateProjectiles(dt) {
     }
 
     if (hit) {
+      if (p.fuse !== null) {
+        if (hit.type === 'world') { stick(p, hit.point); continue; }
+        hit = null;                      // Wurfwaffen fliegen an Gegnern vorbei
+      }
+    }
+    if (hit) {
       onProjectileHit(p, hit);
       retire(p, i);
       continue;
@@ -687,12 +779,47 @@ function updateProjectiles(dt) {
     if (!p.mine) {
       const isl = nearestIsland(p.pos);
       if ((overIsland(p.pos, isl) && p.pos.y < FOOT_Y) || pointInColliders(p.pos, isl)) {
+        if (p.fuse !== null) {
+          stick(p, _s3.copy(p.pos).setY(Math.max(p.pos.y, FOOT_Y + 0.2)));
+          continue;
+        }
         localBurst(p);
         retire(p, i);
         continue;
       }
     }
     if (p.life <= 0 || p.pos.y < DEATH_FLOOR || p.pos.distanceTo(cam) > 2600) retire(p, i);
+  }
+}
+
+// Wurfwaffe kommt zum Liegen
+function stick(p, point) {
+  p.pos.copy(point);
+  p.vel.set(0, 0, 0);
+  p.gravity = 0;
+  p.stuck = true;
+  p.trail = false;
+  if (p.mesh.userData.proj === p) p.mesh.position.copy(p.pos);
+  G.fx.impact(p.pos, _up, p.color, 4);
+}
+
+// Blinkendes Zuenderlicht, schneller je naeher die Detonation
+function blinkFuse(p) {
+  if (Math.random() > 0.25 + (1 - p.fuse / 4) * 0.5) return;
+  G.fx.sparks.spawn(p.pos.x, p.pos.y + 0.3, p.pos.z, 0, 1, 0, p.color, 2.2, 0.12, { drag: 2 });
+}
+
+// Detonation einer Wurfwaffe: reiner Flaechenschaden, kein Direkttreffer
+function detonate(p) {
+  G.fx.explosion(p.pos, p.radius > 12 ? 2.0 : 1.4, p.color);
+  sfx.explosion(p.pos.distanceTo(G.camera.position), p.radius > 12 ? 1.8 : 1.3);
+  if (p.pos.distanceTo(G.camera.position) < 40) addShake(0.8);
+  if (!p.mine) return;
+  for (const c of splashClaims(p, p.pos, new Set())) {
+    net.toHost({
+      t: 'hit', target: c.target, amount: Math.round(c.amount), w: p.kind,
+      hx: r2(p.pos.x), hy: r2(p.pos.y), hz: r2(p.pos.z)
+    });
   }
 }
 
@@ -768,43 +895,66 @@ function traceHit(p, from, to) {
   return null;
 }
 
+// Flaechenschaden-Ansprueche um einen Detonationspunkt. `seen` enthaelt Ziele,
+// die bereits einen Direkttreffer bekommen haben.
+function splashClaims(p, point, seen) {
+  const out = [];
+  if (!p.splash || !p.radius) return out;
+
+  for (const r of G.remotes.values()) {
+    if (r.team === p.team || r.mode === 'dead') continue;
+    const key = (r.mode === 'fly' ? 'a:' : 'p:') + r.id;
+    if (seen.has(key)) continue;
+    const d = r.pos.distanceTo(point);
+    if (d < p.radius) out.push({ target: key, amount: p.splash * (1 - d / p.radius) });
+  }
+  for (const team of ['blue', 'red']) {
+    if (team === p.team) continue;
+    const key = 'c:' + team;
+    if (seen.has(key) || G.coreHp[team] <= 0) continue;
+    const d = G.islands[team].corePos.distanceTo(point);
+    if (d < p.radius + 7) out.push({ target: key, amount: p.splash * p.coreMul * (1 - d / (p.radius + 7)) });
+  }
+  for (const team of ['blue', 'red']) {
+    if (team === p.team) continue;
+    const isl = G.islands[team];
+    for (let i = 0; i < isl.destructibles.length; i++) {
+      const dd = isl.destructibles[i];
+      if (dd.dead) continue;
+      const key = 'd:' + team + ':' + i;
+      if (seen.has(key)) continue;
+      const d = dd.world.distanceTo(point);
+      if (d < p.radius + dd.radius) out.push({ target: key, amount: p.splash * (1 - d / (p.radius + dd.radius)) });
+    }
+  }
+  // Die eigene Explosion tut auch dem Werfer weh
+  if (G.me && G.me.mode !== 'dead') {
+    const d = G.me.pos.distanceTo(point);
+    if (d < p.radius) out.push({ target: 'p:' + G.me.id, amount: p.splash * 0.5 * (1 - d / p.radius) });
+  }
+  return out;
+}
+
 function onProjectileHit(p, hit) {
   localBurst({ ...p, pos: hit.point });
-
   if (hit.type === 'world') return;
 
-  // Direkttreffer + optionaler Splash werden als Anspruch an den Host gemeldet.
+  // Direkttreffer und Flaechenschaden werden als Anspruch an den Host gemeldet.
+  // Der Host prueft die Geometrie gegen seinen Positionsverlauf.
   const claims = [];
   if (hit.type === 'player') claims.push({ target: 'p:' + hit.id, amount: p.dmg });
   if (hit.type === 'craft') claims.push({ target: 'a:' + hit.id, amount: p.dmg });
   if (hit.type === 'core') claims.push({ target: 'c:' + hit.team, amount: p.dmg * p.coreMul });
   if (hit.type === 'prop') claims.push({ target: 'd:' + hit.team + ':' + hit.idx, amount: p.dmg });
 
-  if (p.splash && p.radius) {
-    const seen = new Set(claims.map(c => c.target));
-    for (const r of G.remotes.values()) {
-      if (r.team === p.team || r.mode === 'dead') continue;
-      const key = (r.mode === 'fly' ? 'a:' : 'p:') + r.id;
-      if (seen.has(key)) continue;
-      const d = r.pos.distanceTo(hit.point);
-      if (d < p.radius) claims.push({ target: key, amount: p.splash * (1 - d / p.radius) });
-    }
-    for (const team of ['blue', 'red']) {
-      if (team === p.team) continue;
-      const key = 'c:' + team;
-      if (seen.has(key) || G.coreHp[team] <= 0) continue;
-      const d = G.islands[team].corePos.distanceTo(hit.point);
-      if (d < p.radius + 7) claims.push({ target: key, amount: p.splash * p.coreMul * (1 - d / (p.radius + 7)) });
-    }
-    // Splash trifft auch den Schützen selbst
-    if (G.me && G.me.mode !== 'dead' && G.me.pos.distanceTo(hit.point) < p.radius) {
-      const d = G.me.pos.distanceTo(hit.point);
-      claims.push({ target: 'p:' + G.me.id, amount: p.splash * 0.5 * (1 - d / p.radius) });
-    }
-  }
+  const seen = new Set(claims.map(c => c.target));
+  claims.push(...splashClaims(p, hit.point, seen));
 
   for (const c of claims) {
-    net.toHost({ t: 'hit', target: c.target, amount: Math.round(c.amount), w: p.kind });
+    net.toHost({
+      t: 'hit', target: c.target, amount: Math.round(c.amount), w: p.kind,
+      hx: r2(hit.point.x), hy: r2(hit.point.y), hz: r2(hit.point.z)
+    });
   }
 }
 
@@ -827,6 +977,8 @@ function initInput() {
     if (e.code === 'Digit1') selectWeapon(0);
     if (e.code === 'Digit2') selectWeapon(1);
     if (e.code === 'Digit3') selectWeapon(2);
+    if (e.code === 'Digit4') selectWeapon(3);
+    if (e.code === 'Digit5') selectWeapon(4);
     if (e.code === 'KeyR') startReload();
     if (e.code === 'KeyH') $('hud').classList.toggle('hidden');
   });
@@ -857,13 +1009,14 @@ function initInput() {
   addEventListener('contextmenu', (e) => { if (G.running) e.preventDefault(); });
   addEventListener('wheel', (e) => {
     if (!G.running || !G.me || G.me.mode !== 'foot') return;
-    selectWeapon((G.me.weapon + (e.deltaY > 0 ? 1 : 2)) % 3);
+    const n = G.me.weaponList.length;
+  selectWeapon((G.me.weapon + (e.deltaY > 0 ? 1 : n - 1)) % n);
   });
 }
 
 function selectWeapon(i) {
   const me = G.me;
-  if (!me || me.mode !== 'foot' || i === me.weapon) return;
+  if (!me || me.mode !== 'foot' || i === me.weapon || i >= me.weaponList.length) return;
   me.weapon = i;
   me.reloading = 0;
   me.cool = 0.2;
@@ -1015,7 +1168,13 @@ function handleGroundFire(me, dt) {
   if (!mouse.left || me.cool > 0) return;
 
   const n = me.weaponName, w = WEAPONS[n];
-  if (me.ammo[n] <= 0) { startReload(); sfx.ui('err'); return; }
+  if (me.ammo[n] <= 0) {
+    sfx.ui('err');
+    me.cool = 0.35;
+    if (me.reserve[n] > 0) startReload();
+    else toast(w.label + ' AUFGEBRAUCHT');
+    return;
+  }
 
   me.ammo[n]--;
   me.cool = w.rate;
@@ -1024,6 +1183,27 @@ function handleGroundFire(me, dt) {
   const muzzle = new THREE.Vector3();
   me.avatar.userData.muzzle.getWorldPosition(muzzle);
   const aim = cameraAimDir(muzzle);
+
+  if (w.fuse) {
+    // Wurf: leicht nach oben angestellt, damit ein brauchbarer Bogen entsteht
+    const dir = aim.clone();
+    dir.y += w.arc;
+    dir.normalize();
+    const start = _s4.copy(muzzle).addScaledVector(dir, 0.6);
+    fireProjectile({
+      pos: start, dir, speed: w.speed, dmg: 0, color: w.color,
+      splash: w.splash, radius: w.radius, coreMul: w.coreMul,
+      owner: me.id, team: me.team, mine: true, kind: n,
+      big: true, gravity: 20, life: w.fuse + 1, fuse: w.fuse, trail: false
+    });
+    net.toHost({
+      t: 'shot', k: n, x: start.x, y: start.y, z: start.z,
+      dx: dir.x, dy: dir.y, dz: dir.z, tm: me.team
+    });
+    sfx.shot('scatter', 0);
+    updateHud();
+    return;
+  }
 
   for (let i = 0; i < w.pellets; i++) {
     const dir = aim.clone();
@@ -1282,10 +1462,21 @@ function updateFlyCamera(me, dt) {
   applyShake(dt);
 
   const speedT = THREE.MathUtils.clamp(me.speed / spec.boost, 0, 1);
-  const goalFov = 70 + speedT * 16 + (me.boosting ? 8 : 0);
-  camFov += (goalFov - camFov) * Math.min(1, dt * 3.5);
+  const goalFov = 70 + speedT * 18 + (me.boosting ? 15 : 0);
+  camFov += (goalFov - camFov) * Math.min(1, dt * (me.boosting ? 7 : 3.5));
   setFov(camFov);
-  if (me.boosting) addShake(dt * 0.9);
+  if (me.boosting) {
+    addShake(dt * 1.8);
+    // Geschwindigkeitsstreifen: ziehen seitlich an der Kanzel vorbei
+    for (let i = 0; i < 2; i++) {
+      const a = Math.random() * Math.PI * 2, rad = 6 + Math.random() * 14;
+      _s4.set(Math.cos(a) * rad, Math.sin(a) * rad, -10 - Math.random() * 30)
+        .applyQuaternion(me.quat).add(me.pos);
+      G.fx.sparks.spawn(_s4.x, _s4.y, _s4.z,
+        -me.vel.x * 0.45, -me.vel.y * 0.45, -me.vel.z * 0.45,
+        0xbfe4ff, 1.1, 0.16, { drag: 0 });
+    }
+  }
 }
 
 function setFov(f) {
@@ -1426,11 +1617,247 @@ function* allPlayers() {
 }
 
 /* ================================================================== *
+ *  Drohnen (nur der Host simuliert, alle sehen sie als Remote-Spieler)
+ * ================================================================== */
+
+const SQUAD_SIZE = 3;                 // Zielstaerke je Team, Spieler inklusive
+const DRONE = {
+  hp: 150, speed: 96, turn: 1.25, fireRange: 420, fireCone: 0.985,
+  dmg: 8, rate: 0.22, burst: 4, burstPause: 1.4, respawn: 6, senseRange: 900
+};
+
+function droneId(team, i) { return 'AI' + team[0].toUpperCase() + i; }
+
+function hostSpawnDrones() {
+  G.drones.clear();
+  if (!net.isHost) return;
+  for (const team of ['blue', 'red']) {
+    const humans = [...net.players.values()].filter(p => p.team === team).length;
+    for (let i = 0; i < Math.max(0, SQUAD_SIZE - humans); i++) {
+      const id = droneId(team, i);
+      G.drones.set(id, makeDrone(id, team, i));
+      G.hostState.hp.set(id, { player: 999, craft: DRONE.hp });
+    }
+  }
+}
+
+function makeDrone(id, team, i) {
+  const isl = islandOf(team);
+  const yaw = isl.forwardYaw;
+  const dir = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, yaw, 0));
+  const pos = isl.center.clone().addScaledVector(dir, 30 + i * 25);
+  pos.x += (i - 1) * 45;
+  pos.y = 150 + i * 30;
+  return {
+    id, team, type: i === 0 ? 'interceptor' : 'striker',
+    pos, quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0)),
+    vel: new THREE.Vector3(), speed: DRONE.speed,
+    cool: Math.random(), burst: 0, pause: 0, dead: 0, target: null, retarget: 0
+  };
+}
+
+function hostUpdateDrones(dt) {
+  if (!net.isHost || !G.running || G.over) return;
+  for (const d of G.drones.values()) {
+    if (d.dead > 0) {
+      d.dead -= dt;
+      if (d.dead <= 0) reviveDrone(d);
+      continue;
+    }
+    steerDrone(d, dt);
+    fireDrone(d, dt);
+    recordHistory(d.id, d.pos.x, d.pos.y, d.pos.z, 'fly');
+  }
+}
+
+function reviveDrone(d) {
+  const fresh = makeDrone(d.id, d.team, d.id.charCodeAt(d.id.length - 1) - 48);
+  d.pos.copy(fresh.pos); d.quat.copy(fresh.quat);
+  d.speed = DRONE.speed; d.target = null; d.burst = 0; d.pause = 0;
+  const s = G.hostState.hp.get(d.id);
+  if (s) s.craft = DRONE.hp;
+}
+
+// Zielsuche: naechster lebender Gegner in der Luft oder am Boden.
+function droneTarget(d) {
+  let best = null, bd = DRONE.senseRange ** 2;
+  const consider = (id, pos, team, mode) => {
+    if (team === d.team || mode === 'dead') return;
+    const dist = d.pos.distanceToSquared(pos);
+    if (dist < bd) { bd = dist; best = { id, pos, mode }; }
+  };
+  if (G.me && G.me.team !== d.team) consider(G.me.id, G.me.pos, G.me.team, G.me.mode);
+  for (const r of G.remotes.values()) if (!G.drones.has(r.id)) consider(r.id, r.pos, r.team, r.mode);
+  for (const o of G.drones.values()) if (o !== d && o.dead <= 0) consider(o.id, o.pos, o.team, 'fly');
+  return best;
+}
+
+const _dTo = new THREE.Vector3(), _dFwd = new THREE.Vector3();
+const _dq = new THREE.Quaternion(), _dBank = new THREE.Quaternion();
+const _dm = new THREE.Matrix4(), _zAxis = new THREE.Vector3(0, 0, 1);
+function steerDrone(d, dt) {
+  d.retarget -= dt;
+  if (d.retarget <= 0 || !d.target) { d.target = droneTarget(d); d.retarget = 1.2; }
+
+  const enemyIsl = islandOf(d.team === 'blue' ? 'red' : 'blue');
+  let goal;
+  if (d.target) {
+    goal = _dTo.copy(d.target.pos);
+    // Vorhalt: auf den Punkt zielen, an dem das Ziel gleich sein wird
+    goal.y += d.target.mode === 'fly' ? 0 : 30;
+  } else {
+    // Kein Ziel: ueber der gegnerischen Insel kreisen, damit sie praesent bleiben
+    const t = G.time * 0.25 + (d.id.charCodeAt(3) || 0);
+    goal = _dTo.set(
+      enemyIsl.center.x + Math.cos(t) * 220,
+      170,
+      enemyIsl.center.z + Math.sin(t) * 220);
+  }
+
+  // Mindesthoehe, damit Drohnen nicht in die Insel fliegen
+  if (goal.y < 90) goal.y = 90;
+
+  forwardOf(d.quat, _dFwd);
+  const to = goal.sub(d.pos);
+  const dist = to.length();
+  to.normalize();
+
+  // Zu nah dran: abdrehen statt rammen
+  if (dist < 70 && d.target) to.negate().y = 0.3;
+
+  // Ausrichtung ueber lookAt statt ueber eine freie Rotation: so bleibt die
+  // Maschine aufrecht statt beliebig zu rollen.
+  _dTo.copy(d.pos).addScaledVector(to, 100);
+  _dm.lookAt(d.pos, _dTo, _up);
+  _dq.setFromRotationMatrix(_dm);
+  // In die Kurve legen — das ist der halbe Grund, warum Flugzeuge gut aussehen
+  const side = _dFwd.x * to.z - _dFwd.z * to.x;
+  _dBank.setFromAxisAngle(_zAxis, THREE.MathUtils.clamp(side * 2.2, -0.9, 0.9));
+  _dq.multiply(_dBank);
+  d.quat.slerp(_dq, Math.min(1, DRONE.turn * dt)).normalize();
+
+  forwardOf(d.quat, _dFwd);
+  d.speed += ((d.target ? DRONE.speed * 1.25 : DRONE.speed) - d.speed) * Math.min(1, dt);
+  d.vel.copy(_dFwd).multiplyScalar(d.speed);
+  d.pos.addScaledVector(d.vel, dt);
+  if (d.pos.y < 70) d.pos.y = 70;
+}
+
+function fireDrone(d, dt) {
+  d.cool -= dt;
+  d.pause -= dt;
+  if (!d.target || d.pause > 0 || d.cool > 0) return;
+
+  const dist = d.pos.distanceTo(d.target.pos);
+  if (dist > DRONE.fireRange) return;
+  forwardOf(d.quat, _dFwd);
+  _dTo.copy(d.target.pos).sub(d.pos).normalize();
+  if (_dFwd.dot(_dTo) < DRONE.fireCone) return;   // nur bei sauberer Ausrichtung
+
+  d.cool = DRONE.rate;
+  if (++d.burst >= DRONE.burst) { d.burst = 0; d.pause = DRONE.burstPause; }
+
+  const muzzle = _s1.copy(d.pos).addScaledVector(_dFwd, 5);
+  net.publish({
+    t: 'shot', k: 'aircannon', x: r2(muzzle.x), y: r2(muzzle.y), z: r2(muzzle.z),
+    dx: r3(_dFwd.x), dy: r3(_dFwd.y), dz: r3(_dFwd.z), tm: d.team
+  });
+
+  // Drohnen treffen absichtlich nicht perfekt — sie sollen Druck machen,
+  // nicht unfehlbar sein. Naeher und besser ausgerichtet trifft haeufiger.
+  const quality = (_dFwd.dot(_dTo) - DRONE.fireCone) / (1 - DRONE.fireCone);
+  if (Math.random() > 0.32 + quality * 0.3) return;
+  const t = d.target;
+  hostApplyDamage((t.mode === 'fly' ? 'a:' : 'p:') + t.id, DRONE.dmg, 'aircannon', d.id);
+}
+
+// Drohnenzustaende gehen im selben Format wie Spieler-Transforms raus
+function broadcastDrones() {
+  if (!net.isHost) return;
+  for (const d of G.drones.values()) {
+    net.publish({
+      t: 'st', id: d.id, m: d.dead > 0 ? 'dead' : 'fly', ai: 1, tm: d.team,
+      x: r2(d.pos.x), y: r2(d.pos.y), z: r2(d.pos.z),
+      qx: r3(d.quat.x), qy: r3(d.quat.y), qz: r3(d.quat.z), qw: r3(d.quat.w),
+      vx: r2(d.vel.x), vy: r2(d.vel.y), vz: r2(d.vel.z),
+      c: d.type, th: 0.9, b: false, ch: false
+    });
+  }
+}
+
+/* ================================================================== *
  *  Host-Autorität
  * ================================================================== */
 
+// Wie weit der Host zurueckblickt, wenn er einen Trefferanspruch prueft.
+// Deckt Ping und die 20-Hz-Updaterate der Clients ab.
+const REWIND_WINDOW = 0.45;
+
+function recordHistory(id, x, y, z, mode) {
+  const h = G.hostState.hist;
+  let arr = h.get(id);
+  if (!arr) { arr = []; h.set(id, arr); }
+  arr.push({ t: G.time, x, y, z, mode });
+  // Alles aelter als das Fenster verwerfen
+  while (arr.length && G.time - arr[0].t > REWIND_WINDOW) arr.shift();
+}
+
+// War das Ziel im Rueckblickfenster jemals nahe genug am behaupteten Einschlag?
+function targetWasNear(id, point, tol) {
+  const arr = G.hostState.hist.get(id);
+  if (!arr || !arr.length) return true;   // noch kein Verlauf: nicht bestrafen
+  const t2 = tol * tol;
+  for (let i = 0; i < arr.length; i++) {
+    const s = arr[i];
+    const dx = s.x - point.x, dy = s.y - point.y, dz = s.z - point.z;
+    if (dx * dx + dy * dy + dz * dz < t2) return true;
+  }
+  return false;
+}
+
+function shooterCouldReach(id, point, weapon) {
+  const reach = MAX_REACH[weapon];
+  if (!reach) return true;
+  const arr = G.hostState.hist.get(id);
+  if (!arr || !arr.length) return true;
+  const r2v = (reach * 1.25) ** 2;
+  for (let i = 0; i < arr.length; i++) {
+    const s = arr[i];
+    const dx = s.x - point.x, dy = s.y - point.y, dz = s.z - point.z;
+    if (dx * dx + dy * dy + dz * dz < r2v) return true;
+  }
+  return false;
+}
+
+// Geometrische Plausibilitaet eines Trefferanspruchs.
+function validateHit(m) {
+  const [type, a] = m.target.split(':');
+  // Schaden an sich selbst (Splash, Absturz, Sturz, Weltgrenze) braucht keine Pruefung
+  if ((type === 'p' || type === 'a') && a === m.from) return true;
+  if (typeof m.hx !== 'number') return true;   // aeltere Nachricht ohne Ort
+
+  _hitPt.set(m.hx, m.hy, m.hz);
+  if (!shooterCouldReach(m.from, _hitPt, m.w)) return false;
+
+  if (type === 'c') {
+    const isl = G.islands[a];
+    return isl ? isl.corePos.distanceTo(_hitPt) < 26 : false;
+  }
+  if (type === 'd') {
+    const isl = G.islands[a];
+    const d = isl && isl.destructibles[parseInt(m.target.split(':')[2], 10)];
+    return d ? d.world.distanceTo(_hitPt) < d.radius + 22 : false;
+  }
+  // Spieler zu Fuss: enge Toleranz. Flugzeuge: Rumpfradius plus Puffer.
+  const tol = type === 'a' ? 30 : 9;
+  return targetWasNear(a, _hitPt, tol);
+}
+
+const _hitPt = new THREE.Vector3();
+
 function hostInit() {
   G.hostState.hp.clear();
+  G.hostState.hist.clear();
   G.hostState.dead.clear();
   G.hostState.lastHit.clear();
   G.hostState.destroyed = { blue: new Set(), red: new Set() };
@@ -1440,7 +1867,18 @@ function hostInit() {
 }
 
 // Erlaubte Höchstwerte pro Treffer — verhindert triviale Manipulation.
-const MAX_CLAIM = { blaster: 20, scatter: 20, rocket: 150, aircannon: 22, bomb: 300, turret: 20, fall: 200, crash: 999, void: 999 };
+const MAX_CLAIM = {
+  blaster: 20, scatter: 20, rocket: 150, aircannon: 22, bomb: 300,
+  grenade: 120, charge: 260, turret: 20, fall: 200, crash: 999, void: 999
+};
+
+// Maximale Entfernung zwischen Schuetze und Einschlag, ueber die eine Waffe
+// ueberhaupt wirken kann. Grosszuegig bemessen, es geht nur darum, Ansprueche
+// quer ueber die Karte auszuschliessen.
+const MAX_REACH = {
+  blaster: 900, scatter: 720, rocket: 520, aircannon: 1600, bomb: 900,
+  grenade: 220, charge: 220, turret: 400
+};
 
 function hostOnMsg(m) {
   if (!net.isHost) return;
@@ -1458,6 +1896,7 @@ function hostOnMsg(m) {
       if (now - last.t > 1) { last.t = now; last.n = 0; }
       if (++last.n > 40) return;
       G.hostState.lastHit.set(m.from, last);
+      if (!validateHit(m)) return;
       hostApplyDamage(m.target, m.amount, m.w, m.from);
       break;
     }
@@ -1484,7 +1923,11 @@ function hostOnMsg(m) {
 // Team eines Spielers laut Lobby-Register des Hosts
 function teamOf(id) {
   const p = net.players.get(id);
-  return p ? p.team : null;
+  if (p) return p.team;
+  const d = G.drones.get(id);
+  if (d) return d.team;
+  const r = G.remotes.get(id);
+  return r ? r.team : null;
 }
 
 function hostApplyDamage(target, amount, kind, by) {
@@ -1503,8 +1946,14 @@ function hostApplyDamage(target, amount, kind, by) {
   if (type === 'c') {
     const team = a;
     if (G.coreHp[team] <= 0) return;
-    G.coreHp[team] = Math.max(0, G.coreHp[team] - amount);
-    net.publish({ t: 'core', team, hp: G.coreHp[team], by: by || null, amt: amount });
+    const effective = amount * coreVulnerability(team);
+    if (effective < 0.5) {
+      // Schild haelt: dem Schuetzen zurueckmelden, warum nichts passiert
+      net.publish({ t: 'shielded', team, by: by || null });
+      return;
+    }
+    G.coreHp[team] = Math.max(0, G.coreHp[team] - effective);
+    net.publish({ t: 'core', team, hp: G.coreHp[team], by: by || null, amt: effective });
     if (G.coreHp[team] <= 0) {
       G.over = true;
       net.publish({ t: 'end', winner: team === 'blue' ? 'red' : 'blue' });
@@ -1527,14 +1976,22 @@ function hostApplyDamage(target, amount, kind, by) {
   const id = a;
   const s = G.hostState.hp.get(id);
   if (!s || G.hostState.dead.has(id)) return;
+  const droneRef = G.drones.get(id);
+  if (droneRef && droneRef.dead > 0) return;
 
   if (type === 'a') {
     if (s.craft <= 0) return;
     s.craft -= amount;
     net.publish({ t: 'ahp', id, hp: Math.max(0, s.craft), by: by || null, k: kind });
     if (s.craft <= 0) {
-      G.hostState.dead.set(id, G.time + RESPAWN_TIME);
-      net.publish({ t: 'kill', id, by: by || null, cause: kind });
+      const drone = G.drones.get(id);
+      if (drone) {
+        drone.dead = DRONE.respawn;
+        net.publish({ t: 'kill', id, by: by || null, cause: kind });
+      } else {
+        G.hostState.dead.set(id, G.time + RESPAWN_TIME);
+        net.publish({ t: 'kill', id, by: by || null, cause: kind });
+      }
     }
     return;
   }
@@ -1578,12 +2035,19 @@ function onAuthMsg(m) {
     case 'st': {
       let r = G.remotes.get(m.id);
       if (!r) {
-        const info = net.players.get(m.id);
-        if (!info || m.id === net.myId) return;
-        r = new RemotePlayer(m.id, info.team, info.craft, info.name);
+        if (m.id === net.myId) return;
+        if (m.ai) {
+          r = new RemotePlayer(m.id, m.tm, m.c, 'DROHNE ' + m.id.slice(-1));
+          r.isAI = true;
+        } else {
+          const info = net.players.get(m.id);
+          if (!info) return;
+          r = new RemotePlayer(m.id, info.team, info.craft, info.name);
+        }
         G.remotes.set(m.id, r);
       }
       r.applyState(m);
+      if (net.isHost && !m.ai) recordHistory(m.id, m.x, m.y, m.z, m.m);
       break;
     }
     case 'shot': {
@@ -1609,7 +2073,7 @@ function onAuthMsg(m) {
       if (m.id === net.myId && G.me) {
         const dropped = m.hp < G.me.hp;
         G.me.hp = m.hp;
-        if (dropped) { flashDamage(); addShake(0.25); }
+        if (dropped) { flashDamage(); addShake(0.25); showDamageFrom(m.by); }
         if (m.hp <= 0) G.me.die('shot');
         updateHud();
       } else {
@@ -1628,7 +2092,7 @@ function onAuthMsg(m) {
         const dropped = m.hp < G.me.craftHp;
         G.me.craftHp = m.hp;
         if (dropped) {
-          flashDamage(); addShake(0.3);
+          flashDamage(); addShake(0.3); showDamageFrom(m.by);
           if (m.k === 'turret') warnFlak();
         }
         if (m.hp <= 0 && G.me.mode === 'fly') G.me.die('shotdown');
@@ -1644,9 +2108,7 @@ function onAuthMsg(m) {
       break;
     }
     case 'kill': {
-      const victim = net.players.get(m.id);
-      const killer = m.by ? net.players.get(m.by) : null;
-      killFeed(killer ? killer.name : 'SKYFALL', victim ? victim.name : '???', m.cause);
+      killFeed(nameOf(m.by), nameOf(m.id), m.cause);
       if (m.by === net.myId && m.id !== net.myId) {
         G.kills++;
         $('killCount').textContent = 'ABSCHÜSSE ' + G.kills;
@@ -1664,6 +2126,13 @@ function onAuthMsg(m) {
       }
       break;
     }
+    case 'shielded': {
+      if (m.by === net.myId) {
+        const left = Math.round(shieldLevel(m.team) * G.islands[m.team].destructibles.length);
+        toast(`SCHILD HÄLT — NOCH ${left} SCHILDKNOTEN`);
+      }
+      break;
+    }
     case 'destroy': {
       const isl = G.islands[m.team];
       const d = isl.destructibles[m.idx];
@@ -1671,9 +2140,23 @@ function onAuthMsg(m) {
       d.dead = true;
       d.mesh.visible = false;
       for (const e of d.extra || []) e.visible = false;
-      G.fx.explosion(d.world, 2.6, 0xffa040);
-      sfx.explosion(d.world.distanceTo(G.camera.position), 2);
-      if (G.me && G.me.team === m.team) toast('ANLAGE ZERSTÖRT');
+      G.fx.explosion(d.world, 3.2, 0xffa040);
+      sfx.explosion(d.world.distanceTo(G.camera.position), 2.2);
+      addShake(d.world.distanceTo(G.camera.position) < 200 ? 0.7 : 0.2);
+
+      const left = Math.round(shieldLevel(m.team) * isl.destructibles.length);
+      const mine = G.me && G.me.team === m.team;
+      if (left === 0) {
+        // Der dramatischste Moment des Matches: der Schild bricht zusammen
+        alertBanner(mine ? 'SCHILD GEFALLEN' : 'GEGNERISCHER SCHILD GEFALLEN',
+                    mine ? 'Der Core liegt offen' : 'Jetzt den Core zerlegen');
+        sfx.alarm();
+        collapseShield(m.team);
+      } else {
+        toast(mine ? `SCHILDKNOTEN VERLOREN — NOCH ${left}` : `SCHILDKNOTEN ZERSTÖRT — NOCH ${left}`);
+        sfx.ui(mine ? 'err' : 'ok');
+      }
+      updateHud();
       break;
     }
     case 'tick': {
@@ -1696,17 +2179,22 @@ function spawnRemoteShot(m) {
       ? { speed: 560, color: m.tm === 'blue' ? 0x9fe0ff : 0xffd08a }
       : m.k === 'bomb' || m.k === 'rocket'
         ? { speed: m.k === 'bomb' ? 40 : 140, color: 0xff9440, big: true, gravity: m.k === 'bomb' ? 18 : 3 }
-        : { speed: WEAPONS[m.k] ? WEAPONS[m.k].speed : 240, color: WEAPONS[m.k] ? WEAPONS[m.k].color : 0x8fe3ff };
+        : { speed: WEAPONS[m.k] ? WEAPONS[m.k].speed : 240, color: WEAPONS[m.k] ? WEAPONS[m.k].color : 0x8fe3ff,
+            big: !!(WEAPONS[m.k] && WEAPONS[m.k].fuse), gravity: WEAPONS[m.k] && WEAPONS[m.k].fuse ? 20 : 0 };
 
+  const thrown = WEAPONS[m.k] && WEAPONS[m.k].fuse;
   const pos = new THREE.Vector3(m.x, m.y, m.z);
   fireProjectile({
     pos, dir: new THREE.Vector3(m.dx, m.dy, m.dz), speed: def.speed, dmg: 0,
     color: def.color, owner: m.by, team: m.tm, mine: false,
-    kind: m.k, big: def.big, gravity: def.gravity || 0, life: 4,
-    splash: (m.k === 'rocket' || m.k === 'bomb') ? 1 : 0, radius: m.k === 'bomb' ? 16 : 8
+    kind: m.k, big: def.big, gravity: def.gravity || 0,
+    life: thrown ? WEAPONS[m.k].fuse + 1 : 4,
+    fuse: thrown ? WEAPONS[m.k].fuse : null, trail: !thrown,
+    splash: (m.k === 'rocket' || m.k === 'bomb' || thrown) ? 1 : 0,
+    radius: m.k === 'bomb' ? 16 : (thrown ? WEAPONS[m.k].radius : 8)
   });
-  G.fx.muzzle(pos, new THREE.Vector3(m.dx, m.dy, m.dz), def.color);
-  sfx.shot(m.k === 'aircannon' ? 'blaster' : m.k, pos.distanceTo(G.camera.position));
+  if (!thrown) G.fx.muzzle(pos, new THREE.Vector3(m.dx, m.dy, m.dz), def.color);
+  sfx.shot(m.k === 'aircannon' ? 'blaster' : thrown ? 'scatter' : m.k, pos.distanceTo(G.camera.position));
 }
 
 let lastFlak = 0;
@@ -1723,6 +2211,22 @@ function onCoreUnderAttack(team, prev, hp) {
   alertBanner('CORE UNTER BESCHUSS', `${Math.round(hp)} / ${CORE_MAX_HP}`);
   sfx.alarm();
   void team; void prev;
+}
+
+// Sichtbarer Zusammenbruch der Kuppel
+function collapseShield(team) {
+  const isl = G.islands[team];
+  const c = TEAM_COLOR[team];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      const a = Math.random() * Math.PI * 2;
+      const p = isl.corePos.clone().add(new THREE.Vector3(
+        Math.cos(a) * 20, (Math.random() - 0.3) * 16, Math.sin(a) * 20));
+      G.fx.coreBurst(p, c);
+    }, i * 90);
+  }
+  G.fx.coreBurst(isl.corePos, 0xffffff);
+  addShake(isl.corePos.distanceTo(G.camera.position) < 320 ? 1.1 : 0.3);
 }
 
 function coreDestroyed(team) {
@@ -1759,6 +2263,8 @@ function updateHud() {
   $('coreFoeVal').textContent = Math.round(G.coreHp[foe]);
   $('coreMine').className = 'corebar ' + mine + (pctA <= 0.25 ? ' critical' : '');
   $('coreFoe').className = 'corebar ' + foe + (pctB <= 0.25 ? ' critical' : '');
+  renderShieldPips('shieldMine', mine);
+  renderShieldPips('shieldFoe', foe);
 
   const flying = me.mode === 'fly';
   $('hpFill').style.width = flying
@@ -1778,14 +2284,31 @@ function updateHud() {
     const n = me.weaponName, w = WEAPONS[n];
     $('weapName').textContent = w.label;
     $('ammoVal').textContent = me.reloading > 0 ? 'LADEN' : me.ammo[n];
-    $('ammoLabel').textContent = me.reserve[n] === Infinity ? 'ZELLE' : 'RESERVE ' + me.reserve[n];
+    $('ammoLabel').textContent = me.reserve[n] === Infinity ? 'ZELLE'
+      : w.fuse ? 'PRO LEBEN' : 'RESERVE ' + me.reserve[n];
     $('spdVal').textContent = '';
   }
   $('modeVal').textContent = { foot: 'ZU FUSS', fly: 'IM FLUG', fall: 'FREIER FALL', chute: 'FALLSCHIRM', dead: 'GEFALLEN' }[me.mode];
-  for (let i = 0; i < 3; i++) {
-    $('slot' + i).classList.toggle('active', !flying && me.weapon === i);
-    $('slot' + i).style.display = flying ? 'none' : '';
+  for (let i = 0; i < 5; i++) {
+    const el = $('slot' + i);
+    el.classList.toggle('active', !flying && me.weapon === i);
+    el.classList.toggle('empty', !flying && me.ammo[me.weaponList[i]] <= 0 && me.reserve[me.weaponList[i]] <= 0);
+    el.style.display = flying ? 'none' : '';
   }
+}
+
+// Ein Punkt je Schildknoten. Erloschene Punkte zeigen den Fortschritt.
+function renderShieldPips(elId, team) {
+  const nodes = G.islands[team].destructibles;
+  const el = $(elId);
+  if (el.children.length !== nodes.length) {
+    el.innerHTML = '';
+    for (let i = 0; i < nodes.length; i++) el.appendChild(document.createElement('i'));
+  }
+  for (let i = 0; i < nodes.length; i++) {
+    el.children[i].className = nodes[i].dead ? 'down' : '';
+  }
+  el.className = 'pips' + (shieldLevel(team) === 0 ? ' broken' : '');
 }
 
 function updateTimer() {
@@ -1815,6 +2338,17 @@ function alertBanner(title, sub) {
 const SELF_CAUSE = {
   crash: 'zerschellt', void: 'ins Leere gestürzt', fall: 'aus der Höhe gestürzt', turret: 'von Flak geholt'
 };
+// Spieler stehen in der Lobby, Drohnen nur in den Remote-Objekten
+function nameOf(id) {
+  if (!id) return 'SKYFALL';
+  const p = net.players.get(id);
+  if (p) return p.name;
+  const r = G.remotes.get(id);
+  if (r) return r.name;
+  const d = G.drones.get(id);
+  return d ? 'DROHNE ' + id.slice(-1) : '???';
+}
+
 function killFeed(killer, victim, cause) {
   const el = document.createElement('div');
   el.className = 'kf';
@@ -1838,6 +2372,28 @@ function hitMarker(lethal) {
   el.classList.add('on');
   if (lethal) el.classList.add('kill');
   sfx.ui(lethal ? 'ok' : 'click');
+}
+
+const _dmgDir = new THREE.Vector3();
+function showDamageFrom(byId) {
+  const src = byId === net.myId ? null : (G.remotes.get(byId) || G.drones.get(byId));
+  const el = $('dmgDir');
+  if (!src || !G.me) { el.classList.remove('on'); return; }
+  _dmgDir.copy(src.pos).sub(G.me.pos);
+  _dmgDir.y = 0;
+  if (_dmgDir.lengthSq() < 1) return;
+  _dmgDir.normalize();
+  // Winkel relativ zur Blickrichtung der Kamera
+  G.camera.getWorldDirection(_camDir);
+  const fx = -_camDir.x, fz = -_camDir.z;
+  const len = Math.hypot(fx, fz) || 1;
+  const cos = (-_dmgDir.x * fx + -_dmgDir.z * fz) / len;
+  const sin = (-_dmgDir.z * fx - -_dmgDir.x * fz) / len;
+  const deg = Math.atan2(sin, cos) * 180 / Math.PI;
+  el.style.transform = `translate(-50%, -50%) rotate(${deg.toFixed(0)}deg)`;
+  el.classList.remove('on');
+  void el.offsetWidth;
+  el.classList.add('on');
 }
 
 function flashDamage() {
@@ -1906,6 +2462,7 @@ function sendState(dt) {
   G.netAcc += dt;
   if (G.netAcc < NET_RATE || !G.me) return;
   G.netAcc = 0;
+  broadcastDrones();
   const me = G.me;
   const q = me.mode === 'fly' ? me.quat : new THREE.Quaternion().setFromEuler(new THREE.Euler(0, me.yaw, 0));
   net.toHost({
@@ -1916,6 +2473,7 @@ function sendState(dt) {
     c: me.craftType, th: r2(me.throttle), b: me.boosting, ch: me.chute
   });
   net.measurePing();
+  if (net.isHost) recordHistory(me.id, me.pos.x, me.pos.y, me.pos.z, me.mode);
 }
 const r2 = (v) => Math.round(v * 100) / 100;
 const r3 = (v) => Math.round(v * 1000) / 1000;
@@ -1942,6 +2500,39 @@ function updatePrompt() {
   el.classList.add('on');
 }
 
+
+const _leadPos = new THREE.Vector3(), _leadTmp = new THREE.Vector3();
+function updateLeadMarker() {
+  const el = $('lead');
+  const me = G.me;
+  if (!me || me.mode !== 'fly') { el.classList.remove('on'); return; }
+
+  forwardOf(me.quat, _s1);
+  let best = null, bestDot = 0.86;      // nur, was ungefaehr vor der Nase liegt
+  for (const r of G.remotes.values()) {
+    if (r.team === me.team || r.mode === 'dead') continue;
+    _leadTmp.copy(r.pos).sub(me.pos);
+    const dist = _leadTmp.length();
+    if (dist > 900 || dist < 25) continue;
+    _leadTmp.divideScalar(dist);
+    const dot = _leadTmp.dot(_s1);
+    if (dot > bestDot) { bestDot = dot; best = { r, dist }; }
+  }
+  if (!best) { el.classList.remove('on'); return; }
+
+  // Wo das Ziel sein wird, wenn das Projektil ankommt
+  const shotSpeed = me.spec.gun.speed + me.speed;
+  const t = best.dist / shotSpeed;
+  _leadPos.copy(best.r.pos).addScaledVector(best.r.vel, t);
+  _leadPos.project(G.camera);
+  if (_leadPos.z > 1) { el.classList.remove('on'); return; }
+
+  el.style.left = ((_leadPos.x * 0.5 + 0.5) * 100).toFixed(2) + '%';
+  el.style.top = ((-_leadPos.y * 0.5 + 0.5) * 100).toFixed(2) + '%';
+  el.classList.add('on');
+  el.classList.toggle('close', best.dist < 260);
+}
+
 let hudAcc = 0;
 function loop() {
   requestAnimationFrame(loop);
@@ -1956,17 +2547,21 @@ function loop() {
     updateProjectiles(dt);
     updateWrecks(dt);
     updateTurrets(dt);
+    hostUpdateDrones(dt);
     updateParked(dt);
     updatePrompt();
     sendState(dt);
     hostTick(dt);
     drawRadar();
+    updateLeadMarker();
     hudAcc += dt;
     if (hudAcc > 0.1) { hudAcc = 0; updateHud(); updateTimer(); }
 
     if (toastT && G.time > toastT) { $('toast').classList.remove('on'); toastT = 0; }
   }
 
+  G.islands.blue.core.setShield(shieldLevel('blue'));
+  G.islands.red.core.setShield(shieldLevel('red'));
   G.islands.blue.core.update(dt, G.time);
   G.islands.red.core.update(dt, G.time);
   G.clouds.update(dt);
@@ -2069,6 +2664,26 @@ function initUI() {
   net.on('open', () => renderLobby());
   net.on('lobby', () => renderLobby());
   net.on('start', (m) => beginMatch(m));
+  net.on('lateJoin', (id) => {
+    if (!net.isHost || !G.running) return;
+    // Der Neue bekommt denselben Startbefehl plus den aktuellen Matchstand.
+    net.sendTo(id, {
+      t: 'start',
+      weather: G.weather,
+      players: [...net.players.values()],
+      resume: {
+        time: G.matchTime,
+        cb: G.coreHp.blue,
+        cr: G.coreHp.red,
+        destroyed: {
+          blue: [...G.hostState.destroyed.blue],
+          red: [...G.hostState.destroyed.red]
+        }
+      }
+    });
+    G.hostState.hp.set(id, { player: PLAYER_HP, craft: 0 });
+    toast('SPIELER TRITT BEI');
+  });
   net.on('msg', (m) => onAuthMsg(m));
   net.on('hostMsg', (m) => hostOnMsg(m));
   net.on('peerJoin', (p) => { toastMenu(`${p.name} ist beigetreten.`); sfx.ui('ok'); });
@@ -2172,6 +2787,27 @@ function beginMatch(m) {
   G.matchTime = MATCH_TIME;
   G.over = false;
   G.kills = 0;
+
+  // Spaetzugang: laufenden Matchstand uebernehmen statt bei null anzufangen
+  if (m.resume) {
+    G.matchTime = m.resume.time;
+    G.coreHp.blue = m.resume.cb;
+    G.coreHp.red = m.resume.cr;
+    G.islands.blue.core.setHP(m.resume.cb);
+    G.islands.red.core.setHP(m.resume.cr);
+    for (const team of ['blue', 'red']) {
+      for (const idx of m.resume.destroyed[team] || []) {
+        const d = G.islands[team].destructibles[idx];
+        if (!d) continue;
+        d.dead = true;
+        d.mesh.visible = false;
+        for (const e of d.extra || []) e.visible = false;
+      }
+      if ((team === 'blue' ? m.resume.cb : m.resume.cr) <= 0) {
+        for (const t of G.islands[team].turrets) t.dead = true;
+      }
+    }
+  }
   $('killCount').textContent = 'ABSCHÜSSE 0';
 
   const info = net.players.get(net.myId);
@@ -2186,7 +2822,7 @@ function beginMatch(m) {
     if (!G.remotes.has(p.id)) G.remotes.set(p.id, new RemotePlayer(p.id, p.team, p.craft, p.name));
   }
 
-  if (net.isHost) hostInit();
+  if (net.isHost) { hostInit(); hostSpawnDrones(); }
 
   sfx.init(); sfx.resume(); sfx.ambientStart();
   showScreen('game');
@@ -2269,5 +2905,38 @@ function boot() {
   loop();
 }
 
-if (document.readyState === 'loading') addEventListener('DOMContentLoaded', boot);
-else boot();
+// Scheitert der Start, darf der Ladebalken nicht einfach weiterlaufen —
+// dann sieht niemand, was schiefgegangen ist. Fehler werden angezeigt.
+function safeBoot() {
+  try {
+    boot();
+  } catch (err) {
+    console.error('SKYFALL: Start fehlgeschlagen', err);
+    showBootError(err);
+  }
+}
+
+function showBootError(err) {
+  const el = $('loading');
+  el.classList.add('on', 'failed');
+  el.innerHTML = `
+    <div class="load-mark">SKYFALL</div>
+    <h3>START FEHLGESCHLAGEN</h3>
+    <p>${escapeHtml(String(err && err.message ? err.message : err))}</p>
+    <pre>${escapeHtml(String(err && err.stack ? err.stack : '')).slice(0, 900)}</pre>
+    <p class="hint">Häufigste Ursachen: keine Verbindung zu den CDNs (Three.js, PeerJS)
+    oder kein WebGL im Browser. Details stehen in der Entwicklerkonsole.</p>`;
+}
+
+function escapeHtml(t) {
+  return t.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Auch Fehler in der laufenden Schleife sollen sichtbar werden statt still
+// einen schwarzen Bildschirm zu hinterlassen.
+addEventListener('error', (e) => {
+  if (!G.renderer) showBootError(e.error || e.message);
+});
+
+if (document.readyState === 'loading') addEventListener('DOMContentLoaded', safeBoot);
+else safeBoot();

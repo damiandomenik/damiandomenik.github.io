@@ -274,34 +274,34 @@ export const AIRCRAFT_SPECS = {
   interceptor: {
     label: 'INTERCEPTOR',
     tagline: 'Schnell, wendig, dünnhäutig.',
-    hp: 130,
-    cruise: 105, max: 155, boost: 235, accel: 62, drag: 0.42,
-    pitch: 2.1, yaw: 0.95, roll: 3.6,
-    boostFuel: 3.2, boostRegen: 0.55,
-    gun: { dmg: 11, rate: 0.085, speed: 620, spread: 0.006, coreMul: 0.35, ports: 2 },
+    hp: 150,
+    cruise: 125, max: 185, boost: 300, accel: 78, drag: 0.42,
+    pitch: 2.5, yaw: 1.15, roll: 4.2,
+    boostFuel: 3.4, boostRegen: 0.6,
+    gun: { dmg: 7, rate: 0.085, speed: 900, spread: 0.004, coreMul: 0.5, ports: 2 },
     heavy: null,
     radius: 3.2
   },
   striker: {
     label: 'STRIKER',
     tagline: 'Allrounder mit Zähnen.',
-    hp: 220,
-    cruise: 88, max: 130, boost: 195, accel: 46, drag: 0.5,
-    pitch: 1.55, yaw: 0.8, roll: 2.5,
-    boostFuel: 4.0, boostRegen: 0.5,
-    gun: { dmg: 16, rate: 0.11, speed: 560, spread: 0.008, coreMul: 0.45, ports: 2 },
-    heavy: { type: 'rocket', dmg: 80, splash: 55, radius: 9, rate: 1.4, speed: 210, ammo: 8, coreMul: 1.0 },
+    hp: 240,
+    cruise: 105, max: 155, boost: 255, accel: 58, drag: 0.5,
+    pitch: 1.9, yaw: 0.95, roll: 3.0,
+    boostFuel: 4.2, boostRegen: 0.55,
+    gun: { dmg: 10, rate: 0.11, speed: 850, spread: 0.005, coreMul: 0.55, ports: 2 },
+    heavy: { type: 'rocket', dmg: 90, splash: 60, radius: 10, rate: 1.1, speed: 320, ammo: 10, coreMul: 1.1 },
     radius: 4.2
   },
   bomber: {
     label: 'BOMBER',
     tagline: 'Langsam. Fliegende Abrissbirne.',
-    hp: 420,
-    cruise: 62, max: 92, boost: 132, accel: 26, drag: 0.62,
-    pitch: 0.95, yaw: 0.5, roll: 1.35,
-    boostFuel: 5.0, boostRegen: 0.4,
-    gun: { dmg: 13, rate: 0.16, speed: 480, spread: 0.016, coreMul: 0.3, ports: 2 },
-    heavy: { type: 'bomb', dmg: 140, splash: 120, radius: 16, rate: 0.9, speed: 30, ammo: 10, coreMul: 1.6 },
+    hp: 440,
+    cruise: 78, max: 115, boost: 175, accel: 34, drag: 0.62,
+    pitch: 1.15, yaw: 0.62, roll: 1.7,
+    boostFuel: 5.0, boostRegen: 0.45,
+    gun: { dmg: 9, rate: 0.16, speed: 750, spread: 0.010, coreMul: 0.4, ports: 2 },
+    heavy: { type: 'bomb', dmg: 150, splash: 130, radius: 18, rate: 0.8, speed: 34, ammo: 12, coreMul: 1.3 },
     radius: 6.4
   }
 };
@@ -621,15 +621,26 @@ export function buildPilot(team) {
 export const WEAPONS = {
   blaster: {
     label: 'BLASTER', dmg: 15, rate: 0.12, mag: 24, reload: 1.4,
-    speed: 240, spread: 0.012, pellets: 1, coreMul: 0.35, color: 0x8fe3ff, splash: 0, radius: 0
+    speed: 320, spread: 0.010, pellets: 1, coreMul: 0.3, color: 0x8fe3ff, splash: 0, radius: 0
   },
   scatter: {
     label: 'SCATTER', dmg: 12, rate: 0.72, mag: 6, reload: 2.0,
-    speed: 190, spread: 0.07, pellets: 7, coreMul: 0.45, color: 0xffc46b, splash: 0, radius: 0
+    speed: 240, spread: 0.065, pellets: 7, coreMul: 0.4, color: 0xffc46b, splash: 0, radius: 0
   },
   rocket: {
     label: 'RAKETE', dmg: 85, rate: 1.15, mag: 4, reload: 2.6,
-    speed: 105, spread: 0.0, pellets: 1, coreMul: 1.0, color: 0xff8a3c, splash: 60, radius: 8
+    speed: 150, spread: 0.0, pellets: 1, coreMul: 1.2, color: 0xff8a3c, splash: 60, radius: 8
+  },
+  // Wurfwaffen: kein Direktschaden, sie bleiben liegen und gehen nach Zeit hoch.
+  grenade: {
+    label: 'GRANATE', dmg: 0, rate: 0.85, mag: 3, reload: 0,
+    speed: 30, spread: 0.0, pellets: 1, coreMul: 0.8, color: 0x9be36f,
+    splash: 95, radius: 11, fuse: 2.4, arc: 0.30
+  },
+  charge: {
+    label: 'SPRENGLADUNG', dmg: 0, rate: 1.6, mag: 2, reload: 0,
+    speed: 18, spread: 0.0, pellets: 1, coreMul: 1.7, color: 0xff5a3c,
+    splash: 190, radius: 15, fuse: 3.2, arc: 0.18
   }
 };
 

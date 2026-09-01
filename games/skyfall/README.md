@@ -38,7 +38,7 @@ Der Host kann auch alleine starten — dann ist es ein Trainingslauf gegen eine 
 
 | Situation | Tasten |
 |---|---|
-| **Zu Fuß** | `WASD` bewegen (Figur bleibt bildmittig, seitwärts wird gestrafet) · `Shift` sprinten · `Leertaste` springen · Maus zielen · `Linksklick` feuern · `1` `2` `3` Waffe · Mausrad wechseln · `R` nachladen · `E` einsteigen |
+| **Zu Fuß** | `WASD` bewegen (Figur bleibt bildmittig, seitwärts wird gestrafet) · `Shift` sprinten · `Leertaste` springen · Maus zielen · `Linksklick` feuern · `1`–`5` Waffe · Mausrad wechseln · `R` nachladen · `E` einsteigen |
 | **Im Flug** | Maus steuern · `A`/`D` rollen · `Q`/`E` gieren · `W`/`S` Schub · `Shift` Boost · `Linksklick` Bordkanonen · `Rechtsklick` Raketen/Bomben · `F` aussteigen |
 | **Im Fall** | `Leertaste` Fallschirm öffnen · `WASD` steuern (W beschleunigt, A/D seitlich) |
 | **Sonstiges** | `H` HUD ein-/ausblenden · `Esc` Mauszeiger freigeben |
@@ -64,15 +64,17 @@ oder schräger aufkommt, zerschellt.
 
 ## Spielziel
 
-Jede Festung hat einen Core mit 1000 HP. Wer den gegnerischen Core zuerst auf null bringt, gewinnt.
+Jede Festung hat einen Core mit 800 HP, geschützt von fünf Schildknoten. Wer den gegnerischen Core zuerst auf null bringt, gewinnt.
 Läuft die Zeit von 15 Minuten ab, gewinnt die Seite mit dem höheren Core-Stand.
 
 Der Core reagiert sichtbar auf Schaden: ab 75 % Funken, ab 50 % Alarmleuchten und Sirene,
 ab 25 % Rauch und flackernde Instabilität, ab 10 % extremes Pulsieren, bei 0 % eine Kettenexplosion.
 
-Waffen wirken unterschiedlich stark gegen den Core — Bordkanonen kratzen nur (Faktor 0,3–0,45),
-Raketen treffen voll (1,0), Bomber-Bomben am härtesten (1,6). Der Core lässt sich also nicht
-allein aus der Luft mit Kanonen wegputzen; jemand muss landen oder bomben.
+**Der Schild ist der eigentliche Kern des Spiels.** Solange alle fünf Schildknoten einer Insel
+stehen, nimmt ihr Core nur 15 % Schaden — man kann ihn nicht sinnvoll angreifen. Jeder zerstörte
+Knoten hebt das an, bei null Knoten trifft man voll. Ein Match hat dadurch zwei Phasen: erst die
+Anlagen der Gegenseite jagen (Generatoren, Kühltürme — je drei Raketen), dann den offenen Core
+erstürmen. Der Moment, in dem der Schild fällt, ist für beide Teams sichtbar und hörbar.
 
 ---
 
@@ -136,14 +138,13 @@ Trümmer, Kamera-Shake, Radar, HUD und synthetischer Sound.
 
 - **Lag Compensation.** Bei hohem Ping trifft man schnelle Ziele schlechter, weil der Host keine
   Positionshistorie führt. Bei 2–6 Spielern in Europa ist es spielbar, für ernsthaften Wettbewerb nicht genug.
-- **Spätzugang.** Wer beitritt, während ein Match läuft, landet in der Lobby ohne Matchzustand.
-  Der Host erkennt den Fall (`lateJoin`), verschickt aber noch keinen Zustands-Snapshot.
 - **Teilzerstörung von Gebäuden.** Anlagen sind ganz oder gar nicht zerstört; einzelne Bauteile
   fallen noch nicht separat ab.
-- **Granaten und Sprengladungen** aus der ursprünglichen Waffenliste. Blaster, Scatter und
-  Raketenwerfer sind drin, die beiden Wurfwaffen nicht.
-- **Reconnect.** Fällt die Verbindung zum Host weg, endet die Sitzung; ein erneuter Beitritt
-  ist nicht implementiert.
+- **Reconnect.** Fällt die Verbindung zum Host weg, endet die Runde mit einer Meldung;
+  ein erneuter Beitritt in dieselbe Sitzung ist nicht implementiert.
+- **Echte Rückrechnung.** Der Host prüft Treffer gegen einen Positionsverlauf (siehe unten),
+  rechnet die Welt aber nicht auf die exakte Sichtzeit des Schützen zurück. Bei sehr hohem
+  Ping bleibt ein Rest Ungenauigkeit.
 
 Es gibt keine Platzhalter-Funktionen im Code. Was oben unter "funktioniert" steht, ist
 implementiert; was fehlt, steht hier.
@@ -165,11 +166,10 @@ Wenn es ruckelt: Bloom kostet am meisten. In `game.js` in `initRenderer` die Zei
 
 ## Nächste sinnvolle Schritte
 
-1. Lag Compensation im Host (Positionshistorie + Rückrechnung).
-2. Zustands-Snapshot für Spätzugang.
-3. Gebäude in mehrere abwerfbare Teile zerlegen.
-4. Granaten und Sprengladungen ergänzen.
-5. Zweite Karte oder asymmetrische Inselvarianten.
+1. Rückrechnung auf die exakte Sichtzeit des Schützen statt Fensterprüfung.
+2. Gebäude in mehrere abwerfbare Teile zerlegen.
+3. Reconnect in eine laufende Sitzung.
+4. Zweite Karte oder asymmetrische Inselvarianten.
 
 ---
 
@@ -299,3 +299,135 @@ Systematischer Durchgang nach Fehlerklassen statt nach Symptomen. Gefunden und b
   unter 60 Metern ausblendet, damit das Modell selbst zur Geltung kommt.
 - Zeitanzeige läuft im HUD-Takt statt pro Frame — spart rund 120 DOM-Schreibvorgänge
   pro Sekunde.
+
+---
+
+## Erweiterungsrunde
+
+**Granaten und Sprengladungen** (Tasten `4` und `5`) vervollständigen die Waffenliste.
+Beide verhalten sich anders als alles bisherige: kein Direktschaden, sie fliegen an Gegnern
+vorbei, bleiben am Boden liegen und detonieren nach Zeit. Der Zünder blinkt sichtbar.
+
+| | Granate | Sprengladung |
+|---|---|---|
+| Vorrat | 3 pro Leben | 2 pro Leben |
+| Zünder | 2,4 s | 4,0 s |
+| Flächenschaden | 95 | 190 |
+| Radius | 11 m | 15 m |
+| Faktor gegen Core | 0,8 | 2,4 |
+
+Die Sprengladung ist damit die stärkste Waffe gegen den Core — aber nur zwei Stück pro Leben,
+und man muss dafür auf der gegnerischen Insel stehen. Genau die Situation aus dem
+ursprünglichen Konzept: einer landet heimlich, während die anderen den Luftraum binden.
+
+**Trefferprüfung gegen Positionsverlauf.** Bisher prüfte der Host nur Betrag und Feuerrate —
+*wohin* geschossen wurde, war ihm egal. Jetzt führt er für jeden Spieler einen Verlauf der
+letzten 450 ms und prüft jeden Anspruch geometrisch:
+
+- War das Ziel in diesem Fenster jemals nah genug am behaupteten Einschlag? (9 m zu Fuß,
+  30 m für Flugzeuge — genug für 20-Hz-Updates und normalen Ping)
+- Kann die genannte Waffe von der Position des Schützen aus überhaupt so weit reichen?
+- Liegt ein Core- oder Anlagentreffer plausibel an der Anlage?
+
+Damit sind Ansprüche quer über die Karte oder gegen Ziele, die nie dort waren, nicht mehr
+durchsetzbar. Das Fenster ist bewusst großzügig: lieber ein zweifelhafter Treffer zu viel
+als ein legitimer verworfen.
+
+**Spätzugang funktioniert.** Wer einem laufenden Match beitritt, bekommt vom Host einen
+gezielten Zustands-Snapshot: Restzeit, beide Core-Werte, alle bereits zerstörten Anlagen und
+das Wetter. Er steigt direkt ein statt in einer toten Lobby zu landen.
+
+---
+
+## Startfehler behoben
+
+Der Ladebalken lief endlos. Ursache: ein Deko-Block auf dem Deck (Fahrbahn zum Core,
+Warnstreifen vor dem Hangartor) griff auf `hangarZ` zu, stand im Quelltext aber **vor**
+dessen Deklaration. In JavaScript ist das kein Fehler beim Parsen, sondern erst zur
+Laufzeit — `ReferenceError: Cannot access 'hangarZ' before initialization`. `buildIsland`
+brach ab, `boot()` kam nie bis zum Ausblenden des Ladebildschirms.
+
+Der Block steht jetzt hinter der Hangar-Definition. Zusätzlich:
+
+- **`boot()` fängt Fehler ab** und zeigt sie als Panel mit Meldung und Stacktrace an,
+  statt den Balken weiterlaufen zu lassen. Ein globaler `error`-Handler greift dieselbe
+  Anzeige, falls es später knallt.
+- Der Fehlertext nennt die häufigsten Ursachen (CDN nicht erreichbar, kein WebGL).
+
+**Warum das durchgerutscht ist:** Syntaxprüfung (`node --check`) findet solche Fehler
+prinzipiell nicht, und ohne Browser lief nichts, was `buildIsland` tatsächlich aufruft.
+Ich habe deshalb einen Testaufbau gegen einen DOM-Stub gebaut, der den kompletten
+Modulgraph auswertet und jeden Aufbauschritt einzeln durchspielt — Inseln, Himmel, Wetter,
+alle sechs Flugzeugvarianten, Pilot, Startplätze, Core — plus Konsistenzprüfungen
+(Startplatzreihenfolge, Spawns auf begehbarer Fläche, Ausrichtung zum Gegner, erreichbare
+Landegeschwindigkeit). Der Testaufbau ist nicht Teil des Auslieferungspakets, weil er
+`npm install three` braucht und das Projekt bewusst ohne Build-Schritt auskommt.
+
+---
+
+## Neuausrichtung: warum sich das Spiel vorher tot anfühlte
+
+Nach dem ersten Spieltest war klar, dass die Technik stand, die Spielschleife aber nicht.
+Drei Diagnosen und was daraus folgte.
+
+### 1. Die Karte war doppelt so groß wie sie sein darf
+
+Zwischen den Inselkanten lagen 1580 Meter — bei Reisetempo über zwanzig Sekunden reines
+W-Halten zwischen zwei Kampfmomenten. In einem Arcade-Luftkampf ist alles über acht Sekunden
+Leerlauf tödlich für das Tempo.
+
+`ISLAND_Z` von 900 auf 470. Der Abstand beträgt jetzt 716 Meter, und die Maschinen sind
+deutlich schneller geworden:
+
+| | Anflug (Reise / Boost) | vorher |
+|---|---|---|
+| Interceptor | 5,7 s / 2,4 s | 18 s / 8 s |
+| Striker | 6,8 s / 2,8 s | 21 s / 9 s |
+| Bomber | 9,2 s / 4,1 s | 30 s / 14 s |
+
+### 2. Der Core war Fließbandarbeit, die Insel war Deko
+
+1000 HP bei Faktor 0,35 für Bordkanonen sind 180 Treffer. Das ist keine Erstürmung.
+Gleichzeitig hatten die zerstörbaren Anlagen **überhaupt keine Funktion** — sie explodierten
+hübsch und änderten nichts.
+
+Beides ist jetzt dasselbe System. Die fünf Anlagen sind Schildknoten:
+
+| Zustand | Core-Schaden | Raketen bis Core zerstört |
+|---|---|---|
+| 5/5 Knoten stehen | 15 % | 53 |
+| 2/5 zerstört | 49 % | 16 |
+| alle zerstört | 100 % | 8 |
+
+Damit hat ein Match einen Aufbau: Anlagen jagen, Schild bricht (großer sichtbarer Moment für
+beide Teams), Core-Sturm. Und die Sprengladung wird zur Kronjuwelenwaffe — drei Stück bei
+offenem Core reichen, aber man muss dafür zweimal auf der gegnerischen Insel landen.
+
+### 3. Der Himmel war leer
+
+Wer allein testet, hatte keinen Gegner, keinen Druck, keine Geschichte. Der Host füllt jetzt
+beide Teams auf drei Einheiten auf — fehlende Spieler werden durch **Drohnen** ersetzt.
+
+Sie fliegen bankend statt zu taumeln (Ausrichtung über `lookAt`, Schräglage aus der Kurvenrate),
+suchen sich das nächste gegnerische Ziel, feuern nur bei sauberer Ausrichtung in Salven von
+vier Schuss und treffen absichtlich nur zu 32–62 %, abhängig von der Zielgüte. Sie greifen
+weder Core noch Schildknoten an: der Fortschritt bleibt Sache der Menschen, die Drohnen liefern
+den Widerstand. Wer eine abschießt, bekommt sie nach sechs Sekunden wieder.
+
+### Weitere Eingriffe am Spielgefühl
+
+- **Abgeschossen heißt wieder in der Luft.** Wer im Flug stirbt, respawnt in einer frischen
+  Maschine über der eigenen Insel statt am Hangar zu Fuß. Der lange Rückweg war der zweite
+  große Tempokiller.
+- **Duelle dauern jetzt lang genug, um sie zu drehen.** Vorher 0,66 s bis zum Abschuss bei
+  sauberem Zielen — wer hinter dir saß, löschte dich ohne Reaktionsmöglichkeit. Jetzt 0,9 s
+  (Interceptor) bis 3,9 s (Bomber), bei realistischer Trefferquote also mehrere Sekunden.
+- **Treffen ist möglich geworden.** Projektilgeschwindigkeit von 560–620 auf 750–900,
+  engere Streuung, und ein **Vorhaltepunkt** zeigt beim Fliegen, wohin man schießen muss.
+  Ohne ihn trifft man ein querfliegendes Ziel praktisch nie.
+- **Man erfährt, woher der Schuss kam.** Ein roter Bogen am Bildrand zeigt die Richtung des
+  Angreifers. Vorher starb man ohne jede Information.
+- **Boost knallt.** Sichtfeld +15°, deutlich mehr Kameraschütteln, Geschwindigkeitsstreifen,
+  die seitlich an der Kanzel vorbeiziehen.
+- **Schildstand im HUD** als Punktreihe unter beiden Core-Balken.
+- Startplatz nach dem Abheben in 3 statt 7 Sekunden wieder frei.
