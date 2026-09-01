@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SKYFALL</title>
+<meta name="description" content="SKYFALL — Luftkampf und Base-Raid zwischen zwei schwebenden Festungen. Multiplayer im Browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- Ladebildschirm -->
+<div id="loading" class="overlay on">
+  <div class="load-mark">SKYFALL</div>
+  <div class="load-bar"><i></i></div>
+  <p>Festungen werden hochgefahren …</p>
+</div>
+
+<!-- ============================ MENÜ ============================ -->
+<section id="menu" class="overlay">
+  <div class="brandwrap">
+    <div class="eyebrow">HÖHENSTUFE 11 400 M · SEKTOR AUSSER KONTROLLE</div>
+    <h1 class="brand">SKY<span>FALL</span></h1>
+    <p class="tag">Zwei Festungen. Ein Himmel. Zerstört den gegnerischen Core.</p>
+  </div>
+
+  <div class="panel menu-panel">
+    <label class="field">
+      <span>RUFZEICHEN</span>
+      <input id="inpName" maxlength="14" autocomplete="off" spellcheck="false">
+    </label>
+    <button id="btnCreate" class="btn primary">RAUM ERÖFFNEN</button>
+    <button id="btnJoin" class="btn">RAUM BEITRETEN</button>
+
+    <div id="joinBox" class="joinbox">
+      <label class="field">
+        <span>ROOM-CODE</span>
+        <input id="inpCode" maxlength="5" placeholder="X7K2P" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="row">
+        <button id="btnJoinGo" class="btn primary small">VERBINDEN</button>
+        <button id="btnJoinCancel" class="btn small ghost">ABBRECHEN</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="briefing">
+    <div><b>ZU FUSS</b> WASD bewegen · Shift sprinten · Leertaste springen · Maus zielen · Linksklick feuern · 1/2/3 Waffe · R nachladen · E einsteigen</div>
+    <div><b>IM FLUG</b> Maus steuern · A/D rollen · W/S Schub · Shift Boost · Linksklick Kanonen · Rechtsklick Raketen/Bomben · F aussteigen</div>
+    <div><b>IM FALL</b> Leertaste Fallschirm · WASD steuern</div>
+  </div>
+
+  <div id="menuToast" class="menu-toast"></div>
+</section>
+
+<!-- ============================ LOBBY ============================ -->
+<section id="lobby" class="overlay">
+  <div class="lobby-head">
+    <h2>EINSATZVORBEREITUNG</h2>
+    <div class="codeplate">
+      <span class="cp-label">ROOM-CODE</span>
+      <span id="roomCode" class="cp-code">-----</span>
+      <button id="btnCopy" class="btn tiny">CODE KOPIEREN</button>
+    </div>
+    <p id="lobbyStatus" class="status">…</p>
+  </div>
+
+  <div class="teams">
+    <div class="teamcol blue">
+      <header><h3>BLAUE FESTUNG</h3><button id="btnTeamBlue" class="btn tiny">BEITRETEN</button></header>
+      <div id="listBlue" class="slots"></div>
+    </div>
+    <div class="vs">VS</div>
+    <div class="teamcol red">
+      <header><h3>ROTE FESTUNG</h3><button id="btnTeamRed" class="btn tiny">BEITRETEN</button></header>
+      <div id="listRed" class="slots"></div>
+    </div>
+  </div>
+
+  <div class="panel craft-panel">
+    <span class="panel-title">MASCHINE</span>
+    <div class="crafts">
+      <button class="craft" data-craft="interceptor">
+        <b>INTERCEPTOR</b><i>schnell · wendig · dünnhäutig</i>
+      </button>
+      <button class="craft" data-craft="striker">
+        <b>STRIKER</b><i>allrounder · raketen</i>
+      </button>
+      <button class="craft" data-craft="bomber">
+        <b>BOMBER</b><i>langsam · schwer · bomben</i>
+      </button>
+    </div>
+  </div>
+
+  <div class="lobby-actions">
+    <div id="hostOnly" class="hostbox">
+      <label class="field inline">
+        <span>WETTER</span>
+        <select id="weatherSel">
+          <option value="sunset">Sonnenuntergang</option>
+          <option value="storm">Sturm</option>
+        </select>
+      </label>
+      <button id="btnStart" class="btn primary">MATCH STARTEN</button>
+    </div>
+    <button id="btnReady" class="btn">BEREIT</button>
+    <button id="btnLeave" class="btn ghost">VERLASSEN</button>
+  </div>
+</section>
+
+<!-- ============================ HUD ============================ -->
+<div id="hud">
+  <div class="hud-top">
+    <div id="coreMine" class="corebar blue">
+      <span class="cb-label">EIGENER CORE</span>
+      <div class="cb-track"><i id="coreMineFill"></i></div>
+      <span id="coreMineVal" class="cb-val">1000</span>
+    </div>
+    <div class="hud-clock">
+      <span id="timer">15:00</span>
+      <span id="ping" class="ping">—</span>
+    </div>
+    <div id="coreFoe" class="corebar red">
+      <span class="cb-label">GEGNER-CORE</span>
+      <div class="cb-track"><i id="coreFoeFill"></i></div>
+      <span id="coreFoeVal" class="cb-val">1000</span>
+    </div>
+  </div>
+
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+
+  <div id="alert" class="alert"><b id="alertTitle"></b><span id="alertSub"></span></div>
+  <div id="killfeed"></div>
+
+  <div class="hud-bottom">
+    <div class="stack left">
+      <div class="statblock">
+        <span id="hpLabel" class="s-label">VITALS</span>
+        <div class="s-track"><i id="hpFill"></i></div>
+        <span id="hpVal" class="s-val">100</span>
+      </div>
+      <div id="boostWrap" class="statblock boost">
+        <span class="s-label">BOOST</span>
+        <div class="s-track"><i id="boostFill"></i></div>
+        <span id="spdVal" class="s-val"></span>
+      </div>
+      <div id="modeVal" class="modetag">ZU FUSS</div>
+    </div>
+
+    <div class="stack right">
+      <canvas id="radar" width="132" height="132"></canvas>
+      <div class="weapbox">
+        <span id="weapName" class="w-name">BLASTER</span>
+        <span id="ammoVal" class="w-ammo">24</span>
+        <span id="ammoLabel" class="w-res">ZELLE</span>
+      </div>
+      <div class="slots-mini">
+        <span id="slot0" class="active">1</span><span id="slot1">2</span><span id="slot2">3</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="dmgFlash"></div>
+
+  <div id="respawn" class="respawn">
+    <b>AUSGESCHALTET</b>
+    <span id="respawnCount">3</span>
+    <i>Respawn auf eigener Insel</i>
+  </div>
+
+  <div id="pauseHint" class="pausehint">Klicken, um die Steuerung zu übernehmen</div>
+  <div id="toast" class="toast"></div>
+
+  <div id="introCard" class="introcard">
+    <span class="ic-eyebrow">EINSATZBEFEHL</span>
+    <b id="introTeam" class="team-blue">BLAUE FESTUNG</b>
+    <span class="ic-obj">Zerstöre den Core der Gegenseite. E am Hangar zum Starten.</span>
+  </div>
+</div>
+
+<!-- ============================ ENDE ============================ -->
+<section id="endScreen" class="overlay">
+  <h2 id="endTitle">SIEG</h2>
+  <p id="endSub"></p>
+  <button id="btnQuit" class="btn primary">ZURÜCK ZUM MENÜ</button>
+</section>
+
+<script type="module" src="game.js"></script>
+</body>
+</html>
