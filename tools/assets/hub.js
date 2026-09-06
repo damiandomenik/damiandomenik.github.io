@@ -56,6 +56,15 @@ const TOOLS = [
     keywords: ['url', 'dns', 'tls', 'https', 'http', 'headers', 'waterfall', 'performance', 'ttfb', 'certificate', 'trace', 'cdn'],
     ready: true,
   },
+  {
+    id: 'worldcam',
+    name: 'worldcam',
+    href: './worldcam/',
+    desc: 'A 3D Earth you can fly around, with a real day/night terminator and public webcam locations on it.',
+    tags: ['3d', 'globe', 'webcams'],
+    keywords: ['three.js', 'earth', 'globe', 'map', 'webcam', 'live', 'travel', 'explore', 'windy'],
+    ready: true,
+  },
   // Example of how a future tool is declared — remove or replace.
   // {
   //   id: 'docx',
