@@ -48,9 +48,9 @@ const TOOLS = [
     ready: true,
   },
   {
-    id: 'urlxray',
+    id: 'url-xray',
     name: 'url-xray',
-    href: './urlxray/',
+    href: './url-xray/',
     desc: 'Watch what your browser really does with a URL — DNS, TLS, HTTP, every resource — and where the browser refuses to tell you.',
     tags: ['network', 'security', 'learning'],
     keywords: ['url', 'dns', 'tls', 'https', 'http', 'headers', 'waterfall', 'performance', 'ttfb', 'certificate', 'trace', 'cdn'],
