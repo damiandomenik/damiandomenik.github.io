@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>URL X-Ray — the hidden journey behind every website request</title>
+<meta name="description" content="See what your browser actually does when you enter a URL: DNS, TCP, TLS, HTTP, resources.">
+<style>
+:root{
+  --void:#05070A;
+  --panel:#0A0E14;
+  --panel-2:#0D131B;
+  --line:#18212C;
+  --line-bright:#25323F;
+  --ink:#E2E9F1;
+  --ink-dim:#8FA0B3;
+  --ink-faint:#5B6B7C;
+  --signal:#6EA8FF;
+  --signal-deep:#2C5FA8;
+  --warm:#E8A33D;
+  --good:#5FD0A3;
+  --bad:#E8735F;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--void);
+  color:var(--ink);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(to right, rgba(110,168,255,.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(110,168,255,.045) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 78%);
+  -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 0%, #000 20%, transparent 78%);
+}
+body::after{
+  content:"";position:fixed;left:50%;top:-30vh;width:120vw;height:80vh;transform:translateX(-50%);
+  background:radial-gradient(ellipse at center, rgba(44,95,168,.20), transparent 62%);
+  pointer-events:none;z-index:0;filter:blur(20px);
+}
+.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 24px}
+a{color:var(--signal)}
+button{font-family:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:3px;border-radius:2px}
+
+/* ---------- hero ---------- */
+.hero{min-height:100svh;display:flex;flex-direction:column;justify-content:center;padding:80px 0 48px}
+.brandline{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--ink-faint);margin-bottom:44px}
+.brandline .dot{width:6px;height:6px;border-radius:50%;background:var(--signal);box-shadow:0 0 12px var(--signal)}
+h1{
+  font-size:clamp(38px,7.4vw,78px);line-height:.98;letter-spacing:-.038em;font-weight:600;
+  margin:0 0 20px;max-width:14ch;
+}
+.sub{font-size:clamp(16px,2vw,20px);line-height:1.5;color:var(--ink-dim);max-width:46ch;margin:0 0 44px;font-weight:350}
+.inputrow{display:flex;gap:12px;flex-wrap:wrap;max-width:660px}
+.field{
+  flex:1 1 340px;display:flex;align-items:center;gap:12px;
+  background:linear-gradient(180deg,rgba(13,19,27,.9),rgba(8,12,17,.9));
+  border:1px solid var(--line-bright);border-radius:10px;padding:0 16px;height:60px;
+  transition:border-color .2s, box-shadow .2s;
+}
+.field:focus-within{border-color:var(--signal-deep);box-shadow:0 0 0 4px rgba(110,168,255,.09), 0 0 40px rgba(110,168,255,.12) inset}
+.field span{font-family:var(--mono);font-size:12px;color:var(--ink-faint)}
+.field input{
+  flex:1;background:none;border:0;color:var(--ink);font-family:var(--mono);font-size:15px;height:100%;
+}
+.field input::placeholder{color:#3E4C5A}
+.field input:focus{outline:none}
+.btn{
+  height:60px;padding:0 30px;border-radius:10px;border:1px solid var(--signal-deep);
+  background:linear-gradient(180deg,#12233D,#0B1626);color:#CFE1FF;
+  font-family:var(--mono);font-size:12px;letter-spacing:.16em;cursor:pointer;
+  transition:background .18s,border-color .18s,transform .1s;
+}
+.btn:hover{background:linear-gradient(180deg,#183055,#0E1D31);border-color:var(--signal)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{border-color:var(--line-bright);background:transparent;color:var(--ink-dim);height:44px;padding:0 18px}
+.btn.ghost:hover{border-color:var(--ink-faint);color:var(--ink);background:rgba(255,255,255,.02)}
+.altrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px;align-items:center}
+.hint{font-size:13px;color:var(--ink-faint);margin-top:26px;max-width:58ch;line-height:1.6}
+
+.preview{display:flex;align-items:center;gap:14px;margin-top:64px;flex-wrap:wrap;opacity:.55}
+.preview .p{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--ink-faint);
+  border:1px solid var(--line);border-radius:4px;padding:7px 11px;background:rgba(10,14,20,.6)}
+.preview .arrow{color:var(--signal-deep);font-size:12px}
+@media(max-width:640px){ .preview{gap:8px} .preview .p{font-size:10px;padding:5px 8px} }
+
+/* ---------- trace overlay ---------- */
+#overlay{position:fixed;inset:0;z-index:60;background:rgba(5,7,10,.96);display:none;
+  align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+#overlay.on{display:flex}
+.seq{width:min(520px,86vw)}
+.seq h2{font-family:var(--mono);font-size:12px;letter-spacing:.24em;color:var(--signal);margin:0 0 28px;font-weight:400}
+.stage{display:flex;align-items:center;gap:14px;padding:13px 0;opacity:0;transform:translateY(6px);
+  border-bottom:1px solid var(--line);transition:opacity .45s ease, transform .45s ease}
+.stage.on{opacity:1;transform:none}
+.stage .mark{width:7px;height:7px;border-radius:50%;background:var(--line-bright);flex:none;transition:background .3s,box-shadow .3s}
+.stage.on .mark{background:var(--signal);box-shadow:0 0 10px var(--signal)}
+.stage .txt{font-size:15px;color:var(--ink-dim)}
+.stage.on .txt{color:var(--ink)}
+.stage .t{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+
+/* ---------- results ---------- */
+#results{display:none;padding:0 0 120px}
+#results.on{display:block}
+.resulthead{padding:56px 0 40px;border-bottom:1px solid var(--line);margin-bottom:56px}
+.badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+  padding:6px 10px;border-radius:4px;border:1px solid var(--line-bright);color:var(--ink-dim);background:var(--panel)}
+.badge.demo{color:var(--warm);border-color:rgba(232,163,61,.35);background:rgba(232,163,61,.07)}
+.badge.live{color:var(--signal);border-color:rgba(110,168,255,.35);background:rgba(110,168,255,.07)}
+.badge.self{color:var(--good);border-color:rgba(95,208,163,.3);background:rgba(95,208,163,.07)}
+.targeturl{font-family:var(--mono);font-size:clamp(18px,3.4vw,30px);letter-spacing:-.01em;margin:20px 0 8px;word-break:break-all}
+.targetmeta{font-size:14px;color:var(--ink-faint)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line-bright);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;color:var(--ink-faint);font-family:var(--mono);font-size:11px;
+  letter-spacing:.14em;padding:11px 16px;cursor:pointer}
+.seg button.on{background:rgba(110,168,255,.12);color:#CFE1FF}
+
+section{margin-bottom:76px}
+.shead{display:flex;align-items:baseline;gap:14px;margin-bottom:8px;flex-wrap:wrap}
+.shead h3{font-size:23px;letter-spacing:-.02em;font-weight:550;margin:0}
+.shead .n{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+.sdesc{color:var(--ink-dim);font-size:14.5px;line-height:1.6;max-width:66ch;margin:0 0 30px}
+
+/* journey */
+.journey{display:grid;grid-template-columns:1fr;gap:0;max-width:560px;margin:0 auto}
+.jnode{
+  position:relative;border:1px solid var(--line);background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  border-radius:10px;padding:18px 20px;cursor:pointer;text-align:left;width:100%;color:inherit;
+  transition:border-color .2s, box-shadow .2s, transform .15s;
+}
+.jnode:hover{border-color:var(--signal-deep);box-shadow:0 0 34px rgba(110,168,255,.10)}
+.jnode .row{display:flex;align-items:center;gap:12px}
+.jnode .name{font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--ink)}
+.jnode .val{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--signal);text-align:right}
+.jnode .val.na{color:var(--ink-faint)}
+.jnode .detail{font-size:13px;color:var(--ink-faint);margin-top:8px;font-family:var(--mono);word-break:break-all}
+.jlink{height:44px;display:flex;justify-content:center;position:relative}
+.jlink .spine{width:1px;background:linear-gradient(180deg,var(--line-bright),var(--signal-deep),var(--line-bright));height:100%}
+.jlink .pk{position:absolute;left:50%;margin-left:-2px;width:4px;height:4px;border-radius:50%;
+  background:var(--signal);box-shadow:0 0 8px var(--signal);animation:flow 2.1s linear infinite}
+@keyframes flow{0%{top:-4px;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:100%;opacity:0}}
+
+/* waterfall */
+.wf{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+.wfrow{display:grid;grid-template-columns:190px 1fr 74px;gap:12px;align-items:center;padding:7px 16px;
+  border-bottom:1px solid rgba(24,33,44,.6);cursor:default}
+.wfrow:last-child{border-bottom:0}
+.wfrow:hover{background:rgba(110,168,255,.05)}
+.wfname{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wftrack{position:relative;height:12px;background:rgba(255,255,255,.025);border-radius:3px}
+.wfbar{position:absolute;top:0;height:12px;border-radius:3px;min-width:2px}
+.wfms{font-family:var(--mono);font-size:11px;color:var(--ink-faint);text-align:right}
+.wflegend{display:flex;gap:16px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint)}
+.wflegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+#tip{position:fixed;z-index:80;pointer-events:none;display:none;background:#080C12;border:1px solid var(--line-bright);
+  border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11px;line-height:1.75;color:var(--ink-dim);
+  box-shadow:0 16px 50px rgba(0,0,0,.7);max-width:340px}
+#tip b{color:var(--ink);font-weight:500}
+
+/* generic panels */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:22px}
+.panel h4{margin:0 0 16px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--ink-faint);font-weight:400}
+.kv{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px solid rgba(24,33,44,.7);
+  font-family:var(--mono);font-size:12.5px}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--ink-faint)}
+.kv .v{color:var(--ink);text-align:right;word-break:break-all}
+.kv .v.na{color:#485665}
+.na-note{font-size:12.5px;color:var(--ink-faint);line-height:1.6;margin-top:14px}
+
+/* tree */
+.tree{font-family:var(--mono);font-size:12.5px;line-height:2}
+.tree .grp{color:var(--ink);cursor:pointer;user-select:none}
+.tree .grp .cnt{color:var(--ink-faint)}
+.tree ul{list-style:none;margin:0 0 6px;padding-left:22px;border-left:1px solid var(--line)}
+.tree li{color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree li .sz{color:var(--ink-faint);margin-left:10px}
+.stackbar{display:flex;height:10px;border-radius:3px;overflow:hidden;margin:4px 0 18px;background:rgba(255,255,255,.03)}
+.stackbar div{height:100%}
+
+/* security */
+.secrow{display:grid;grid-template-columns:20px 1fr;gap:14px;padding:16px 0;border-bottom:1px solid rgba(24,33,44,.7)}
+.secrow:last-child{border-bottom:0}
+.secrow .st{font-family:var(--mono);font-size:14px;line-height:1.4}
+.secrow .ttl{font-family:var(--mono);font-size:12.5px;color:var(--ink);margin-bottom:5px}
+.secrow .exp{font-size:13.5px;color:var(--ink-dim);line-height:1.6;max-width:64ch}
+.ok{color:var(--good)} .warn{color:var(--warm)} .unk{color:var(--ink-faint)} .bad{color:var(--bad)}
+
+/* scores */
+.scores{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:760px){.scores{grid-template-columns:1fr 1fr}}
+.score{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:20px}
+.score .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--ink-faint)}
+.score .num{font-size:44px;font-weight:500;letter-spacing:-.04em;margin:10px 0 4px;font-variant-numeric:tabular-nums}
+.score .how{font-size:12px;color:var(--ink-faint);line-height:1.55;margin-top:10px}
+.meter{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--signal)}
+
+/* counters */
+.ops{border:1px solid var(--line-bright);border-radius:12px;padding:38px 34px;
+  background:radial-gradient(ellipse at 20% 0%, rgba(44,95,168,.16), transparent 62%), var(--panel)}
+.ops .lead{font-size:15px;color:var(--ink-dim);margin-bottom:6px}
+.ops .u{font-family:var(--mono);font-size:clamp(15px,2.6vw,22px);color:var(--ink);word-break:break-all;margin-bottom:30px}
+.opsgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:26px}
+.op .n{font-size:38px;font-weight:500;letter-spacing:-.035em;font-variant-numeric:tabular-nums;color:#CFE1FF}
+.op .c{font-size:13px;color:var(--ink-faint);margin-top:4px;line-height:1.4}
+
+/* modal */
+#modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;
+  background:rgba(4,6,9,.82);backdrop-filter:blur(4px);padding:24px}
+#modal.on{display:flex}
+.sheet{width:min(600px,100%);max-height:84vh;overflow:auto;background:var(--panel-2);
+  border:1px solid var(--line-bright);border-radius:12px;padding:32px}
+.sheet h3{margin:0 0 4px;font-size:25px;letter-spacing:-.02em;font-weight:550}
+.sheet .kicker{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--signal);margin-bottom:14px}
+.sheet p{color:var(--ink-dim);font-size:15px;line-height:1.68;max-width:60ch}
+.sheet .closer{margin-top:24px}
+.mono-block{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);background:rgba(0,0,0,.35);
+  border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:18px 0;line-height:1.9;white-space:pre-wrap;word-break:break-all}
+
+footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-faint);font-size:13px;line-height:1.7}
+.empty{font-size:13.5px;color:var(--ink-faint);line-height:1.65;border:1px dashed var(--line-bright);
+  border-radius:10px;padding:20px;background:rgba(255,255,255,.012)}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important}
+  .stage{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero" id="hero">
+    <div class="brandline"><span class="dot"></span> URL X-RAY</div>
+    <h1>What happens when you enter a URL?</h1>
+    <p class="sub">See the hidden journey behind every website request — the lookups, handshakes and downloads your browser performs before a single pixel appears.</p>
+
+    <div class="inputrow">
+      <label class="field">
+        <span>https://</span>
+        <input id="url" type="text" spellcheck="false" autocomplete="off" placeholder="example.com" value="example.com">
+      </label>
+      <button class="btn" id="trace">TRACE URL</button>
+    </div>
+    <div class="altrow">
+      <button class="btn ghost" id="demo">TRY DEMO</button>
+      <button class="btn ghost" id="self">X-RAY THIS PAGE</button>
+    </div>
+    <p class="hint">A browser can't measure DNS or TLS timings for someone else's site — the security model forbids it. So this tool is honest about it: <b>Trace</b> measures what it really can, <b>X-ray this page</b> reads genuine timings from the page you're on, and <b>Demo</b> replays a prepared dataset. Nothing is invented, and no URL leaves your browser except as a request to the site itself.</p>
+
+    <div class="preview" aria-hidden="true">
+      <span class="p">YOU</span><span class="arrow">→</span>
+      <span class="p">DNS</span><span class="arrow">→</span>
+      <span class="p">TLS</span><span class="arrow">→</span>
+      <span class="p">SERVER</span><span class="arrow">→</span>
+      <span class="p">RESPONSE</span>
+    </div>
+  </header>
+
+  <!-- ============ RESULTS ============ -->
+  <main id="results">
+    <div class="resulthead">
+      <span class="badge" id="srcbadge">—</span>
+      <div class="targeturl" id="rurl">—</div>
+      <div class="targetmeta" id="rmeta"></div>
+      <div class="toolbar">
+        <div class="seg">
+          <button id="mtech" class="on">TECHNICAL</button>
+          <button id="msimple">SIMPLE</button>
+        </div>
+        <button class="btn ghost" id="copy">COPY SUMMARY</button>
+        <button class="btn ghost" id="export">EXPORT REPORT</button>
+        <button class="btn ghost" id="again">NEW TRACE</button>
+      </div>
+    </div>
+
+    <section id="s-journey">
+      <div class="shead"><h3>The network journey</h3><span class="n">click any stage</span></div>
+      <p class="sdesc" id="journeydesc"></p>
+      <div class="journey" id="journey"></div>
+    </section>
+
+    <section id="s-wf">
+      <div class="shead"><h3>Request waterfall</h3><span class="n">hover a row</span></div>
+      <p class="sdesc">Every request the browser made, laid out on a shared timeline. Bars start where the request started and end where it finished.</p>
+      <div id="wfwrap"></div>
+    </section>
+
+    <section id="s-res">
+      <div class="shead"><h3>What did the browser download?</h3></div>
+      <p class="sdesc">A page is never one file. Here is everything that came down the wire, grouped by kind.</p>
+      <div class="grid2">
+        <div class="panel"><h4>RESOURCE MAP</h4><div class="tree" id="tree"></div></div>
+        <div class="panel"><h4>WEIGHT</h4><div id="weights"></div></div>
+      </div>
+    </section>
+
+    <section id="s-infra">
+      <div class="shead"><h3>Infrastructure</h3></div>
+      <p class="sdesc">Where the bytes came from, as far as this can be determined.</p>
+      <div class="grid2">
+        <div class="panel"><h4>ROUTE</h4><div id="infra"></div></div>
+        <div class="panel"><h4>TECHNOLOGY</h4><div id="tech"></div></div>
+      </div>
+    </section>
+
+    <section id="s-sec">
+      <div class="shead"><h3>Security X-Ray</h3><span class="n">not a vulnerability scan</span></div>
+      <p class="sdesc">Publicly observable settings only — the response headers and the transport. A site can pass every line here and still have serious problems elsewhere.</p>
+      <div class="panel" id="sec"></div>
+    </section>
+
+    <section id="s-score">
+      <div class="shead"><h3>Scores</h3></div>
+      <p class="sdesc">Each score is a plain formula over the numbers above, printed underneath so you can check it. Where the data is missing, there is no score.</p>
+      <div class="scores" id="scores"></div>
+    </section>
+
+    <section id="s-ops">
+      <div class="ops">
+        <div class="lead">You entered</div>
+        <div class="u" id="opsurl"></div>
+        <div class="lead" style="margin-bottom:22px">and the browser performed</div>
+        <div class="opsgrid" id="opsgrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    URL X-Ray runs entirely in your browser. Live traces send one request to the site you named, exactly as visiting it would. Nothing is logged, stored or uploaded.
+  </footer>
+</div>
+
+<!-- overlay -->
+<div id="overlay"><div class="seq">
+  <h2 id="seqtitle">CONNECTING...</h2>
+  <div id="stages"></div>
+</div></div>
+
+<!-- modal -->
+<div id="modal"><div class="sheet" role="dialog" aria-modal="true">
+  <div class="kicker" id="mk"></div>
+  <h3 id="mt"></h3>
+  <p id="mp"></p>
+  <div class="mono-block" id="mb"></div>
+  <div class="closer"><button class="btn ghost" id="mclose">CLOSE</button></div>
+</div></div>
+
+<div id="tip"></div>
+
+<script>
+(function(){
+"use strict";
+
+var NA = "Not available from browser";
+
+/* ---------------------------------------------------------------
+   Node definitions — the educational layer
+--------------------------------------------------------------- */
+var NODES = [
+  { id:"browser", name:"BROWSER",
+    tech:"The browser parses the URL into scheme, host, optional port and path. It checks its own caches (HTTP cache, service workers, preconnect hints) and the HSTS list, which can upgrade http:// to https:// before anything leaves the machine.",
+    simple:"Your browser reads the address, works out which computer it needs to talk to, and checks whether it already has a copy of the page lying around." },
+  { id:"dns", name:"DNS",
+    tech:"DNS resolves a hostname to one or more IP addresses. The resolver walks a chain — OS cache, configured resolver, root, TLD, authoritative nameserver — and returns A (IPv4), AAAA (IPv6) or CNAME records, each with a TTL that controls how long the answer may be reused.",
+    simple:"The internet's phone book. Your browser asks 'where does this name live?' and gets back a number that identifies the actual machine." },
+  { id:"tcp", name:"TCP",
+    tech:"A TCP connection is opened to the resolved address with a three-way handshake (SYN, SYN-ACK, ACK). That costs one full round trip before any application data can be sent. QUIC/HTTP-3 replaces this with a UDP-based handshake that can be merged with the crypto setup.",
+    simple:"Before sending anything, the two computers say hello to each other and agree that the line is open. That greeting takes a moment." },
+  { id:"tls", name:"TLS",
+    tech:"The TLS handshake negotiates a cipher suite, validates the server's certificate chain against trusted roots, checks the hostname and validity dates, and derives session keys. TLS 1.3 needs one round trip; 1.2 needs two.",
+    simple:"Your browser and the site set up a private tunnel and check the site's ID card, so nobody in between can read or change what you send." },
+  { id:"http", name:"HTTP",
+    tech:"The browser sends a request line, headers and cookies. Time to first byte covers the network path plus whatever the server did to produce the answer. HTTP/2 and HTTP/3 multiplex many requests over one connection instead of queueing them.",
+    simple:"Your browser asks for the page, then waits. How long it waits depends on both the distance and how quickly the server can put the answer together." },
+  { id:"server", name:"SERVER",
+    tech:"The response may come from an edge node close to you or from an origin much further away. Headers such as server, via, x-cache and age hint at a CDN layer, though any of them can be absent or rewritten.",
+    simple:"Somewhere a computer builds the answer — often a nearby copy rather than the original, which is why big sites feel fast everywhere." },
+  { id:"response", name:"RESPONSE",
+    tech:"The status line arrives first, then headers, then the body, usually compressed with gzip or brotli. The browser parses the HTML as it streams in and immediately starts requesting the stylesheets, scripts, images and fonts it references.",
+    simple:"The answer comes back and the browser starts drawing straight away — while still fetching all the extra files the page asks for." }
+];
+
+var TYPE_COLORS = { html:"#6EA8FF", css:"#5FD0A3", js:"#E8A33D", image:"#B98CF0", font:"#E8735F", other:"#657687",
+                    dns:"#3C6FBF", tcp:"#4E86D8", tls:"#8CC0FF" };
+
+/* ---------------------------------------------------------------
+   Demo dataset — clearly labelled, never presented as measured
+--------------------------------------------------------------- */
+function demoAnalysis(){
+  var r = [
+    ["index.html","html",0,148,42100,"h2",200,"navigation","MISS"],
+    ["style.css","css",152,96,54200,"h2",200,"index.html","HIT"],
+    ["framework.css","css",154,183,126400,"h2",200,"index.html","MISS"],
+    ["app.js","js",156,412,986000,"h2",200,"index.html","MISS"],
+    ["vendor.js","js",158,506,712300,"h2",200,"index.html","MISS"],
+    ["analytics.js","js",340,168,118400,"h2",200,"app.js","MISS"],
+    ["hero.webp","image",372,604,1840000,"h2",200,"style.css","MISS"],
+    ["logo.svg","image",374,42,9800,"h2",200,"index.html","HIT"],
+    ["card-1.webp","image",380,318,486000,"h2",200,"index.html","MISS"],
+    ["card-2.webp","image",382,344,502000,"h2",200,"index.html","MISS"],
+    ["card-3.webp","image",384,296,394000,"h2",200,"index.html","MISS"],
+    ["sprite.png","image",386,122,64300,"h2",200,"style.css","HIT"],
+    ["inter-regular.woff2","font",400,88,116200,"h2",200,"style.css","MISS"],
+    ["inter-semibold.woff2","font",402,94,121500,"h2",200,"style.css","MISS"],
+    ["mono.woff2","font",404,76,98700,"h2",200,"style.css","HIT"],
+    ["api/session","other",560,214,3200,"h2",200,"app.js","MISS"],
+    ["api/products","other",566,388,88600,"h2",200,"app.js","MISS"],
+    ["beacon","other",980,96,1100,"h2",204,"analytics.js","MISS"]
+  ].map(function(x){
+    return {name:x[0],type:x[1],start:x[2],dur:x[3],size:x[4],protocol:x[5],status:x[6],initiator:x[7],cache:x[8]};
+  });
+  return {
+    source:"demo", url:"https://example.com/", host:"example.com", scheme:"https", port:"443", path:"/",
+    dns:{ip:"93.184.216.34", ipv6:"2606:2800:220:1:248:1893:25c8:1946", records:["A","AAAA","CNAME","MX","TXT"], ms:12},
+    tcp:{ms:24},
+    tls:{version:"TLS 1.3", ms:38, cipher:"TLS_AES_128_GCM_SHA256", issuer:"DigiCert Global G2", validTo:"2027-01-14", valid:true},
+    http:{status:200, protocol:"HTTP/2", ttfb:82, transferred:5643200, contentEncoding:"br"},
+    infra:{cdn:"Cloudflare", cdnConfidence:"likely", server:"cloudflare", edge:"FRA", ipVersion:"IPv4 + IPv6"},
+    resources:r,
+    technologies:[
+      {name:"React", state:"detected", why:"react root attributes in markup"},
+      {name:"Next.js", state:"detected", why:"__NEXT_DATA__ payload present"},
+      {name:"Cloudflare", state:"likely", why:"server header and cf-ray"},
+      {name:"Google Fonts", state:"not detected", why:"fonts served from same origin"},
+      {name:"Analytics", state:"detected", why:"beacon request to analytics endpoint"}
+    ],
+    security:[
+      {k:"HTTPS", s:"ok", tech:"The connection uses https, so the transport is encrypted and authenticated.", simple:"The connection is private. Nobody on the way can read it."},
+      {k:"TLS 1.3", s:"ok", tech:"Negotiated TLS 1.3, the current version, with a one round trip handshake.", simple:"It uses the newest, fastest version of that private tunnel."},
+      {k:"Valid certificate", s:"ok", tech:"Chain validates to a trusted root, hostname matches, expires 2027-01-14.", simple:"The site's ID card is genuine and still in date."},
+      {k:"HSTS", s:"ok", tech:"strict-transport-security is set with a two year max-age, so browsers refuse plain http for this host.", simple:"The site tells browsers to always use the secure version from now on."},
+      {k:"Content-Security-Policy", s:"warn", tech:"A policy is present but includes unsafe-inline for scripts, which weakens its protection against injected code.", simple:"There are rules about which code may run, but they have a hole in them."},
+      {k:"X-Content-Type-Options", s:"ok", tech:"nosniff is set, so the browser will not guess a file's type against what the server declared.", simple:"The browser is told to trust the labels on files instead of guessing."},
+      {k:"Referrer-Policy", s:"ok", tech:"strict-origin-when-cross-origin limits what address is leaked to third parties.", simple:"Other sites learn less about where you came from."}
+    ],
+    notes:["This is a prepared dataset used to demonstrate the interface. No request was made."]
+  };
+}
+
+/* ---------------------------------------------------------------
+   Live trace — only what a browser can genuinely observe
+--------------------------------------------------------------- */
+function parseUrl(raw){
+  var s = (raw||"").trim();
+  if(!/^https?:\/\//i.test(s)) s = "https://" + s.replace(/^\/+/,"");
+  try{ return new URL(s); }catch(e){ return null; }
+}
+
+function liveAnalysis(u){
+  var probeUrl = u.href;
+  var t0 = performance.now();
+  var reached = false, err = null;
+  return fetch(probeUrl, {mode:"no-cors", cache:"no-store", redirect:"follow"})
+    .then(function(){ reached = true; })
+    .catch(function(e){ err = String(e && e.message || e); })
+    .then(function(){
+      var elapsed = Math.round(performance.now() - t0);
+      var entry = null, all = performance.getEntriesByType("resource");
+      for(var i=all.length-1;i>=0;i--){ if(all[i].name.indexOf(u.origin) === 0){ entry = all[i]; break; } }
+      var measured = entry ? Math.round(entry.duration) : elapsed;
+      return {
+        source:"live", url:u.href, host:u.hostname, scheme:u.protocol.replace(":",""),
+        port:u.port || (u.protocol==="https:"?"443":"80"), path:u.pathname + u.search,
+        dns:null, tcp:null,
+        tls:u.protocol==="https:" ? {version:null, ms:null} : null,
+        http:{status:null, protocol:(entry && entry.nextHopProtocol) || null, ttfb:null,
+              transferred:(entry && entry.transferSize) || null},
+        roundTrip:{ms:measured, reached:reached, error:err},
+        infra:null, resources:[], technologies:[],
+        security:[
+          {k:"HTTPS", s:u.protocol==="https:"?"ok":"bad",
+           tech:u.protocol==="https:" ? "The address uses https, so the connection will be encrypted." : "The address uses plain http. Traffic can be read and modified in transit.",
+           simple:u.protocol==="https:" ? "The connection is private." : "This connection is not private. Anyone on the network can read it."},
+          {k:"TLS version", s:"unknown", tech:"The browser does not expose the negotiated TLS version to page scripts.", simple:"Your browser knows this, but it will not tell a web page."},
+          {k:"Certificate", s:"unknown", tech:"Certificate details are not readable from JavaScript. Your browser validated it, and would have blocked the request otherwise.", simple:"The browser checked the site's ID card, but it does not let this page look at it."},
+          {k:"Response headers", s:"unknown", tech:"Cross-origin responses are opaque without CORS permission, so security headers cannot be read from here.", simple:"The site would have to give this page permission before it could read those settings."}
+        ],
+        notes:[
+          reached ? "One request was made to this address and the browser reported a response."
+                  : "The request did not complete. That may mean the host is unreachable, or simply that it refuses cross-origin requests — the two look identical from here.",
+          "The single duration below covers DNS, TCP, TLS, server time and transfer combined. A browser cannot split those apart for another origin, so this tool does not pretend to."
+        ]
+      };
+    });
+}
+
+/* ---------------------------------------------------------------
+   Self trace — genuine Performance API data for this very page
+--------------------------------------------------------------- */
+function classify(entry){
+  var t = entry.initiatorType, n = entry.name.toLowerCase();
+  if(/\.(woff2?|ttf|otf|eot)(\?|$)/.test(n)) return "font";
+  if(t==="link" && /\.css(\?|$)/.test(n)) return "css";
+  if(/\.css(\?|$)/.test(n)) return "css";
+  if(t==="script" || /\.m?js(\?|$)/.test(n)) return "js";
+  if(t==="img" || /\.(png|jpe?g|gif|webp|avif|svg|ico)(\?|$)/.test(n)) return "image";
+  if(t==="css") return "image";
+  if(t==="navigation" || /\.html?(\?|$)/.test(n)) return "html";
+  return "other";
+}
+
+function selfAnalysis(){
+  var nav = performance.getEntriesByType("navigation")[0];
+  var here = new URL(location.href);
+  var res = performance.getEntriesByType("resource").map(function(e){
+    return {
+      name: e.name.split("/").pop().split("?")[0] || e.name,
+      full: e.name,
+      type: classify(e),
+      start: Math.round(e.startTime),
+      dur: Math.round(e.duration),
+      size: e.transferSize || 0,
+      protocol: e.nextHopProtocol || null,
+      status: null,
+      initiator: e.initiatorType || null,
+      cache: (e.transferSize === 0 && e.decodedBodySize > 0) ? "HIT" : (e.transferSize > 0 ? "MISS" : null)
+    };
+  });
+  var a = {
+    source:"self", url:here.href, host:here.hostname, scheme:here.protocol.replace(":",""),
+    port: here.port || (here.protocol==="https:"?"443":"80"), path: here.pathname,
+    dns:null, tcp:null, tls:null, http:null, infra:null,
+    resources:res, technologies:[], security:[], notes:[]
+  };
+
+  if(nav){
+    var dns = Math.round(nav.domainLookupEnd - nav.domainLookupStart);
+    var secure = nav.secureConnectionStart > 0;
+    var tlsMs = secure ? Math.round(nav.connectEnd - nav.secureConnectionStart) : null;
+    var tcpMs = Math.round((secure ? nav.secureConnectionStart : nav.connectEnd) - nav.connectStart);
+    a.dns = {ip:null, ipv6:null, records:null, ms:dns};
+    a.tcp = {ms: tcpMs >= 0 ? tcpMs : null};
+    a.tls = secure ? {version:null, ms:tlsMs, cipher:null, issuer:null, validTo:null, valid:null} : null;
+    a.http = {
+      status:null,
+      protocol: nav.nextHopProtocol ? ({"h2":"HTTP/2","h3":"HTTP/3","http/1.1":"HTTP/1.1"}[nav.nextHopProtocol] || nav.nextHopProtocol) : null,
+      ttfb: Math.round(nav.responseStart - nav.requestStart),
+      transferred: nav.transferSize || null,
+      contentEncoding: (nav.encodedBodySize && nav.decodedBodySize && nav.encodedBodySize < nav.decodedBodySize) ? "compressed" : null
+    };
+    a.resources.unshift({
+      name: (here.pathname.split("/").pop() || "index.html"), full: here.href, type:"html",
+      start:0, dur: Math.round(nav.responseEnd - nav.startTime), size: nav.transferSize || 0,
+      protocol: nav.nextHopProtocol || null, status:200, initiator:"navigation",
+      cache: nav.transferSize === 0 ? "HIT" : "MISS"
+    });
+    a.notes.push("These timings come from the Navigation Timing API and describe this page, in this browser, on this connection. They are real measurements, not estimates.");
+  } else {
+    a.notes.push("This browser did not expose navigation timing for the current page.");
+  }
+
+  // Same-origin: response headers are readable, so the security section is real here.
+  return fetch(location.href, {cache:"no-store"}).then(function(r){
+    var h = function(n){ return r.headers.get(n); };
+    var https = location.protocol === "https:";
+    var csp = h("content-security-policy"), hsts = h("strict-transport-security"),
+        xcto = h("x-content-type-options"), ref = h("referrer-policy"), xfo = h("x-frame-options");
+    a.http = a.http || {};
+    a.http.status = r.status;
+    a.security = [
+      {k:"HTTPS", s:https?"ok":"bad",
+       tech: https ? "Served over https; the transport is encrypted and authenticated." : "Served over plain http. Traffic can be read and modified in transit.",
+       simple: https ? "This page arrived over a private connection." : "This page did not arrive over a private connection."},
+      {k:"HSTS", s:hsts?"ok":"warn",
+       tech: hsts ? ("strict-transport-security: " + hsts) : "No strict-transport-security header, so a browser will still try plain http for this host.",
+       simple: hsts ? "The site tells browsers to always use the secure version." : "The site does not insist on the secure version for future visits."},
+      {k:"Content-Security-Policy", s:csp?(/unsafe-inline|unsafe-eval/.test(csp)?"warn":"ok"):"warn",
+       tech: csp ? ("Policy present: " + csp.slice(0,180) + (csp.length>180?"…":"")) : "No content-security-policy header. Any script that reaches the page may run.",
+       simple: csp ? "There are rules about which code may run on this page." : "There are no rules limiting which code may run here."},
+      {k:"X-Content-Type-Options", s:(xcto&&/nosniff/i.test(xcto))?"ok":"warn",
+       tech: xcto ? ("Set to " + xcto + ".") : "Not set, so the browser may guess a file's type against what the server declared.",
+       simple: xcto ? "The browser trusts the labels on files instead of guessing." : "The browser may guess what a file is, which can be abused."},
+      {k:"Referrer-Policy", s:ref?"ok":"warn",
+       tech: ref ? ("Set to " + ref + ".") : "Not set, so the default policy applies and more of the address may be shared with other sites.",
+       simple: ref ? "Other sites learn less about where you came from." : "Other sites may learn which page you came from."},
+      {k:"X-Frame-Options / frame-ancestors", s:(xfo || (csp && /frame-ancestors/.test(csp)))?"ok":"warn",
+       tech: (xfo || (csp && /frame-ancestors/.test(csp))) ? "Framing is restricted." : "Nothing restricts other sites from putting this page inside a frame.",
+       simple: (xfo || (csp && /frame-ancestors/.test(csp))) ? "Other sites cannot embed this page invisibly." : "Another site could embed this page inside its own."}
+    ];
+    var srv = h("server"), via = h("via"), xc = h("x-cache") || h("cf-cache-status");
+    a.infra = {
+      cdn: (srv && /cloudflare/i.test(srv)) ? "Cloudflare" :
+           (srv && /github/i.test(srv)) ? "GitHub Pages" :
+           (via || xc) ? "Cache layer in front of origin" : null,
+      cdnConfidence: (srv || via || xc) ? "likely" : null,
+      server: srv || null, edge: null,
+      ipVersion: null
+    };
+    a.technologies = detectTech();
+    return a;
+  }).catch(function(){
+    a.security = [{k:"Response headers", s:"unknown",
+      tech:"The page's own headers could not be re-read (this happens on file:// or with a strict cache policy).",
+      simple:"The settings could not be read this time."}];
+    a.technologies = detectTech();
+    return a;
+  });
+}
+
+function detectTech(){
+  var out = [], html = document.documentElement.outerHTML;
+  function add(n,s,w){ out.push({name:n,state:s,why:w}); }
+  add("React", window.React ? "detected" : (document.querySelector("[data-reactroot],#root") ? "likely" : "not detected"), "global object and root element");
+  add("Service worker", ("serviceWorker" in navigator && navigator.serviceWorker.controller) ? "detected" : "not detected", "navigator.serviceWorker.controller");
+  add("External fonts", /fonts\.(googleapis|gstatic)\.com/.test(html) ? "detected" : "not detected", "stylesheet and preconnect hints");
+  add("Analytics", (window.gtag || window.dataLayer || window.ga) ? "detected" : "not detected", "known global objects");
+  add("Inline styles only", document.querySelectorAll('link[rel="stylesheet"]').length === 0 ? "detected" : "not detected", "no external stylesheet links");
+  return out;
+}
+
+/* ---------------------------------------------------------------
+   Rendering
+--------------------------------------------------------------- */
+var A = null, MODE = "tech";
+var $ = function(id){ return document.getElementById(id); };
+function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+function bytes(n){
+  if(n==null || isNaN(n)) return null;
+  if(n < 1024) return n + " B";
+  if(n < 1048576) return (n/1024).toFixed(1) + " KB";
+  return (n/1048576).toFixed(2) + " MB";
+}
+function ms(n){ return (n==null || isNaN(n)) ? null : n + " ms"; }
+
+function render(a){
+  A = a;
+  var b = $("srcbadge");
+  b.className = "badge " + a.source;
+  b.textContent = a.source==="demo" ? "DEMO DATA — NOT A LIVE MEASUREMENT"
+                : a.source==="self" ? "MEASURED — THIS PAGE, THIS VISIT"
+                : "LIVE TRACE — LIMITED BY BROWSER SECURITY";
+  $("rurl").textContent = a.url;
+  $("rmeta").textContent = a.host + " · " + a.scheme + " · port " + a.port;
+  $("opsurl").textContent = a.url;
+  $("journeydesc").textContent = (a.notes && a.notes[0]) || "";
+
+  renderJourney(a); renderWaterfall(a); renderResources(a);
+  renderInfra(a); renderTech(a); renderSecurity(a); renderScores(a); renderOps(a);
+}
+
+function nodeValue(a, id){
+  switch(id){
+    case "browser": return {v:a.path || "/", d:"scheme " + a.scheme + " · host " + a.host};
+    case "dns": return a.dns && a.dns.ms!=null
+        ? {v:ms(a.dns.ms), d:a.dns.ip ? (a.host + " → " + a.dns.ip) : a.host}
+        : {v:NA, na:true, d:"IP addresses are resolved by the OS, out of reach of page scripts"};
+    case "tcp": return a.tcp && a.tcp.ms!=null ? {v:ms(a.tcp.ms), d:"handshake to " + a.host}
+        : {v:NA, na:true, d:"connection setup is not exposed for other origins"};
+    case "tls": return a.tls && a.tls.ms!=null
+        ? {v:ms(a.tls.ms), d:(a.tls.version || "encrypted") + (a.tls.cipher ? " · " + a.tls.cipher : "")}
+        : (a.scheme==="https" ? {v:"Encrypted", d:"version and certificate are not readable from JavaScript"}
+                              : {v:"None", na:true, d:"plain http — no transport encryption"});
+    case "http": return a.http && a.http.ttfb!=null
+        ? {v:ms(a.http.ttfb), d:(a.http.protocol||"") + (a.http.status ? " · " + a.http.status : "") + " · TTFB"}
+        : (a.roundTrip ? {v:ms(a.roundTrip.ms), d:"whole round trip, not just TTFB"}
+                       : {v:NA, na:true, d:"no timing available"});
+    case "server": return a.infra && (a.infra.cdn || a.infra.server)
+        ? {v:a.infra.cdn || a.infra.server, d:(a.infra.server||"") + (a.infra.edge ? " · edge " + a.infra.edge : "")}
+        : {v:NA, na:true, d:"response headers are not readable across origins"};
+    case "response": return a.resources && a.resources.length
+        ? {v:a.resources.length + " requests", d:bytes(a.resources.reduce(function(s,r){return s+(r.size||0);},0)) + " transferred"}
+        : {v:NA, na:true, d:"the browser cannot enumerate another site's sub-resources"};
+  }
+  return {v:NA, na:true, d:""};
+}
+
+function renderJourney(a){
+  var host = $("journey"); host.innerHTML = "";
+  NODES.forEach(function(n, i){
+    if(i > 0){
+      var link = el("div","jlink");
+      link.appendChild(el("div","spine"));
+      for(var p=0;p<2;p++){
+        var pk = el("div","pk"); pk.style.animationDelay = (i*0.16 + p*1.05) + "s"; link.appendChild(pk);
+      }
+      host.appendChild(link);
+    }
+    var info = nodeValue(a, n.id);
+    var btn = el("button","jnode");
+    btn.type = "button";
+    var row = el("div","row");
+    row.appendChild(el("div","name", n.name));
+    var v = el("div","val" + (info.na ? " na" : ""), info.v);
+    row.appendChild(v);
+    btn.appendChild(row);
+    if(info.d) btn.appendChild(el("div","detail", info.d));
+    btn.onclick = function(){ openNode(n, info); };
+    host.appendChild(btn);
+  });
+}
+
+function openNode(n, info){
+  $("mk").textContent = n.name;
+  $("mt").textContent = MODE==="tech" ? "How this stage works" : "What this step does";
+  $("mp").textContent = MODE==="tech" ? n.tech : n.simple;
+  var lines = [];
+  lines.push("measured  " + (info.na ? NA : info.v));
+  if(info.d) lines.push("context   " + info.d);
+  if(n.id==="dns" && A.dns && A.dns.records) lines.push("records   " + A.dns.records.join("  "));
+  if(n.id==="tls" && A.tls && A.tls.issuer) lines.push("issuer    " + A.tls.issuer + "\nexpires   " + A.tls.validTo);
+  $("mb").textContent = lines.join("\n");
+  $("modal").classList.add("on");
+}
+
+function renderWaterfall(a){
+  var wrap = $("wfwrap"); wrap.innerHTML = "";
+  if(!a.resources || !a.resources.length){
+    wrap.appendChild(el("div","empty",
+      "No waterfall for a live trace. A browser is only allowed to enumerate requests made by its own page, so the sub-resources of another site stay invisible. Use " +
+      "\u201cX-ray this page\u201d for real numbers, or the demo for a full one."));
+    return;
+  }
+  var max = a.resources.reduce(function(m,r){ return Math.max(m, r.start + r.dur); }, 1);
+  var box = el("div","wf");
+  a.resources.forEach(function(r){
+    var row = el("div","wfrow");
+    row.appendChild(el("div","wfname", r.name));
+    var track = el("div","wftrack");
+    var bar = el("div","wfbar");
+    bar.style.left = (r.start / max * 100) + "%";
+    bar.style.width = Math.max(0.4, r.dur / max * 100) + "%";
+    bar.style.background = TYPE_COLORS[r.type] || TYPE_COLORS.other;
+    track.appendChild(bar);
+    row.appendChild(track);
+    row.appendChild(el("div","wfms", r.dur + " ms"));
+    row.onmousemove = function(ev){ showTip(ev, r); };
+    row.onmouseleave = hideTip;
+    box.appendChild(row);
+  });
+  wrap.appendChild(box);
+  var lg = el("div","wflegend");
+  ["html","css","js","image","font","other"].forEach(function(t){
+    var s = el("span"); var i = el("i"); i.style.background = TYPE_COLORS[t];
+    s.appendChild(i); s.appendChild(document.createTextNode(t)); lg.appendChild(s);
+  });
+  wrap.appendChild(lg);
+}
+
+function showTip(ev, r){
+  var t = $("tip");
+  var rows = [
+    ["url", r.full || r.name],
+    ["type", r.type],
+    ["status", r.status != null ? r.status : NA],
+    ["size", r.size ? bytes(r.size) : (r.cache==="HIT" ? "0 B (from cache)" : NA)],
+    ["duration", r.dur + " ms"],
+    ["started", "+" + r.start + " ms"],
+    ["protocol", r.protocol || NA],
+    ["initiator", r.initiator || NA],
+    ["cache", r.cache || NA]
+  ];
+  t.innerHTML = rows.map(function(x){
+    return "<b>" + x[0] + "</b> " + String(x[1]).replace(/</g,"&lt;");
+  }).join("<br>");
+  t.style.display = "block";
+  var w = t.offsetWidth, h = t.offsetHeight;
+  t.style.left = Math.min(ev.clientX + 16, window.innerWidth - w - 12) + "px";
+  t.style.top = Math.min(ev.clientY + 16, window.innerHeight - h - 12) + "px";
+}
+function hideTip(){ $("tip").style.display = "none"; }
+
+function renderResources(a){
+  var tree = $("tree"), weights = $("weights");
+  tree.innerHTML = ""; weights.innerHTML = "";
+  if(!a.resources.length){
+    tree.appendChild(el("div","empty","Nothing to list — see the note in the waterfall above."));
+    return;
+  }
+  var groups = {};
+  a.resources.forEach(function(r){ (groups[r.type] = groups[r.type] || []).push(r); });
+
+  tree.appendChild(el("div","grp", a.host));
+  var order = ["html","css","js","image","font","other"];
+  order.forEach(function(t){
+    if(!groups[t]) return;
+    var g = el("div","grp");
+    g.textContent = "├── " + t;
+    var c = el("span","cnt", "  (" + groups[t].length + ")");
+    g.appendChild(c);
+    var ul = el("ul");
+    groups[t].forEach(function(r){
+      var li = el("li", null, "└ " + r.name);
+      var sz = el("span","sz", r.size ? bytes(r.size) : "cached");
+      li.appendChild(sz); ul.appendChild(li);
+    });
+    g.onclick = function(){ ul.style.display = ul.style.display === "none" ? "" : "none"; };
+    tree.appendChild(g); tree.appendChild(ul);
+  });
+
+  var total = 0, sums = {};
+  a.resources.forEach(function(r){ sums[r.type] = (sums[r.type]||0) + (r.size||0); total += (r.size||0); });
+  var bar = el("div","stackbar");
+  order.forEach(function(t){
+    if(!sums[t]) return;
+    var d = el("div"); d.style.width = (sums[t]/total*100) + "%"; d.style.background = TYPE_COLORS[t]; bar.appendChild(d);
+  });
+  weights.appendChild(bar);
+  order.forEach(function(t){
+    if(!sums[t] && !groups[t]) return;
+    var k = el("div","kv");
+    k.appendChild(el("span","k", t + "  (" + (groups[t]?groups[t].length:0) + ")"));
+    k.appendChild(el("span","v", bytes(sums[t]) || "0 B"));
+    weights.appendChild(k);
+  });
+  var kt = el("div","kv");
+  kt.appendChild(el("span","k","total"));
+  kt.appendChild(el("span","v", bytes(total)));
+  weights.appendChild(kt);
+}
+
+function kvInto(host, k, v){
+  var row = el("div","kv");
+  row.appendChild(el("span","k", k));
+  row.appendChild(el("span","v" + (v==null?" na":""), v==null ? NA : v));
+  host.appendChild(row);
+}
+
+function renderInfra(a){
+  var h = $("infra"); h.innerHTML = "";
+  kvInto(h, "domain", a.host);
+  kvInto(h, "IPv4", a.dns && a.dns.ip);
+  kvInto(h, "IPv6", a.dns && a.dns.ipv6);
+  kvInto(h, "DNS records", a.dns && a.dns.records ? a.dns.records.join(" ") : null);
+  kvInto(h, "CDN / edge", a.infra && a.infra.cdn ? a.infra.cdn + (a.infra.cdnConfidence ? " (" + a.infra.cdnConfidence + ")" : "") : null);
+  kvInto(h, "server header", a.infra && a.infra.server);
+  kvInto(h, "HTTP version", a.http && a.http.protocol);
+  kvInto(h, "TLS version", a.tls && a.tls.version);
+  kvInto(h, "certificate", a.tls && a.tls.issuer ? a.tls.issuer + ", to " + a.tls.validTo : null);
+  if(a.source !== "demo"){
+    h.appendChild(el("div","na-note",
+      "IP addresses and DNS records are resolved by the operating system before the browser hands anything to a page. There is no API that reveals them, so nothing is guessed here."));
+  }
+}
+
+function renderTech(a){
+  var h = $("tech"); h.innerHTML = "";
+  if(!a.technologies.length){
+    h.appendChild(el("div","empty","Detection needs to read a site's markup and responses. Cross-origin, the browser does not allow that."));
+    return;
+  }
+  a.technologies.forEach(function(t){
+    var row = el("div","kv");
+    row.appendChild(el("span","k", t.name));
+    var s = el("span","v");
+    s.textContent = t.state === "detected" ? "Detected" : t.state === "likely" ? "Likely" : "Not detected";
+    s.className = "v " + (t.state==="detected" ? "ok" : t.state==="likely" ? "warn" : "unk");
+    row.appendChild(s);
+    row.title = t.why;
+    h.appendChild(row);
+  });
+  h.appendChild(el("div","na-note","Detection is evidence-based and labelled accordingly. Hover a row to see what the label rests on."));
+}
+
+function renderSecurity(a){
+  var h = $("sec"); h.innerHTML = "";
+  a.security.forEach(function(s){
+    var row = el("div","secrow");
+    var mark = el("div","st " + (s.s==="ok"?"ok":s.s==="warn"?"warn":s.s==="bad"?"bad":"unk"),
+      s.s==="ok" ? "✓" : s.s==="warn" ? "!" : s.s==="bad" ? "✕" : "?");
+    row.appendChild(mark);
+    var body = el("div");
+    body.appendChild(el("div","ttl", s.k));
+    body.appendChild(el("div","exp", MODE==="tech" ? s.tech : s.simple));
+    row.appendChild(body);
+    h.appendChild(row);
+  });
+}
+
+function clamp(n){ return Math.max(0, Math.min(100, Math.round(n))); }
+
+function renderScores(a){
+  var h = $("scores"); h.innerHTML = "";
+  var cards = [];
+
+  if(a.http && a.http.ttfb != null){
+    var ttfb = a.http.ttfb;
+    cards.push({l:"PERFORMANCE", n:clamp(100 - Math.max(0, ttfb - 100) / 6),
+      how:"100 minus (TTFB " + ttfb + " ms − 100) ÷ 6. Anything at or under 100 ms scores full marks."});
+  } else cards.push({l:"PERFORMANCE", n:null, how:"Needs time to first byte, which is not measurable for another origin."});
+
+  if(a.http && a.http.protocol){
+    var p = a.http.protocol, base = /HTTP\/3|h3/.test(p) ? 100 : /HTTP\/2|h2/.test(p) ? 90 : 60;
+    var reqs = a.resources.length, pen = /1\.1/.test(p) ? Math.min(30, reqs) : Math.min(10, reqs/4);
+    cards.push({l:"NETWORK", n:clamp(base - pen),
+      how:p + " scores " + base + ". Minus a penalty for " + reqs + " requests, which costs more on HTTP/1.1 than on multiplexed connections."});
+  } else cards.push({l:"NETWORK", n:null, how:"Needs the negotiated protocol version, which is only exposed for same-origin responses."});
+
+  var known = a.security.filter(function(s){ return s.s!=="unknown"; });
+  if(known.length >= 3){
+    var pts = known.reduce(function(s,x){ return s + (x.s==="ok"?1:x.s==="warn"?0.5:0); }, 0);
+    cards.push({l:"SECURITY", n:clamp(pts / known.length * 100),
+      how:pts + " of " + known.length + " observable checks passed (a warning counts as a half)."});
+  } else cards.push({l:"SECURITY", n:null, how:"Too few checks are observable to build a score honestly."});
+
+  if(a.resources.length){
+    var total = a.resources.reduce(function(s,r){ return s + (r.size||0); }, 0);
+    var mb = total / 1048576;
+    var cached = a.resources.filter(function(r){ return r.cache==="HIT"; }).length;
+    var eff = 100 - Math.max(0, (mb - 1)) * 14 + (cached / a.resources.length) * 10;
+    cards.push({l:"EFFICIENCY", n:clamp(eff),
+      how:bytes(total) + " transferred. 100 minus 14 per MB over the first, plus up to 10 for the " + cached + " cached responses."});
+  } else cards.push({l:"EFFICIENCY", n:null, how:"Needs the resource list, which is not available cross-origin."});
+
+  cards.forEach(function(c){
+    var box = el("div","score");
+    box.appendChild(el("div","lbl", c.l));
+    box.appendChild(el("div","num", c.n==null ? "—" : String(c.n)));
+    var m = el("div","meter"); var i = el("i");
+    i.style.width = (c.n==null?0:c.n) + "%";
+    i.style.background = c.n==null ? "var(--line-bright)" : c.n>=80 ? "var(--good)" : c.n>=55 ? "var(--warm)" : "var(--bad)";
+    m.appendChild(i); box.appendChild(m);
+    box.appendChild(el("div","how", c.how));
+    h.appendChild(box);
+  });
+}
+
+function countUp(node, target){
+  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){ node.textContent = target; return; }
+  var start = performance.now(), dur = 900;
+  function step(t){
+    var k = Math.min(1, (t - start) / dur);
+    k = 1 - Math.pow(1 - k, 3);
+    node.textContent = String(Math.round(target * k));
+    if(k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function renderOps(a){
+  var g = $("opsgrid"); g.innerHTML = "";
+  var items = [];
+  items.push({n:1, c:"DNS lookup for " + a.host});
+  items.push({n:1, c:a.scheme==="https" ? "TLS handshake" : "TCP connection, unencrypted"});
+  if(a.resources.length){
+    items.push({n:a.resources.length, c:"resource requests"});
+    var total = a.resources.reduce(function(s,r){ return s+(r.size||0); },0);
+    items.push({n:Math.round(total/1024), c:"kilobytes transferred", suffix:""});
+    var hosts = {}; a.resources.forEach(function(r){
+      try{ hosts[new URL(r.full || ("https://"+a.host)).hostname] = 1; }catch(e){ hosts[a.host]=1; }
+    });
+    items.push({n:Object.keys(hosts).length, c:"hosts contacted"});
+  } else if(a.roundTrip){
+    items.push({n:a.roundTrip.ms, c:"milliseconds for the whole round trip"});
+  }
+  items.forEach(function(it){
+    var box = el("div","op");
+    var n = el("div","n","0");
+    box.appendChild(n); box.appendChild(el("div","c", it.c));
+    g.appendChild(box);
+    countUp(n, it.n);
+  });
+}
+
+/* ---------------------------------------------------------------
+   Sequence + wiring
+--------------------------------------------------------------- */
+var STAGES = ["Resolving domain","Finding server","Establishing secure connection",
+              "Sending HTTP request","Waiting for response","Downloading resources"];
+
+function runSequence(promise, title){
+  var ov = $("overlay"), host = $("stages");
+  $("seqtitle").textContent = title;
+  host.innerHTML = "";
+  var els = STAGES.map(function(s){
+    var d = el("div","stage");
+    d.appendChild(el("div","mark"));
+    d.appendChild(el("div","txt", s));
+    d.appendChild(el("div","t",""));
+    host.appendChild(d);
+    return d;
+  });
+  ov.classList.add("on");
+  var i = 0, t0 = performance.now();
+  var iv = setInterval(function(){
+    if(i < els.length){
+      els[i].classList.add("on");
+      els[i].querySelector(".t").textContent = "+" + Math.round(performance.now() - t0) + " ms";
+      i++;
+    }
+  }, 260);
+
+  var minWait = new Promise(function(res){ setTimeout(res, STAGES.length * 260 + 320); });
+  Promise.all([promise, minWait]).then(function(v){
+    clearInterval(iv);
+    els.forEach(function(e){ e.classList.add("on"); });
+    setTimeout(function(){
+      ov.classList.remove("on");
+      render(v[0]);
+      $("results").classList.add("on");
+      $("results").scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+    }, 260);
+  }).catch(function(e){
+    clearInterval(iv); ov.classList.remove("on");
+    alert("The trace could not be completed: " + e);
+  });
+}
+
+$("trace").onclick = function(){
+  var u = parseUrl($("url").value);
+  if(!u){ $("url").focus(); $("url").select(); return; }
+  runSequence(liveAnalysis(u), "TRACING " + u.hostname.toUpperCase());
+};
+$("url").addEventListener("keydown", function(e){ if(e.key === "Enter") $("trace").click(); });
+$("demo").onclick = function(){ runSequence(Promise.resolve(demoAnalysis()), "REPLAYING DEMO DATA"); };
+$("self").onclick = function(){ runSequence(selfAnalysis(), "MEASURING THIS PAGE"); };
+$("again").onclick = function(){
+  $("results").classList.remove("on");
+  window.scrollTo({top:0, behavior:"smooth"});
+  setTimeout(function(){ $("url").focus(); }, 300);
+};
+
+$("mtech").onclick = function(){ MODE="tech"; this.classList.add("on"); $("msimple").classList.remove("on"); if(A) renderSecurity(A); };
+$("msimple").onclick = function(){ MODE="simple"; this.classList.add("on"); $("mtech").classList.remove("on"); if(A) renderSecurity(A); };
+$("mclose").onclick = function(){ $("modal").classList.remove("on"); };
+$("modal").onclick = function(e){ if(e.target === this) this.classList.remove("on"); };
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") $("modal").classList.remove("on"); });
+
+function summaryText(){
+  if(!A) return "";
+  var L = [];
+  L.push("URL X-RAY");
+  L.push(A.source === "demo" ? "[demo data — not a measurement]" : A.source === "self" ? "[measured on this page]" : "[live trace — browser-limited]");
+  L.push("");
+  L.push(A.host);
+  if(A.http && A.http.protocol) L.push(A.http.protocol);
+  if(A.tls && A.tls.version) L.push(A.tls.version);
+  if(A.resources.length){
+    var total = A.resources.reduce(function(s,r){ return s+(r.size||0); },0);
+    L.push(A.resources.length + " resources");
+    L.push(bytes(total) + " transferred");
+  }
+  L.push("");
+  if(A.dns && A.dns.ms != null) L.push("DNS   " + A.dns.ms + " ms");
+  if(A.tcp && A.tcp.ms != null) L.push("TCP   " + A.tcp.ms + " ms");
+  if(A.tls && A.tls.ms != null) L.push("TLS   " + A.tls.ms + " ms");
+  if(A.http && A.http.ttfb != null) L.push("TTFB  " + A.http.ttfb + " ms");
+  if(A.roundTrip) L.push("Round trip  " + A.roundTrip.ms + " ms (combined, cannot be split)");
+  return L.join("\n");
+}
+
+$("copy").onclick = function(){
+  var btn = this, txt = summaryText();
+  var done = function(){ btn.textContent = "COPIED"; setTimeout(function(){ btn.textContent = "COPY SUMMARY"; }, 1400); };
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(done, function(){ window.prompt("Copy:", txt); }); }
+  else window.prompt("Copy:", txt);
+};
+
+$("export").onclick = function(){
+  if(!A) return;
+  var blob = new Blob([JSON.stringify(A, null, 2)], {type:"application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "url-xray-" + A.host + ".json";
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+};
+})();
+</script>
+</body>
+</html>
