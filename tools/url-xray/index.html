@@ -260,7 +260,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-fain
       <button class="btn ghost" id="demo">TRY DEMO</button>
       <button class="btn ghost" id="self">X-RAY THIS PAGE</button>
     </div>
-    <p class="hint">A browser can't measure DNS or TLS timings for someone else's site — the security model forbids it. So this tool is honest about it: <b>Trace</b> measures what it really can, <b>X-ray this page</b> reads genuine timings from the page you're on, and <b>Demo</b> replays a prepared dataset. Nothing is invented, and no URL leaves your browser except as a request to the site itself.</p>
+    <p class="hint">A browser can't measure DNS or TLS timings for someone else's site — the security model forbids it. So this tool is honest about it: <b>Trace</b> measures what it really can, <b>X-ray this page</b> reads genuine timings from the page you're on, and <b>Demo</b> replays a prepared dataset. Nothing is invented, and every reading says where it came from. A trace looks up DNS through Cloudflare's public resolver and fetches the page through a free public relay, so those two services see the address you type.</p>
 
     <div class="preview" aria-hidden="true">
       <span class="p">YOU</span><span class="arrow">→</span>
@@ -294,6 +294,12 @@ footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-fain
       <div class="journey" id="journey"></div>
     </section>
 
+    <section id="s-limits" style="display:none">
+      <div class="shead"><h3>Where the x-ray stops</h3></div>
+      <p class="sdesc">Everything above came from the network. Everything below is off limits, and it is worth knowing why — this is the same wall that stops any other site from spying on your browsing.</p>
+      <div class="panel" id="limits"></div>
+    </section>
+
     <section id="s-wf">
       <div class="shead"><h3>Request waterfall</h3><span class="n">hover a row</span></div>
       <p class="sdesc">Every request the browser made, laid out on a shared timeline. Bars start where the request started and end where it finished.</p>
@@ -315,6 +321,10 @@ footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-fain
       <div class="grid2">
         <div class="panel"><h4>ROUTE</h4><div id="infra"></div></div>
         <div class="panel"><h4>TECHNOLOGY</h4><div id="tech"></div></div>
+      </div>
+      <div class="panel" id="headersbox" style="display:none;margin-top:20px">
+        <h4>RESPONSE HEADERS</h4>
+        <div id="headers"></div>
       </div>
     </section>
 
@@ -341,7 +351,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-fain
   </main>
 
   <footer>
-    URL X-Ray runs entirely in your browser. Live traces send one request to the site you named, exactly as visiting it would. Nothing is logged, stored or uploaded.
+    URL X-Ray has no backend and no account. A live trace makes two outbound calls: a DNS lookup to cloudflare-dns.com, and one page fetch through a public relay (AllOrigins, falling back to CodeTabs) because a browser may not read another site directly. Both see the address being traced. Nothing is logged or stored here.
   </footer>
 </div>
 
@@ -366,7 +376,48 @@ footer{border-top:1px solid var(--line);padding:34px 0 60px;color:var(--ink-fain
 (function(){
 "use strict";
 
+/* ===============================================================
+   Set this to your deployed worker (see worker.js), for example
+   "https://url-xray-api.yourname.workers.dev". Leave it empty and
+   the tool falls back to what a browser alone can measure.
+   =============================================================== */
+var WORKER_URL = "";
+
+/* If no worker is configured, a trace can still go through a public CORS
+   proxy. That means the address being traced is visible to a third party
+   and the original response headers are mostly lost, so it is labelled
+   as such everywhere it appears. Set to false to switch it off. */
+var USE_PUBLIC_PROXY = true;
+
+var PUBLIC_PROXIES = [
+  { name:"AllOrigins",
+    build:function(t){ return "https://api.allorigins.win/get?url=" + encodeURIComponent(t); },
+    read:function(r){ return r.json().then(function(j){
+      if(!j || typeof j.contents !== "string") throw new Error("empty response");
+      return { html:j.contents,
+               status:(j.status && j.status.http_code) || null,
+               contentType:(j.status && j.status.content_type) || null,
+               finalUrl:(j.status && j.status.url) || null,
+               length:(j.status && j.status.content_length) || null };
+    }); } },
+  { name:"CodeTabs",
+    build:function(t){ return "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(t); },
+    read:function(r){ return r.text().then(function(t){
+      if(!t) throw new Error("empty response");
+      return { html:t, status:r.status, contentType:r.headers.get("content-type"), finalUrl:null, length:t.length };
+    }); } }
+];
+
 var NA = "Not available from browser";
+
+function reduceMotion(){
+  try{ return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+  catch(e){ return false; }
+}
+function perfEntries(type){
+  try{ return (performance && performance.getEntriesByType) ? performance.getEntriesByType(type) : []; }
+  catch(e){ return []; }
+}
 
 /* ---------------------------------------------------------------
    Node definitions — the educational layer
@@ -461,27 +512,89 @@ function parseUrl(raw){
   try{ return new URL(s); }catch(e){ return null; }
 }
 
+/* Cloudflare's DNS-over-HTTPS endpoint allows cross-origin requests, so real
+   records can be resolved here. This is a second opinion from a public
+   resolver, not a readout of what this machine's own resolver answered. */
+function doh(name, type){
+  return fetch("https://cloudflare-dns.com/dns-query?name=" + encodeURIComponent(name) + "&type=" + type,
+               {headers:{accept:"application/dns-json"}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .catch(function(){ return null; });
+}
+
+var CDN_SIGNS = [
+  [/cloudflare|cdn\.cloudflare/i, "Cloudflare"],
+  [/akamai|akamaiedge|akadns/i, "Akamai"],
+  [/fastly|fastlylb/i, "Fastly"],
+  [/cloudfront/i, "Amazon CloudFront"],
+  [/azureedge|trafficmanager/i, "Azure Front Door"],
+  [/googlevideo|1e100|googlehosted|ghs\.google/i, "Google"],
+  [/github\.io|githubusercontent/i, "GitHub Pages"],
+  [/edgekey|edgesuite/i, "Akamai"],
+  [/vercel|vercel-dns/i, "Vercel"],
+  [/netlify/i, "Netlify"]
+];
+
+function readDns(host){
+  var t0 = performance.now();
+  return Promise.all([doh(host, "A"), doh(host, "AAAA"), doh(host, "NS")]).then(function(r){
+    var lookupMs = Math.round(performance.now() - t0);
+    var ips = [], v6 = [], cnames = [], ns = [], types = {};
+    function walk(res){
+      if(!res || !res.Answer) return;
+      res.Answer.forEach(function(a){
+        if(a.type === 1){ ips.push(a.data); types.A = 1; }
+        else if(a.type === 28){ v6.push(a.data); types.AAAA = 1; }
+        else if(a.type === 5){ cnames.push(a.data.replace(/\.$/, "")); types.CNAME = 1; }
+        else if(a.type === 2){ ns.push(a.data.replace(/\.$/, "")); types.NS = 1; }
+      });
+    }
+    walk(r[0]); walk(r[1]); walk(r[2]);
+    if(!ips.length && !v6.length && !cnames.length) return null;
+    var chain = cnames.concat(ns).join(" ");
+    var cdn = null;
+    for(var i=0;i<CDN_SIGNS.length;i++){ if(CDN_SIGNS[i][0].test(chain)){ cdn = CDN_SIGNS[i][1]; break; } }
+    return {
+      ip: ips[0] || null, allIps: ips, ipv6: v6[0] || null,
+      records: Object.keys(types), cnames: cnames, ns: ns,
+      ms: lookupMs, cdn: cdn, resolver: "Cloudflare 1.1.1.1 over HTTPS"
+    };
+  });
+}
+
 function liveAnalysis(u){
   var probeUrl = u.href;
   var t0 = performance.now();
-  var reached = false, err = null;
+  var reached = false, err = null, dnsResult = null;
+  var dnsJob = readDns(u.hostname).then(function(d){ dnsResult = d; }).catch(function(){});
   return fetch(probeUrl, {mode:"no-cors", cache:"no-store", redirect:"follow"})
     .then(function(){ reached = true; })
     .catch(function(e){ err = String(e && e.message || e); })
+    .then(function(){ return dnsJob; })
     .then(function(){
       var elapsed = Math.round(performance.now() - t0);
-      var entry = null, all = performance.getEntriesByType("resource");
+      var entry = null, all = perfEntries("resource");
       for(var i=all.length-1;i>=0;i--){ if(all[i].name.indexOf(u.origin) === 0){ entry = all[i]; break; } }
       var measured = entry ? Math.round(entry.duration) : elapsed;
       return {
         source:"live", url:u.href, host:u.hostname, scheme:u.protocol.replace(":",""),
         port:u.port || (u.protocol==="https:"?"443":"80"), path:u.pathname + u.search,
-        dns:null, tcp:null,
+        dns: dnsResult ? {
+          ip: dnsResult.ip, ipv6: dnsResult.ipv6, records: dnsResult.records,
+          ms: dnsResult.ms, cnames: dnsResult.cnames, ns: dnsResult.ns,
+          allIps: dnsResult.allIps, resolver: dnsResult.resolver
+        } : null,
+        tcp:null,
         tls:u.protocol==="https:" ? {version:null, ms:null} : null,
         http:{status:null, protocol:(entry && entry.nextHopProtocol) || null, ttfb:null,
               transferred:(entry && entry.transferSize) || null},
         roundTrip:{ms:measured, reached:reached, error:err},
-        infra:null, resources:[], technologies:[],
+        infra: dnsResult ? {
+          cdn: dnsResult.cdn, cdnConfidence: dnsResult.cdn ? "likely, from the name chain" : null,
+          server:null, edge:null,
+          ipVersion: (dnsResult.ip && dnsResult.ipv6) ? "IPv4 + IPv6" : dnsResult.ip ? "IPv4 only" : dnsResult.ipv6 ? "IPv6 only" : null
+        } : null,
+        resources:[], technologies:[],
         security:[
           {k:"HTTPS", s:u.protocol==="https:"?"ok":"bad",
            tech:u.protocol==="https:" ? "The address uses https, so the connection will be encrypted." : "The address uses plain http. Traffic can be read and modified in transit.",
@@ -493,10 +606,203 @@ function liveAnalysis(u){
         notes:[
           reached ? "One request was made to this address and the browser reported a response."
                   : "The request did not complete. That may mean the host is unreachable, or simply that it refuses cross-origin requests — the two look identical from here.",
-          "The single duration below covers DNS, TCP, TLS, server time and transfer combined. A browser cannot split those apart for another origin, so this tool does not pretend to."
+          "The single duration below covers DNS, TCP, TLS, server time and transfer combined. A browser cannot split those apart for another origin, so this tool does not pretend to.",
+          dnsResult ? ("DNS records were resolved through " + dnsResult.resolver + ", because page scripts cannot see what this machine's own resolver answered. Same records, different messenger."
+                      ) : "The DNS lookup over HTTPS did not return anything, so no records are shown."
         ]
       };
     });
+}
+
+/* ---------------------------------------------------------------
+   Proxy trace — the worker reads what the browser is not allowed to
+--------------------------------------------------------------- */
+function proxyAnalysis(u){
+  var dnsResult = null;
+  var t0 = performance.now();
+  var dnsJob = readDns(u.hostname).then(function(d){ dnsResult = d; }).catch(function(){});
+  var job = fetch(WORKER_URL.replace(/\/+$/,"") + "/inspect?url=" + encodeURIComponent(u.href))
+    .then(function(r){
+      return r.json().then(function(j){
+        if(!r.ok || j.error) throw new Error(j.error || ("inspection service returned " + r.status));
+        return j;
+      });
+    });
+
+  return Promise.all([job, dnsJob]).then(function(v){
+    var d = v[0];
+    var f = new URL(d.final);
+    var total = d.resources.reduce(function(s,r){ return s + (r.size||0); }, 0);
+    var proto = d.headers["alt-svc"] && /h3/.test(d.headers["alt-svc"]) ? "HTTP/2 or HTTP/3 (advertised)" : null;
+
+    var notes = [
+      "The response headers, redirect chain and sub-resources below were fetched by the inspection worker, because a browser is not permitted to read them for another site.",
+      "Timings were measured from a Cloudflare edge server in " + (d.infra && d.infra.edge ? d.infra.edge : "an unknown location") +
+        ", not from your own connection. Treat them as the site's behaviour, not as your experience of it."
+    ].concat(d.caveats || []);
+    if(dnsResult) notes.push("DNS records were resolved separately, from your browser, through " + dnsResult.resolver + ".");
+    if(d.redirects && d.redirects.length){
+      notes.push("The request was redirected " + d.redirects.length + " time" + (d.redirects.length===1?"":"s") +
+                 " before arriving at " + d.final + ".");
+    }
+
+    return {
+      source:"proxy", url:d.final, requested:d.requested, host:f.hostname,
+      scheme:f.protocol.replace(":",""), port:f.port || (f.protocol==="https:"?"443":"80"),
+      path:f.pathname + f.search,
+      redirects:d.redirects || [],
+      dns: dnsResult ? {
+        ip:dnsResult.ip, ipv6:dnsResult.ipv6, records:dnsResult.records, ms:dnsResult.ms,
+        cnames:dnsResult.cnames, ns:dnsResult.ns, allIps:dnsResult.allIps, resolver:dnsResult.resolver
+      } : null,
+      tcp:null,
+      tls: f.protocol==="https:" ? {version:null, ms:null, issuer:null, validTo:null} : null,
+      http:{
+        status:d.status, protocol:proto, ttfb:d.ttfb, transferred:total,
+        contentEncoding:d.headers["content-encoding"] || null
+      },
+      infra: (function(){
+        var i = d.infra || {};
+        if(dnsResult && !i.cdn && dnsResult.cdn){ i.cdn = dnsResult.cdn; i.cdnConfidence = "likely, from the name chain"; }
+        i.ipVersion = dnsResult ? ((dnsResult.ip && dnsResult.ipv6) ? "IPv4 + IPv6" : dnsResult.ip ? "IPv4 only" : dnsResult.ipv6 ? "IPv6 only" : null) : null;
+        return i;
+      })(),
+      resources:d.resources || [],
+      technologies:d.technologies || [],
+      security:d.security || [],
+      headers:d.headers,
+      referencedTotal:d.referencedTotal,
+      clientMs:Math.round(performance.now() - t0),
+      notes:notes
+    };
+  });
+}
+
+/* ---------------------------------------------------------------
+   Public proxy trace — HTML only, no original headers
+--------------------------------------------------------------- */
+function extractRefs(html, base){
+  var out = [], seen = {};
+  function push(raw, type){
+    if(!raw) return;
+    var v = String(raw).trim();
+    if(!v || v.indexOf("data:") === 0 || v.indexOf("javascript:") === 0 || v.charAt(0) === "#") return;
+    var abs;
+    try{ abs = new URL(v, base).href; }catch(e){ return; }
+    if(!/^https?:/.test(abs) || seen[abs]) return;
+    seen[abs] = 1;
+    out.push({ name: abs.split("/").pop().split("?")[0] || abs, full: abs, type: type,
+               start: null, dur: null, size: 0, protocol: null, status: null,
+               initiator: "document", cache: null });
+  }
+  var tags = html.match(/<(?:link|script|img|source|iframe|video|audio)\b[^>]*>/gi) || [];
+  tags.forEach(function(tag){
+    function attr(n){
+      var m = tag.match(new RegExp(n + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", "i"));
+      return m ? (m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]) : null;
+    }
+    var lower = tag.toLowerCase();
+    if(lower.indexOf("<link") === 0){
+      var rel = (attr("rel") || "").toLowerCase(), as = (attr("as") || "").toLowerCase(), href = attr("href");
+      if(rel.indexOf("stylesheet") >= 0) push(href, "css");
+      else if(rel.indexOf("icon") >= 0) push(href, "image");
+      else if(rel.indexOf("preload") >= 0 || rel.indexOf("modulepreload") >= 0)
+        push(href, as === "font" ? "font" : as === "script" ? "js" : as === "style" ? "css" : as === "image" ? "image" : "other");
+    } else if(lower.indexOf("<script") === 0){ push(attr("src"), "js"); }
+    else if(lower.indexOf("<img") === 0 || lower.indexOf("<source") === 0){
+      push(attr("src"), "image");
+      var set = attr("srcset");
+      if(set) push(set.split(",")[0].trim().split(/\s+/)[0], "image");
+    } else { push(attr("src"), "other"); }
+  });
+  (html.match(/<style\b[^>]*>([\s\S]*?)<\/style>/gi) || []).forEach(function(block){
+    (block.match(/url\(\s*['"]?([^'")]+)/gi) || []).forEach(function(u){
+      var v = u.replace(/^url\(\s*['"]?/i, "");
+      push(v, /\.(woff2?|ttf|otf)/i.test(v) ? "font" : "image");
+    });
+  });
+  return out;
+}
+
+function detectFromHtml(html){
+  var out = [];
+  function add(n, s, why){ out.push({name:n, state:s, why:why}); }
+  var has = function(re){ return re.test(html); };
+  add("React", has(/data-reactroot|__REACT_DEVTOOLS|react(?:-dom)?[.@-][\d.]*(?:\.min)?\.js/i) ? "detected"
+      : has(/id=["']root["']/) ? "likely" : "not detected", "markup attributes and script names");
+  add("Next.js", has(/__NEXT_DATA__|\/_next\//) ? "detected" : "not detected", "__NEXT_DATA__ and /_next/ paths");
+  add("Vue", has(/data-v-[0-9a-f]{6,}|vue(?:\.runtime)?[.@-][\d.]*(?:\.min)?\.js/i) ? "detected" : "not detected", "scoped attributes and bundle names");
+  add("Angular", has(/ng-version=|_nghost-/i) ? "detected" : "not detected", "ng attributes");
+  add("WordPress", has(/wp-content|wp-includes|wp-json/i) ? "detected" : "not detected", "wp- paths");
+  add("jQuery", has(/jquery[.@-][\d.]*(?:\.min)?\.js/i) ? "detected" : "not detected", "script filename");
+  add("Google Fonts", has(/fonts\.(googleapis|gstatic)\.com/) ? "detected" : "not detected", "stylesheet host");
+  add("Google Analytics", has(/googletagmanager\.com|google-analytics\.com|gtag\(/) ? "detected" : "not detected", "tag script");
+  var hits = out.filter(function(t){ return t.state !== "not detected"; });
+  return hits.concat(out.filter(function(t){ return t.state === "not detected"; }).slice(0, 3));
+}
+
+function viaPublicProxy(target){
+  var i = 0;
+  function attempt(){
+    if(i >= PUBLIC_PROXIES.length) return Promise.reject(new Error("no public proxy responded"));
+    var p = PUBLIC_PROXIES[i++];
+    var t0 = performance.now();
+    return fetch(p.build(target), {cache:"no-store"})
+      .then(function(r){ if(!r.ok) throw new Error(p.name + " returned " + r.status); return p.read(r); })
+      .then(function(d){ d.proxy = p.name; d.ms = Math.round(performance.now() - t0); return d; })
+      .catch(function(){ return attempt(); });
+  }
+  return attempt();
+}
+
+function publicProxyAnalysis(u){
+  var dnsResult = null;
+  var dnsJob = readDns(u.hostname).then(function(d){ dnsResult = d; }).catch(function(){});
+  return Promise.all([viaPublicProxy(u.href), dnsJob]).then(function(v){
+    var d = v[0];
+    var isHtml = !d.contentType || /html/i.test(d.contentType);
+    var refs = isHtml ? extractRefs(d.html, u) : [];
+    var notes = [
+      "The page was fetched through " + d.proxy + ", a free public relay, because no inspection worker is configured. That relay saw the address you traced.",
+      "Only the delivered HTML came back. The site's own response headers did not survive the relay, so the security section and the HTTP version stay unknown.",
+      "No timings are shown for the files below. Anything measured through a relay would describe the relay, not the site, so nothing is reported rather than something misleading.",
+      "Nothing here was executed. Files that a site loads later through JavaScript do not appear."
+    ];
+    if(dnsResult) notes.push("DNS records were resolved from your browser through " + dnsResult.resolver + ".");
+    return {
+      source:"public", url:d.finalUrl || u.href, host:u.hostname,
+      scheme:u.protocol.replace(":",""), port:u.port || (u.protocol==="https:"?"443":"80"),
+      path:u.pathname + u.search,
+      proxy:d.proxy,
+      dns: dnsResult ? {
+        ip:dnsResult.ip, ipv6:dnsResult.ipv6, records:dnsResult.records, ms:dnsResult.ms,
+        cnames:dnsResult.cnames, ns:dnsResult.ns, allIps:dnsResult.allIps, resolver:dnsResult.resolver
+      } : null,
+      tcp:null,
+      tls:u.protocol==="https:" ? {version:null, ms:null} : null,
+      http:{status:d.status || null, protocol:null, ttfb:null, transferred:null},
+      infra: dnsResult ? {
+        cdn:dnsResult.cdn, cdnConfidence:dnsResult.cdn ? "likely, from the name chain" : null,
+        server:null, edge:null,
+        ipVersion:(dnsResult.ip && dnsResult.ipv6) ? "IPv4 + IPv6" : dnsResult.ip ? "IPv4 only" : dnsResult.ipv6 ? "IPv6 only" : null
+      } : null,
+      resources:refs,
+      documentBytes: d.html ? d.html.length : null,
+      technologies: isHtml ? detectFromHtml(d.html) : [],
+      security:[
+        {k:"HTTPS", s:u.protocol==="https:"?"ok":"bad",
+         tech:u.protocol==="https:" ? "The address uses https, so your own connection to it would be encrypted." : "The address uses plain http. Traffic can be read and modified in transit.",
+         simple:u.protocol==="https:" ? "The address is a secure one." : "This address is not a secure one."},
+        {k:"Response headers", s:"unknown",
+         tech:"The relay returned the page body but not the site's headers, so HSTS, CSP and the rest cannot be checked. An inspection worker of your own would return them.",
+         simple:"The settings could not be read on this route."},
+        {k:"TLS version and certificate", s:"unknown",
+         tech:"Never exposed to JavaScript, and not recoverable through a relay either.",
+         simple:"This part cannot be checked from a web page at all."}
+      ],
+      notes:notes
+    };
+  });
 }
 
 /* ---------------------------------------------------------------
@@ -515,9 +821,9 @@ function classify(entry){
 }
 
 function selfAnalysis(){
-  var nav = performance.getEntriesByType("navigation")[0];
+  var nav = perfEntries("navigation")[0];
   var here = new URL(location.href);
-  var res = performance.getEntriesByType("resource").map(function(e){
+  var res = perfEntries("resource").map(function(e){
     return {
       name: e.name.split("/").pop().split("?")[0] || e.name,
       full: e.name,
@@ -640,24 +946,65 @@ function ms(n){ return (n==null || isNaN(n)) ? null : n + " ms"; }
 function render(a){
   A = a;
   var b = $("srcbadge");
-  b.className = "badge " + a.source;
+  b.className = "badge " + (a.source === "proxy" || a.source === "public" ? "live" : a.source);
   b.textContent = a.source==="demo" ? "DEMO DATA — NOT A LIVE MEASUREMENT"
                 : a.source==="self" ? "MEASURED — THIS PAGE, THIS VISIT"
+                : a.source==="proxy" ? "LIVE — FETCHED BY THE INSPECTION WORKER, TIMED AT THE EDGE"
+                : a.source==="public" ? "LIVE — PAGE RELAYED THROUGH A PUBLIC PROXY, NO HEADERS"
                 : "LIVE TRACE — LIMITED BY BROWSER SECURITY";
   $("rurl").textContent = a.url;
   $("rmeta").textContent = a.host + " · " + a.scheme + " · port " + a.port;
   $("opsurl").textContent = a.url;
   $("journeydesc").textContent = (a.notes && a.notes[0]) || "";
 
+  var hasRes = !!(a.resources && a.resources.length);
+  var hasTimings = hasRes && a.resources.some(function(r){ return r.dur != null; });
+  $("s-wf").style.display  = hasTimings ? "" : "none";
+  $("s-res").style.display = hasRes ? "" : "none";
+  $("s-limits").style.display = (hasRes && hasTimings) ? "none" : "";
+  if(!hasRes || !hasTimings) renderLimits(a);
+
   renderJourney(a); renderWaterfall(a); renderResources(a);
-  renderInfra(a); renderTech(a); renderSecurity(a); renderScores(a); renderOps(a);
+  renderInfra(a); renderHeaders(a); renderTech(a); renderSecurity(a); renderScores(a); renderOps(a);
+}
+
+var LIMITS = [
+  ["Sub-resources", "A page may only enumerate requests it made itself. The scripts, images and fonts another site loads are invisible from here — otherwise any page you opened could inventory every site you visit."],
+  ["Response headers", "Reading another origin's headers requires that origin to opt in with CORS. Without it the response is opaque: the browser has it, the page does not."],
+  ["Split timings", "DNS, TCP, TLS and server time are only broken out for origins that send a Timing-Allow-Origin header. Otherwise you get one number for the whole trip, which is what the journey shows."],
+  ["Certificate and TLS version", "Never exposed to JavaScript. Your browser checked the certificate and would have refused the connection outright if it were invalid — that check just happens where no page can see it."],
+  ["What you can still do", "Open the developer tools on the site itself and every one of these is right there. The restriction is about which page is asking, not about the data being secret."]
+];
+
+function renderLimits(a){
+  var h = $("limits"); h.innerHTML = "";
+  var rows = LIMITS;
+  if(a.source === "public"){
+    rows = [
+      ["Response headers", "The relay returned the page but not the site's headers. HSTS, CSP, the server name and the HTTP version all live there, so all of them stay unknown on this route."],
+      ["Timings", "Anything timed through a relay measures the relay. No numbers are shown rather than misleading ones."],
+      ["File sizes", "The listed files were named in the HTML but not downloaded, so their sizes are not known."],
+      ["Scripted loading", "Nothing was executed. Files a site fetches later through JavaScript never appear in the delivered HTML."],
+      ["Getting the full picture", "All of the above becomes available with your own inspection worker, which fetches the site directly instead of through a shared relay."]
+    ];
+  }
+  rows.forEach(function(x){
+    var row = el("div","secrow");
+    row.appendChild(el("div","st unk","·"));
+    var body = el("div");
+    body.appendChild(el("div","ttl", x[0]));
+    body.appendChild(el("div","exp", x[1]));
+    row.appendChild(body);
+    h.appendChild(row);
+  });
 }
 
 function nodeValue(a, id){
   switch(id){
     case "browser": return {v:a.path || "/", d:"scheme " + a.scheme + " · host " + a.host};
     case "dns": return a.dns && a.dns.ms!=null
-        ? {v:ms(a.dns.ms), d:a.dns.ip ? (a.host + " → " + a.dns.ip) : a.host}
+        ? {v:ms(a.dns.ms), d:(a.dns.ip ? (a.host + " → " + a.dns.ip) : a.host) +
+             (a.dns.resolver ? "  ·  answered by " + a.dns.resolver : "")}
         : {v:NA, na:true, d:"IP addresses are resolved by the OS, out of reach of page scripts"};
     case "tcp": return a.tcp && a.tcp.ms!=null ? {v:ms(a.tcp.ms), d:"handshake to " + a.host}
         : {v:NA, na:true, d:"connection setup is not exposed for other origins"};
@@ -795,7 +1142,7 @@ function renderResources(a){
     var ul = el("ul");
     groups[t].forEach(function(r){
       var li = el("li", null, "└ " + r.name);
-      var sz = el("span","sz", r.size ? bytes(r.size) : "cached");
+      var sz = el("span","sz", r.size ? bytes(r.size) : (r.cache === "HIT" ? "cached" : "size unknown"));
       li.appendChild(sz); ul.appendChild(li);
     });
     g.onclick = function(){ ul.style.display = ul.style.display === "none" ? "" : "none"; };
@@ -804,6 +1151,13 @@ function renderResources(a){
 
   var total = 0, sums = {};
   a.resources.forEach(function(r){ sums[r.type] = (sums[r.type]||0) + (r.size||0); total += (r.size||0); });
+  if(!total){
+    weights.appendChild(el("div","empty",
+      "The files above were named in the page's HTML but not downloaded, so their sizes are not known on this route."));
+    if(a.documentBytes) weights.appendChild(el("div","na-note",
+      "The HTML document itself was " + bytes(a.documentBytes) + " uncompressed."));
+    return;
+  }
   var bar = el("div","stackbar");
   order.forEach(function(t){
     if(!sums[t]) return;
@@ -832,19 +1186,43 @@ function kvInto(host, k, v){
 
 function renderInfra(a){
   var h = $("infra"); h.innerHTML = "";
+  if(a.redirects && a.redirects.length){
+    a.redirects.forEach(function(r, i){
+      kvInto(h, "redirect " + (i+1) + " (" + r.status + ")", r.to);
+    });
+  }
   kvInto(h, "domain", a.host);
-  kvInto(h, "IPv4", a.dns && a.dns.ip);
+  kvInto(h, "IPv4", a.dns && (a.dns.allIps && a.dns.allIps.length > 1
+        ? a.dns.allIps.slice(0,4).join(", ") + (a.dns.allIps.length > 4 ? " +" + (a.dns.allIps.length-4) : "")
+        : a.dns.ip));
   kvInto(h, "IPv6", a.dns && a.dns.ipv6);
   kvInto(h, "DNS records", a.dns && a.dns.records ? a.dns.records.join(" ") : null);
+  if(a.dns && a.dns.cnames && a.dns.cnames.length) kvInto(h, "CNAME chain", a.dns.cnames.join(" → "));
+  if(a.dns && a.dns.ns && a.dns.ns.length) kvInto(h, "nameservers", a.dns.ns.slice(0,3).join(", "));
   kvInto(h, "CDN / edge", a.infra && a.infra.cdn ? a.infra.cdn + (a.infra.cdnConfidence ? " (" + a.infra.cdnConfidence + ")" : "") : null);
   kvInto(h, "server header", a.infra && a.infra.server);
+  if(a.infra && a.infra.poweredBy) kvInto(h, "x-powered-by", a.infra.poweredBy);
+  kvInto(h, "HTTP status", a.http && a.http.status ? String(a.http.status) : null);
   kvInto(h, "HTTP version", a.http && a.http.protocol);
   kvInto(h, "TLS version", a.tls && a.tls.version);
   kvInto(h, "certificate", a.tls && a.tls.issuer ? a.tls.issuer + ", to " + a.tls.validTo : null);
   if(a.source !== "demo"){
-    h.appendChild(el("div","na-note",
-      "IP addresses and DNS records are resolved by the operating system before the browser hands anything to a page. There is no API that reveals them, so nothing is guessed here."));
+    h.appendChild(el("div","na-note", (a.dns && a.dns.resolver)
+      ? ("The records above are real, resolved through " + a.dns.resolver + ". Your operating system does its own lookup and may get different answers, and page scripts are never told what those were. Everything still marked unavailable sits behind the response, which a browser may not read across origins."
+        )
+      : "IP addresses and DNS records are resolved by the operating system before the browser hands anything to a page. There is no API that reveals them, so nothing is guessed here."));
   }
+}
+
+function renderHeaders(a){
+  var box = $("headersbox"), h = $("headers");
+  h.innerHTML = "";
+  if(!a.headers || !Object.keys(a.headers).length){ box.style.display = "none"; return; }
+  box.style.display = "";
+  Object.keys(a.headers).sort().forEach(function(k){
+    var v = String(a.headers[k]);
+    kvInto(h, k, v.length > 120 ? v.slice(0,120) + "…" : v);
+  });
 }
 
 function renderTech(a){
@@ -907,14 +1285,15 @@ function renderScores(a){
       how:pts + " of " + known.length + " observable checks passed (a warning counts as a half)."});
   } else cards.push({l:"SECURITY", n:null, how:"Too few checks are observable to build a score honestly."});
 
-  if(a.resources.length){
-    var total = a.resources.reduce(function(s,r){ return s + (r.size||0); }, 0);
+  var effTotal = a.resources.reduce(function(s,r){ return s + (r.size||0); }, 0);
+  if(a.resources.length && effTotal){
+    var total = effTotal;
     var mb = total / 1048576;
     var cached = a.resources.filter(function(r){ return r.cache==="HIT"; }).length;
     var eff = 100 - Math.max(0, (mb - 1)) * 14 + (cached / a.resources.length) * 10;
     cards.push({l:"EFFICIENCY", n:clamp(eff),
       how:bytes(total) + " transferred. 100 minus 14 per MB over the first, plus up to 10 for the " + cached + " cached responses."});
-  } else cards.push({l:"EFFICIENCY", n:null, how:"Needs the resource list, which is not available cross-origin."});
+  } else cards.push({l:"EFFICIENCY", n:null, how:"Needs file sizes, which this route does not provide."});
 
   cards.forEach(function(c){
     var box = el("div","score");
@@ -930,7 +1309,7 @@ function renderScores(a){
 }
 
 function countUp(node, target){
-  if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){ node.textContent = target; return; }
+  if(reduceMotion()){ node.textContent = target; return; }
   var start = performance.now(), dur = 900;
   function step(t){
     var k = Math.min(1, (t - start) / dur);
@@ -947,9 +1326,9 @@ function renderOps(a){
   items.push({n:1, c:"DNS lookup for " + a.host});
   items.push({n:1, c:a.scheme==="https" ? "TLS handshake" : "TCP connection, unencrypted"});
   if(a.resources.length){
-    items.push({n:a.resources.length, c:"resource requests"});
+    items.push({n:a.resources.length, c:a.source === "public" ? "files referenced by the page" : "resource requests"});
     var total = a.resources.reduce(function(s,r){ return s+(r.size||0); },0);
-    items.push({n:Math.round(total/1024), c:"kilobytes transferred", suffix:""});
+    if(total) items.push({n:Math.round(total/1024), c:"kilobytes transferred"});
     var hosts = {}; a.resources.forEach(function(r){
       try{ hosts[new URL(r.full || ("https://"+a.host)).hostname] = 1; }catch(e){ hosts[a.host]=1; }
     });
@@ -1000,20 +1379,53 @@ function runSequence(promise, title){
     els.forEach(function(e){ e.classList.add("on"); });
     setTimeout(function(){
       ov.classList.remove("on");
-      render(v[0]);
+      try{ render(v[0]); }
+      catch(err){
+        // A failure in one panel must not swallow the whole report.
+        if(window.console) console.error("URL X-Ray render error:", err);
+      }
       $("results").classList.add("on");
-      $("results").scrollIntoView({behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+      $("results").scrollIntoView({behavior: reduceMotion() ? "auto" : "smooth"});
     }, 260);
   }).catch(function(e){
     clearInterval(iv); ov.classList.remove("on");
-    alert("The trace could not be completed: " + e);
+    var box = $("limits");
+    $("results").classList.add("on");
+    $("s-limits").style.display = "";
+    box.innerHTML = "";
+    var row = el("div","secrow");
+    row.appendChild(el("div","st bad","✕"));
+    var body = el("div");
+    body.appendChild(el("div","ttl","The trace could not be completed"));
+    body.appendChild(el("div","exp", String(e && e.message || e) + " — check the address and try again."));
+    row.appendChild(body); box.appendChild(row);
   });
 }
 
 $("trace").onclick = function(){
   var u = parseUrl($("url").value);
   if(!u){ $("url").focus(); $("url").select(); return; }
-  runSequence(liveAnalysis(u), "TRACING " + u.hostname.toUpperCase());
+
+  // Best available route first, each falling back to the next.
+  function browserOnly(why){
+    return liveAnalysis(u).then(function(a){
+      if(why) a.notes.unshift(why);
+      return a;
+    });
+  }
+  var job;
+  if(WORKER_URL){
+    job = proxyAnalysis(u).catch(function(e){
+      return browserOnly("The inspection worker could not be used for this address (" + e.message + "), so this is the browser-only view.");
+    });
+  } else if(USE_PUBLIC_PROXY){
+    job = publicProxyAnalysis(u).catch(function(e){
+      return browserOnly("No public relay could fetch this address (" + e.message + "), so this is the browser-only view.");
+    });
+  } else {
+    job = browserOnly(null);
+  }
+  runSequence(job, "TRACING " + u.hostname.toUpperCase());
 };
 $("url").addEventListener("keydown", function(e){ if(e.key === "Enter") $("trace").click(); });
 $("demo").onclick = function(){ runSequence(Promise.resolve(demoAnalysis()), "REPLAYING DEMO DATA"); };
@@ -1034,7 +1446,11 @@ function summaryText(){
   if(!A) return "";
   var L = [];
   L.push("URL X-RAY");
-  L.push(A.source === "demo" ? "[demo data — not a measurement]" : A.source === "self" ? "[measured on this page]" : "[live trace — browser-limited]");
+  L.push(A.source === "demo" ? "[demo data — not a measurement]"
+       : A.source === "self" ? "[measured on this page]"
+       : A.source === "proxy" ? "[fetched by the inspection worker, timed at the edge]"
+       : A.source === "public" ? "[page relayed through " + (A.proxy || "a public proxy") + ", no headers]"
+       : "[live trace — browser-limited]");
   L.push("");
   L.push(A.host);
   if(A.http && A.http.protocol) L.push(A.http.protocol);
