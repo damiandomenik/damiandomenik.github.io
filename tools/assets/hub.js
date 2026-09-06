@@ -47,6 +47,15 @@ const TOOLS = [
     keywords: ['chinese', 'mandarin', 'hsk', 'vocabulary', 'flashcards', 'pinyin', 'tones', 'grammar', 'characters', 'spaced repetition'],
     ready: true,
   },
+  {
+    id: 'urlxray',
+    name: 'url-xray',
+    href: './urlxray/',
+    desc: 'Watch what your browser really does with a URL — DNS, TLS, HTTP, every resource — and where the browser refuses to tell you.',
+    tags: ['network', 'security', 'learning'],
+    keywords: ['url', 'dns', 'tls', 'https', 'http', 'headers', 'waterfall', 'performance', 'ttfb', 'certificate', 'trace', 'cdn'],
+    ready: true,
+  },
   // Example of how a future tool is declared — remove or replace.
   // {
   //   id: 'docx',
