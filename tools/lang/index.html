@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Languages – browser-based language practice</title>
+<meta name="description" content="Pick a language and start practising. Everything runs in your browser: no account, no upload, progress stored locally.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='%232c6a53'/><text x='8' y='12' text-anchor='middle' font-family='serif' font-size='10' fill='%23f7f4ec'>语</text></svg>">
+<style>
+:root {
+  --bg: #efece4; --surface: #faf8f2; --surface-2: #f4f1e8;
+  --ink: #191b18; --ink-soft: #4c5049; --ink-faint: #7b7f76;
+  --line: #d7d2c4; --jade: #2c6a53; --cinnabar: #a8382b;
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --font-zh: "Songti SC", "Noto Serif SC", "SimSun", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #151612; --surface: #1e201a; --surface-2: #24261f;
+    --ink: #ece7d9; --ink-soft: #b6b3a5; --ink-faint: #85837a;
+    --line: #333529; --jade: #74c19a; --cinnabar: #dd6f5e;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); line-height: 1.55;
+  display: flex; flex-direction: column; -webkit-font-smoothing: antialiased;
+}
+main { width: 100%; max-width: 720px; margin: 0 auto; padding: 12vh 22px 40px; flex: 1; }
+h1 { font-family: var(--font-display); font-size: clamp(2rem, 7vw, 2.8rem); margin: 0 0 8px; letter-spacing: -0.015em; }
+.lede { color: var(--ink-soft); max-width: 54ch; margin: 0 0 34px; }
+.kicker { font-size: .78rem; letter-spacing: .18em; color: var(--cinnabar); margin: 0 0 10px; }
+.langs { display: flex; flex-direction: column; gap: 12px; padding: 0; margin: 0; list-style: none; }
+.lang-card {
+  display: flex; align-items: center; gap: 18px; text-decoration: none; color: inherit;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+  padding: 20px 22px; transition: transform .16s ease, border-color .16s ease;
+}
+.lang-card:hover { transform: translateY(-2px); border-color: var(--jade); }
+.lang-card:focus-visible { outline: 2px solid var(--jade); outline-offset: 3px; }
+.seal {
+  width: 58px; height: 58px; flex: none; border-radius: 12px;
+  background: var(--cinnabar); color: #fdf7f1;
+  font-family: var(--font-zh); font-size: 30px;
+  display: grid; place-items: center;
+}
+.lang-name { font-family: var(--font-display); font-size: 1.3rem; display: block; }
+.lang-native { font-family: var(--font-zh); color: var(--ink-soft); font-size: .95rem; }
+.lang-meta { display: block; font-size: .85rem; color: var(--ink-faint); margin-top: 4px; }
+.go { margin-left: auto; color: var(--ink-faint); font-size: 1.4rem; }
+.later { margin-top: 26px; font-size: .88rem; color: var(--ink-faint); border-top: 1px solid var(--line); padding-top: 16px; }
+footer { padding: 22px; text-align: center; font-size: .82rem; color: var(--ink-faint); }
+footer a { color: var(--ink-faint); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">语言 / LANGUAGES</p>
+  <h1>Practise a language in your browser</h1>
+  <p class="lede">Pick a language to start. Lessons, quizzes and progress all run locally — no account, no upload, nothing leaves this device.</p>
+
+  <ul class="langs">
+    <li>
+      <a class="lang-card" href="./zh/">
+        <span class="seal" lang="zh-CN" aria-hidden="true">中</span>
+        <span>
+          <span class="lang-name">Chinese <span class="lang-native" lang="zh-CN">中文</span></span>
+          <span class="lang-meta">HSK 1–4 · 1000+ words, listening, pinyin, tones, grammar rules, characters</span>
+        </span>
+        <span class="go" aria-hidden="true">›</span>
+      </a>
+    </li>
+  </ul>
+
+  <p class="later">Chinese is the first language here. Others get added when their lesson data is ready — nothing is listed before it works.</p>
+</main>
+<footer>
+  <a href="../">back to tools/</a> · progress stored locally
+</footer>
+</body>
+</html>

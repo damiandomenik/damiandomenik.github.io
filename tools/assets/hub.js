@@ -38,6 +38,15 @@ const TOOLS = [
     keywords: ['encode', 'decode', 'data url', 'convert', 'file', 'transfer', 'mime'],
     ready: true,
   },
+  {
+    id: 'lang',
+    name: 'language-lab',
+    href: './lang/',
+    desc: 'Practise a language in your browser. Chinese HSK 1-4: vocabulary, listening, pinyin, tones, grammar rules and character tracing.',
+    tags: ['languages', 'learning', 'offline'],
+    keywords: ['chinese', 'mandarin', 'hsk', 'vocabulary', 'flashcards', 'pinyin', 'tones', 'grammar', 'characters', 'spaced repetition'],
+    ready: true,
+  },
   // Example of how a future tool is declared — remove or replace.
   // {
   //   id: 'docx',
