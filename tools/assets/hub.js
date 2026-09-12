@@ -65,6 +65,15 @@ const TOOLS = [
     keywords: ['three.js', 'earth', 'globe', 'map', 'webcam', 'live', 'travel', 'explore', 'windy'],
     ready: true,
   },
+  {
+    id: 'sketchlink',
+    name: 'sketchlink',
+    href: './sketchlink/',
+    desc: 'A shared whiteboard behind one link. Draw together in real time with pen, shapes and images, chat next to the board, save it as PNG.',
+    tags: ['collab', 'canvas', 'p2p'],
+    keywords: ['whiteboard', 'draw', 'sketch', 'board', 'multiplayer', 'realtime', 'peerjs', 'webrtc', 'chat', 'png', 'together'],
+    ready: true,
+  },
 
   // Example of how a future tool is declared — remove or replace.
   // {
