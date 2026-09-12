@@ -15,29 +15,61 @@ const MARKER_VERT = `
 attribute vec3 aColor;
 attribute float aScale;
 attribute float aPhase;
+attribute float aKind;
 uniform float time;
 varying vec3 vColor;
 varying vec2 vUv;
+varying float vKind;
 void main(){
   vColor = aColor;
   vUv = uv;
-  float pulse = 1.0 + sin(time * 1.6 + aPhase) * 0.07;
+  vKind = aKind;
+  float pulse = 1.0 + sin(time * 1.6 + aPhase) * 0.05;
   vec4 world = instanceMatrix * vec4(position * aScale * pulse, 1.0);
-  vec4 mv = modelViewMatrix * world;
-  gl_Position = projectionMatrix * mv;
+  gl_Position = projectionMatrix * modelViewMatrix * world;
 }`;
 
 const MARKER_FRAG = `
 varying vec3 vColor;
 varying vec2 vUv;
+varying float vKind;
+
+// Map pin: a ring-shaped head with a stem running down to the tip, which
+// sits exactly on the surface point. The tip is what marks the location.
+float pinShape(vec2 uv, out float rim){
+  vec2 head = vec2(0.5, 0.70);
+  float dh = length((uv - head) * vec2(1.0, 1.0));
+  float headFill = smoothstep(0.24, 0.20, dh);
+  rim = smoothstep(0.25, 0.21, dh) * smoothstep(0.13, 0.17, dh);
+
+  // Stem: narrows from the head down to a point at the bottom.
+  float t = clamp((0.70 - uv.y) / 0.66, 0.0, 1.0);
+  float halfWidth = mix(0.075, 0.004, pow(t, 0.75));
+  float stem = step(uv.y, 0.70) * smoothstep(halfWidth, halfWidth * 0.45, abs(uv.x - 0.5));
+
+  return max(headFill, stem);
+}
+
 void main(){
-  vec2 p = vUv - 0.5;
-  float d = length(p) * 2.0;
-  if (d > 1.0) discard;
-  float core = smoothstep(0.55, 0.0, d);
-  float halo = smoothstep(1.0, 0.35, d) * 0.42;
-  vec3 col = mix(vColor * 0.75, vec3(1.0), core * 0.7);
-  gl_FragColor = vec4(col, core + halo);
+  if (vKind > 0.5) {
+    // Cluster: a soft disc, centred on the quad.
+    vec2 c = vec2(0.5, 0.5);
+    float d = length(vUv - c) * 2.0;
+    if (d > 1.0) discard;
+    float core = smoothstep(0.52, 0.10, d);
+    float ring = smoothstep(0.60, 0.50, d) * smoothstep(0.36, 0.50, d);
+    float halo = smoothstep(1.0, 0.30, d) * 0.28;
+    vec3 col = mix(vColor, vec3(1.0), core * 0.45);
+    gl_FragColor = vec4(col, min(1.0, core * 0.9 + ring * 0.8 + halo));
+    return;
+  }
+
+  float rim;
+  float body = pinShape(vUv, rim);
+  float glow = smoothstep(0.34, 0.0, length((vUv - vec2(0.5, 0.70)))) * 0.35;
+  if (body + rim + glow < 0.02) discard;
+  vec3 col = mix(vColor, vec3(1.0), rim * 0.9);
+  gl_FragColor = vec4(col, min(1.0, body * 0.92 + rim + glow));
 }`;
 
 export class MarkerLayer {
@@ -49,12 +81,15 @@ export class MarkerLayer {
     this.selectedId = null;
 
     const geo = new THREE.PlaneGeometry(1, 1);
+    geo.translate(0, 0.5, 0);   // pivot at the tip, so a pin stands on the ground
     this.colors = new Float32Array(MAX_INSTANCES * 3);
     this.scales = new Float32Array(MAX_INSTANCES);
     this.phases = new Float32Array(MAX_INSTANCES);
+    this.kinds = new Float32Array(MAX_INSTANCES);   // 0 = pin, 1 = cluster
     geo.setAttribute('aColor', new THREE.InstancedBufferAttribute(this.colors, 3));
     geo.setAttribute('aScale', new THREE.InstancedBufferAttribute(this.scales, 1));
     geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(this.phases, 1));
+    geo.setAttribute('aKind', new THREE.InstancedBufferAttribute(this.kinds, 1));
 
     const mat = new THREE.ShaderMaterial({
       uniforms: { time: { value: 0 } },
@@ -82,6 +117,9 @@ export class MarkerLayer {
     this._quat = new THREE.Quaternion();
     this._camDir = new THREE.Vector3();
     this._normal = new THREE.Vector3();
+    this._toCam = new THREE.Vector3();
+    this._right = new THREE.Vector3();
+    this._fwd = new THREE.Vector3();
     this._raycaster = new THREE.Raycaster();
   }
 
@@ -140,25 +178,39 @@ export class MarkerLayer {
 
     this.visible = list;
     const near = THREE.MathUtils.clamp((3.6 - dist) / 2.2, 0, 1);
-    const base = THREE.MathUtils.lerp(0.030, 0.011, near);
+    const base = THREE.MathUtils.lerp(0.052, 0.020, near);
 
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
       latLonToVector3(item.lat, item.lon, GLOBE_RADIUS * LIFT, this._pos);
 
-      // Billboard: face the camera, so a marker reads the same at any angle.
-      this._m.lookAt(this._pos, this.camera.position, this._up);
-      this._rotM.extractRotation(this._m);
-      this._quat.setFromRotationMatrix(this._rotM);
+      if (item.cluster) {
+        // Clusters are plain discs, so a camera-facing billboard is right.
+        this._m.lookAt(this._pos, this.camera.position, this._up);
+        this._rotM.extractRotation(this._m);
+        this._quat.setFromRotationMatrix(this._rotM);
+      } else {
+        // Pin: +Y along the surface normal so it stands up, spun about that
+        // normal to face the viewer. The tip stays on the exact point.
+        this._normal.copy(this._pos).normalize();
+        this._toCam.copy(this.camera.position).sub(this._pos).normalize();
+        this._right.crossVectors(this._normal, this._toCam);
+        if (this._right.lengthSq() < 1e-8) this._right.set(1, 0, 0);
+        this._right.normalize();
+        this._fwd.crossVectors(this._right, this._normal).normalize();
+        this._rotM.makeBasis(this._right, this._normal, this._fwd);
+        this._quat.setFromRotationMatrix(this._rotM);
+      }
       this._m.compose(this._pos, this._quat, this._scaleVec);
       this.mesh.setMatrixAt(i, this._m);
 
       const selected = !item.cluster && item.point.id === this.selectedId;
       const size = item.cluster
-        ? base * (1.5 + Math.min(1.5, Math.log10(item.n + 1)))
-        : base * (selected ? 2.1 : 1);
+        ? base * (1.2 + Math.min(1.4, Math.log10(item.n + 1)))
+        : base * (selected ? 1.9 : 1.15);
       this.scales[i] = size;
       this.phases[i] = (i % 17) * 0.7;
+      this.kinds[i] = item.cluster ? 1 : 0;
 
       let c;
       if (selected) c = [1.0, 1.0, 1.0];
@@ -175,6 +227,7 @@ export class MarkerLayer {
     this.geo.attributes.aColor.needsUpdate = true;
     this.geo.attributes.aScale.needsUpdate = true;
     this.geo.attributes.aPhase.needsUpdate = true;
+    this.geo.attributes.aKind.needsUpdate = true;
     return list.length;
   }
 

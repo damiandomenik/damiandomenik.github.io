@@ -163,23 +163,57 @@ function msg(text, isError){
   m.className = 'note' + (isError ? ' err' : '');
 }
 
-/* Accepts a full URL in any of YouTube's shapes, or a bare ID. */
-function videoId(raw){
+/* Accepts a video, a playlist or a channel.
+   A playlist plays through its cameras in turn; a channel embed shows
+   whatever that channel is streaming right now, and nothing when it is off
+   air. Channel handles (@name) cannot be embedded — YouTube needs the UC…
+   id, which is on the channel's about page. */
+function parseTarget(raw){
   var s = (raw || '').trim();
   if (!s) return null;
-  if (/^[\w-]{11}$/.test(s)) return s;
+
+  var pl = s.match(/[?&]list=(PL[\w-]+|UU[\w-]+|FL[\w-]+)/);
+  if (pl) return { kind:'playlist', id:pl[1],
+    embed:'https://www.youtube.com/embed/videoseries?list=' + pl[1] + '&autoplay=1&mute=1',
+    link:'https://www.youtube.com/playlist?list=' + pl[1] };
+
+  var ch = s.match(/(UC[\w-]{22})/);
+  if (ch) return { kind:'channel', id:ch[1],
+    embed:'https://www.youtube.com/embed/live_stream?channel=' + ch[1] + '&autoplay=1&mute=1',
+    link:'https://www.youtube.com/channel/' + ch[1] };
+
+  if (/^[\w-]{11}$/.test(s)) return videoTarget(s);
   var m = s.match(/(?:v=|\/live\/|youtu\.be\/|\/embed\/|\/shorts\/)([\w-]{11})/);
-  return m ? m[1] : null;
+  if (m) return videoTarget(m[1]);
+
+  if (/youtube\.com\/@/.test(s)) return { kind:'handle' };
+  return null;
 }
+function videoTarget(id){
+  return { kind:'video', id:id,
+    embed:'https://www.youtube.com/embed/' + id + '?autoplay=1&mute=1',
+    link:'https://www.youtube.com/watch?v=' + id };
+}
+function videoId(raw){ var t = parseTarget(raw); return (t && t.id) ? t.id : null; }
 
 $('url').addEventListener('input', function(){
-  var id = videoId(this.value);
+  var t = parseTarget(this.value);
   var box = $('preview');
-  if (!id) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!t || t.kind === 'handle') {
+    box.hidden = true; box.innerHTML = '';
+    if (t && t.kind === 'handle') {
+      msg('A channel handle (@name) cannot be embedded. Open the channel, and use its UC… id from the page source or its about page.', true);
+    }
+    return;
+  }
   box.hidden = false;
-  box.innerHTML = '<iframe src="https://www.youtube.com/embed/' + id +
-    '?autoplay=0&mute=1" allow="fullscreen" allowfullscreen></iframe>';
-  msg('Check the preview: is it live right now, and does it play here? If it refuses to embed, skip it.');
+  box.innerHTML = '<iframe src="' + t.embed.replace('autoplay=1', 'autoplay=0') +
+    '" allow="fullscreen" allowfullscreen></iframe>';
+  msg(t.kind === 'channel'
+    ? 'Channel embed: this shows whatever the channel is streaming right now, and nothing when it is off air.'
+    : t.kind === 'playlist'
+      ? 'Playlist embed: it plays through the list in turn.'
+      : 'Check the preview: is it live right now, and does it play here? If it refuses to embed, skip it.');
 });
 
 /* OpenStreetMap's public geocoder. Free, no key, one request at a time. */
@@ -202,9 +236,10 @@ $('lookup').onclick = function(){
 };
 
 $('add').onclick = function(){
-  var id = videoId($('url').value);
+  var target = parseTarget($('url').value);
+  var id = target && target.id;
   var lat = toCoord($('lat').value), lon = toCoord($('lon').value);
-  if (!id) { msg('That does not look like a YouTube link or video ID.', true); return; }
+  if (!id) { msg('That does not look like a YouTube video, playlist or channel id.', true); return; }
   if (!validCoord(lat, 90) || !validCoord(lon, 180)) {
     msg('Coordinates are missing or out of range.', true); return;
   }
@@ -220,8 +255,8 @@ $('add').onclick = function(){
     lon: Number(lon.toFixed(5)),
     category: $('category').value,
     status: 'stream',
-    embed: 'https://www.youtube.com/embed/' + id + '?autoplay=1&mute=1',
-    link: 'https://www.youtube.com/watch?v=' + id
+    embed: target.embed,
+    link: target.link
   });
   save();
   ['url','title','place','lat','lon'].forEach(function(f){ $(f).value = ''; });

@@ -16,6 +16,7 @@ export class UI {
       panel: $('panel'), panelTitle: $('panel-title'), panelPlace: $('panel-place'),
       panelBadge: $('panel-badge'), panelMedia: $('panel-media'), panelMeta: $('panel-meta'),
       panelOpen: $('panel-open'), panelSource: $('panel-source'),
+      panelNearby: $('panel-nearby'), panelNote: $('panel-note'),
       toast: $('toast'), settings: $('settings'), keyInput: $('key-input')
     };
     this.onSelect = null;      // (point) => void
@@ -101,7 +102,7 @@ export class UI {
 
   /* ---------------- camera panel ---------------- */
 
-  showPoint(p) {
+  showPoint(p, nearby) {
     const e = this.el;
     e.panel.classList.remove('hidden');
     e.panelTitle.textContent = p.title;
@@ -184,6 +185,35 @@ export class UI {
       e.panelOpen.textContent = 'Open camera';
     } else {
       e.panelOpen.classList.add('hidden');
+    }
+
+    // A note explains anything the pin cannot: a roaming camera, a mosaic,
+    // a pin placed at one of several viewpoints.
+    e.panelNote.textContent = p.note || '';
+    e.panelNote.hidden = !p.note;
+
+    // Nearby cameras: the way to hop from one stream to the next without
+    // going back to the globe.
+    const list = (nearby || []).filter((n) => n.point.id !== p.id).slice(0, 5);
+    e.panelNearby.innerHTML = '';
+    if (list.length) {
+      const h = document.createElement('h3');
+      h.textContent = this.source === 'demo' ? 'Other markers nearby' : 'Other cameras nearby';
+      e.panelNearby.appendChild(h);
+      for (const n of list) {
+        const b = document.createElement('button');
+        b.className = 'nearby';
+        const name = document.createElement('span');
+        name.textContent = n.point.title;
+        const km = document.createElement('em');
+        km.textContent = n.km < 1 ? '<1 km' : Math.round(n.km).toLocaleString() + ' km';
+        b.append(name, km);
+        b.onclick = () => { if (this.onSearchPick) this.onSearchPick(n.point); };
+        e.panelNearby.appendChild(b);
+      }
+      e.panelNearby.hidden = false;
+    } else {
+      e.panelNearby.hidden = true;
     }
 
     e.panelSource.innerHTML = '';
@@ -327,13 +357,19 @@ export class UI {
     });
   }
 
-  /** Nearest point to a lat/lon, used after a search or a random jump. */
-  nearest(lat, lon, list) {
-    let best = null, bestD = Infinity;
+  /** Points ordered by distance from a position. */
+  nearestTo(lat, lon, limit = 6, list) {
+    const out = [];
     for (const p of (list || this.points)) {
-      const d = haversine(lat, lon, p.lat, p.lon);
-      if (d < bestD) { bestD = d; best = p; }
+      out.push({ point: p, km: haversine(lat, lon, p.lat, p.lon) });
     }
-    return best;
+    out.sort((a, b) => a.km - b.km);
+    return out.slice(0, limit);
+  }
+
+  /** Single nearest point, used after a search or a random jump. */
+  nearest(lat, lon, list) {
+    const n = this.nearestTo(lat, lon, 1, list);
+    return n.length ? n[0].point : null;
   }
 }

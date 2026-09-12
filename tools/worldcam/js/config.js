@@ -156,6 +156,49 @@ export function subsolarPoint(date = new Date()) {
   return { lat: dec / rad, lon };
 }
 
+/* Sub-lunar point — where the Moon stands overhead right now.
+   Low-precision lunar theory (Meeus, abridged): good to a few tenths of a
+   degree, which is far better than this needs. Phase follows from the angle
+   between the Moon and the Sun, so the crescent you see is the real one. */
+export function sublunarPoint(date = new Date()) {
+  const rad = Math.PI / 180;
+  const d = (date.getTime() - Date.UTC(2000, 0, 1, 12)) / 86400000;
+  const T = d / 36525;
+
+  const L = 218.316 + 13.176396 * d;            // mean longitude
+  const M = 134.963 + 13.064993 * d;            // mean anomaly
+  const F = 93.272 + 13.229350 * d;             // argument of latitude
+  const D = 297.850 + 12.190749 * d;            // mean elongation
+  const Ms = 357.529 + 0.98560028 * d;          // sun's mean anomaly
+
+  const lambda = (L
+    + 6.289 * Math.sin(M * rad)
+    - 1.274 * Math.sin((M - 2 * D) * rad)
+    + 0.658 * Math.sin(2 * D * rad)
+    + 0.214 * Math.sin(2 * M * rad)
+    - 0.186 * Math.sin(Ms * rad)
+    - 0.114 * Math.sin(2 * F * rad)) * rad;
+
+  const beta = (5.128 * Math.sin(F * rad)
+    + 0.281 * Math.sin((M + F) * rad)
+    - 0.278 * Math.sin((F - M) * rad)
+    - 0.173 * Math.sin((F - 2 * D) * rad)) * rad;
+
+  const e = (23.439 - 0.0000004 * d) * rad;
+  const sinDec = Math.sin(beta) * Math.cos(e) + Math.cos(beta) * Math.sin(e) * Math.sin(lambda);
+  const dec = Math.asin(sinDec);
+  let ra = Math.atan2(
+    Math.sin(lambda) * Math.cos(e) - Math.tan(beta) * Math.sin(e),
+    Math.cos(lambda)
+  ) / rad;
+  if (ra < 0) ra += 360;
+
+  const gmst = ((18.697374558 + 24.06570982441908 * d) % 24 + 24) % 24;
+  let lon = ra - gmst * 15;
+  lon = ((lon + 540) % 360) - 180;
+  return { lat: dec / rad, lon, T };
+}
+
 export function formatCoords(lat, lon) {
   const f = (v, pos, neg) => Math.abs(v).toFixed(2) + '° ' + (v >= 0 ? pos : neg);
   return f(lat, 'N', 'S') + ', ' + f(lon, 'E', 'W');

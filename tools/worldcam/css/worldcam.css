@@ -153,11 +153,25 @@ button{font:inherit}
 .media img{width:100%;height:100%;object-fit:cover;display:block}
 .media iframe{width:100%;height:100%;border:0;display:block;background:#000}
 .media .placeholder{font-size:12.5px;color:var(--ink-faint);text-align:center;padding:16px;line-height:1.6}
+.panel-note{margin:0 0 16px;font-size:13px;line-height:1.6;color:var(--ink-dim);
+  border-left:2px solid var(--line-bright);padding-left:12px}
 .meta{margin:0 0 18px;font-family:var(--mono);font-size:12px}
 .meta div{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
 .meta div:last-child{border-bottom:0}
 .meta dt{color:var(--ink-faint)}
 .meta dd{margin:0;color:var(--ink);text-align:right;word-break:break-word}
+.nearby-list{margin:0 0 18px}
+.nearby-list h3{margin:0 0 8px;font-family:var(--mono);font-size:10px;letter-spacing:.16em;
+  color:var(--ink-faint);font-weight:400}
+.nearby{
+  display:flex;width:100%;gap:12px;align-items:baseline;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--line-soft);
+  color:var(--ink-dim);padding:9px 2px;cursor:pointer;font-size:13.5px;
+}
+.nearby:last-child{border-bottom:0}
+.nearby:hover{color:var(--ink)}
+.nearby span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nearby em{font-family:var(--mono);font-size:11px;font-style:normal;color:var(--ink-faint);flex:none}
 .panel-actions{display:flex;gap:8px}
 .panel-actions .btn{flex:1;text-align:center;text-decoration:none}
 .panel-source{margin:14px 0 0;font-size:11.5px;color:var(--ink-faint);line-height:1.6}

@@ -141,6 +141,7 @@ export async function loadExported() {
     image: null,
     embed: c.embed || null,
     link: c.link || null,
+    note: c.note || null,
     demo: false
   }));
   if (!list.length) throw new Error('exported camera list is empty');

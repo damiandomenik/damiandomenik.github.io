@@ -1,7 +1,7 @@
 /* The scene itself: earth with a real day/night terminator,
    atmosphere, and a star field. No data logic lives here. */
 
-import { GLOBE_RADIUS, TEXTURES, latLonToVector3, subsolarPoint } from './config.js';
+import { GLOBE_RADIUS, TEXTURES, latLonToVector3, subsolarPoint, sublunarPoint } from './config.js';
 
 const EARTH_VERT = `
 varying vec2 vUv;
@@ -90,9 +90,12 @@ export class Globe {
     this.camera.position.set(0, 0, 3.2);
 
     this.sunDir = new THREE.Vector3(1, 0, 0);
+    this.moonDir = new THREE.Vector3(0, 0, 1);
     this._buildEarth();
     this._buildAtmosphere();
     this._buildStars();
+    this._buildSun();
+    this._buildMoon();
     this.updateSun();
 
     this.resize();
@@ -188,6 +191,78 @@ export class Globe {
     this.disposables.push(geo, mat);
   }
 
+  /* The Sun: a bright disc with a corona, parked far out along the real
+     sub-solar direction. The Earth occludes it when it is behind, which is
+     what makes sunrise over the limb read correctly. */
+  _buildSun() {
+    const geo = new THREE.PlaneGeometry(1, 1);
+    const mat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: {},
+      vertexShader: `
+        varying vec2 vUv;
+        void main(){
+          vUv = uv;
+          // Billboard: strip the rotation out of the model-view matrix.
+          vec3 c = vec3(modelViewMatrix[3]);
+          float s = length(vec3(modelMatrix[0]));
+          gl_Position = projectionMatrix * vec4(c + vec3(position.xy * s, 0.0), 1.0);
+        }`,
+      fragmentShader: `
+        varying vec2 vUv;
+        void main(){
+          float d = length(vUv - 0.5) * 2.0;
+          if (d > 1.0) discard;
+          float disc = smoothstep(0.16, 0.10, d);
+          float corona = pow(max(0.0, 1.0 - d), 3.2) * 0.55;
+          float spike = pow(max(0.0, 1.0 - abs(vUv.x - 0.5) * 14.0), 6.0) * 0.16
+                      + pow(max(0.0, 1.0 - abs(vUv.y - 0.5) * 14.0), 6.0) * 0.16;
+          vec3 col = mix(vec3(1.0, 0.86, 0.62), vec3(1.0), disc);
+          gl_FragColor = vec4(col, min(1.0, disc + corona + spike * (1.0 - d)));
+        }`
+    });
+    this.sun = new THREE.Mesh(geo, mat);
+    this.sun.scale.setScalar(9);
+    this.sun.renderOrder = 1;
+    this.scene.add(this.sun);
+    this.disposables.push(geo, mat);
+  }
+
+  /* The Moon: a small sphere lit from the Sun's real direction, so the phase
+     on screen is the phase in the sky tonight. */
+  _buildMoon() {
+    const geo = new THREE.SphereGeometry(1, 32, 24);
+    this.moonUniforms = { sunDir: { value: this.sunDir } };
+    const mat = new THREE.ShaderMaterial({
+      uniforms: this.moonUniforms,
+      vertexShader: `
+        varying vec3 vN;
+        varying vec2 vUv;
+        void main(){
+          vN = normalize(mat3(modelMatrix) * normal);
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 sunDir;
+        varying vec3 vN;
+        varying vec2 vUv;
+        // Cheap crater mottling so it is not a flat grey ball.
+        float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        void main(){
+          float lit = smoothstep(-0.06, 0.12, dot(normalize(vN), normalize(sunDir)));
+          float m = h(floor(vUv * 26.0)) * 0.16 + h(floor(vUv * 11.0)) * 0.10;
+          vec3 col = vec3(0.80 - m) * (0.06 + lit * 0.98);
+          gl_FragColor = vec4(col, 1.0);
+        }`
+    });
+    this.moon = new THREE.Mesh(geo, mat);
+    this.scene.add(this.moon);
+    this.disposables.push(geo, mat);
+  }
+
   /* ---------------- textures ---------------- */
 
   /** Loads the earth imagery. Resolves either way — a failure downgrades
@@ -229,6 +304,16 @@ export class Globe {
     const p = subsolarPoint(date);
     latLonToVector3(p.lat, p.lon, 1, this.sunDir);
     this.sunPoint = p;
+
+    // Both bodies sit along their true directions. The distances are not to
+    // scale — at true scale the Moon would be a pixel and the Sun invisible.
+    this.sun.position.copy(this.sunDir).multiplyScalar(34);
+
+    const m = sublunarPoint(date);
+    latLonToVector3(m.lat, m.lon, 1, this.moonDir);
+    this.moon.position.copy(this.moonDir).multiplyScalar(11);
+    this.moon.scale.setScalar(0.42);
+    this.moonPoint = m;
     return p;
   }
 

@@ -75,7 +75,7 @@ export class GlobeControls {
       if (this._pointers.size === 1) {
         // Slower rotation the closer you are, so zoomed-in panning is precise.
         const k = 0.0042 * Math.max(0.28, (this.targetDist - 1) / 2.2);
-        this.targetTheta -= dx * k;
+        this.targetTheta += dx * k;
         this.targetPhi -= dy * k;
         this.targetPhi = Math.max(0.08, Math.min(Math.PI - 0.08, this.targetPhi));
       } else if (this._pointers.size === 2 && this._pinchStart) {
@@ -116,8 +116,8 @@ export class GlobeControls {
     window.addEventListener('keydown', (e) => {
       if (document.activeElement && /input|textarea/i.test(document.activeElement.tagName)) return;
       const step = 0.12;
-      if (e.key === 'ArrowLeft') { this.targetTheta += step; this.autoRotate = false; }
-      if (e.key === 'ArrowRight') { this.targetTheta -= step; this.autoRotate = false; }
+      if (e.key === 'ArrowLeft') { this.targetTheta -= step; this.autoRotate = false; }
+      if (e.key === 'ArrowRight') { this.targetTheta += step; this.autoRotate = false; }
       if (e.key === 'ArrowUp') { this.targetPhi = Math.max(0.08, this.targetPhi - step); this.autoRotate = false; }
       if (e.key === 'ArrowDown') { this.targetPhi = Math.min(Math.PI - 0.08, this.targetPhi + step); this.autoRotate = false; }
       if (e.key === '+' || e.key === '=') this.setDistance(this.targetDist * 0.85);
@@ -135,10 +135,15 @@ export class GlobeControls {
     this.targetDist = Math.max(MIN_DIST, Math.min(MAX_DIST, d));
   }
 
-  /** Angles that put the given lat/lon at the centre of the view. */
+  /** Angles that put the given lat/lon at the centre of the view.
+   *  Derived from the surface mapping in config.js: a point sits at
+   *  (-sinφ·cosθt, cosφ, sinφ·sinθt) with θt = (lon+180), while the camera
+   *  sits at (sinφ·cosθc, cosφ, sinφ·sinθc). Matching the two gives
+   *  θc = π − θt. Getting this wrong aims the camera at the opposite face
+   *  of the globe, where every marker is culled. */
   anglesFor(lat, lon) {
     const phi = (90 - lat) * Math.PI / 180;
-    const theta = -(lon + 180) * Math.PI / 180 - Math.PI / 2;
+    const theta = Math.PI - (lon + 180) * Math.PI / 180;
     return { phi: Math.max(0.08, Math.min(Math.PI - 0.08, phi)), theta };
   }
 
@@ -179,7 +184,7 @@ export class GlobeControls {
         if (done) done();
       }
     } else if (this.autoRotate) {
-      this.targetTheta -= this.autoSpeed * dt;
+      this.targetTheta += this.autoSpeed * dt;
     }
 
     const k = this.flight ? 1 : 1 - Math.pow(0.0018, dt);

@@ -67,7 +67,7 @@ function start() {
     needsRebuild = true;
     ui.hidePanel();
     return controls.flyTo(p.lat, p.lon, 1.32, duration).then(() => {
-      ui.showPoint(p);
+      ui.showPoint(p, ui.nearestTo(p.lat, p.lon, 6, points.filter(filterFn)));
       selected = p;
     });
   }
