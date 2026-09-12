@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WorldCam — explore the Earth through public webcams</title>
+<meta name="description" content="An interactive 3D globe for discovering publicly listed webcams around the world.">
+<link rel="stylesheet" href="./css/worldcam.css">
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<!-- ---------- loading ---------- -->
+<div id="loader" class="veil">
+  <div class="loader-inner">
+    <div class="orb" aria-hidden="true"><i></i><i></i></div>
+    <p id="loader-text">Connecting to Earth</p>
+    <div class="track"><span id="loader-bar"></span></div>
+  </div>
+</div>
+
+<!-- ---------- start screen ---------- -->
+<div id="start" class="veil hidden">
+  <div class="start-inner">
+    <p class="eyebrow">A tool by damiandomenik</p>
+    <h1>World<span>Cam</span></h1>
+    <p class="tagline">Explore the world through public webcams.</p>
+    <div class="start-actions">
+      <button class="btn primary" id="explore">Explore Earth</button>
+      <button class="btn" id="surprise-start">Take me somewhere</button>
+    </div>
+    <p class="start-note" id="start-note"></p>
+  </div>
+</div>
+
+<!-- ---------- top bar ---------- -->
+<header id="topbar" class="chrome hidden">
+  <div class="mark">WORLDCAM</div>
+  <div class="searchbox">
+    <input id="search" type="search" placeholder="Search a city, country or place…" autocomplete="off" spellcheck="false">
+    <ul id="suggest" class="suggest hidden"></ul>
+  </div>
+  <div class="top-actions">
+    <button class="btn small" id="surprise">Take me somewhere</button>
+    <button class="btn small ghost" id="settings-open" title="Data source">Source</button>
+  </div>
+</header>
+
+<!-- ---------- filters ---------- -->
+<nav id="filters" class="chrome hidden" aria-label="Categories"></nav>
+
+<!-- ---------- status ---------- -->
+<footer id="status" class="chrome hidden">
+  <span id="stat-count">—</span>
+  <span id="stat-src" class="pill">—</span>
+  <span id="stat-sun"></span>
+</footer>
+
+<!-- ---------- camera panel ---------- -->
+<aside id="panel" class="hidden" aria-live="polite">
+  <button class="close" id="panel-close" aria-label="Close">×</button>
+  <div class="panel-kicker"><span id="panel-badge" class="badge">—</span></div>
+  <h2 id="panel-title">—</h2>
+  <p id="panel-place" class="panel-place">—</p>
+  <div id="panel-media" class="media"></div>
+  <dl id="panel-meta" class="meta"></dl>
+  <div class="panel-actions">
+    <a id="panel-open" class="btn primary" href="#" target="_blank" rel="noopener noreferrer">Open camera</a>
+  </div>
+  <p id="panel-source" class="panel-source"></p>
+</aside>
+
+<!-- ---------- toast / errors ---------- -->
+<div id="toast" class="hidden"></div>
+
+<!-- ---------- data source dialog ---------- -->
+<div id="settings" class="veil hidden">
+  <div class="sheet">
+    <h3>Where the webcams come from</h3>
+    <p>This page has no server of its own, so it cannot hold an API key for you. Windy's
+       Webcams API only accepts a key as a request header, and any key shipped with a
+       static site would be readable by anyone who opened it.</p>
+    <p>You can paste your own free key below. It is kept in this browser only, it is never
+       sent anywhere except to <code>api.windy.com</code>, and you can remove it at any time.
+       Without a key the globe runs on a small demo set, labelled as such.</p>
+    <label class="field">
+      <span>Windy API key</span>
+      <input id="key-input" type="password" placeholder="x-windy-api-key" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="sheet-actions">
+      <button class="btn primary" id="key-save">Use this key</button>
+      <button class="btn" id="key-clear">Remove key</button>
+      <button class="btn ghost" id="settings-close">Close</button>
+    </div>
+    <p class="fineprint">
+      Get a key at <a href="https://api.windy.com/keys" target="_blank" rel="noopener noreferrer">api.windy.com/keys</a>.
+      Free keys have a domain restriction — add this site's domain there, or requests from the browser will be refused.
+      Preview image links from the free tier expire after about ten minutes, so they are re-fetched on every load.
+    </p>
+  </div>
+</div>
+
+<noscript><div class="veil"><p style="color:#e6edf5">WorldCam needs JavaScript and WebGL.</p></div></noscript>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

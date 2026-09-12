@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WorldCam — camera curator</title>
+<link rel="stylesheet" href="./css/worldcam.css">
+<style>
+  body{overflow:auto;background:#05070B}
+  body::before{content:none}
+  .page{max-width:900px;margin:0 auto;padding:44px 22px 90px;position:relative;z-index:2}
+  h1{font-size:32px;letter-spacing:-.03em;margin:0 0 8px;font-weight:600}
+  .lede{color:var(--ink-dim);font-size:15px;line-height:1.65;max-width:66ch;margin:0 0 30px}
+  .lede code{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  .card{background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:22px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.row{grid-template-columns:1fr}}
+  .field span{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;color:var(--ink-faint);margin-bottom:7px}
+  .field input,.field select{
+    width:100%;height:42px;border-radius:9px;border:1px solid var(--line);
+    background:rgba(255,255,255,.04);color:var(--ink);padding:0 12px;font-size:14px;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent-deep)}
+  .field{margin:0 0 14px}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;align-items:center}
+  .note{font-size:12.5px;color:var(--ink-faint);line-height:1.6;margin-top:12px}
+  .note.err{color:var(--warn)}
+  .preview{margin-top:16px;border-radius:12px;overflow:hidden;border:1px solid var(--line-soft);aspect-ratio:16/9;background:#000}
+  .preview iframe{width:100%;height:100%;border:0;display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--ink-faint);
+     font-weight:400;padding:0 10px 10px 0;border-bottom:1px solid var(--line)}
+  td{padding:10px 10px 10px 0;border-bottom:1px solid var(--line-soft);vertical-align:top}
+  td.coords{font-family:var(--mono);font-size:12px;color:var(--ink-dim);white-space:nowrap}
+  .del{background:none;border:0;color:var(--ink-faint);cursor:pointer;font-size:16px;padding:0 4px}
+  .del:hover{color:var(--bad)}
+  .count{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);margin-left:auto}
+  .empty-row{color:var(--ink-faint);font-size:13.5px;padding:20px 0}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Camera curator</h1>
+  <p class="lede">
+    Paste a YouTube live stream and a place. This builds <code>data/cameras.json</code>, which the
+    globe reads at runtime. Your list is kept in this browser as you go, so you can stop and come
+    back. Nothing is uploaded anywhere.
+  </p>
+  <p class="lede">
+    Check the stream is actually live before you add it — the preview below is exactly what a
+    visitor will see. Coordinates come from OpenStreetMap's public geocoder, or you can type them
+    in yourself.
+  </p>
+
+  <div class="card">
+    <label class="field">
+      <span>YOUTUBE URL OR VIDEO ID</span>
+      <input id="url" placeholder="https://www.youtube.com/watch?v=… or just the ID" spellcheck="false">
+    </label>
+
+    <div class="row">
+      <label class="field">
+        <span>TITLE</span>
+        <input id="title" placeholder="Shanghai — The Bund">
+      </label>
+      <label class="field">
+        <span>PLACE TO LOOK UP</span>
+        <input id="place" placeholder="Shanghai, China">
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="field">
+        <span>LATITUDE</span>
+        <input id="lat" inputmode="decimal" placeholder="31.2397">
+      </label>
+      <label class="field">
+        <span>LONGITUDE</span>
+        <input id="lon" inputmode="decimal" placeholder="121.4900">
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="field">
+        <span>COUNTRY</span>
+        <input id="country" placeholder="China">
+      </label>
+      <label class="field">
+        <span>CATEGORY</span>
+        <select id="category">
+          <option value="city">Cities</option>
+          <option value="beach">Beaches</option>
+          <option value="mountain">Mountains</option>
+          <option value="harbor">Ports</option>
+          <option value="airport">Airports</option>
+          <option value="traffic">Roads</option>
+          <option value="landscape">Nature</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="lookup">Look up coordinates</button>
+      <button class="btn primary" id="add">Add camera</button>
+    </div>
+    <p class="note" id="msg"></p>
+
+    <div class="preview" id="preview" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="actions" style="margin:0 0 18px">
+      <button class="btn primary" id="download">Download cameras.json</button>
+      <button class="btn" id="import">Import existing file</button>
+      <button class="btn ghost" id="clear">Clear list</button>
+      <span class="count" id="count">0 cameras</span>
+    </div>
+    <input type="file" id="file" accept="application/json" hidden>
+    <table>
+      <thead><tr><th>Title</th><th>Place</th><th>Coordinates</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="note">
+      Save the downloaded file as <code>data/cameras.json</code> in this folder and commit it.
+      The globe picks it up automatically — no key, no build step.
+    </p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+var STORE = 'worldcam.curator.list';
+var $ = function(id){ return document.getElementById(id); };
+var list = [];
+
+try { list = JSON.parse(localStorage.getItem(STORE) || '[]'); } catch(e) { list = []; }
+
+function save(){
+  try { localStorage.setItem(STORE, JSON.stringify(list)); } catch(e){}
+  render();
+}
+
+/* isFinite(null) is true and Number(null) is 0, so a missing coordinate
+   silently becomes a valid-looking point at 0°/0°. Reject the empty cases
+   before converting, never after. */
+function toCoord(v){
+  if (v === null || v === undefined || v === '') return NaN;
+  var n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+function validCoord(v, limit){
+  var n = toCoord(v);
+  return Number.isFinite(n) && Math.abs(n) <= limit;
+}
+
+function msg(text, isError){
+  var m = $('msg');
+  m.textContent = text || '';
+  m.className = 'note' + (isError ? ' err' : '');
+}
+
+/* Accepts a full URL in any of YouTube's shapes, or a bare ID. */
+function videoId(raw){
+  var s = (raw || '').trim();
+  if (!s) return null;
+  if (/^[\w-]{11}$/.test(s)) return s;
+  var m = s.match(/(?:v=|\/live\/|youtu\.be\/|\/embed\/|\/shorts\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+$('url').addEventListener('input', function(){
+  var id = videoId(this.value);
+  var box = $('preview');
+  if (!id) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  box.innerHTML = '<iframe src="https://www.youtube.com/embed/' + id +
+    '?autoplay=0&mute=1" allow="fullscreen" allowfullscreen></iframe>';
+  msg('Check the preview: is it live right now, and does it play here? If it refuses to embed, skip it.');
+});
+
+/* OpenStreetMap's public geocoder. Free, no key, one request at a time. */
+$('lookup').onclick = function(){
+  var q = $('place').value.trim();
+  if (!q) { msg('Type a place first, or fill the coordinates in by hand.', true); return; }
+  msg('Looking up “' + q + '”…');
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j || !j.length) { msg('Nothing found for that place. Enter coordinates manually.', true); return; }
+      $('lat').value = Number(j[0].lat).toFixed(4);
+      $('lon').value = Number(j[0].lon).toFixed(4);
+      var parts = (j[0].display_name || '').split(',');
+      if (!$('country').value) $('country').value = parts[parts.length - 1].trim();
+      if (!$('title').value) $('title').value = parts[0].trim();
+      msg('Found: ' + j[0].display_name);
+    })
+    .catch(function(){ msg('The geocoder did not respond. Enter coordinates manually.', true); });
+};
+
+$('add').onclick = function(){
+  var id = videoId($('url').value);
+  var lat = toCoord($('lat').value), lon = toCoord($('lon').value);
+  if (!id) { msg('That does not look like a YouTube link or video ID.', true); return; }
+  if (!validCoord(lat, 90) || !validCoord(lon, 180)) {
+    msg('Coordinates are missing or out of range.', true); return;
+  }
+  if (list.some(function(c){ return c.id === id; })) { msg('That stream is already in the list.', true); return; }
+
+  list.push({
+    id: id,
+    title: $('title').value.trim() || 'Live camera',
+    city: $('title').value.trim() || null,
+    region: null,
+    country: $('country').value.trim() || null,
+    lat: Number(lat.toFixed(5)),
+    lon: Number(lon.toFixed(5)),
+    category: $('category').value,
+    status: 'stream',
+    embed: 'https://www.youtube.com/embed/' + id + '?autoplay=1&mute=1',
+    link: 'https://www.youtube.com/watch?v=' + id
+  });
+  save();
+  ['url','title','place','lat','lon'].forEach(function(f){ $(f).value = ''; });
+  $('preview').hidden = true; $('preview').innerHTML = '';
+  msg('Added. ' + list.length + ' in the list.');
+};
+
+function render(){
+  var body = $('rows');
+  body.innerHTML = '';
+  $('count').textContent = list.length + (list.length === 1 ? ' camera' : ' cameras');
+  if (!list.length) {
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = 4; td.className = 'empty-row';
+    td.textContent = 'Nothing yet. Add your first stream above.';
+    tr.appendChild(td); body.appendChild(tr);
+    return;
+  }
+  list.forEach(function(c, i){
+    var tr = document.createElement('tr');
+    var t = document.createElement('td'); t.textContent = c.title;
+    var p = document.createElement('td'); p.textContent = c.country || '—';
+    var g = document.createElement('td'); g.className = 'coords';
+    g.textContent = (validCoord(c.lat, 90) && validCoord(c.lon, 180))
+      ? c.lat.toFixed(3) + ', ' + c.lon.toFixed(3)
+      : 'no coordinates';
+    var d = document.createElement('td');
+    var b = document.createElement('button');
+    b.className = 'del'; b.textContent = '×'; b.title = 'Remove';
+    b.onclick = function(){ list.splice(i, 1); save(); };
+    d.appendChild(b);
+    tr.append(t, p, g, d);
+    body.appendChild(tr);
+  });
+}
+
+$('download').onclick = function(){
+  if (!list.length) { msg('The list is empty.', true); return; }
+  var payload = {
+    source: 'Curated YouTube live streams',
+    attribution: 'Streams are hosted on YouTube by their own operators',
+    exportedAt: new Date().toISOString().slice(0, 10),
+    count: list.length,
+    cameras: list
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cameras.json';
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+};
+
+$('import').onclick = function(){ $('file').click(); };
+$('file').onchange = function(){
+  var f = this.files && this.files[0];
+  if (!f) return;
+  var r = new FileReader();
+  r.onload = function(){
+    try {
+      var data = JSON.parse(r.result);
+      var incoming = data.cameras || [];
+      var known = {};
+      list.forEach(function(c){ known[c.id] = 1; });
+      var added = 0, skipped = 0;
+      incoming.forEach(function(c){
+        var lat = toCoord(c && c.lat), lon = toCoord(c && c.lon);
+        if (c && c.id && !known[c.id] && validCoord(c.lat, 90) && validCoord(c.lon, 180)) {
+          c.lat = lat; c.lon = lon;
+          list.push(c); known[c.id] = 1; added++;
+        } else if (c && c.id && !known[c.id]) {
+          skipped++;
+        }
+      });
+      save();
+      msg('Merged ' + added + ' new ' + (added === 1 ? 'camera' : 'cameras') +
+          (skipped ? ', skipped ' + skipped + ' without usable coordinates.' : '.'));
+    } catch(e) { msg('That file could not be read as JSON.', true); }
+  };
+  r.readAsText(f);
+  this.value = '';
+};
+
+$('clear').onclick = function(){
+  if (!list.length) return;
+  if (!confirm('Remove all ' + list.length + ' cameras from the list?')) return;
+  list = []; save(); msg('List cleared.');
+};
+
+render();
+})();
+</script>
+</body>
+</html>

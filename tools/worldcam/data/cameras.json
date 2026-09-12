@@ -1,0 +1,22 @@
+{
+ "source": "Curated YouTube live streams",
+ "attribution": "Streams are hosted on YouTube by their own operators",
+ "exportedAt": "2026-09-06",
+ "note": "Seed file with a single verified entry. Use curator.html to add your own, then replace this file.",
+ "count": 1,
+ "cameras": [
+  {
+   "id": "EwTH5yY7Mks",
+   "title": "Brooks Falls Brown Bears (Low)",
+   "city": "Katmai National Park",
+   "region": "Alaska",
+   "country": "United States",
+   "lat": 58.5561,
+   "lon": -155.7797,
+   "category": "landscape",
+   "status": "stream",
+   "embed": "https://www.youtube.com/embed/EwTH5yY7Mks?autoplay=1&mute=1",
+   "link": "https://www.youtube.com/watch?v=EwTH5yY7Mks"
+  }
+ ]
+}
